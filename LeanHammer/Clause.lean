@@ -39,7 +39,12 @@ namespace Clause
 
 def ofExpr (e : Expr) : MetaM Clause :=
   forallTelescope e fun xs e => do
-    return Clause.mk #[← Lit.ofExpr e]
+    return Clause.mk (← ofExprLits e)
+where ofExprLits (lits : Expr) : MetaM (Array Lit) :=
+  match lits with
+  | Expr.app (Expr.app (Expr.const ``Or _ _) lit _) lits _ => do
+    return (← ofExprLits lits).push $ ← Lit.ofExpr lit
+  | _ => return #[← Lit.ofExpr lits]
 
 def toExpr (c : Clause) : Expr :=
   litsToExpr c.lits.data

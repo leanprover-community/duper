@@ -20,10 +20,10 @@ partial def evalGo : Tactic
     let ldecl ← getLocalDecl fVarId
     unless ldecl.binderInfo.isAuxDecl ∨ not (← inferType ldecl.type).isProp do
       let c ← Clause.ofExpr ldecl.type
-      let subst : Option FVarSubst ← unify #[((c.lits.get! 0).lhs, (c.lits.get! 0).rhs)] {}
-      trace[Meta.debug] "{subst}"
-      trace[Meta.debug] "{(c.lits.get! 0).lhs}"
-      trace[Meta.debug] "{(c.lits.get! 0).rhs}"
+      -- let subst : Option FVarSubst ← unify #[((c.lits.get! 0).lhs, (c.lits.get! 0).rhs)] {}
+      trace[Meta.debug] "{c}"
+      -- trace[Meta.debug] "{(c.lits.get! 0).lhs}"
+      -- trace[Meta.debug] "{(c.lits.get! 0).rhs}"
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic
@@ -31,5 +31,5 @@ end Lean.Elab.Tactic
 set_option trace.Meta.debug true
 -- set_option pp.all true
 
-example (h : ∀ x, x ≠ c) : False := by
+example (h : ∀ x, x ≠ c ∨ a = b) : False := by
   go
