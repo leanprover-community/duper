@@ -10,7 +10,7 @@ open Std
 
 set_option trace.Prover.debug true
 
-set_option maxHeartbeats 1000
+set_option maxHeartbeats 10000
 
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
   givenClause
@@ -21,7 +21,7 @@ def backwardSimplify (givenClause : Clause) : ProverM Unit := do
 def performInferences (givenClause : Clause) : ProverM Unit := do
   ()
 
-#check Exception
+-- throwEmptyClauseException
 
 partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $
@@ -35,7 +35,6 @@ partial def saturate : ProverM Unit := do
       backwardSimplify givenClause
       performInferences givenClause
       Core.checkMaxHeartbeats "saturate"
-      -- throw emptyClauseExceptionId
       return LoopCtrl.next
     catch
     | Exception.internal emptyClauseExceptionId _  =>
@@ -44,8 +43,8 @@ partial def saturate : ProverM Unit := do
     | e => throw e
   trace[Prover.debug] "Done."
   trace[Prover.debug] "Result: {← getResult}"
-  -- trace[Prover.debug] "Active: {← getActiveSet}"
-  -- trace[Prover.debug] "Passive: {← getPassiveSet}"
+  trace[Prover.debug] "Active: {(← getActiveSet).toArray}"
+  trace[Prover.debug] "Passive: {(← getPassiveSet).toArray}"
   
 #check BinomialHeap
 #eval saturate

@@ -80,3 +80,6 @@ def chooseGivenClause : ProverM (Option Clause) := do
   return c
 
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
+
+def throwEmptyClauseException : ProverM α :=
+  throw <| Exception.internal emptyClauseExceptionId
