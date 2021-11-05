@@ -1,8 +1,10 @@
 import LeanHammer.Clause
+import Std.Data.BinomialHeap
 
 namespace Prover
 open Lean
 open Lean.Core
+open Std
 
 inductive Result :=
 | unknown
@@ -11,6 +13,9 @@ inductive Result :=
   deriving Inhabited
 
 open Result
+
+abbrev ClauseSet := HashSet Clause
+abbrev ClauseAgeHeap := BinomialHeap Clause fun c d => c.id ≤ d.id
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -24,9 +29,10 @@ deriving Inhabited
 
 structure State where
   result : Result := unknown
-  activeSet : Array Clause := #[]
-  passiveSet : Array Clause := #[]
-  deriving Inhabited
+  activeSet : ClauseSet := {}
+  passiveSet : ClauseSet := {}
+  passiveSetHeap : ClauseAgeHeap := BinomialHeap.empty
+  nextClauseId : Nat := 0
 
 abbrev ProverM := ReaderT Context $ StateRefT State CoreM
 
@@ -61,8 +67,16 @@ def setResult (result : Result) : ProverM Unit :=
 def getResult : ProverM Result :=
   return (← get).result
 
-def getActiveSet : ProverM (Array Clause) :=
+def getActiveSet : ProverM ClauseSet :=
   return (← get).activeSet
 
-def getPassiveSet : ProverM (Array Clause) :=
+def getPassiveSet : ProverM ClauseSet :=
   return (← get).passiveSet
+
+def chooseGivenClause : ProverM (Option Clause) := do
+  let some (c, h) ← (← get).passiveSetHeap.deleteMin
+    | return none
+  modify fun s => { s with passiveSetHeap := h }
+  return c
+
+initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
