@@ -9,7 +9,7 @@ structure Lit :=
 (ty : Expr)
 (lhs : Expr)
 (rhs : Expr)
-deriving Inhabited
+deriving Inhabited, BEq
 
 namespace Lit
 
@@ -33,9 +33,11 @@ end Lit
 
 structure Clause :=
 (lits : Array Lit)
-deriving Inhabited
+deriving Inhabited, BEq
 
 namespace Clause
+
+def empty :Clause := ⟨#[]⟩
 
 def ofExpr (e : Expr) : MetaM Clause :=
   forallTelescope e fun xs e => do
