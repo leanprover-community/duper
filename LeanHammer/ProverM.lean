@@ -61,9 +61,6 @@ initialize
 def getBlah : ProverM Bool :=
   return (← read).blah
 
-def setResult (result : Result) : ProverM Unit :=
-  modify fun s => { s with result := result }
-
 def getResult : ProverM Result :=
   return (← get).result
 
@@ -73,13 +70,59 @@ def getActiveSet : ProverM ClauseSet :=
 def getPassiveSet : ProverM ClauseSet :=
   return (← get).passiveSet
 
-def chooseGivenClause : ProverM (Option Clause) := do
-  let some (c, h) ← (← get).passiveSetHeap.deleteMin
-    | return none
-  modify fun s => { s with passiveSetHeap := h }
-  return c
+def getPassiveSetHeap : ProverM ClauseAgeHeap :=
+  return (← get).passiveSetHeap
+
+def setResult (result : Result) : ProverM Unit :=
+  modify fun s => { s with result := result }
+
+def setActiveSet (activeSet : ClauseSet) : ProverM Unit :=
+  modify fun s => { s with activeSet := activeSet }
+
+def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
+  modify fun s => { s with passiveSet := passiveSet }
+
+def setPassiveSetHeap (passiveSetHeap : ClauseAgeHeap) : ProverM Unit :=
+  modify fun s => { s with passiveSetHeap := passiveSetHeap }
 
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
 def throwEmptyClauseException : ProverM α :=
   throw <| Exception.internal emptyClauseExceptionId
+
+def chooseGivenClause : ProverM (Option Clause) := do
+  let some (c, h) ← (← getPassiveSetHeap).deleteMin
+    | return none
+  setPassiveSetHeap h
+  -- TODO: Check if formula hasn't been removed from PassiveSet already
+  -- Then we need to choose a different one.
+  setPassiveSet $ (← getPassiveSet).erase c
+  return c
+
+def mkClause (lits : List Lit) : ProverM Clause := do
+  Clause.mk (← get).nextClauseId lits
+
+def mkClauseFromExpr (e : Expr) : ProverM Clause := do
+  mkClause [Lit.mk
+    (sign := true)
+    (lvl := levelZero)
+    (lhs := e)
+    (rhs := mkConst ``True)
+    (ty := mkConst `Prop)
+  ]
+
+def addToPassive (c : Clause) : ProverM Unit := do
+  setPassiveSet $ (← getPassiveSet).insert c
+  setPassiveSetHeap $ (← getPassiveSetHeap).insert c
+
+def addExprToPassive (e : Expr) : ProverM Unit := do
+  addToPassive (← mkClauseFromExpr e)
+  
+def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
+  ProverM.run' do
+    for e in es do
+      addExprToPassive e
+    x
+
+def addToActive (c : Clause) : ProverM Unit := do
+  setActiveSet $ (← getActiveSet).insert c

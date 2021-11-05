@@ -33,6 +33,7 @@ partial def saturate : ProverM Unit := do
       let some givenClause ← forwardSimplify givenClause
         | return LoopCtrl.next
       backwardSimplify givenClause
+      addToActive givenClause
       performInferences givenClause
       Core.checkMaxHeartbeats "saturate"
       return LoopCtrl.next
