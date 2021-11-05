@@ -25,7 +25,7 @@ def performInferences (givenClause : Clause) : ProverM Unit := do
 
 partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $
-    catchInternalId emptyClauseExceptionId (do
+    try do
       let some givenClause ← chooseGivenClause
         | do
           setResult saturated
@@ -35,10 +35,13 @@ partial def saturate : ProverM Unit := do
       backwardSimplify givenClause
       performInferences givenClause
       Core.checkMaxHeartbeats "saturate"
-      return LoopCtrl.next)
-    (fun h => do
+      -- throw emptyClauseExceptionId
+      return LoopCtrl.next
+    catch
+    | Exception.internal emptyClauseExceptionId _  =>
       setResult contadiction
-      return LoopCtrl.abort)
+      return LoopCtrl.abort
+    | e => throw e
   trace[Prover.debug] "Done."
   trace[Prover.debug] "Result: {← getResult}"
   -- trace[Prover.debug] "Active: {← getActiveSet}"
