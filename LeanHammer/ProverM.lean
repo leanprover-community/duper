@@ -15,7 +15,7 @@ inductive Result :=
 open Result
 
 abbrev ClauseSet := HashSet Clause
-abbrev ClauseAgeHeap := BinomialHeap Clause fun c d => c.id ≤ d.id
+abbrev ClauseAgeHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -32,7 +32,8 @@ structure State where
   activeSet : ClauseSet := {}
   passiveSet : ClauseSet := {}
   passiveSetHeap : ClauseAgeHeap := BinomialHeap.empty
-  nextClauseId : Nat := 0
+  clauseAge : HashMap Clause Nat := {}
+
 
 abbrev ProverM := ReaderT Context $ StateRefT State CoreM
 
@@ -90,33 +91,24 @@ initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExce
 def throwEmptyClauseException : ProverM α :=
   throw <| Exception.internal emptyClauseExceptionId
 
+def getClauseAge (c : Clause) : ProverM Nat := do
+  (← get).clauseAge.find! c
+
 def chooseGivenClause : ProverM (Option Clause) := do
   let some (c, h) ← (← getPassiveSetHeap).deleteMin
     | return none
   setPassiveSetHeap h
   -- TODO: Check if formula hasn't been removed from PassiveSet already
   -- Then we need to choose a different one.
-  setPassiveSet $ (← getPassiveSet).erase c
-  return c
-
-def mkClause (lits : List Lit) : ProverM Clause := do
-  Clause.mk (← get).nextClauseId lits
-
-def mkClauseFromExpr (e : Expr) : ProverM Clause := do
-  mkClause [Lit.mk
-    (sign := true)
-    (lvl := levelZero)
-    (lhs := e)
-    (rhs := mkConst ``True)
-    (ty := mkConst `Prop)
-  ]
+  setPassiveSet $ (← getPassiveSet).erase c.2
+  return c.2
 
 def addToPassive (c : Clause) : ProverM Unit := do
   setPassiveSet $ (← getPassiveSet).insert c
-  setPassiveSetHeap $ (← getPassiveSetHeap).insert c
+  setPassiveSetHeap $ (← getPassiveSetHeap).insert (← getClauseAge c, c)
 
 def addExprToPassive (e : Expr) : ProverM Unit := do
-  addToPassive (← mkClauseFromExpr e)
+  addToPassive (Clause.fromExpr e)
   
 def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
   ProverM.run' do

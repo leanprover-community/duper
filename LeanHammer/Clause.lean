@@ -1,4 +1,5 @@
 import Lean
+import LeanHammer.Util
 
 open Lean
 open Lean.Meta
@@ -9,6 +10,7 @@ structure Lit :=
 (ty : Expr)
 (lhs : Expr)
 (rhs : Expr)
+
 deriving Inhabited, BEq, Hashable
 
 namespace Lit
@@ -18,20 +20,35 @@ def toExpr (lit : Lit) : Expr :=
   then mkApp3 (mkConst ``Eq [lit.lvl]) lit.ty lit.lhs lit.rhs
   else mkApp3 (mkConst ``Ne [lit.lvl]) lit.ty lit.lhs lit.rhs
 
+def map (f : Expr → Expr) (l : Lit) :=
+  {l with ty := f l.ty, lhs := f l.lhs, rhs := f l.rhs}
+
+def foldl {α : Type v} (f : α → Expr → α) (init : α) (l : Lit) : α :=
+  f (f (f init l.ty) l.lhs) l.rhs
+
 instance : ToMessageData Lit :=
 ⟨ fun lit => lit.toExpr ⟩
 
 end Lit
 
 structure Clause :=
-(id : Nat)
-(lits : List Lit)
+(bVarTypes : Array Expr)
+(lits : Array Lit)
 deriving Inhabited, BEq, Hashable
 
 namespace Clause
 
+def fromExpr (e : Expr) : Clause :=
+  Clause.mk #[] #[Lit.mk
+    (sign := true)
+    (lvl := levelZero)
+    (lhs := e)
+    (rhs := mkConst ``True)
+    (ty := mkConst `Prop)
+  ]
+
 def toExpr (c : Clause) : Expr :=
-  litsToExpr c.lits
+  litsToExpr c.lits.data
 where litsToExpr : List Lit → Expr
 | [] => mkConst ``False
 | [l] => l.toExpr
