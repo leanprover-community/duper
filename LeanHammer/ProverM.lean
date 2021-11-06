@@ -33,11 +33,14 @@ structure State where
   passiveSet : ClauseSet := {}
   passiveSetHeap : ClauseAgeHeap := BinomialHeap.empty
   clauseAge : HashMap Clause Nat := {}
-
+  lctx : LocalContext := {}
 
 abbrev ProverM := ReaderT Context $ StateRefT State CoreM
 
 instance : Monad ProverM := let i := inferInstanceAs (Monad ProverM); { pure := i.pure, bind := i.bind }
+
+instance : MonadLCtx ProverM where
+  getLCtx := return (← get).lctx
 
 instance : Inhabited (ProverM α) where
   default := fun _ _ => arbitrary
@@ -86,6 +89,9 @@ def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
 def setPassiveSetHeap (passiveSetHeap : ClauseAgeHeap) : ProverM Unit :=
   modify fun s => { s with passiveSetHeap := passiveSetHeap }
 
+def setLCtx (lctx : LocalContext) : ProverM Unit :=
+  modify fun s => { s with lctx := lctx }
+
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
 def throwEmptyClauseException : ProverM α :=
@@ -118,3 +124,11 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
 
 def addToActive (c : Clause) : ProverM Unit := do
   setActiveSet $ (← getActiveSet).insert c
+
+def mkFreshFVarId (ty : Expr): ProverM FVarId := do
+  let lctx ← getLCtx
+  let n := lctx.decls.size
+  let name := Name.mkNum `c n
+  let fVarId := ⟨name⟩
+  setLCtx $ LocalContext.mkLocalDecl lctx fVarId name ty
+  return fVarId

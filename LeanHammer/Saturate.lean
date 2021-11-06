@@ -1,9 +1,11 @@
 import LeanHammer.ProverM
 import LeanHammer.Iterate
+import LeanHammer.MClause
 import Std.Data.BinomialHeap
 
 namespace Prover
 open Lean
+open Meta
 open Lean.Core
 open Result
 open Std
@@ -12,7 +14,14 @@ set_option trace.Prover.debug true
 
 set_option maxHeartbeats 10000
 
+
+#check MetaM.run
+
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
+  let lctx ← getLCtx
+  MetaM.run' (ctx := {lctx := lctx}) do
+    let mclause ← MClause.fromClause givenClause
+    ()
   givenClause
 
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
