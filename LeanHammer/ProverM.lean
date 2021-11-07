@@ -1,7 +1,7 @@
 import LeanHammer.Clause
 import Std.Data.BinomialHeap
 
-namespace Prover
+namespace ProverM
 open Lean
 open Lean.Core
 open Std
@@ -132,3 +132,5 @@ def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   let fVarId := ⟨name⟩
   setLCtx $ LocalContext.mkLocalDecl lctx fVarId name ty
   return fVarId
+
+end ProverM

@@ -6,7 +6,7 @@ import LeanHammer.Unif
 
 open Lean
 open Lean.Meta
-open Prover
+open ProverM
 
 namespace Lean.Elab.Tactic
 
@@ -22,7 +22,7 @@ partial def evalProver : Tactic
     unless ldecl.binderInfo.isAuxDecl ∨ not (← inferType ldecl.type).isProp do
       formulas := formulas.push ldecl.type
   trace[Meta.debug] "{formulas}"
-  ProverM.runWithExprs Prover.saturate formulas
+  ProverM.runWithExprs ProverM.saturate formulas
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic

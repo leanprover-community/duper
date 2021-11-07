@@ -1,6 +1,5 @@
 import LeanHammer.ProverM
 
-namespace Prover
 
 inductive LoopCtrl
 | next : LoopCtrl
@@ -11,5 +10,3 @@ partial def iterate [Monad m] (f : m LoopCtrl) : m Unit := do
   match ← f with
   | LoopCtrl.next => iterate f
   | LoopCtrl.abort => ()
-
-end Prover
