@@ -19,3 +19,7 @@ def Lean.Expr.abstractMVars (e : Expr) (mVars : Array Expr) : Expr :=
     | Expr.forallE _ d b _ => return e.updateForallE! (visit d offset) (visit b (offset+1))
     | e                    => return e
   visit e 0
+
+def Option.mapM [Monad m] (f : α → m β) : Option α → m (Option β)
+| some a => f a
+| none   => none

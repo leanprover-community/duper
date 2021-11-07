@@ -1,4 +1,5 @@
 import Lean
+import LeanHammer.ProverM
 
 namespace RuleM
 open Lean
@@ -64,6 +65,10 @@ def getMVarType (mvarId : MVarId) : RuleM Expr := do
   setMCtx state.mctx
   return res
 
+@[inline] def RuleM.runAsProverM (x : RuleM α) : ProverM.ProverM α := do
+  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
+  ProverM.setLCtx state.lctx
+  return res
 
 
 #check Meta.getMVarType

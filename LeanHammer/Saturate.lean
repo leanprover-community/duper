@@ -19,17 +19,19 @@ set_option trace.Prover.debug true
 set_option maxHeartbeats 10000
 
 
-#check MetaM.run
+#check Option.map
 
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
-  let lctx ← getLCtx
-  let res : Option Clause ← RuleM.run' (s := {lctx := lctx}) do
+  let cs? : Option (List Clause) ← RuleM.runAsProverM do
     let mclause ← MClause.fromClause givenClause
-    match ← clausificationStep mclause with
-    | some [] => return none
-    | some (c :: cs) => some $ ← c.toClause  --TODO: Fix this
-    | none => return some givenClause
-  return res 
+    let cs? ← clausificationStep mclause
+    return ← cs?.mapM fun cs => cs.mapM fun c => c.toClause
+  match cs? with
+  | some [] => return none
+  | some (c :: cs) => do
+    for c' in cs do addToPassive c'
+    some c
+  | none => return some givenClause
 
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
   ()

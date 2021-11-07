@@ -97,9 +97,6 @@ initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExce
 def throwEmptyClauseException : ProverM α :=
   throw <| Exception.internal emptyClauseExceptionId
 
-def getClauseAge (c : Clause) : ProverM Nat := do
-  (← get).clauseAge.find! c
-
 def chooseGivenClause : ProverM (Option Clause) := do
   let some (c, h) ← (← getPassiveSetHeap).deleteMin
     | return none
@@ -110,8 +107,16 @@ def chooseGivenClause : ProverM (Option Clause) := do
   return c.2
 
 def addToPassive (c : Clause) : ProverM Unit := do
+  let clauseAgeMap := (← get).clauseAge
+  let clauseAge : Nat ← match clauseAgeMap.find? c with
+  | none => do
+    let age := clauseAgeMap.size
+    modify fun s => { s with clauseAge := clauseAgeMap.insert c age }
+    age
+  | some age => age
   setPassiveSet $ (← getPassiveSet).insert c
-  setPassiveSetHeap $ (← getPassiveSetHeap).insert (← getClauseAge c, c)
+  setPassiveSetHeap $ (← getPassiveSetHeap).insert (clauseAge, c)
+  
 
 def addExprToPassive (e : Expr) : ProverM Unit := do
   addToPassive (Clause.fromExpr e)
