@@ -19,13 +19,12 @@ set_option trace.Prover.debug true
 set_option maxHeartbeats 10000
 
 
-#check Option.map
-
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
   let cs? : Option (List Clause) ← RuleM.runAsProverM do
     let mclause ← MClause.fromClause givenClause
     let cs? ← clausificationStep mclause
-    return ← cs?.mapM fun cs => cs.mapM fun c => c.toClause
+    let cs? ← cs?.mapM fun cs => cs.mapM fun c => c.toClause
+    cs?
   match cs? with
   | some [] => return none
   | some (c :: cs) => do

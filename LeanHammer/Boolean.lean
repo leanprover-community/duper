@@ -4,7 +4,7 @@ import LeanHammer.RuleM
 open Lean
 open RuleM
 
-#check MetaM
+#check Meta.forallMetaTelescope
 
 def clausificationStepE (e : Expr) : 
     RuleM (Option (List MClause)) :=
@@ -13,7 +13,9 @@ def clausificationStepE (e : Expr) :
     some [MClause.mk #[Lit.fromExpr e₁], MClause.mk #[Lit.fromExpr e₂]]
   | Expr.app (Expr.app (Expr.const ``Or _ _) e₁ _) e₂ _ =>
     some [MClause.mk #[Lit.fromExpr e₁, Lit.fromExpr e₂]]
-  -- | Expr.forallE _ ty b _ => [(lctx, ty :: bVarTypes, b)]
+  | Expr.forallE .. => do
+    let (mVars, _, b) ← forallMetaTelescope e
+    some [MClause.mk #[Lit.fromExpr b]]
   | _ => none
 
 def clausificationStepLit (l : Lit) : RuleM (Option (List MClause)) := do

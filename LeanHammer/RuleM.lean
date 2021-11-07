@@ -21,6 +21,10 @@ instance : Monad RuleM := let i := inferInstanceAs (Monad RuleM); { pure := i.pu
 instance : MonadLCtx RuleM where
   getLCtx := return (← get).lctx
 
+instance : MonadMCtx MetaM where
+  getMCtx    := return (← get).mctx
+  modifyMCtx f := modify fun s => { s with mctx := f s.mctx }
+
 instance : Inhabited (RuleM α) where
   default := fun _ _ => arbitrary
 
@@ -49,28 +53,29 @@ def setMCtx (mctx : MetavarContext) : RuleM Unit :=
 def setLCtx (lctx : LocalContext) : RuleM Unit :=
   modify fun s => { s with lctx := lctx }
 
-def mkFreshExprMVar (type? : Option Expr) (kind := MetavarKind.natural) (userName := Name.anonymous) : RuleM Expr := do
+def runMetaAsRuleM (x : MetaM α) : RuleM α := do
   let lctx ← getLCtx
   let mctx ← getMCtx
   let (res, state) ← Meta.MetaM.run (ctx := {lctx := lctx}) (s := {mctx := mctx}) do
-    Meta.mkFreshExprMVar type? kind userName
+    x
   setMCtx state.mctx
   return res
 
+def mkFreshExprMVar (type? : Option Expr) (kind := MetavarKind.natural) (userName := Name.anonymous) : RuleM Expr := do
+  runMetaAsRuleM $ Meta.mkFreshExprMVar type? kind userName
+
 def getMVarType (mvarId : MVarId) : RuleM Expr := do
-  let lctx ← getLCtx
-  let mctx ← getMCtx
-  let (res, state) ← Meta.MetaM.run (ctx := {lctx := lctx}) (s := {mctx := mctx}) do
-    Meta.getMVarType mvarId
-  setMCtx state.mctx
-  return res
+  runMetaAsRuleM $ Meta.getMVarType mvarId
+
+def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
+  runMetaAsRuleM $  Meta.forallMetaTelescope e kind
 
 @[inline] def RuleM.runAsProverM (x : RuleM α) : ProverM.ProverM α := do
   let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
   ProverM.setLCtx state.lctx
   return res
 
-
-#check Meta.getMVarType
+-- runMetaAsRuleM do
+--       trace[Prover.debug] "{cs?}"
 
 end RuleM
