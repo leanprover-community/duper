@@ -45,6 +45,13 @@ instance : MonadLCtx ProverM where
 instance : Inhabited (ProverM α) where
   default := fun _ _ => arbitrary
 
+instance : AddMessageContext ProverM where
+  addMessageContext := fun msgData => do
+    let env ← getEnv
+    let lctx ← getLCtx
+    let opts ← getOptions
+    pure $ MessageData.withContext { env := env, mctx := {}, lctx := lctx, opts := opts } msgData
+
 @[inline] def ProverM.run (x : ProverM α) (ctx : Context := {}) (s : State := {}) : CoreM (α × State) :=
   x ctx |>.run s
 

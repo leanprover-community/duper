@@ -3,6 +3,7 @@ import LeanHammer.Iterate
 import LeanHammer.RuleM
 import LeanHammer.MClause
 import LeanHammer.Boolean
+import LeanHammer.Simp
 import Std.Data.BinomialHeap
 
 namespace ProverM
@@ -18,19 +19,13 @@ set_option trace.Prover.debug true
 
 set_option maxHeartbeats 10000
 
+open SimpResult
 
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
-  let cs? : Option (List Clause) ← RuleM.runAsProverM do
-    let mclause ← MClause.fromClause givenClause
-    let cs? ← clausificationStep mclause
-    let cs? ← cs?.mapM fun cs => cs.mapM fun c => c.toClause
-    cs?
-  match cs? with
-  | some [] => return none
-  | some (c :: cs) => do
-    for c' in cs do addToPassive c'
-    some c
-  | none => return some givenClause
+  match ← applySimpRule clausificationStep givenClause with
+  | Applied c => some c 
+  | Unapplicable => some givenClause 
+  | Removed => none
 
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
   ()

@@ -21,7 +21,7 @@ instance : Monad RuleM := let i := inferInstanceAs (Monad RuleM); { pure := i.pu
 instance : MonadLCtx RuleM where
   getLCtx := return (← get).lctx
 
-instance : MonadMCtx MetaM where
+instance : MonadMCtx RuleM where
   getMCtx    := return (← get).mctx
   modifyMCtx f := modify fun s => { s with mctx := f s.mctx }
 
@@ -53,6 +53,9 @@ def setMCtx (mctx : MetavarContext) : RuleM Unit :=
 def setLCtx (lctx : LocalContext) : RuleM Unit :=
   modify fun s => { s with lctx := lctx }
 
+instance : AddMessageContext RuleM where
+  addMessageContext := addMessageContextFull
+
 def runMetaAsRuleM (x : MetaM α) : RuleM α := do
   let lctx ← getLCtx
   let mctx ← getMCtx
@@ -68,7 +71,15 @@ def getMVarType (mvarId : MVarId) : RuleM Expr := do
   runMetaAsRuleM $ Meta.getMVarType mvarId
 
 def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
-  runMetaAsRuleM $  Meta.forallMetaTelescope e kind
+  runMetaAsRuleM $ Meta.forallMetaTelescope e kind
+
+def mkFreshFVar (name : Name) (type : Expr) : RuleM Expr := do
+  let name := Name.mkNum name (← getLCtx).decls.size
+  let (lctx, res) ← runMetaAsRuleM $ do
+    Meta.withLocalDeclD name type fun x => do
+      return (← getLCtx, x)
+  setLCtx lctx
+  return res
 
 @[inline] def RuleM.runAsProverM (x : RuleM α) : ProverM.ProverM α := do
   let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
