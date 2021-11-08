@@ -21,11 +21,26 @@ set_option maxHeartbeats 10000
 
 open SimpResult
 
-def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
-  match ← applySimpRule clausificationStep givenClause with
-  | Applied c => some c 
+def simpRules := #[clausificationStep.toSimpRule]
+
+def applySimpRules (givenClause : Clause) (simpRules : Array SimpRule) :
+    ProverM (SimpResult Clause) := do
+  for simpRule in simpRules do
+    match ← simpRule givenClause with
+    | Removed => return Removed
+    | Applied c => return Applied c
+    | Unapplicable => continue
+  return Unapplicable
+
+partial def simpLoop (givenClause : Clause) : ProverM (Option Clause) := do
+  match ← applySimpRules givenClause simpRules with
+  | Applied c => 
+    simpLoop c
   | Unapplicable => some givenClause 
   | Removed => none
+
+partial def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
+  simpLoop givenClause
 
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
   ()

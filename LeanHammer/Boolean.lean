@@ -29,7 +29,7 @@ def clausificationStepLit (l : Lit) : RuleM (SimpResult (List MClause)) := do
   | Expr.const ``True _ _ => clausificationStepE l.lhs
   | _ => return Unapplicable
 
-def clausificationStep : SimpRule := fun c => do
+def clausificationStep : MSimpRule := fun c => do
   let mut ls := c.lits
   for i in [:ls.size] do
     match ← clausificationStepLit ls[i] with

@@ -1,5 +1,6 @@
 import LeanHammer.ProverM
 import LeanHammer.MClause
+import LeanHammer.Iterate
 
 open RuleM
 open ProverM
@@ -20,23 +21,24 @@ end SimpResult
 
 open SimpResult
 
-abbrev SimpRule := MClause → RuleM (SimpResult (List MClause))
+abbrev MSimpRule := MClause → RuleM (SimpResult (List MClause))
+abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 
-def applySimpRuleAux (rule : SimpRule) (givenClause : Clause) : 
-    ProverM (SimpResult (List Clause)) := do
-  RuleM.runAsProverM do
-    let mclause ← MClause.fromClause givenClause
-    let cs? ← rule mclause
-    let cs? ← cs?.mapM fun cs => cs.mapM fun c => c.toClause
-    cs?
+def MSimpRule.toSimpRuleAux (rule : MSimpRule) : 
+    Clause → ProverM (SimpResult (List Clause)) := 
+  fun givenClause => do
+    RuleM.runAsProverM do
+      let mclause ← MClause.fromClause givenClause
+      let cs? ← rule mclause
+      let cs? ← cs?.mapM fun cs => cs.mapM fun c => c.toClause
+      cs?
 
-def applySimpRule (rule : SimpRule) (givenClause : Clause) :
-    ProverM (SimpResult Clause) := do
-  match ← applySimpRuleAux rule givenClause with
-  | Removed           => Removed
-  | Unapplicable      => Unapplicable
-  | Applied []        => Removed
-  | Applied (c :: cs) => do
-    for c' in cs do addToPassive c'
-    Applied c
-
+def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := do
+  fun givenClause => do
+    match ← toSimpRuleAux rule givenClause with
+    | Removed           => Removed
+    | Unapplicable      => Unapplicable
+    | Applied []        => Removed
+    | Applied (c :: cs) => do
+      for c' in cs do addToPassive c'
+      Applied c
