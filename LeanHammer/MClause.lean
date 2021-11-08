@@ -19,7 +19,6 @@ def fromClause (c : Clause) : RuleM MClause := do
 def toClause (c : MClause) : RuleM Clause := do
   let mVarIds := c.lits.foldl (fun acc l =>
     l.foldl (fun acc e => acc.append (e.collectMVars {}).result) acc) #[]
-  trace[Prover.debug] "{mVarIds.map MVarId.name}"
   let lits := c.lits.map fun l =>
     l.map fun e => e.abstractMVars (mVarIds.map mkMVar)
   return Clause.mk (← mVarIds.mapM getMVarType) lits

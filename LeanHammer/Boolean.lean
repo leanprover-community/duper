@@ -19,8 +19,13 @@ def clausificationStepE (e : Expr) :
     let (mVars, _, b) ← forallMetaTelescope e
     Applied [MClause.mk #[Lit.fromExpr b]]
   | Expr.app (Expr.app (Expr.const ``Exists _ _) α _) (Expr.lam _ _ b _) _ => do
+    let mVarIds ← (e.collectMVars {}).result
+    let α := α.abstractMVars (mVarIds.map mkMVar)
+    let α := mVarIds.foldr
+      (fun mVarId α => mkForall `_ BinderInfo.default (mkMVar mVarId) α)
+      α
     let fvar ← mkFreshFVar `sk α
-    let b ← b.instantiate1 fvar
+    let b ← b.instantiate1 (mkAppN fvar (mVarIds.map mkMVar))
     Applied [MClause.mk #[Lit.fromExpr b]]
   | _ => Unapplicable
 
