@@ -84,6 +84,9 @@ def mkFreshFVar (name : Name) (type : Expr) : RuleM Expr := do
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
   runMetaAsRuleM $ Meta.mkForallFVars xs e usedOnly usedLetOnly
 
+def inferType (e : Expr) : RuleM Expr :=
+  runMetaAsRuleM $ Meta.inferType e
+
 @[inline] def RuleM.runAsProverM (x : RuleM α) : ProverM.ProverM α := do
   let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
   ProverM.setLCtx state.lctx
