@@ -3,94 +3,79 @@ import Lean
 open Lean
 open Lean.Meta
 
-partial def unify (l : Array (Expr × Expr)) (subst : FVarSubst) : MetaM (Option FVarSubst) := do
-  match l.data with
-  | [] => subst
-  | (s, t) :: tail => do
-    let subst ← unify1 t s subst
-    return subst
-where unify1 (s t : Expr) (subst : FVarSubst): MetaM (Option FVarSubst) := do
-  if s == t then subst else
-  s.withApp fun f ss => t.withApp fun g tt =>
-    match f, g with
-    | Expr.const .., Expr.const .. => do
+partial def unify (l : Array (Expr × Expr)) : MetaM Bool := do
+  trace[Meta.debug] "unify: {l}"
+  for (t, s) in l do
+    if ← unify1 t s
+    then continue
+    else return false
+  return true
+where 
+  unify1 (s t : Expr) : MetaM Bool := do
+    if s == t then true else
+    s.withApp fun f ss => t.withApp fun g tt =>
+      match f, g with
+      | Expr.fvar .., Expr.fvar .. =>
+        unifyRigidRigid s t
+      | Expr.const .., Expr.const .. =>
+        unifyRigidRigid s t
+      | Expr.mvar mVarId .., Expr.fvar .. =>
+        unifyFlexRigid s t
+      | Expr.mvar mVarId .., Expr.const .. =>
+        unifyFlexRigid s t
+      | Expr.fvar .., Expr.mvar mVarId .. =>
+        unifyFlexRigid t s
+      | Expr.const .., Expr.mvar mVarId .. =>
+        unifyFlexRigid t s
+      | Expr.mvar mVarId .., Expr.mvar .. =>
+        unifyFlexFlex s t
+      | _, _ => return false
+  unifyRigidRigid (s t : Expr) : MetaM Bool := do
+    s.withApp fun f ss => t.withApp fun g tt =>
       if f == g 
       then 
         if tt.size == ss.size
-        then return ← unify (tt.zip ss) subst
-        else return none
-      else return none
-    | Expr.fvar fVarId .., Expr.const .. =>
-      match subst.find? fVarId with
+        then unify (tt.zip ss)
+        else return false
+      else return false
+  unifyFlexFlex (s t : Expr) : MetaM Bool := do
+    s.withApp fun f ss => t.withApp fun g tt => do
+      if tt.isEmpty && ss.isEmpty
+      then
+        if f == g
+        then true
+        else 
+          assignExprMVar f.mvarId! t
+          return true
+      else false
+  unifyFlexRigid (s t : Expr) : MetaM Bool := do
+    s.withApp fun f ss => t.withApp fun g tt => do
+      match ← getExprMVarAssignment? f.mvarId! with
       | some e => 
-        unify1 (mkAppN e ss) t subst
-      | none =>
+        unify1 (mkAppN e ss) t
+      | none => do
         if ss.isEmpty 
         then 
-          if t.containsFVar fVarId
-          then none
-          else subst.insert fVarId t
-        else none
-    | Expr.const .., Expr.fvar fVarId .. => 
-      match subst.find? fVarId with
-      | some e => 
-        unify1 s (mkAppN e tt) subst
-      | none =>
-        if tt.isEmpty 
-        then 
-          if s.containsFVar fVarId
-          then none
-          else subst.insert fVarId s
-        else none
-    | Expr.fvar fVarId .., Expr.fvar .. =>
-        if tt.isEmpty && ss.isEmpty
-        then
-          if f == g
-          then subst
-          else subst.insert fVarId t
-        else none
-    | _, _ => return none
+          if ← occursCheck f.mvarId! t
+          then 
+            assignExprMVar f.mvarId! t
+            return true
+          else 
+            false
+        else false
 
-partial def test : CoreM (FVarSubst) := do
-  return {}
+def test : MetaM Unit := do
+  let ty := mkConst ``Nat
+  let x ← mkFreshExprMVar ty
+  let y ← mkFreshExprMVar ty
+  let s := mkApp (mkConst ``Nat.succ) y
+  let t := y
+  let res ← unify #[(s, t)]
+  trace[Meta.debug] "s: {s}"
+  trace[Meta.debug] "t: {t}"
+  trace[Meta.debug] "x: {x}"
+  trace[Meta.debug] "y: {y}"
+  trace[Meta.debug] "res: {res}"
 
-constant a : Nat
-constant b : Nat
-constant c : Nat
-constant f : Nat → Nat
-
-open Std
-
-namespace Std.AssocList
-
-  def toList : AssocList α β → List (α × β)
-  | AssocList.nil => []
-  | AssocList.cons a b rest => (a, b) :: toList rest
-
-end Std.AssocList
-
-instance [Repr α] [Repr β] : Repr (AssocList α β) where
-  reprPrec a n := reprPrec a.toList n
-
-instance [ToString α] : Repr α where
-  reprPrec a n := toString a
-
-instance : Repr FVarSubst where
-  reprPrec s n := reprPrec s.map n
-
-instance [ToMessageData α] [ToMessageData β] : ToMessageData (α × β) := 
-⟨fun (a, b) => "(" ++ toMessageData a ++ ", " ++ toMessageData b ++ ")"⟩
-
-instance [ToMessageData α] [ToMessageData β] : ToMessageData (AssocList α β) :=
-⟨ fun s => toMessageData s.toList ⟩ 
-
-instance : ToMessageData FVarId :=
-⟨ fun id => id.name ⟩ 
-
-instance : ToMessageData FVarSubst :=
-⟨ fun s => toMessageData s.map ⟩ 
-
-#eval unify #[(
-  mkApp (mkConst `f) (mkFVar ⟨`z⟩), 
-   mkApp (mkConst `f) (mkApp (mkConst `f) (mkFVar ⟨`x⟩)))
-  ] {}
+set_option trace.Meta.debug true
+#eval test
