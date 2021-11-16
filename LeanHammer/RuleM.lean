@@ -1,5 +1,6 @@
 import Lean
 import LeanHammer.ProverM
+import LeanHammer.Unif
 
 namespace RuleM
 open Lean
@@ -53,6 +54,13 @@ def setMCtx (mctx : MetavarContext) : RuleM Unit :=
 def setLCtx (lctx : LocalContext) : RuleM Unit :=
   modify fun s => { s with lctx := lctx }
 
+/-- Backtracking operates on metavariables only -/
+instance : MonadBacktrack MetavarContext RuleM where
+  saveState      := getMCtx
+  restoreState s := setMCtx s
+
+def withoutModifyingMCtx (x : RuleM α) : RuleM α := withoutModifyingState x
+
 instance : AddMessageContext RuleM where
   addMessageContext := addMessageContextFull
 
@@ -87,12 +95,16 @@ def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedL
 def inferType (e : Expr) : RuleM Expr :=
   runMetaAsRuleM $ Meta.inferType e
 
+def instantiateMVars (e : Expr) : RuleM Expr :=
+  runMetaAsRuleM $ Meta.instantiateMVars e
+
 @[inline] def RuleM.runAsProverM (x : RuleM α) : ProverM.ProverM α := do
   let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
   ProverM.setLCtx state.lctx
   return res
 
--- runMetaAsRuleM do
---       trace[Prover.debug] "{cs?}"
+partial def unify (l : Array (Expr × Expr)) : RuleM Bool := do
+  runMetaAsRuleM $ Meta.unify l
+
 
 end RuleM

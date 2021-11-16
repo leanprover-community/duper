@@ -26,4 +26,10 @@ def toClause (c : MClause) : RuleM Clause := do
 def appendLits (c : MClause) (lits : Array Lit) : MClause :=
   ⟨c.lits.append lits⟩
 
+def eraseLit (c : MClause) (idx : Nat) : MClause :=
+  ⟨c.lits.eraseIdx idx⟩
+
+def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (c : MClause) : m MClause := do
+  return ⟨← c.lits.mapM (fun l => l.mapM f)⟩
+
 end MClause

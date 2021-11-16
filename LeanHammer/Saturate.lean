@@ -4,6 +4,8 @@ import LeanHammer.RuleM
 import LeanHammer.MClause
 import LeanHammer.Boolean
 import LeanHammer.Simp
+import LeanHammer.Superposition
+import LeanHammer.Inference
 import Std.Data.BinomialHeap
 
 namespace ProverM
@@ -41,14 +43,13 @@ partial def simpLoop (givenClause : Clause) : ProverM (Option Clause) := do
 
 partial def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
   simpLoop givenClause
+  -- TODO: Check for empty clause and raise throwEmptyClauseException
 
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
   ()
 
 def performInferences (givenClause : Clause) : ProverM Unit := do
-  ()
-
--- throwEmptyClauseException
+  performUnaryInference equalityResolution givenClause
 
 partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $
@@ -66,7 +67,7 @@ partial def saturate : ProverM Unit := do
       return LoopCtrl.next
     catch
     | Exception.internal emptyClauseExceptionId _  =>
-      setResult contadiction
+      setResult contradiction
       return LoopCtrl.abort
     | e => throw e
   trace[Prover.debug] "Done."

@@ -9,7 +9,7 @@ open Std
 inductive Result :=
 | unknown
 | saturated
-| contadiction
+| contradiction
   deriving Inhabited
 
 open Result
@@ -21,7 +21,7 @@ instance : ToMessageData Result :=
 ⟨fun r => match r with
 | unknown => "unknown"
 | saturated => "saturated"
-| contadiction => "contadiction"⟩
+| contradiction => "contradiction"⟩
 
 structure Context where
   blah : Bool := false
@@ -114,6 +114,7 @@ def chooseGivenClause : ProverM (Option Clause) := do
   return c.2
 
 def addToPassive (c : Clause) : ProverM Unit := do
+  if c.lits.size == 0 then throwEmptyClauseException
   let clauseAgeMap := (← get).clauseAge
   let clauseAge : Nat ← match clauseAgeMap.find? c with
   | none => do

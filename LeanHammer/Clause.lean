@@ -32,6 +32,10 @@ def fromExpr (e : Expr) (sign := true) : Lit :=
 def map (f : Expr → Expr) (l : Lit) :=
   {l with ty := f l.ty, lhs := f l.lhs, rhs := f l.rhs}
 
+def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (l : Lit) : m Lit := do
+  return {l with ty := ← f l.ty, lhs := ← f l.lhs, rhs := ← f l.rhs}
+
+
 def foldl {α : Type v} (f : α → Expr → α) (init : α) (l : Lit) : α :=
   f (f (f init l.ty) l.lhs) l.rhs
 
