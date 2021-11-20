@@ -106,5 +106,13 @@ def instantiateMVars (e : Expr) : RuleM Expr :=
 partial def unify (l : Array (Expr × Expr)) : RuleM Bool := do
   runMetaAsRuleM $ Meta.unify l
 
+def isProof (e : Expr) : RuleM Bool := do
+  runMetaAsRuleM $ Meta.isProof e
+
+def isType (e : Expr) : RuleM Bool := do
+  runMetaAsRuleM $ Meta.isType e
+
+def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
+  runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
 
 end RuleM
