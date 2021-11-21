@@ -11,11 +11,15 @@ deriving Inhabited, BEq, Hashable
 
 namespace MClause
 
-def fromClause (c : Clause) : RuleM MClause := do
+def fromClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
   let lits := c.lits.map fun l =>
     l.map fun e => e.instantiate mVars
-  return MClause.mk lits
+  return (mVars, MClause.mk lits)
+
+def fromClause (c : Clause) : RuleM MClause := do
+  let (mvars, mclause) ← fromClauseCore c
+  return mclause
 
 def toClause (c : MClause) : RuleM Clause := do
   let mVarIds := c.lits.foldl (fun acc l =>

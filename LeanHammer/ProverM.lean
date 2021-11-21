@@ -19,7 +19,7 @@ open Result
 
 abbrev ClauseSet := HashSet Clause
 abbrev ClauseAgeHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
-abbrev ClauseDiscrTree := Schroedinger.DiscrTree Clause
+abbrev ClauseDiscrTree := Schroedinger.DiscrTree (Clause × Expr)
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -158,10 +158,10 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
 def addToActive (c : Clause) : ProverM Unit := do
   let idx ← getSupSidePremiseIdx
   let idx ← runRuleM do
-    let mclause ← MClause.fromClause c
+    let (mvars, mclause) ← MClause.fromClauseCore c
     mclause.foldM
-      fun idx e => do 
-        return ← idx.insert e c
+      fun idx e => do
+        return ← idx.insert e (c, ← e.abstractMVars mvars)
       idx
   setSupSidePremiseIdx idx
   setActiveSet $ (← getActiveSet).insert c

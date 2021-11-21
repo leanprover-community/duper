@@ -1,3 +1,4 @@
+import LeanHammer.ProverM
 import LeanHammer.RuleM
 import LeanHammer.Inference
 import LeanHammer.MClause
@@ -21,3 +22,21 @@ def equalityResolution (c : MClause) : RuleM (Array MClause) := do
       res := res.push c
     | none => ()
   return res
+
+
+open ProverM
+
+def performEqualityResolution (givenClause : Clause): ProverM Unit := do
+  performUnaryInference equalityResolution givenClause
+
+def performSuperposition (givenClause : Clause): ProverM Unit := do
+  let idx ← getSupSidePremiseIdx
+  runRuleM do
+    let (mvars, givenMClause) ← MClause.fromClauseCore givenClause
+    givenMClause.foldM
+      fun () e => do
+        let potentialPartners ← idx.getUnify e
+        -- TODO: Do something
+        ()
+      ()
+  ()

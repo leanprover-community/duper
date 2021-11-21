@@ -49,7 +49,8 @@ def backwardSimplify (givenClause : Clause) : ProverM Unit := do
   ()
 
 def performInferences (givenClause : Clause) : ProverM Unit := do
-  performUnaryInference equalityResolution givenClause
+  performEqualityResolution givenClause
+  performSuperposition givenClause
 
 partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $
