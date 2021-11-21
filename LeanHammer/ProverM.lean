@@ -1,10 +1,13 @@
 import LeanHammer.Clause
 import Std.Data.BinomialHeap
+import LeanHammer.DiscrTree
+import LeanHammer.MClause
 
 namespace ProverM
 open Lean
 open Lean.Core
 open Std
+open RuleM
 
 inductive Result :=
 | unknown
@@ -16,6 +19,7 @@ open Result
 
 abbrev ClauseSet := HashSet Clause
 abbrev ClauseAgeHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
+abbrev ClauseDiscrTree := Schroedinger.DiscrTree Clause
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -33,6 +37,8 @@ structure State where
   passiveSet : ClauseSet := {}
   passiveSetHeap : ClauseAgeHeap := BinomialHeap.empty
   clauseAge : HashMap Clause Nat := {}
+  supMainPremiseIdx : ClauseDiscrTree := {}
+  supSidePremiseIdx : ClauseDiscrTree := {}
   lctx : LocalContext := {}
 
 abbrev ProverM := ReaderT Context $ StateRefT State CoreM
@@ -84,6 +90,12 @@ def getPassiveSet : ProverM ClauseSet :=
 def getPassiveSetHeap : ProverM ClauseAgeHeap :=
   return (← get).passiveSetHeap
 
+def getSupMainPremiseIdx : ProverM ClauseDiscrTree :=
+  return (← get).supMainPremiseIdx
+
+def getSupSidePremiseIdx : ProverM ClauseDiscrTree :=
+  return (← get).supSidePremiseIdx
+
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }
 
@@ -96,8 +108,16 @@ def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
 def setPassiveSetHeap (passiveSetHeap : ClauseAgeHeap) : ProverM Unit :=
   modify fun s => { s with passiveSetHeap := passiveSetHeap }
 
+def setSupSidePremiseIdx (supSidePremiseIdx : ClauseDiscrTree) : ProverM Unit :=
+  modify fun s => { s with supSidePremiseIdx := supSidePremiseIdx }
+
 def setLCtx (lctx : LocalContext) : ProverM Unit :=
   modify fun s => { s with lctx := lctx }
+
+@[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
+  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
+  ProverM.setLCtx state.lctx
+  return res
 
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
@@ -136,6 +156,14 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
     x
 
 def addToActive (c : Clause) : ProverM Unit := do
+  let idx ← getSupSidePremiseIdx
+  let idx ← runRuleM do
+    let mclause ← MClause.fromClause c
+    mclause.foldM
+      fun idx e => do 
+        return ← idx.insert e c
+      idx
+  setSupSidePremiseIdx idx
   setActiveSet $ (← getActiveSet).insert c
 
 def mkFreshFVarId (ty : Expr): ProverM FVarId := do
@@ -147,3 +175,4 @@ def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   return fVarId
 
 end ProverM
+

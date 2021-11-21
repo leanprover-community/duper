@@ -27,7 +27,7 @@ abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 def MSimpRule.toSimpRuleAux (rule : MSimpRule) : 
     Clause → ProverM (SimpResult (List Clause)) := 
   fun givenClause => do
-    RuleM.runAsProverM do
+    runRuleM do
       let mclause ← MClause.fromClause givenClause
       let cs? ← rule mclause
       let cs? ← cs?.mapM fun cs => cs.mapM fun c => c.toClause

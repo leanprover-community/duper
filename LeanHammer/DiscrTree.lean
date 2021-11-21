@@ -1,11 +1,10 @@
 import Lean
 import LeanHammer.RuleM
 
-
-namespace RuleM
+namespace Schroedinger
 
 open Lean
-open Lean.Meta
+open RuleM
 
 inductive Key where
   | const : Name → Nat → Key
@@ -79,21 +78,21 @@ namespace DiscrTree
 
 def empty : DiscrTree α := { root := {} }
 
-partial def Trie.format [ToFormat α] : Trie α → Format
-  | Trie.node vs cs => Format.group $ Format.paren $
-    "node" ++ (if vs.isEmpty then Format.nil else " " ++ Std.format vs)
-    ++ Format.join (cs.toList.map $ fun ⟨k, c⟩ => Format.line ++ Format.paren (Std.format k ++ " => " ++ format c))
+partial def Trie.format [ToMessageData α] : Trie α → MessageData
+  | Trie.node vs cs => MessageData.group $ MessageData.paren $
+    "node" ++ (if vs.isEmpty then MessageData.nil else " " ++ toMessageData vs)
+    ++ MessageData.joinSep (cs.toList.map $ fun ⟨k, c⟩ => MessageData.paren (toMessageData k ++ " => " ++ format c)) ","
 
-instance [ToFormat α] : ToFormat (Trie α) := ⟨Trie.format⟩
+instance [ToMessageData α] : ToMessageData (Trie α) := ⟨Trie.format⟩
 
-partial def format [ToFormat α] (d : DiscrTree α) : Format :=
+partial def format [ToMessageData α] (d : DiscrTree α) : MessageData :=
   let (_, r) := d.root.foldl
-    (fun (p : Bool × Format) k c =>
-      (false, p.2 ++ (if p.1 then Format.nil else Format.line) ++ Format.paren (Std.format k ++ " => " ++ Std.format c)))
+    (fun (p : Bool × MessageData) k c =>
+      (false, p.2 ++ MessageData.paren (toMessageData k ++ " => " ++ toMessageData c)))
     (true, Format.nil)
-  Format.group r
+  MessageData.group r
 
-instance [ToFormat α] : ToFormat (DiscrTree α) := ⟨format⟩
+instance [ToMessageData α] : ToMessageData (DiscrTree α) := ⟨fun dt => format dt⟩
 
 /- The discrimination tree ignores some implicit arguments and proofs.
    We use the following auxiliary id as a "mark". -/
@@ -133,7 +132,7 @@ instance : Inhabited (DiscrTree α) where
   Remark: if users have problems with the solution above, we may provide a `noIndexing` annotation,
   and `ignoreArg` would return true for any term of the form `noIndexing t`.
 -/
-private def ignoreArg (a : Expr) (i : Nat) (infos : Array ParamInfo) : RuleM Bool := do
+private def ignoreArg (a : Expr) (i : Nat) (infos : Array Meta.ParamInfo) : RuleM Bool := do
   if h : i < infos.size then
     let info := infos.get ⟨i, h⟩
     if info.isInstImplicit then
@@ -145,7 +144,7 @@ private def ignoreArg (a : Expr) (i : Nat) (infos : Array ParamInfo) : RuleM Boo
   else
     isProof a
 
-private partial def pushArgsAux (infos : Array ParamInfo) : Nat → Expr → Array Expr → RuleM (Array Expr)
+private partial def pushArgsAux (infos : Array Meta.ParamInfo) : Nat → Expr → Array Expr → RuleM (Array Expr)
   | i, Expr.app f a _, todo => do
     if (← ignoreArg a i infos) then
       pushArgsAux infos (i-1) f (todo.push tmpStar)
@@ -379,7 +378,7 @@ where
         | _         => visitNonStar k args (← visitStar result)
 
 end DiscrTree
-end RuleM
+end Schroedinger
 
 
 

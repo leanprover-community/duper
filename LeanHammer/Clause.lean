@@ -35,9 +35,16 @@ def map (f : Expr → Expr) (l : Lit) :=
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (l : Lit) : m Lit := do
   return {l with ty := ← f l.ty, lhs := ← f l.lhs, rhs := ← f l.rhs}
 
-
-def foldl {α : Type v} (f : α → Expr → α) (init : α) (l : Lit) : α :=
+def fold {α : Type v} (f : α → Expr → α) (init : α) (l : Lit) : α :=
   f (f (f init l.ty) l.lhs) l.rhs
+
+def foldM {β : Type v} {m : Type v → Type w} [Monad m] 
+    (f : β → Expr → m β) (init : β) (l : Lit) (type := false) : m β := do
+  let b := if type then ← f init l.ty else init
+  f (← f b l.lhs) l.rhs
+
+instance : ToFormat Lit :=
+⟨ fun lit => format lit.toExpr ⟩
 
 instance : ToMessageData Lit :=
 ⟨ fun lit => lit.toExpr ⟩
@@ -60,6 +67,9 @@ where litsToExpr : List Lit → Expr
 | [] => mkConst ``False
 | [l] => l.toExpr
 | l :: ls => mkApp2 (mkConst ``Or) l.toExpr (litsToExpr ls)
+
+instance : ToFormat Clause :=
+⟨ fun c => format c.toExpr ⟩
 
 instance : ToMessageData Clause :=
 ⟨ fun c => c.toExpr ⟩

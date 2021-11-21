@@ -1,5 +1,4 @@
 import Lean
-import LeanHammer.ProverM
 import LeanHammer.Unif
 
 namespace RuleM
@@ -97,11 +96,6 @@ def inferType (e : Expr) : RuleM Expr :=
 
 def instantiateMVars (e : Expr) : RuleM Expr :=
   runMetaAsRuleM $ Meta.instantiateMVars e
-
-@[inline] def RuleM.runAsProverM (x : RuleM α) : ProverM.ProverM α := do
-  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
-  ProverM.setLCtx state.lctx
-  return res
 
 partial def unify (l : Array (Expr × Expr)) : RuleM Bool := do
   runMetaAsRuleM $ Meta.unify l

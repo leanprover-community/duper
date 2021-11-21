@@ -6,9 +6,10 @@ set_option trace.Prover.debug true
 
 constant a : Nat
 constant b : Nat
+constant f : Nat → Nat
 
 example --(h : ∃ x, x ≠ c ∨ a = b) 
-(h : ¬ ∃ x, x = a ∨ ∀ x, ∃ y, y = a ∧ x = b)-- (h :  c = b ∧ a = b) 
+(h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b) 
 : False := by
   prover
 

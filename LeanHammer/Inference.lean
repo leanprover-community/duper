@@ -8,7 +8,7 @@ open RuleM
 def performUnaryInferenceAux (rule : MClause → RuleM (Array MClause)) : 
     Clause → ProverM (Array Clause) := 
   fun givenClause => do
-    RuleM.runAsProverM do
+    runRuleM do
       let mclause ← MClause.fromClause givenClause
       let cs ← rule mclause
       let cs ← cs.mapM fun c => c.toClause
