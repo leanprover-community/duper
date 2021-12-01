@@ -111,6 +111,9 @@ def setPassiveSetHeap (passiveSetHeap : ClauseAgeHeap) : ProverM Unit :=
 def setSupSidePremiseIdx (supSidePremiseIdx : ClauseDiscrTree) : ProverM Unit :=
   modify fun s => { s with supSidePremiseIdx := supSidePremiseIdx }
 
+def setSupMainPremiseIdx (supMainPremiseIdx : ClauseDiscrTree) : ProverM Unit :=
+  modify fun s => { s with supMainPremiseIdx := supMainPremiseIdx }
+
 def setLCtx (lctx : LocalContext) : ProverM Unit :=
   modify fun s => { s with lctx := lctx }
 
@@ -156,6 +159,8 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
     x
 
 def addToActive (c : Clause) : ProverM Unit := do
+  --TODO: use event listeners for this?
+  -- Add to side premise index:
   let idx ← getSupSidePremiseIdx
   let idx ← runRuleM do
     let (mvars, mclause) ← MClause.fromClauseCore c
@@ -164,6 +169,16 @@ def addToActive (c : Clause) : ProverM Unit := do
         return ← idx.insert e (c, ← e.abstractMVars mvars)
       idx
   setSupSidePremiseIdx idx
+  -- Add to side premise index:
+  let idx ← getSupMainPremiseIdx
+  let idx ← runRuleM do
+    let (mvars, mclause) ← MClause.fromClauseCore c
+    mclause.foldM -- TODO visit subterms
+      fun idx e => do
+        return ← idx.insert e (c, ← e.abstractMVars mvars)
+      idx
+  setSupMainPremiseIdx idx
+  -- add to active set:
   setActiveSet $ (← getActiveSet).insert c
 
 def mkFreshFVarId (ty : Expr): ProverM FVarId := do

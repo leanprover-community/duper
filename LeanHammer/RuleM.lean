@@ -16,6 +16,10 @@ deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
 
+initialize
+  registerTraceClass `Rule
+  registerTraceClass `Rule.debug
+
 instance : Monad RuleM := let i := inferInstanceAs (Monad RuleM); { pure := i.pure, bind := i.bind }
 
 instance : MonadLCtx RuleM where

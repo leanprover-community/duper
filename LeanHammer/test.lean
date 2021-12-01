@@ -2,6 +2,7 @@ import LeanHammer.Tactic
 
 set_option trace.Meta.debug true
 set_option trace.Prover.debug true
+set_option trace.Rule.debug true
 -- set_option pp.all true
 
 constant a : Nat
@@ -15,5 +16,10 @@ example --(h : ∃ x, x ≠ c ∨ a = b)
 
 
 example (h : ∀ y x, x ≠ a ∨ y ≠ b)
+: False := by
+  prover
+
+
+example  (h : a ≠ b)  (h : a = b)
 : False := by
   prover
