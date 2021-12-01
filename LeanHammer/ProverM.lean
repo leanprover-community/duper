@@ -138,15 +138,18 @@ def chooseGivenClause : ProverM (Option Clause) := do
 
 def addToPassive (c : Clause) : ProverM Unit := do
   if c.lits.size == 0 then throwEmptyClauseException
-  let clauseAgeMap := (← get).clauseAge
-  let clauseAge : Nat ← match clauseAgeMap.find? c with
-  | none => do
-    let age := clauseAgeMap.size
-    modify fun s => { s with clauseAge := clauseAgeMap.insert c age }
-    age
-  | some age => age
-  setPassiveSet $ (← getPassiveSet).insert c
-  setPassiveSetHeap $ (← getPassiveSetHeap).insert (clauseAge, c)
+  if (← getPassiveSet).contains c ∨ (← getActiveSet).contains c
+  then ()
+  else
+    let clauseAgeMap := (← get).clauseAge
+    let clauseAge : Nat ← match clauseAgeMap.find? c with
+    | none => do
+      let age := clauseAgeMap.size
+      modify fun s => { s with clauseAge := clauseAgeMap.insert c age }
+      age
+    | some age => age
+    setPassiveSet $ (← getPassiveSet).insert c
+    setPassiveSetHeap $ (← getPassiveSetHeap).insert (clauseAge, c)
   
 
 def addExprToPassive (e : Expr) : ProverM Unit := do
