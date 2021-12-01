@@ -43,6 +43,11 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
   let b := if type then ← f init l.ty else init
   f (← f b l.lhs) l.rhs
 
+def symm (l : Lit) : Lit :=
+{l with 
+  lhs := l.rhs
+  rhs := l.lhs}
+
 instance : ToFormat Lit :=
 ⟨ fun lit => format lit.toExpr ⟩
 

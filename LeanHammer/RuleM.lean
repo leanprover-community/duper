@@ -109,4 +109,8 @@ def isType (e : Expr) : RuleM Bool := do
 def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
   runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
 
+def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
+  Core.transform e (pre := fun s => 
+    if s == target then TransformStep.done replacement else TransformStep.visit s )
+
 end RuleM
