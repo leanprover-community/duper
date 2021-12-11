@@ -80,5 +80,5 @@ def performSuperposition (givenClause : Clause) : ProverM Unit := do
   let mainPremiseIdx ← getSupMainPremiseIdx
   let cs ← runRuleM (superposition mainPremiseIdx givenClause)
   for c in cs do
-    addToPassive c
+    addNewToPassive c
   ()

@@ -17,4 +17,4 @@ def performUnaryInferenceAux (rule : MClause → RuleM (Array MClause)) :
 def performUnaryInference (rule : MClause → RuleM (Array MClause)) (c : Clause) : ProverM Unit := do
   let cs ← performUnaryInferenceAux rule c
   for c in cs do
-    addToPassive c
+    addNewToPassive c

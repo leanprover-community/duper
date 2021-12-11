@@ -17,7 +17,10 @@ inductive Result :=
 
 open Result
 
-abbrev ClauseSet := HashSet Clause
+structure ClauseInfo where
+(number : Nat)
+
+abbrev ClauseSet := HashMap Clause ClauseInfo
 abbrev ClauseAgeHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 abbrev ClauseDiscrTree := Schroedinger.DiscrTree (Clause × Expr)
 
@@ -33,10 +36,10 @@ deriving Inhabited
 
 structure State where
   result : Result := unknown
+  allClauses : ClauseSet := {}
   activeSet : ClauseSet := {}
   passiveSet : ClauseSet := {}
   passiveSetHeap : ClauseAgeHeap := BinomialHeap.empty
-  clauseAge : HashMap Clause Nat := {}
   supMainPremiseIdx : ClauseDiscrTree := {}
   supSidePremiseIdx : ClauseDiscrTree := {}
   lctx : LocalContext := {}
@@ -81,6 +84,9 @@ def getBlah : ProverM Bool :=
 def getResult : ProverM Result :=
   return (← get).result
 
+def getAllClauses : ProverM ClauseSet :=
+  return (← get).allClauses
+
 def getActiveSet : ProverM ClauseSet :=
   return (← get).activeSet
 
@@ -101,6 +107,9 @@ def setResult (result : Result) : ProverM Unit :=
 
 def setActiveSet (activeSet : ClauseSet) : ProverM Unit :=
   modify fun s => { s with activeSet := activeSet }
+
+def setAllClauses (allClauses : ClauseSet) : ProverM Unit :=
+  modify fun s => { s with allClauses := allClauses }
 
 def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
   modify fun s => { s with passiveSet := passiveSet }
@@ -136,32 +145,39 @@ def chooseGivenClause : ProverM (Option Clause) := do
   setPassiveSet $ (← getPassiveSet).erase c.2
   return c.2
 
-def addToPassive (c : Clause) : ProverM Unit := do
+/-- Registers a new clause, but does not add it to active or passive set.
+  Typically, you'll want to use `addNewToPassive` instead. -/
+def addNewClause (c : Clause) : ProverM ClauseInfo := do
   if c.lits.size == 0 then throwEmptyClauseException
-  if (← getPassiveSet).contains c ∨ (← getActiveSet).contains c
-  then ()
-  else
-    let clauseAgeMap := (← get).clauseAge
-    let clauseAge : Nat ← match clauseAgeMap.find? c with
-    | none => do
-      let age := clauseAgeMap.size
-      modify fun s => { s with clauseAge := clauseAgeMap.insert c age }
-      age
-    | some age => age
-    setPassiveSet $ (← getPassiveSet).insert c
-    setPassiveSetHeap $ (← getPassiveSetHeap).insert (clauseAge, c)
-  
+  let allClauses ← (← get).allClauses
+  let ci : ClauseInfo := {
+    number := allClauses.size
+  }
+  setAllClauses (allClauses.insert c ci)
+  return ci
 
-def addExprToPassive (e : Expr) : ProverM Unit := do
-  addToPassive (Clause.fromExpr e)
+def addNewToPassive (c : Clause) : ProverM Unit := do
+  if (← getAllClauses).contains c
+  then () -- clause is not new, ignore.
+  else
+    let ci ← addNewClause c
+    setPassiveSet $ (← getPassiveSet).insert c ci
+    setPassiveSetHeap $ (← getPassiveSetHeap).insert (ci.number, c)
+
+def addNewExprToPassive (e : Expr) : ProverM Unit := do
+  addNewToPassive (Clause.fromExpr e)
   
 def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
   ProverM.run' do
     for e in es do
-      addExprToPassive e
+      addNewExprToPassive e
     x
 
 def addToActive (c : Clause) : ProverM Unit := do
+  let ci ← 
+    match (← getAllClauses).find? c with
+    | some ci => ci
+    | none => addNewClause c
   --TODO: use event listeners for this?
   -- Add to side premise index:
   let idx ← getSupSidePremiseIdx
@@ -182,7 +198,7 @@ def addToActive (c : Clause) : ProverM Unit := do
       idx
   setSupMainPremiseIdx idx
   -- add to active set:
-  setActiveSet $ (← getActiveSet).insert c
+  setActiveSet $ (← getActiveSet).insert c ci
 
 def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   let lctx ← getLCtx

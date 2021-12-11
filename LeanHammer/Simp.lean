@@ -40,5 +40,5 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := do
     | Unapplicable      => Unapplicable
     | Applied []        => Removed
     | Applied (c :: cs) => do
-      for c' in cs do addToPassive c'
+      for c' in cs do addNewToPassive c'
       Applied c
