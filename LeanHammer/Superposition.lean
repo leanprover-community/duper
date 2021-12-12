@@ -1,62 +1,50 @@
 import LeanHammer.ProverM
 import LeanHammer.RuleM
-import LeanHammer.Inference
 import LeanHammer.MClause
 
 open RuleM
 open Lean
 
-def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM (Option MClause) := do
-  let lit := c.lits[i]
-  if ← unify #[(lit.lhs, lit.rhs)]
-  then
-    c |>.eraseLit i
-      |>.mapM instantiateMVars
-  else return none
+def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
+  withoutModifyingMCtx $ do
+    let lit := c.lits[i]
+    if ← unify #[(lit.lhs, lit.rhs)]
+    then
+      let c := c.eraseLit i
+      yieldClause c
 
-def equalityResolution (c : MClause) : RuleM (Array MClause) := do
-  let mut res := #[]
+def equalityResolution (c : Clause) : RuleM Unit := do
+  let c ← loadClause c
   for i in [:c.lits.size] do
     if c.lits[i].sign = false then
-      match ← withoutModifyingMCtx $ equalityResolutionAtLit c i with
-      | some c => do 
-        res := res.push c
-      | none => ()
-  return res
+      equalityResolutionAtLit c i
 
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) 
-    (sidePremiseLit : Lit) (restOfSidePremise : MClause) : 
-    RuleM (Option MClause) := do
-  if ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)]
-  then do
-    let mainPremiseReplaced ← 
-      mainPremise.mapM fun e => do
-        replace (← instantiateMVars e) 
-          (← instantiateMVars sidePremiseLit.lhs) (← instantiateMVars sidePremiseLit.rhs)
-    let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
-    return MClause.append mainPremiseReplaced restOfSidePremise
-  else return none
+    (sidePremiseLit : Lit) (restOfSidePremise : MClause) : RuleM Unit := do
+  withoutModifyingMCtx $ do
+    if ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)]
+    then do
+      let mainPremiseReplaced ← 
+        mainPremise.mapM fun e => do
+          replace (← instantiateMVars e) 
+            (← instantiateMVars sidePremiseLit.lhs) (← instantiateMVars sidePremiseLit.rhs)
+      let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
+      yieldClause $ MClause.append mainPremiseReplaced restOfSidePremise
 
 def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree) 
     (sidePremiseLit : Lit) (restOfSidePremise : MClause) : 
-    RuleM (Array MClause) := do
+    RuleM Unit := do
   trace[Rule.debug] "Superposition inferences at literal {sidePremiseLit}"
   let potentialPartners ← mainPremiseIdx.getUnify sidePremiseLit.lhs
   trace[Rule.debug] "Potential partners {potentialPartners}"
-  let res ← potentialPartners.foldrM
-    fun (partnerClause, partnerTerm) res => do
+  for (partnerClause, partnerTerm) in potentialPartners do
+    withoutModifyingLoadedClauses $ do
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
-      withoutModifyingMCtx $ do
-        match ← superpositionAtLitWithPartner (← MClause.fromClause partnerClause) partnerTerm
-          sidePremiseLit restOfSidePremise with
-        | some c => res.push c
-        | none => res
-    #[]
-  return res
+      superpositionAtLitWithPartner (← loadClause partnerClause) partnerTerm
+          sidePremiseLit restOfSidePremise
 
-def superposition (mainPremiseIdx : ProverM.ClauseDiscrTree) (givenClause : Clause) : RuleM (Array Clause) := do
-  let (mvars, givenMClause) ← MClause.fromClauseCore givenClause
-  let mut clauses := #[]
+def superposition (mainPremiseIdx : ProverM.ClauseDiscrTree) (givenClause : Clause) : RuleM Unit := do
+  let givenMClause ← loadClause givenClause
   -- With given clause as side premise:
   trace[Rule.debug] "Superposition inferences with {givenClause} as side premise"
   for i in [:givenMClause.lits.size] do
@@ -65,20 +53,20 @@ def superposition (mainPremiseIdx : ProverM.ClauseDiscrTree) (givenClause : Clau
       let restOfGivenClause ← givenMClause.eraseIdx i
       for lit in #[(givenMClause.lits[i]), (givenMClause.lits[i]).symm] do
         let cs ← superpositionAtLit mainPremiseIdx lit restOfGivenClause
-        clauses := clauses.append (← cs.mapM MClause.toClause)
-  -- TODO: with given clause as main premise:
-  return clauses
+  -- TODO: with given clause as main premise
   -- TODO: What about inference with itself?
       
 open ProverM
 
 def performEqualityResolution (givenClause : Clause) : ProverM Unit := do
-  performUnaryInference equalityResolution givenClause
+  trace[Prover.debug] "EqRes inferences with {givenClause}"
+  let cs ← runInferenceRule $ equalityResolution givenClause
+  for c in cs do
+    addNewToPassive c
 
 def performSuperposition (givenClause : Clause) : ProverM Unit := do
   trace[Prover.debug] "Superposition inferences with {givenClause}"
   let mainPremiseIdx ← getSupMainPremiseIdx
-  let cs ← runRuleM (superposition mainPremiseIdx givenClause)
+  let cs ← runInferenceRule (superposition mainPremiseIdx givenClause)
   for c in cs do
     addNewToPassive c
-  ()

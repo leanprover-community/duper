@@ -126,11 +126,6 @@ def setSupMainPremiseIdx (supMainPremiseIdx : ClauseDiscrTree) : ProverM Unit :=
 def setLCtx (lctx : LocalContext) : ProverM Unit :=
   modify fun s => { s with lctx := lctx }
 
-@[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
-  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
-  ProverM.setLCtx state.lctx
-  return res
-
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
 def throwEmptyClauseException : ProverM α :=
@@ -173,6 +168,23 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
       addNewExprToPassive e
     x
 
+@[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
+  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
+  ProverM.setLCtx state.lctx
+  return res
+
+@[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (Array Clause) := do
+  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
+  ProverM.setLCtx state.lctx
+  return state.resultClauses
+
+def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit := do
+  let cs ← runInferenceRule do
+    let c ← loadClause c
+    rule c
+  for c in cs do
+    addNewToPassive c
+
 def addToActive (c : Clause) : ProverM Unit := do
   let ci ← 
     match (← getAllClauses).find? c with
@@ -182,7 +194,7 @@ def addToActive (c : Clause) : ProverM Unit := do
   -- Add to side premise index:
   let idx ← getSupSidePremiseIdx
   let idx ← runRuleM do
-    let (mvars, mclause) ← MClause.fromClauseCore c
+    let (mvars, mclause) ← loadClauseCore c
     mclause.foldM
       fun idx e => do
         return ← idx.insert e (c, ← e.abstractMVars mvars)
@@ -191,7 +203,7 @@ def addToActive (c : Clause) : ProverM Unit := do
   -- Add to side premise index:
   let idx ← getSupMainPremiseIdx
   let idx ← runRuleM do
-    let (mvars, mclause) ← MClause.fromClauseCore c
+    let (mvars, mclause) ← loadClauseCore c
     mclause.foldM -- TODO visit subterms
       fun idx e => do
         return ← idx.insert e (c, ← e.abstractMVars mvars)

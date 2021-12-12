@@ -28,9 +28,9 @@ def MSimpRule.toSimpRuleAux (rule : MSimpRule) :
     Clause → ProverM (SimpResult (List Clause)) := 
   fun givenClause => do
     runRuleM do
-      let mclause ← MClause.fromClause givenClause
+      let mclause ← loadClause givenClause
       let cs? ← rule mclause
-      let cs? ← cs?.mapM fun cs => cs.mapM fun c => c.toClause
+      let cs? ← cs?.mapM fun cs => cs.mapM fun c => neutralizeMClause c
       cs?
 
 def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := do

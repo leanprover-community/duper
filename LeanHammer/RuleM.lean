@@ -1,5 +1,6 @@
 import Lean
 import LeanHammer.Unif
+import LeanHammer.MClause
 
 namespace RuleM
 open Lean
@@ -9,9 +10,12 @@ structure Context where
   blah : Bool := false
 deriving Inhabited
 
+-- TODO: Store which clauses have been loaded and create a proof object using that info
 structure State where
   mctx : MetavarContext := {}
   lctx : LocalContext := {}
+  loadedClauses : Array (Clause × Array MVarId) := #[]
+  resultClauses : Array Clause := #[]
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -51,18 +55,37 @@ def getBlah : RuleM Bool :=
 def getMCtx : RuleM MetavarContext :=
   return (← get).mctx
 
+def getLoadedClauses : RuleM (Array (Clause × Array MVarId)) :=
+  return (← get).loadedClauses
+
+def getResultClauses : RuleM (Array Clause) :=
+  return (← get).resultClauses
+
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
   modify fun s => { s with mctx := mctx }
 
 def setLCtx (lctx : LocalContext) : RuleM Unit :=
   modify fun s => { s with lctx := lctx }
 
-/-- Backtracking operates on metavariables only -/
-instance : MonadBacktrack MetavarContext RuleM where
-  saveState      := getMCtx
-  restoreState s := setMCtx s
+def setLoadedClauses (loadedClauses : Array (Clause × Array MVarId)) : RuleM Unit :=
+  modify fun s => { s with loadedClauses := loadedClauses }
 
-def withoutModifyingMCtx (x : RuleM α) : RuleM α := withoutModifyingState x
+def setResultClauses (resultClauses : Array Clause) : RuleM Unit :=
+  modify fun s => { s with resultClauses := resultClauses }
+
+def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
+  let s ← getMCtx
+  try
+    x
+  finally
+    setMCtx s
+
+def withoutModifyingLoadedClauses (x : RuleM α) : RuleM α := do
+  let s ← getLoadedClauses
+  try
+    withoutModifyingMCtx x
+  finally
+    setLoadedClauses s
 
 instance : AddMessageContext RuleM where
   addMessageContext := addMessageContextFull
@@ -116,5 +139,29 @@ def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
   Core.transform e (pre := fun s => 
     if s == target then TransformStep.done replacement else TransformStep.visit s )
+
+def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
+  let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
+  let lits := c.lits.map fun l =>
+    l.map fun e => e.instantiate mVars
+  setLoadedClauses ((← getLoadedClauses).push (c, mVars.map Expr.mvarId!))
+  return (mVars, MClause.mk lits)
+
+def loadClause (c : Clause) : RuleM MClause := do
+  let (mvars, mclause) ← loadClauseCore c
+  return mclause
+
+def neutralizeMClause (c : MClause) : RuleM Clause := do
+  let c ← c |>.mapM instantiateMVars
+  let mVarIds := c.lits.foldl (fun acc l =>
+    l.fold (fun acc e => acc.append (e.collectMVars {}).result) acc) #[]
+  let lits := c.lits.map fun l =>
+    l.map fun e => e.abstractMVars (mVarIds.map mkMVar)
+  let c := Clause.mk (← mVarIds.mapM getMVarType) lits
+  c
+
+def yieldClause (c : MClause) : RuleM Unit := do
+  let c ← neutralizeMClause c
+  setResultClauses ((← getResultClauses).push c)
 
 end RuleM

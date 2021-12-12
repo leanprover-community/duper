@@ -5,7 +5,6 @@ import LeanHammer.MClause
 import LeanHammer.Boolean
 import LeanHammer.Simp
 import LeanHammer.Superposition
-import LeanHammer.Inference
 import Std.Data.BinomialHeap
 
 namespace ProverM

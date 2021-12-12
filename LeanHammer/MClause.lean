@@ -1,32 +1,13 @@
 
 import LeanHammer.Clause
-import LeanHammer.RuleM
 
 open Lean
-open RuleM
 
 structure MClause :=
 (lits : Array Lit)
 deriving Inhabited, BEq, Hashable
 
 namespace MClause
-
-def fromClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
-  let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
-  let lits := c.lits.map fun l =>
-    l.map fun e => e.instantiate mVars
-  return (mVars, MClause.mk lits)
-
-def fromClause (c : Clause) : RuleM MClause := do
-  let (mvars, mclause) ← fromClauseCore c
-  return mclause
-
-def toClause (c : MClause) : RuleM Clause := do
-  let mVarIds := c.lits.foldl (fun acc l =>
-    l.fold (fun acc e => acc.append (e.collectMVars {}).result) acc) #[]
-  let lits := c.lits.map fun l =>
-    l.map fun e => e.abstractMVars (mVarIds.map mkMVar)
-  return Clause.mk (← mVarIds.mapM getMVarType) lits
 
 def appendLits (c : MClause) (lits : Array Lit) : MClause :=
   ⟨c.lits.append lits⟩
