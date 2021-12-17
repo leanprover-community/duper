@@ -19,6 +19,7 @@ open Result
 
 structure ClauseInfo where
 (number : Nat)
+(proof : Proof)
 
 abbrev ClauseSet := HashMap Clause ClauseInfo
 abbrev ClauseAgeHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
@@ -142,16 +143,17 @@ def chooseGivenClause : ProverM (Option Clause) := do
 
 /-- Registers a new clause, but does not add it to active or passive set.
   Typically, you'll want to use `addNewToPassive` instead. -/
-def addNewClause (c : Clause) : ProverM ClauseInfo := do
+def addNewClause (c : Clause) (proof : Proof := #[]) : ProverM ClauseInfo := do
   if c.lits.size == 0 then throwEmptyClauseException
   let allClauses ← (← get).allClauses
   let ci : ClauseInfo := {
     number := allClauses.size
+    proof := proof
   }
   setAllClauses (allClauses.insert c ci)
   return ci
 
-def addNewToPassive (c : Clause) : ProverM Unit := do
+def addNewToPassive (c : Clause) (proof : Proof := #[]) : ProverM Unit := do
   if (← getAllClauses).contains c
   then () -- clause is not new, ignore.
   else
@@ -173,7 +175,7 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
   ProverM.setLCtx state.lctx
   return res
 
-@[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (Array Clause) := do
+@[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (Array (Clause × Proof)) := do
   let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
   ProverM.setLCtx state.lctx
   return state.resultClauses
@@ -182,8 +184,8 @@ def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit
   let cs ← runInferenceRule do
     let c ← loadClause c
     rule c
-  for c in cs do
-    addNewToPassive c
+  for (c, proof) in cs do
+    addNewToPassive c proof
 
 def addToActive (c : Clause) : ProverM Unit := do
   let ci ← 

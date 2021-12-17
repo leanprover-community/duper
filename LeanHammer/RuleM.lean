@@ -10,12 +10,21 @@ structure Context where
   blah : Bool := false
 deriving Inhabited
 
--- TODO: Store which clauses have been loaded and create a proof object using that info
+structure ProofParent where
+  clause : Clause 
+  instantiations : Array Expr
+  vanishingVarTypes : Array Expr
+-- some variables disappear in inferences, 
+-- but need to be instantiated when reconstructing the proof
+-- e.g., EqRes on x != y
+
+def Proof := Array ProofParent
+
 structure State where
   mctx : MetavarContext := {}
   lctx : LocalContext := {}
   loadedClauses : Array (Clause × Array MVarId) := #[]
-  resultClauses : Array Clause := #[]
+  resultClauses : Array (Clause × Proof) := #[]
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -58,7 +67,7 @@ def getMCtx : RuleM MetavarContext :=
 def getLoadedClauses : RuleM (Array (Clause × Array MVarId)) :=
   return (← get).loadedClauses
 
-def getResultClauses : RuleM (Array Clause) :=
+def getResultClauses : RuleM (Array (Clause × Proof)) :=
   return (← get).resultClauses
 
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
@@ -70,7 +79,7 @@ def setLCtx (lctx : LocalContext) : RuleM Unit :=
 def setLoadedClauses (loadedClauses : Array (Clause × Array MVarId)) : RuleM Unit :=
   modify fun s => { s with loadedClauses := loadedClauses }
 
-def setResultClauses (resultClauses : Array Clause) : RuleM Unit :=
+def setResultClauses (resultClauses : Array (Clause × Proof)) : RuleM Unit :=
   modify fun s => { s with resultClauses := resultClauses }
 
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
@@ -151,17 +160,32 @@ def loadClause (c : Clause) : RuleM MClause := do
   let (mvars, mclause) ← loadClauseCore c
   return mclause
 
-def neutralizeMClause (c : MClause) : RuleM Clause := do
+def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) := do
   let c ← c |>.mapM instantiateMVars
-  let mVarIds := c.lits.foldl (fun acc l =>
-    l.fold (fun acc e => acc.append (e.collectMVars {}).result) acc) #[]
+  let mVarIds := (c.lits.foldl (fun acc (l : Lit) =>
+    l.fold (fun acc e => e.collectMVars acc) acc) {})
   let lits := c.lits.map fun l =>
-    l.map fun e => e.abstractMVars (mVarIds.map mkMVar)
-  let c := Clause.mk (← mVarIds.mapM getMVarType) lits
-  c
+    l.map fun e => e.abstractMVars (mVarIds.result.map mkMVar)
+  let c := Clause.mk (← mVarIds.result.mapM getMVarType) lits
+  (c, mVarIds)
+
+def neutralizeMClause (c : MClause) : RuleM Clause := do
+  (← neutralizeMClauseCore c).1
 
 def yieldClause (c : MClause) : RuleM Unit := do
-  let c ← neutralizeMClause c
-  setResultClauses ((← getResultClauses).push c)
+  let (c, cVars) ← neutralizeMClauseCore c
+  let mut proof := #[]
+  for (loadedClause, instantiations) in ← getLoadedClauses do
+    let instantiations ← instantiations.mapM fun m => do instantiateMVars $ mkMVar m
+    let additionalVars := instantiations.foldl (fun acc e => e.collectMVars acc) 
+      {visitedExpr := cVars.visitedExpr, result := #[]} -- ignore vars in `cVars`
+    let instantiations := instantiations.map 
+      (fun e => e.abstractMVars ((cVars.result ++ additionalVars.result).map mkMVar))
+    proof ← proof.push {
+      clause := loadedClause
+      instantiations := instantiations
+      vanishingVarTypes := ← additionalVars.result.mapM getMVarType
+    }
+  setResultClauses ((← getResultClauses).push (c, proof))
 
 end RuleM

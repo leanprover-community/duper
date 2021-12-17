@@ -4,6 +4,9 @@ open Lean
 instance [Hashable α] : Hashable (Array α) where
   hash as := as.foldl (fun r a => mixHash r (hash a)) 7
 
+-- TODO: Use this?
+-- #check Lean.Meta.abstractMVars
+
 def Lean.Expr.abstractMVars (e : Expr) (mVars : Array Expr) : Expr :=
   let rec visit (e : Expr) (offset : Nat) : Expr :=
     match e with
