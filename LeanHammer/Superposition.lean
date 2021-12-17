@@ -61,12 +61,12 @@ open ProverM
 def performEqualityResolution (givenClause : Clause) : ProverM Unit := do
   trace[Prover.debug] "EqRes inferences with {givenClause}"
   let cs ← runInferenceRule $ equalityResolution givenClause
-  for c in cs do
-    addNewToPassive c
+  for (c, proof) in cs do
+    addNewToPassive c proof
 
 def performSuperposition (givenClause : Clause) : ProverM Unit := do
   trace[Prover.debug] "Superposition inferences with {givenClause}"
   let mainPremiseIdx ← getSupMainPremiseIdx
   let cs ← runInferenceRule (superposition mainPremiseIdx givenClause)
-  for c in cs do
-    addNewToPassive c
+  for (c, proof) in cs do
+    addNewToPassive c proof
