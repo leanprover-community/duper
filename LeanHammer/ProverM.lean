@@ -21,7 +21,7 @@ structure ClauseInfo where
 (number : Nat)
 (proof : Proof)
 
-abbrev ClauseSet := HashMap Clause ClauseInfo
+abbrev ClauseSet := HashSet Clause 
 abbrev ClauseAgeHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 abbrev ClauseDiscrTree := Schroedinger.DiscrTree (Clause × Expr)
 
@@ -37,8 +37,8 @@ deriving Inhabited
 
 structure State where
   result : Result := unknown
-  allClauses : ClauseSet := {}
-  activeSet : ClauseSet := {}
+  allClauses : HashMap Clause ClauseInfo := {}
+  activeSet : ClauseSet := {} --TODO: put clause into only in allClauses?
   passiveSet : ClauseSet := {}
   passiveSetHeap : ClauseAgeHeap := BinomialHeap.empty
   supMainPremiseIdx : ClauseDiscrTree := {}
@@ -85,7 +85,7 @@ def getBlah : ProverM Bool :=
 def getResult : ProverM Result :=
   return (← get).result
 
-def getAllClauses : ProverM ClauseSet :=
+def getAllClauses : ProverM (HashMap Clause ClauseInfo) :=
   return (← get).allClauses
 
 def getActiveSet : ProverM ClauseSet :=
@@ -103,13 +103,18 @@ def getSupMainPremiseIdx : ProverM ClauseDiscrTree :=
 def getSupSidePremiseIdx : ProverM ClauseDiscrTree :=
   return (← get).supSidePremiseIdx
 
+def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
+  let some ci ← (← getAllClauses).find? c
+    | throwError "Clause not found: {c}"
+  return ci
+
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }
 
 def setActiveSet (activeSet : ClauseSet) : ProverM Unit :=
   modify fun s => { s with activeSet := activeSet }
 
-def setAllClauses (allClauses : ClauseSet) : ProverM Unit :=
+def setAllClauses (allClauses : HashMap Clause ClauseInfo) : ProverM Unit :=
   modify fun s => { s with allClauses := allClauses }
 
 def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
@@ -143,31 +148,31 @@ def chooseGivenClause : ProverM (Option Clause) := do
 
 /-- Registers a new clause, but does not add it to active or passive set.
   Typically, you'll want to use `addNewToPassive` instead. -/
-def addNewClause (c : Clause) (proof : Proof := #[]) : ProverM ClauseInfo := do
-  if c.lits.size == 0 then throwEmptyClauseException
+def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
   let allClauses ← (← get).allClauses
   let ci : ClauseInfo := {
     number := allClauses.size
     proof := proof
   }
   setAllClauses (allClauses.insert c ci)
+  if c.lits.size == 0 then throwEmptyClauseException
   return ci
 
-def addNewToPassive (c : Clause) (proof : Proof := #[]) : ProverM Unit := do
+def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
   if (← getAllClauses).contains c
   then () -- clause is not new, ignore.
   else
-    let ci ← addNewClause c
-    setPassiveSet $ (← getPassiveSet).insert c ci
+    let ci ← addNewClause c proof
+    setPassiveSet $ (← getPassiveSet).insert c
     setPassiveSetHeap $ (← getPassiveSetHeap).insert (ci.number, c)
 
-def addNewExprToPassive (e : Expr) : ProverM Unit := do
-  addNewToPassive (Clause.fromExpr e)
+def addExprAssumptionToPassive (e : Expr) : ProverM Unit := do
+  addNewToPassive (Clause.fromExpr e) {ruleName := "assumption"}
   
-def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM α := do
-  ProverM.run' do
+def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM (α × State) := do
+  ProverM.run do
     for e in es do
-      addNewExprToPassive e
+      addExprAssumptionToPassive e
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
@@ -188,10 +193,7 @@ def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit
     addNewToPassive c proof
 
 def addToActive (c : Clause) : ProverM Unit := do
-  let ci ← 
-    match (← getAllClauses).find? c with
-    | some ci => ci
-    | none => addNewClause c
+  let ci ← getClauseInfo! c
   --TODO: use event listeners for this?
   -- Add to side premise index:
   let idx ← getSupSidePremiseIdx
@@ -212,7 +214,7 @@ def addToActive (c : Clause) : ProverM Unit := do
       idx
   setSupMainPremiseIdx idx
   -- add to active set:
-  setActiveSet $ (← getActiveSet).insert c ci
+  setActiveSet $ (← getActiveSet).insert c
 
 def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   let lctx ← getLCtx

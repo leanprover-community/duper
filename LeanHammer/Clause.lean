@@ -63,6 +63,8 @@ deriving Inhabited, BEq, Hashable
 
 namespace Clause
 
+def empty : Clause := ⟨#[], #[]⟩
+
 def fromExpr (e : Expr) : Clause :=
   Clause.mk #[] #[Lit.fromExpr e]
 

@@ -40,5 +40,9 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := do
     | Unapplicable      => Unapplicable
     | Applied []        => Removed
     | Applied (c :: cs) => do
-      for c' in cs do addNewToPassive c'
+      let proofParent := --TODO: Fix
+        { clause := givenClause, instantiations := #[], vanishingVarTypes := #[]}
+      let proof : Proof := {parents := #[proofParent], ruleName := "simp"}
+      for c' in cs do addNewToPassive c' proof
+      let _ ← addNewClause c proof
       Applied c

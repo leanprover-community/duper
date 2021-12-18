@@ -70,14 +70,5 @@ partial def saturate : ProverM Unit := do
       setResult contradiction
       return LoopCtrl.abort
     | e => throw e
-  trace[Prover.debug] "Done."
-  trace[Prover.debug] "Result: {← getResult}"
-  -- trace[Prover.debug] "Active: {(← getActiveSet).toArray}"
-  -- trace[Prover.debug] "Passive: {(← getPassiveSet).toArray}"
-  trace[Prover.debug] "SupMainPremiseIdx: {← getSupMainPremiseIdx}"
-  trace[Prover.debug] "SupSidePremiseIdx: {← getSupSidePremiseIdx}"
-  
-#check BinomialHeap
-#eval saturate
 
 end ProverM

@@ -18,7 +18,9 @@ structure ProofParent where
 -- but need to be instantiated when reconstructing the proof
 -- e.g., EqRes on x != y
 
-def Proof := Array ProofParent
+structure Proof where
+  parents : Array ProofParent := #[]
+  ruleName : String := "unknown"
 
 structure State where
   mctx : MetavarContext := {}
@@ -172,20 +174,21 @@ def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) :
 def neutralizeMClause (c : MClause) : RuleM Clause := do
   (← neutralizeMClauseCore c).1
 
-def yieldClause (c : MClause) : RuleM Unit := do
+def yieldClause (c : MClause) (ruleName : String) : RuleM Unit := do
   let (c, cVars) ← neutralizeMClauseCore c
-  let mut proof := #[]
+  let mut proofParents := #[]
   for (loadedClause, instantiations) in ← getLoadedClauses do
     let instantiations ← instantiations.mapM fun m => do instantiateMVars $ mkMVar m
     let additionalVars := instantiations.foldl (fun acc e => e.collectMVars acc) 
       {visitedExpr := cVars.visitedExpr, result := #[]} -- ignore vars in `cVars`
     let instantiations := instantiations.map 
       (fun e => e.abstractMVars ((cVars.result ++ additionalVars.result).map mkMVar))
-    proof ← proof.push {
+    proofParents ← proofParents.push {
       clause := loadedClause
       instantiations := instantiations
       vanishingVarTypes := ← additionalVars.result.mapM getMVarType
     }
+  let proof := {parents := proofParents, ruleName := ruleName}
   setResultClauses ((← getResultClauses).push (c, proof))
 
 end RuleM

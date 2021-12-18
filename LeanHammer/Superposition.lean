@@ -11,7 +11,7 @@ def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
     if ← unify #[(lit.lhs, lit.rhs)]
     then
       let c := c.eraseLit i
-      yieldClause c
+      yieldClause c "equality resolution"
 
 def equalityResolution (c : Clause) : RuleM Unit := do
   let c ← loadClause c
@@ -29,7 +29,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
           replace (← instantiateMVars e) 
             (← instantiateMVars sidePremiseLit.lhs) (← instantiateMVars sidePremiseLit.rhs)
       let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
-      yieldClause $ MClause.append mainPremiseReplaced restOfSidePremise
+      yieldClause (MClause.append mainPremiseReplaced restOfSidePremise) "superposition"
 
 def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree) 
     (sidePremiseLit : Lit) (restOfSidePremise : MClause) : 
