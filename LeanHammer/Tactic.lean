@@ -30,6 +30,32 @@ where
       | throwError "clause info not found: {c}"
     ci
 
+partial def applyProof (state : ProverM.State) : TacticM (List MVarId) := do
+  let rec go c : TacticM (Expr × List MVarId) := do
+    let info ← getClauseInfo! c
+    let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! pp.clause) 
+    let parentIds ← parentInfo.map fun info => info.number
+    let target ← info.proof.parents.foldrM
+      (fun proofParent target => mkArrow proofParent.clause.toExpr target)
+      c.toExpr
+    let mvar ← mkFreshExprMVar target (userName := s!"Clause #{info.number} (by {info.proof.ruleName} {parentIds})")
+    let mut goals := [mvar.mvarId!]
+    let mut proof := mvar
+    for proofParent in info.proof.parents do
+      let parentMVar ← mkFreshExprMVar proofParent.clause.toExpr
+      let (parentProof, newGoals) ← go proofParent.clause
+      goals := goals ++ newGoals
+      proof := mkApp proof parentProof
+    return (proof, goals)
+  let (proof, goals) ← go Clause.empty
+  assignExprMVar (← getMainGoal) proof
+  return goals
+where 
+  getClauseInfo! (c : Clause) : TacticM ClauseInfo := do
+    let some ci ← state.allClauses.find? c
+      | throwError "clause info not found: {c}"
+    ci
+
 def collectAssumptions : TacticM (Array Expr) := do
   let mut formulas := #[]
   for fVarId in (← getLCtx).getFVarIds do
@@ -45,7 +71,9 @@ partial def evalProver : Tactic
   trace[Meta.debug] "{formulas}"
   let (_, state) ← ProverM.runWithExprs ProverM.saturate formulas
   match state.result with
-  | Result.contradiction => printProof state
+  | Result.contradiction => do 
+      printProof state
+      setGoals $ ← applyProof state
   | Result.saturated => throwError "Prover saturated."
   | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax

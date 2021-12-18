@@ -15,11 +15,29 @@ example --(h : ∃ x, x ≠ c ∨ a = b)
   prover
 
 
-example (h : ∀ y x, x ≠ a ∨ y ≠ b)
+example (h : (a : Nat) ≠ a)
 : False := by
   prover
 
+theorem eq_True : h = True ↔ h := by
+  apply Iff.intro 
+  · intro hh
+    rw [hh]
+    exact True.intro
+  · intro hh
+    apply propext
+    apply Iff.intro
+    exact fun _ => True.intro
+    exact fun _ => hh
 
 example  (h : a ≠ b)  (h : a = b)
 : False := by
   prover
+  · exact (fun h => h rfl)
+  · intro h
+    rw [h]
+    exact (fun g => g)
+  · exact eq_True.1
+  · exact eq_True.2 (by assumption)
+  · exact eq_True.1
+  · exact eq_True.2 (by assumption)

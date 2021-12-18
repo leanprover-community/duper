@@ -23,10 +23,10 @@ def toExpr (lit : Lit) : Expr :=
 def fromExpr (e : Expr) (sign := true) : Lit :=
   Lit.mk
     (sign := true)
-    (lvl := levelZero)
+    (lvl := levelOne)
+    (ty := mkSort levelZero)
     (lhs := e)
     (rhs := if sign then mkConst ``True else mkConst ``False)
-    (ty := mkConst `Prop)
   
 
 def map (f : Expr → Expr) (l : Lit) :=
