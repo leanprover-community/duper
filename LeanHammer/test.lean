@@ -13,11 +13,15 @@ example --(h : ∃ x, x ≠ c ∨ a = b)
 (h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b) 
 : False := by
   prover
+  all_goals
+    sorry
 
 
-example (h : (a : Nat) ≠ a)
+example (h : ∀ (x y : Nat), y ≠ x)
 : False := by
   prover
+  all_goals
+    sorry
 
 theorem eq_True : h = True ↔ h := by
   apply Iff.intro 

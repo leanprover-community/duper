@@ -75,6 +75,9 @@ where litsToExpr : List Lit → Expr
 | [l] => l.toExpr
 | l :: ls => mkApp2 (mkConst ``Or) l.toExpr (litsToExpr ls)
 
+def toForallExpr (c : Clause) : Expr :=
+  c.bVarTypes.foldr (fun ty b => mkForall Name.anonymous BinderInfo.default ty b) c.toExpr
+
 instance : ToFormat Clause :=
 ⟨ fun c => format c.toExpr ⟩
 
