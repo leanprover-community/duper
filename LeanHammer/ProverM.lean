@@ -213,7 +213,9 @@ def addToActive (c : Clause) : ProverM Unit := do
     let (mvars, mclause) ← loadClauseCore c
     mclause.foldGreenM
       fun idx e pos => do
-        return ← idx.insert e (c, pos)
+        if e.isMVar
+        then return idx
+        else return ← idx.insert e (c, pos)
       idx
   setSupMainPremiseIdx idx
   -- add to active set:

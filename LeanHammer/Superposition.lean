@@ -23,14 +23,16 @@ def equalityResolution (c : Clause) : RuleM Unit := do
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) 
     (sidePremiseLit : Lit) (restOfSidePremise : MClause) : RuleM Unit := do
   withoutModifyingMCtx $ do
-    if ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)]
-    then do
-      let mainPremiseReplaced ← 
-        mainPremise.mapM fun e => do
-          replace (← instantiateMVars e) 
-            (← instantiateMVars sidePremiseLit.lhs) (← instantiateMVars sidePremiseLit.rhs)
-      let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
-      yieldClause (MClause.append mainPremiseReplaced restOfSidePremise) "superposition"
+    if not mainPremiseSubterm.isMVar
+    then
+      if ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)]
+      then do
+        let mainPremiseReplaced ← 
+          mainPremise.mapM fun e => do
+            replace (← instantiateMVars e) 
+              (← instantiateMVars sidePremiseLit.lhs) (← instantiateMVars sidePremiseLit.rhs)
+        let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
+        yieldClause (MClause.append mainPremiseReplaced restOfSidePremise) "superposition"
 
 def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
     (sidePremiseLit : Lit) (restOfSidePremise : MClause) : 
