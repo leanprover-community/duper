@@ -43,7 +43,7 @@ structure State where
   passiveSet : ClauseSet := {}
   passiveSetHeap : ClauseAgeHeap := BinomialHeap.empty
   supMainPremiseIdx : ClauseDiscrTree ClausePos := {}
-  supSidePremiseIdx : ClauseDiscrTree Expr := {}
+  supSidePremiseIdx : ClauseDiscrTree ClausePos := {}
   lctx : LocalContext := {}
 
 abbrev ProverM := ReaderT Context $ StateRefT State CoreM
@@ -101,7 +101,7 @@ def getPassiveSetHeap : ProverM ClauseAgeHeap :=
 def getSupMainPremiseIdx : ProverM (ClauseDiscrTree ClausePos) :=
   return (← get).supMainPremiseIdx
 
-def getSupSidePremiseIdx : ProverM (ClauseDiscrTree Expr) :=
+def getSupSidePremiseIdx : ProverM (ClauseDiscrTree ClausePos) :=
   return (← get).supSidePremiseIdx
 
 def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
@@ -124,7 +124,7 @@ def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
 def setPassiveSetHeap (passiveSetHeap : ClauseAgeHeap) : ProverM Unit :=
   modify fun s => { s with passiveSetHeap := passiveSetHeap }
 
-def setSupSidePremiseIdx (supSidePremiseIdx : (ClauseDiscrTree Expr)) : ProverM Unit :=
+def setSupSidePremiseIdx (supSidePremiseIdx : (ClauseDiscrTree ClausePos)) : ProverM Unit :=
   modify fun s => { s with supSidePremiseIdx := supSidePremiseIdx }
 
 def setSupMainPremiseIdx (supMainPremiseIdx : (ClauseDiscrTree ClausePos)) : ProverM Unit :=
@@ -201,8 +201,10 @@ def addToActive (c : Clause) : ProverM Unit := do
   let idx ← runRuleM do
     let (mvars, mclause) ← loadClauseCore c
     mclause.foldM
-      fun idx e => do
-        return ← idx.insert e (c, ← e.abstractMVars mvars)
+      fun idx e pos => do
+        if mclause.lits[pos.lit].sign
+        then return ← idx.insert e (c, pos)
+        else return idx
       idx
   setSupSidePremiseIdx idx
   -- Add to side premise index:

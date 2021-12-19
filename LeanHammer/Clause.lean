@@ -48,10 +48,13 @@ def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (l : Lit) : m Lit
 def fold {α : Type v} (f : α → Expr → α) (init : α) (l : Lit) : α :=
   f (f (f init l.ty) l.lhs) l.rhs
 
+def foldWithTypeM {β : Type v} {m : Type v → Type w} [Monad m] 
+    (f : β → Expr → m β) (init : β) (l : Lit) : m β := do
+  f (← f (← f init l.ty) l.lhs) l.rhs
+
 def foldM {β : Type v} {m : Type v → Type w} [Monad m] 
-    (f : β → Expr → m β) (init : β) (l : Lit) (type := false) : m β := do
-  let b := if type then ← f init l.ty else init
-  f (← f b l.lhs) l.rhs
+    (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
+  f (← f init l.lhs ⟨LitSide.lhs, ExprPos.empty⟩) l.rhs ⟨LitSide.rhs, ExprPos.empty⟩
 
 def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
