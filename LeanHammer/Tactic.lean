@@ -75,7 +75,10 @@ partial def evalProver : Tactic
   | Result.contradiction => do
       printProof state
       setGoals $ ← applyProof state
-  | Result.saturated => throwError "Prover saturated."
+  | Result.saturated => 
+    trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
+    trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
+    throwError "Prover saturated."
   | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 

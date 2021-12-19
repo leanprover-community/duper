@@ -208,7 +208,7 @@ def addToActive (c : Clause) : ProverM Unit := do
   let idx ← getSupMainPremiseIdx
   let idx ← runRuleM do
     let (mvars, mclause) ← loadClauseCore c
-    mclause.foldM -- TODO visit subterms
+    mclause.foldGreenM
       fun idx e => do
         return ← idx.insert e (c, ← e.abstractMVars mvars)
       idx

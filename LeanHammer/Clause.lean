@@ -1,5 +1,6 @@
 import Lean
 import LeanHammer.Util
+import LeanHammer.Expr
 
 open Lean
 open Lean.Meta
@@ -42,6 +43,10 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → m β) (init : β) (l : Lit) (type := false) : m β := do
   let b := if type then ← f init l.ty else init
   f (← f b l.lhs) l.rhs
+
+def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
+    (f : β → Expr → m β) (init : β) (l : Lit) : m β := do
+  l.rhs.foldGreenM f (← l.lhs.foldGreenM f init) 
 
 def symm (l : Lit) : Lit :=
 {l with 

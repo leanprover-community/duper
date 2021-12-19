@@ -22,6 +22,10 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → m β) (init : β) (c : MClause) (type := false) : m β := do
   c.lits.foldlM (fun b lit => lit.foldM f b (type := type)) init
 
+def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
+    (f : β → Expr → m β) (init : β) (c : MClause) (type := false) : m β := do
+  c.lits.foldlM (fun b lit => lit.foldGreenM f b) init
+
 def append (c : MClause) (d : MClause) : MClause := ⟨c.lits.append d.lits⟩
 
 def eraseIdx (i : Nat) (c : MClause) : MClause := ⟨c.lits.eraseIdx i⟩

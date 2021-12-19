@@ -34,6 +34,12 @@ theorem eq_True : h = True ↔ h := by
     exact fun _ => True.intro
     exact fun _ => hh
 
+
+example  (h : f a ≠ f b)  (h : a = b)
+: False := by
+  prover
+  done
+
 example  (h : a ≠ b)  (h : a = b)
 : False := by
   prover
