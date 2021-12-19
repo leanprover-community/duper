@@ -7,6 +7,7 @@ set_option trace.Rule.debug true
 
 constant a : Nat
 constant b : Nat
+constant c : Nat
 constant f : Nat → Nat
 
 example --(h : ∃ x, x ≠ c ∨ a = b) 
@@ -35,7 +36,7 @@ theorem eq_True : h = True ↔ h := by
     exact fun _ => hh
 
 
-example  (h : f a ≠ f b)  (h : a = b)
+example  (h : ∀ x, f x ≠ b ∨ f x ≠ b)  (h : f c = b)
 : False := by
   prover
   done

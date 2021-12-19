@@ -2,6 +2,8 @@ import Lean
 import LeanHammer.Unif
 import LeanHammer.MClause
 
+namespace Schroedinger
+
 namespace RuleM
 open Lean
 open Lean.Core
@@ -192,3 +194,5 @@ def yieldClause (c : MClause) (ruleName : String) : RuleM Unit := do
   setResultClauses ((← getResultClauses).push (c, proof))
 
 end RuleM
+
+end Schroedinger

@@ -1,6 +1,7 @@
 
 import LeanHammer.Clause
 
+namespace Schroedinger
 open Lean
 
 structure MClause :=
@@ -22,12 +23,20 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → m β) (init : β) (c : MClause) (type := false) : m β := do
   c.lits.foldlM (fun b lit => lit.foldM f b (type := type)) init
 
-def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
-    (f : β → Expr → m β) (init : β) (c : MClause) (type := false) : m β := do
-  c.lits.foldlM (fun b lit => lit.foldGreenM f b) init
+def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
+    (f : β → Expr → ClausePos → m β) (init : β) (c : MClause) (type := false) : m β := do
+  let mut acc := init
+  for i in [:c.lits.size] do
+    let f' := fun b e pos => f b e ⟨i, pos.side, pos.pos⟩
+    acc ← c.lits[i].foldGreenM f' acc
+  return acc
+
+def getAtPos! (c : MClause) (pos : ClausePos) : Expr :=
+  c.lits[pos.lit].getAtPos! ⟨pos.side, pos.pos⟩
 
 def append (c : MClause) (d : MClause) : MClause := ⟨c.lits.append d.lits⟩
 
 def eraseIdx (i : Nat) (c : MClause) : MClause := ⟨c.lits.eraseIdx i⟩
 
 end MClause
+end Schroedinger

@@ -2,6 +2,7 @@ import LeanHammer.ProverM
 import LeanHammer.MClause
 import LeanHammer.Iterate
 
+namespace Schroedinger
 open RuleM
 open ProverM
 
@@ -46,3 +47,6 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := do
       for c' in cs do addNewToPassive c' proof
       let _ ← addNewClause c proof
       Applied c
+
+
+end Schroedinger

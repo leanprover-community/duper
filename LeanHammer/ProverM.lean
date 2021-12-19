@@ -3,6 +3,7 @@ import Std.Data.BinomialHeap
 import LeanHammer.DiscrTree
 import LeanHammer.MClause
 
+namespace Schroedinger
 namespace ProverM
 open Lean
 open Lean.Core
@@ -23,7 +24,7 @@ structure ClauseInfo where
 
 abbrev ClauseSet := HashSet Clause 
 abbrev ClauseAgeHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
-abbrev ClauseDiscrTree := Schroedinger.DiscrTree (Clause × Expr)
+abbrev ClauseDiscrTree α := Schroedinger.DiscrTree (Clause × α)
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -41,8 +42,8 @@ structure State where
   activeSet : ClauseSet := {} --TODO: put clause into only in allClauses?
   passiveSet : ClauseSet := {}
   passiveSetHeap : ClauseAgeHeap := BinomialHeap.empty
-  supMainPremiseIdx : ClauseDiscrTree := {}
-  supSidePremiseIdx : ClauseDiscrTree := {}
+  supMainPremiseIdx : ClauseDiscrTree ClausePos := {}
+  supSidePremiseIdx : ClauseDiscrTree Expr := {}
   lctx : LocalContext := {}
 
 abbrev ProverM := ReaderT Context $ StateRefT State CoreM
@@ -97,10 +98,10 @@ def getPassiveSet : ProverM ClauseSet :=
 def getPassiveSetHeap : ProverM ClauseAgeHeap :=
   return (← get).passiveSetHeap
 
-def getSupMainPremiseIdx : ProverM ClauseDiscrTree :=
+def getSupMainPremiseIdx : ProverM (ClauseDiscrTree ClausePos) :=
   return (← get).supMainPremiseIdx
 
-def getSupSidePremiseIdx : ProverM ClauseDiscrTree :=
+def getSupSidePremiseIdx : ProverM (ClauseDiscrTree Expr) :=
   return (← get).supSidePremiseIdx
 
 def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
@@ -123,10 +124,10 @@ def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
 def setPassiveSetHeap (passiveSetHeap : ClauseAgeHeap) : ProverM Unit :=
   modify fun s => { s with passiveSetHeap := passiveSetHeap }
 
-def setSupSidePremiseIdx (supSidePremiseIdx : ClauseDiscrTree) : ProverM Unit :=
+def setSupSidePremiseIdx (supSidePremiseIdx : (ClauseDiscrTree Expr)) : ProverM Unit :=
   modify fun s => { s with supSidePremiseIdx := supSidePremiseIdx }
 
-def setSupMainPremiseIdx (supMainPremiseIdx : ClauseDiscrTree) : ProverM Unit :=
+def setSupMainPremiseIdx (supMainPremiseIdx : (ClauseDiscrTree ClausePos)) : ProverM Unit :=
   modify fun s => { s with supMainPremiseIdx := supMainPremiseIdx }
 
 def setLCtx (lctx : LocalContext) : ProverM Unit :=
@@ -209,8 +210,8 @@ def addToActive (c : Clause) : ProverM Unit := do
   let idx ← runRuleM do
     let (mvars, mclause) ← loadClauseCore c
     mclause.foldGreenM
-      fun idx e => do
-        return ← idx.insert e (c, ← e.abstractMVars mvars)
+      fun idx e pos => do
+        return ← idx.insert e (c, pos)
       idx
   setSupMainPremiseIdx idx
   -- add to active set:
@@ -225,4 +226,4 @@ def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   return fVarId
 
 end ProverM
-
+end Schroedinger

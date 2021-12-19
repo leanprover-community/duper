@@ -2,6 +2,7 @@ import LeanHammer.ProverM
 import LeanHammer.RuleM
 import LeanHammer.MClause
 
+namespace Schroedinger
 open RuleM
 open Lean
 
@@ -31,19 +32,20 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
       let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
       yieldClause (MClause.append mainPremiseReplaced restOfSidePremise) "superposition"
 
-def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree) 
+def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
     (sidePremiseLit : Lit) (restOfSidePremise : MClause) : 
     RuleM Unit := do
   trace[Rule.debug] "Superposition inferences at literal {sidePremiseLit}"
   let potentialPartners ← mainPremiseIdx.getUnify sidePremiseLit.lhs
-  trace[Rule.debug] "Potential partners {potentialPartners}"
-  for (partnerClause, partnerTerm) in potentialPartners do
+  -- trace[Rule.debug] "Potential partners {potentialPartners}"
+  for (partnerClause, partnerPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
-      superpositionAtLitWithPartner (← loadClause partnerClause) partnerTerm
+      let c ← loadClause partnerClause
+      superpositionAtLitWithPartner c (c.getAtPos! partnerPos)
           sidePremiseLit restOfSidePremise
 
-def superposition (mainPremiseIdx : ProverM.ClauseDiscrTree) (givenClause : Clause) : RuleM Unit := do
+def superposition (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) (givenClause : Clause) : RuleM Unit := do
   let givenMClause ← loadClause givenClause
   -- With given clause as side premise:
   trace[Rule.debug] "Superposition inferences with {givenClause} as side premise"
@@ -70,3 +72,5 @@ def performSuperposition (givenClause : Clause) : ProverM Unit := do
   let cs ← runInferenceRule (superposition mainPremiseIdx givenClause)
   for (c, proof) in cs do
     addNewToPassive c proof
+
+end Schroedinger

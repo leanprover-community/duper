@@ -2,17 +2,26 @@ import Lean
 import LeanHammer.Util
 import LeanHammer.Expr
 
+namespace Schroedinger
 open Lean
 open Lean.Meta
 
-structure Lit :=
-(sign : Bool)
-(lvl : Level)
-(ty : Expr)
-(lhs : Expr)
-(rhs : Expr)
-
+structure Lit where
+  sign : Bool
+  lvl : Level
+  ty : Expr
+  lhs : Expr
+  rhs : Expr
 deriving Inhabited, BEq, Hashable
+
+inductive LitSide | lhs | rhs
+deriving Inhabited, BEq, Hashable
+
+structure LitPos where
+  side : LitSide
+  pos : ExprPos
+deriving Inhabited, BEq, Hashable
+
 
 namespace Lit
 
@@ -44,9 +53,16 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
   let b := if type then ← f init l.ty else init
   f (← f b l.lhs) l.rhs
 
-def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
-    (f : β → Expr → m β) (init : β) (l : Lit) : m β := do
-  l.rhs.foldGreenM f (← l.lhs.foldGreenM f init) 
+def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
+    (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
+  let fLhs := fun acc e p => f acc e ⟨LitSide.lhs, p⟩
+  let fRhs := fun acc e p => f acc e ⟨LitSide.rhs, p⟩
+  l.rhs.foldGreenM fRhs (← l.lhs.foldGreenM fLhs init) 
+
+def getAtPos! (l : Lit) (pos : LitPos) : Expr :=
+  match pos.side with
+  | LitSide.lhs => l.lhs.getAtPos! pos.pos
+  | LitSide.rhs => l.rhs.getAtPos! pos.pos
 
 def symm (l : Lit) : Lit :=
 {l with 
@@ -64,6 +80,12 @@ end Lit
 structure Clause :=
 (bVarTypes : Array Expr)
 (lits : Array Lit)
+deriving Inhabited, BEq, Hashable
+
+structure ClausePos where
+  lit : Nat
+  side : LitSide
+  pos : ExprPos
 deriving Inhabited, BEq, Hashable
 
 namespace Clause

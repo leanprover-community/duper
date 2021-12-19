@@ -2,12 +2,10 @@ import Lean
 import LeanHammer.Saturate
 import LeanHammer.Unif
 
-
-
 open Lean
 open Lean.Meta
+open Schroedinger
 open ProverM
-
 
 
 namespace Lean.Elab.Tactic
@@ -77,9 +75,10 @@ partial def evalProver : Tactic
       setGoals $ ← applyProof state
   | Result.saturated => 
     trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
-    trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
+    -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
     throwError "Prover saturated."
   | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic
+

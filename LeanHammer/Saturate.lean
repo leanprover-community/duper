@@ -7,6 +7,8 @@ import LeanHammer.Simp
 import LeanHammer.Superposition
 import Std.Data.BinomialHeap
 
+namespace Schroedinger
+
 namespace ProverM
 open Lean
 open Meta
@@ -72,3 +74,5 @@ partial def saturate : ProverM Unit := do
     | e => throw e
 
 end ProverM
+
+end Schroedinger

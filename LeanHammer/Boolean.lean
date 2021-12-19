@@ -2,6 +2,7 @@ import LeanHammer.MClause
 import LeanHammer.RuleM
 import LeanHammer.Simp
 
+namespace Schroedinger
 open Lean
 open RuleM
 open SimpResult
@@ -75,3 +76,5 @@ def clausificationStep : MSimpRule := fun c => do
     | Unapplicable => 
       continue
   return Unapplicable
+
+end Schroedinger
