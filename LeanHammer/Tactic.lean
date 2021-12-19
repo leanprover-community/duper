@@ -66,6 +66,7 @@ def collectAssumptions : TacticM (Array Expr) := do
 @[tactic prover]
 partial def evalProver : Tactic
 | `(tactic| prover) => do
+  let startTime ← IO.monoMsNow
   let formulas ← collectAssumptions
   trace[Meta.debug] "{formulas}"
   let (_, state) ← ProverM.runWithExprs ProverM.saturate formulas
@@ -73,6 +74,7 @@ partial def evalProver : Tactic
   | Result.contradiction => do
       printProof state
       setGoals $ ← applyProof state
+      trace[Prover.debug] "Time: {(← IO.monoMsNow) - startTime}ms"
   | Result.saturated => 
     trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
     -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"

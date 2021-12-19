@@ -8,6 +8,12 @@ set_option trace.Rule.debug true
 constant a : Nat
 constant b : Nat
 constant c : Nat
+constant zero : Nat
+constant one : Nat
+constant div : Nat → Nat → Nat
+constant mul : Nat → Nat → Nat
+constant add : Nat → Nat → Nat
+constant inv : Nat → Nat
 constant f : Nat → Nat
 
 example --(h : ∃ x, x ≠ c ∨ a = b) 
@@ -16,6 +22,17 @@ example --(h : ∃ x, x ≠ c ∨ a = b)
   prover
   all_goals
     sorry
+
+
+example 
+(div_self : ∀ x, div x x = one)
+(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+(div_def : ∀ (x y : Nat), div x y = mul x (inv y))
+(neg_conj : ¬ ∀ (x y : Nat), div (add x y) y = add (div x y) one)
+: False := by
+  -- prover
+  -- all_goals
+  --   sorry
 
 
 example (h : ∀ (x y : Nat), y ≠ x)
@@ -35,11 +52,12 @@ theorem eq_True : h = True ↔ h := by
     exact fun _ => True.intro
     exact fun _ => hh
 
+example  (h : ∀ x, f x ≠ b ∨ f x ≠ b)  (h : f c = b)
+: False := by
+  prover
+  done
 
--- example  (h : ∀ x, f x ≠ b ∨ f x ≠ b)  (h : f c = b)
--- : False := by
---   prover
---   done
+
 
 example  (h : a = b) (h : a ≠ b)
 : False := by
