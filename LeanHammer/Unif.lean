@@ -12,6 +12,8 @@ partial def Lean.Meta.unify (l : Array (Expr × Expr)) : MetaM Bool := do
   return true
 where 
   unify1 (s t : Expr) : MetaM Bool := do
+    let s ← instantiateMVars s --TODO: instantiate more lazily?
+    let t ← instantiateMVars t
     if s == t then true else
     s.withApp fun f ss => t.withApp fun g tt =>
       match f, g with
