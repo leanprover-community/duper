@@ -1,8 +1,8 @@
 import LeanHammer.Tactic
 
-set_option trace.Meta.debug true
+-- set_option trace.Meta.debug true
 set_option trace.Prover.debug true
-set_option trace.Rule.debug true
+-- set_option trace.Rule.debug true
 -- set_option pp.all true
 
 constant a : Nat
@@ -24,16 +24,25 @@ example --(h : ∃ x, x ≠ c ∨ a = b)
     sorry
 
 
-example 
-(div_self : ∀ x, div x x = one)
-(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
-(div_def : ∀ (x y : Nat), div x y = mul x (inv y))
-(neg_conj : ¬ ∀ (x y : Nat), div (add x y) y = add (div x y) one)
-: False := by
-  -- prover
-  -- all_goals
-  --   sorry
+-- example 
+-- (div_self : ∀ x, div x x = one)
+-- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+-- (div_def : ∀ (x y : Nat), div x y = mul x (inv y))
+-- (neg_conj : ¬ ∀ (x y : Nat), div (add x y) y = add (div x y) one)
+-- : False := by
+--   prover
+--   all_goals
+--     sorry
 
+
+example 
+(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+-- (div_def : ∀ (x y : Nat), div x y = mul x (inv y))
+(neg_conj : ¬ ∀ (x y : Nat), mul (add x y) y = add (mul x y) (mul y y))
+: False := by
+  prover
+  all_goals
+    sorry
 
 example (h : ∀ (x y : Nat), y ≠ x)
 : False := by

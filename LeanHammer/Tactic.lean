@@ -29,6 +29,11 @@ where
     ci
 
 partial def applyProof (state : ProverM.State) : TacticM (List MVarId) := do
+  let (skolemsFVars, skolemMVars) ← state.lctx.decls.foldlM (init := (#[], #[])) fun r decl? => match decl? with
+    | some decl => do 
+      (r.1.push (mkFVar decl.fvarId),
+        r.2.push (← mkFreshExprMVar decl.type))
+    | none      => r
   let rec go c : TacticM (Expr × List MVarId) := do
     let info ← getClauseInfo! c
     let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! pp.clause) 
@@ -36,19 +41,19 @@ partial def applyProof (state : ProverM.State) : TacticM (List MVarId) := do
     let target ← info.proof.parents.foldrM
       (fun proofParent target => mkArrow proofParent.clause.toForallExpr target)
       c.toForallExpr
+    let target ← withLCtx state.lctx #[] do mkLambdaFVars skolemsFVars target
+    let target ← mkAppN target skolemMVars
     let mvar ← mkFreshExprMVar target (userName := s!"Clause #{info.number} (by {info.proof.ruleName} {parentIds})")
     let mut goals := [mvar.mvarId!]
     let mut proof := mvar
     for proofParent in info.proof.parents do
-      let parentMVar ← mkFreshExprMVar proofParent.clause.toForallExpr
       let (parentProof, newGoals) ← go proofParent.clause
       goals := goals ++ newGoals
-      trace[Prover.debug] "mkApp {proof} {parentProof}"
       proof := mkApp proof parentProof
     return (proof, goals)
   let (proof, goals) ← go Clause.empty
   assignExprMVar (← getMainGoal) proof
-  return goals
+  return skolemMVars.toList.map Expr.mvarId! ++ goals
 where 
   getClauseInfo! (c : Clause) : TacticM ClauseInfo := do
     let some ci ← state.allClauses.find? c
@@ -73,8 +78,9 @@ partial def evalProver : Tactic
   match state.result with
   | Result.contradiction => do
       printProof state
-      setGoals $ ← applyProof state
-      trace[Prover.debug] "Time: {(← IO.monoMsNow) - startTime}ms"
+      let goals ← applyProof state
+      setGoals $ goals
+      trace[Prover.debug] "Time: {(← IO.monoMsNow) - startTime}ms {(← getUnsolvedGoals).length}"
   | Result.saturated => 
     trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
     -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
