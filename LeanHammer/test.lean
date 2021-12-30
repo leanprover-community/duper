@@ -34,11 +34,10 @@ example --(h : ∃ x, x ≠ c ∨ a = b)
 --   all_goals
 --     sorry
 
-
 example 
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
--- (div_def : ∀ (x y : Nat), div x y = mul x (inv y))
-(neg_conj : ¬ ∀ (x y : Nat), mul (add x y) y = add (mul x y) (mul y y))
+(div_def : ∀ (x y : Nat), div x y = mul x (inv y))
+(neg_conj : ¬ ∀ (x y : Nat), mul (add x y) (inv y) = add (mul x (inv y)) (mul y (inv y)))
 : False := by
   prover
   all_goals
