@@ -18,35 +18,42 @@ def mapM [Monad m] (f : α → m β): SimpResult α → m (SimpResult β)
 | Unapplicable => Unapplicable
 | Removed      => Removed
 
+def forM {m : Type u → Type v} [Monad m] {α : Type} (r : SimpResult α) (f : α → m PUnit) : m PUnit :=
+match r with
+| Applied c    => f c
+| Unapplicable => PUnit.unit
+| Removed      => PUnit.unit
+
 end SimpResult
 
 open SimpResult
 
 abbrev MSimpRule := MClause → RuleM (SimpResult (List MClause))
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
+    
 
-def MSimpRule.toSimpRuleAux (rule : MSimpRule) : 
-    Clause → ProverM (SimpResult (List Clause)) := 
-  fun givenClause => do
-    runRuleM do
-      let mclause ← loadClause givenClause
-      let cs? ← rule mclause
-      let cs? ← cs?.mapM fun cs => cs.mapM fun c => neutralizeMClause c
-      cs?
-
-def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := do
-  fun givenClause => do
-    match ← toSimpRuleAux rule givenClause with
-    | Removed           => Removed
-    | Unapplicable      => Unapplicable
-    | Applied []        => Removed
-    | Applied (c :: cs) => do
-      let proofParent := --TODO: Fix
-        { clause := givenClause, instantiations := #[], vanishingVarTypes := #[]}
-      let proof : Proof := {parents := #[proofParent], ruleName := "simp"}
-      for c' in cs do addNewToPassive c' proof
-      let _ ← addNewClause c proof
-      Applied c
+def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String)
+    : SimpRule := fun givenClause => do
+  -- Run the rule
+  let (res, cs) ← runSimpRule do
+    let mclause ← loadClause givenClause
+    let cs? ← rule mclause
+    cs?.forM fun cs => do
+      for c in cs do yieldClause c ruleName
+    return cs?
+  match res with
+  | Removed           => Removed
+  | Unapplicable      => Unapplicable
+  | Applied []        => Removed
+  | Applied _ => do
+    -- Return first clause, add others to passive set
+    for i in [:cs.size] do
+      let (c, proof) := cs[i]
+      if i == 0 then
+        let _ ← addNewClause c proof
+      else
+        addNewToPassive c proof
+    Applied cs[0].1
 
 
 end Schroedinger

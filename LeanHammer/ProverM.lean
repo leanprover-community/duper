@@ -186,6 +186,12 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM (α × State
   ProverM.setLCtx state.lctx
   return state.resultClauses
 
+@[inline] def runSimpRule (x : RuleM α) : 
+    ProverM.ProverM (α × Array (Clause × Proof)) := do
+  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
+  ProverM.setLCtx state.lctx
+  return (res, state.resultClauses)
+
 def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit := do
   let cs ← runInferenceRule do
     let c ← loadClause c

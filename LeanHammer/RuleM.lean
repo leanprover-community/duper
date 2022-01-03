@@ -23,6 +23,7 @@ structure ProofParent where
 structure Proof where
   parents : Array ProofParent := #[]
   ruleName : String := "unknown"
+deriving Inhabited
 
 structure State where
   mctx : MetavarContext := {}
@@ -176,7 +177,7 @@ def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) :
 def neutralizeMClause (c : MClause) : RuleM Clause := do
   (← neutralizeMClauseCore c).1
 
-def yieldClause (c : MClause) (ruleName : String) : RuleM Unit := do
+def yieldClauseCore (c : MClause) (ruleName : String) : RuleM Unit := do
   let (c, cVars) ← neutralizeMClauseCore c
   let mut proofParents := #[]
   for (loadedClause, instantiations) in ← getLoadedClauses do
@@ -192,6 +193,11 @@ def yieldClause (c : MClause) (ruleName : String) : RuleM Unit := do
     }
   let proof := {parents := proofParents, ruleName := ruleName}
   setResultClauses ((← getResultClauses).push (c, proof))
+
+
+def yieldClause (c : MClause) (ruleName : String) : RuleM Unit := do
+  let _ ← yieldClauseCore c ruleName
+
 
 end RuleM
 
