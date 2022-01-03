@@ -23,7 +23,7 @@ structure ProofParent where
 structure Proof where
   parents : Array ProofParent := #[]
   ruleName : String := "unknown"
-  introducedSkolems : Array FVarId := #[]
+  introducedSkolems : Array (FVarId × Expr) := #[]
 deriving Inhabited
 
 structure State where
@@ -31,7 +31,7 @@ structure State where
   lctx : LocalContext := {}
   loadedClauses : Array (Clause × Array MVarId) := #[]
   resultClauses : Array (Clause × Proof) := #[]
-  introducedSkolems : Array FVarId := #[]
+  introducedSkolems : Array (FVarId × Expr) := #[]
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -77,7 +77,7 @@ def getLoadedClauses : RuleM (Array (Clause × Array MVarId)) :=
 def getResultClauses : RuleM (Array (Clause × Proof)) :=
   return (← get).resultClauses
 
-def getIntroducedSkolems : RuleM (Array FVarId) :=
+def getIntroducedSkolems : RuleM (Array (FVarId × Expr)) :=
   return (← get).introducedSkolems
 
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
@@ -92,7 +92,7 @@ def setLoadedClauses (loadedClauses : Array (Clause × Array MVarId)) : RuleM Un
 def setResultClauses (resultClauses : Array (Clause × Proof)) : RuleM Unit :=
   modify fun s => { s with resultClauses := resultClauses }
 
-def setIntroducedSkolems (introducedSkolems : Array FVarId) : RuleM Unit :=
+def setIntroducedSkolems (introducedSkolems : Array (FVarId × Expr)) : RuleM Unit :=
   modify fun s => { s with introducedSkolems := introducedSkolems }
 
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
@@ -130,13 +130,13 @@ def getMVarType (mvarId : MVarId) : RuleM Expr := do
 def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescope e kind
 
-def mkFreshSkolem (name : Name) (type : Expr) : RuleM Expr := do
+def mkFreshSkolem (name : Name) (type : Expr) (witnessing : Expr) : RuleM Expr := do
   let name := Name.mkNum name (← getLCtx).decls.size
   let (lctx, res) ← runMetaAsRuleM $ do
     Meta.withLocalDeclD name type fun x => do
       return (← getLCtx, x)
   setLCtx lctx
-  setIntroducedSkolems $ (← getIntroducedSkolems).push res.fvarId!
+  setIntroducedSkolems $ (← getIntroducedSkolems).push (res.fvarId!, witnessing)
   return res
 
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
@@ -204,7 +204,7 @@ def yieldClauseCore (c : MClause) (ruleName : String) : RuleM Unit := do
   let proof := {
     parents := proofParents, 
     ruleName := ruleName,
-    introducedSkolems := ← getIntroducedSkolems
+    introducedSkolems := ← getIntroducedSkolems --TODO: neutralize MVars?
   }
   setResultClauses ((← getResultClauses).push (c, proof))
 
