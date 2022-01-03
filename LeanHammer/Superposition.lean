@@ -14,8 +14,7 @@ def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
       let c := c.eraseLit i
       yieldClause c "equality resolution"
 
-def equalityResolution (c : Clause) : RuleM Unit := do
-  let c ← loadClause c
+def equalityResolution (c : MClause) : RuleM Unit := do
   for i in [:c.lits.size] do
     if c.lits[i].sign = false then
       equalityResolutionAtLit c i
@@ -63,10 +62,9 @@ def superpositionAtExpr (e : Expr) (sidePremiseIdx : ProverM.ClauseDiscrTree Cla
 def superposition 
     (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
     (sidePremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
-    (givenClause : Clause) : RuleM Unit := do
-  let givenMClause ← loadClause givenClause
+    (givenMClause : MClause) : RuleM Unit := do
   -- With given clause as side premise:
-  trace[Rule.debug] "Superposition inferences with {givenClause} as side premise"
+  -- trace[Rule.debug] "Superposition inferences with {givenClause} as side premise"
   for i in [:givenMClause.lits.size] do
     if givenMClause.lits[i].sign = true
     then 
@@ -74,7 +72,7 @@ def superposition
       for lit in #[(givenMClause.lits[i]), (givenMClause.lits[i]).symm] do
         let cs ← superpositionAtLit mainPremiseIdx lit restOfGivenClause
   -- With given clause as main premise
-  trace[Rule.debug] "Superposition inferences with {givenClause} as main premise"
+  -- trace[Rule.debug] "Superposition inferences with {givenClause} as main premise"
   givenMClause.foldGreenM fun acc e pos => do
       superpositionAtExpr e sidePremiseIdx givenMClause
       ()
@@ -85,16 +83,13 @@ open ProverM
 
 def performEqualityResolution (givenClause : Clause) : ProverM Unit := do
   trace[Prover.debug] "EqRes inferences with {givenClause}"
-  let cs ← runInferenceRule $ equalityResolution givenClause
-  for (c, proof) in cs do
-    addNewToPassive c proof
+  performInference equalityResolution givenClause
 
 def performSuperposition (givenClause : Clause) : ProverM Unit := do
   trace[Prover.debug] "Superposition inferences with {givenClause}"
   let mainPremiseIdx ← getSupMainPremiseIdx
   let sidePremiseIdx ← getSupSidePremiseIdx
-  let cs ← runInferenceRule (superposition mainPremiseIdx sidePremiseIdx givenClause)
-  for (c, proof) in cs do
-    addNewToPassive c proof
+  performInference (superposition mainPremiseIdx sidePremiseIdx) givenClause
+
 
 end Schroedinger
