@@ -49,7 +49,7 @@ partial def applyProof (state : ProverM.State) : TacticM (List MVarId) := do
       else LocalContext.empty
     let mvar ← 
       withLCtx lctx #[] do
-        mkFreshExprMVar target (userName := s!"Clause #{info.number} (by {info.proof.ruleName} {parentIds})")
+        mkFreshExprMVar target (userName := s!"Clause #{info.number} (by {info.proof.ruleName} {parentIds}, {info.proof.introducedSkolems.size})")
     let mut goals := [mvar.mvarId!]
     let mut proof := mvar
     for proofParent in info.proof.parents do

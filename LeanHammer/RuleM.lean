@@ -23,6 +23,7 @@ structure ProofParent where
 structure Proof where
   parents : Array ProofParent := #[]
   ruleName : String := "unknown"
+  introducedSkolems : Array FVarId := #[]
 deriving Inhabited
 
 structure State where
@@ -30,6 +31,7 @@ structure State where
   lctx : LocalContext := {}
   loadedClauses : Array (Clause × Array MVarId) := #[]
   resultClauses : Array (Clause × Proof) := #[]
+  introducedSkolems : Array FVarId := #[]
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -75,6 +77,9 @@ def getLoadedClauses : RuleM (Array (Clause × Array MVarId)) :=
 def getResultClauses : RuleM (Array (Clause × Proof)) :=
   return (← get).resultClauses
 
+def getIntroducedSkolems : RuleM (Array FVarId) :=
+  return (← get).introducedSkolems
+
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
   modify fun s => { s with mctx := mctx }
 
@@ -87,6 +92,9 @@ def setLoadedClauses (loadedClauses : Array (Clause × Array MVarId)) : RuleM Un
 def setResultClauses (resultClauses : Array (Clause × Proof)) : RuleM Unit :=
   modify fun s => { s with resultClauses := resultClauses }
 
+def setIntroducedSkolems (introducedSkolems : Array FVarId) : RuleM Unit :=
+  modify fun s => { s with introducedSkolems := introducedSkolems }
+
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
   let s ← getMCtx
   try
@@ -94,6 +102,7 @@ def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
   finally
     setMCtx s
 
+-- TODO: Reset `introducedSkolems`?
 def withoutModifyingLoadedClauses (x : RuleM α) : RuleM α := do
   let s ← getLoadedClauses
   try
@@ -121,12 +130,13 @@ def getMVarType (mvarId : MVarId) : RuleM Expr := do
 def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescope e kind
 
-def mkFreshFVar (name : Name) (type : Expr) : RuleM Expr := do
+def mkFreshSkolem (name : Name) (type : Expr) : RuleM Expr := do
   let name := Name.mkNum name (← getLCtx).decls.size
   let (lctx, res) ← runMetaAsRuleM $ do
     Meta.withLocalDeclD name type fun x => do
       return (← getLCtx, x)
   setLCtx lctx
+  setIntroducedSkolems $ (← getIntroducedSkolems).push res.fvarId!
   return res
 
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
@@ -191,7 +201,11 @@ def yieldClauseCore (c : MClause) (ruleName : String) : RuleM Unit := do
       instantiations := instantiations
       vanishingVarTypes := ← additionalVars.result.mapM getMVarType
     }
-  let proof := {parents := proofParents, ruleName := ruleName}
+  let proof := {
+    parents := proofParents, 
+    ruleName := ruleName,
+    introducedSkolems := ← getIntroducedSkolems
+  }
   setResultClauses ((← getResultClauses).push (c, proof))
 
 

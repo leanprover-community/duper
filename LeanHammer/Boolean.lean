@@ -55,7 +55,7 @@ where
     let ty := mVarIds.foldr
       (fun mVarId ty => mkForall `_ BinderInfo.default (mkMVar mVarId) ty)
       ty
-    let fvar ← mkFreshFVar `sk ty
+    let fvar ← mkFreshSkolem `sk ty
     let b ← b.instantiate1 (mkAppN fvar (mVarIds.map mkMVar))
     Applied [MClause.mk #[Lit.fromExpr b]]
 
