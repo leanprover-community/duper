@@ -1,6 +1,6 @@
 import LeanHammer.Tactic
 
--- set_option trace.Meta.debug true
+set_option trace.Meta.debug true
 set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
@@ -15,6 +15,7 @@ constant mul : Nat → Nat → Nat
 constant add : Nat → Nat → Nat
 constant inv : Nat → Nat
 constant f : Nat → Nat
+constant p : Nat → Prop
 
 example --(h : ∃ x, x ≠ c ∨ a = b) 
 (h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b) 
@@ -33,6 +34,22 @@ example --(h : ∃ x, x ≠ c ∨ a = b)
 --   prover
 --   all_goals
 --     sorry
+
+example (a : Nat)
+(h1 : ∀ (x : Nat), f x = a)
+(h2 : ¬ ∀ (x : Nat), f x = a)
+: False := by
+  prover
+  · sorry
+  · sorry
+  · sorry
+  · sorry
+  · sorry
+  · sorry
+  · sorry
+  · sorry
+  · sorry
+
 
 example 
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))

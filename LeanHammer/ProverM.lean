@@ -170,8 +170,9 @@ def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
 def addExprAssumptionToPassive (e : Expr) : ProverM Unit := do
   addNewToPassive (Clause.fromExpr e) {ruleName := "assumption"}
   
-def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) : CoreM (α × State) := do
-  ProverM.run do
+def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) (ctx : Context := {}) (s : State := {}) : 
+    CoreM (α × State) := do
+  ProverM.run (s := s) (ctx := ctx) do
     for e in es do
       addExprAssumptionToPassive e
     x
