@@ -22,16 +22,19 @@ def equalityResolution (c : MClause) : RuleM Unit := do
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) 
     (sidePremiseLit : Lit) (restOfSidePremise : MClause) : RuleM Unit := do
   withoutModifyingMCtx $ do
-    if not mainPremiseSubterm.isMVar
-    then
-      if ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)]
-      then do
-        let mainPremiseReplaced ← 
-          mainPremise.mapM fun e => do
-            replace (← instantiateMVars e) 
-              (← instantiateMVars sidePremiseLit.lhs) (← instantiateMVars sidePremiseLit.rhs)
-        let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
-        yieldClause (MClause.append mainPremiseReplaced restOfSidePremise) "superposition"
+    if mainPremiseSubterm.isMVar then
+      return ()
+    if not $ ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)] then
+      return ()
+    let lhs ← instantiateMVars sidePremiseLit.lhs
+    let rhs ← instantiateMVars sidePremiseLit.rhs
+    if (← compare lhs rhs) == Comparison.LessThan then
+      return ()
+    let mainPremiseReplaced ← 
+      mainPremise.mapM fun e => do
+        replace (← instantiateMVars e) lhs rhs
+    let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
+    yieldClause (MClause.append mainPremiseReplaced restOfSidePremise) "superposition"
 
 def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
     (sidePremiseLit : Lit) (restOfSidePremise : MClause) : 
@@ -70,6 +73,8 @@ def superposition
     then 
       let restOfGivenClause ← givenMClause.eraseIdx i
       for lit in #[(givenMClause.lits[i]), (givenMClause.lits[i]).symm] do
+        if (← RuleM.compare lit.lhs lit.rhs) == Comparison.LessThan then
+          continue
         let cs ← superpositionAtLit mainPremiseIdx lit restOfGivenClause
   -- With given clause as main premise
   -- trace[Rule.debug] "Superposition inferences with {givenClause} as main premise"

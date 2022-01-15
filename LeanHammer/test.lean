@@ -1,6 +1,6 @@
 import LeanHammer.Tactic
 
-set_option trace.Meta.debug true
+-- set_option trace.Meta.debug true
 set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true

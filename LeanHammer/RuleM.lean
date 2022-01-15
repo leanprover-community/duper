@@ -1,6 +1,7 @@
 import Lean
 import LeanHammer.Unif
 import LeanHammer.MClause
+import LeanHammer.Order
 
 namespace Schroedinger
 
@@ -9,7 +10,7 @@ open Lean
 open Lean.Core
 
 structure Context where
-  blah : Bool := false
+  order : Expr → Expr → MetaM Comparison := Order.kbo
 deriving Inhabited
 
 structure ProofParent where
@@ -65,8 +66,8 @@ instance : Inhabited (RuleM α) where
 instance [MetaEval α] : MetaEval (RuleM α) :=
   ⟨fun env opts x _ => MetaEval.eval env opts x.run' true⟩
 
-def getBlah : RuleM Bool :=
-  return (← read).blah
+def getOrder : RuleM (Expr → Expr → MetaM Comparison) :=
+  return (← read).order
 
 def getMCtx : RuleM MetavarContext :=
   return (← get).mctx
@@ -212,6 +213,9 @@ def yieldClauseCore (c : MClause) (ruleName : String) : RuleM Unit := do
 def yieldClause (c : MClause) (ruleName : String) : RuleM Unit := do
   let _ ← yieldClauseCore c ruleName
 
+def compare (s t : Expr) : RuleM Comparison := do
+  let ord ← getOrder
+  runMetaAsRuleM do ord s t
 
 end RuleM
 
