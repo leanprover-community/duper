@@ -58,8 +58,11 @@ def superpositionAtExpr (e : Expr) (sidePremiseIdx : ProverM.ClauseDiscrTree Cla
     withoutModifyingLoadedClauses $ do
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
       let c ← loadClause partnerClause
+      let lit := match partnerPos.side with
+      | LitSide.lhs => c.lits[partnerPos.lit]
+      | LitSide.rhs => c.lits[partnerPos.lit].symm
       superpositionAtLitWithPartner mainPremise e
-          c.lits[partnerPos.lit]
+          lit
           (c.eraseIdx partnerPos.lit)
 
 def superposition 

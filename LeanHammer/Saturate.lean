@@ -60,12 +60,15 @@ partial def saturate : ProverM Unit := do
         | do
           setResult saturated
           return LoopCtrl.abort
+      trace[Prover.saturate] "### Given clause: {givenClause}"
       let some givenClause ← forwardSimplify givenClause
         | return LoopCtrl.next
+      trace[Prover.saturate] "### Given clause after simp: {givenClause}"
       backwardSimplify givenClause
       addToActive givenClause
       performInferences givenClause
       Core.checkMaxHeartbeats "saturate"
+      trace[Prover.saturate] "### New active Set: {(← getActiveSet).toArray}"
       return LoopCtrl.next
     catch
     | Exception.internal emptyClauseExceptionId _  =>

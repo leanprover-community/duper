@@ -1,7 +1,8 @@
 import LeanHammer.Tactic
 
 -- set_option trace.Meta.debug true
-set_option trace.Prover.debug true
+set_option trace.Prover.saturate true
+-- set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
 
@@ -50,10 +51,10 @@ example (a : Nat)
   · sorry
   · sorry
 
-
+set_option maxHeartbeats 100000
 example 
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
-(div_def : ∀ (x y : Nat), div x y = mul x (inv y))
+-- (div_def : ∀ (x y : Nat), div x y = mul x (inv y))
 (neg_conj : ¬ ∀ (x y : Nat), mul (add x y) (inv y) = add (mul x (inv y)) (mul y (inv y)))
 : False := by
   prover
