@@ -329,6 +329,7 @@ private def getMatchRoot (d : DiscrTree α) (k : Key) (args : Array Expr) (resul
   Find values that match `e` in `d`.
 -/
 partial def getMatch (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
+  Core.checkMaxHeartbeats "getMatch"
   let result := getStarResult d
   let (k, args) ← getMatchKeyArgs e (root := true)
   match k with
@@ -336,6 +337,7 @@ partial def getMatch (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
   | _        => getMatchRoot d k args result
 
 partial def getUnify (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
+  Core.checkMaxHeartbeats "getUnify"
   let (k, args) ← getUnifyKeyArgs e (root := true)
   match k with
   | Key.star => d.root.foldlM (init := #[]) fun result k c => process k.arity #[] c result

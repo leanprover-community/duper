@@ -21,6 +21,7 @@ def equalityResolution (c : MClause) : RuleM Unit := do
 
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) 
     (sidePremiseLit : Lit) (restOfSidePremise : MClause) : RuleM Unit := do
+  Core.checkMaxHeartbeats "superposition"
   withoutModifyingMCtx $ do
     if mainPremiseSubterm.isMVar then
       return ()

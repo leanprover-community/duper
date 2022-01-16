@@ -154,6 +154,7 @@ def throwEmptyClauseException : ProverM α :=
   throw <| Exception.internal emptyClauseExceptionId
 
 partial def chooseGivenClause : ProverM (Option Clause) := do
+  Core.checkMaxHeartbeats "chooseGivenClause"
   -- Decide which heap to choose from
   let fc ← getFairnessCounter
   let (getHeap, setHeap) ←

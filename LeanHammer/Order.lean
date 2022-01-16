@@ -27,6 +27,7 @@ open Lean.Meta
 open Comparison
 
 partial def weight (s : Expr) (w : Int := 0) (sign : Int) : MetaM Int := do
+  Core.checkMaxHeartbeats "weight"
   trace[Meta.debug] "s: {s}" 
   s.withApp fun f ss =>
     match f with
@@ -45,6 +46,7 @@ partial def weight (s : Expr) (w : Int := 0) (sign : Int) : MetaM Int := do
     | _ => throwError "Not implemented"
 
 partial def varBalance (s : Expr) (vb : Std.HashMap Expr Int := {}) (sign : Int) : MetaM (Std.HashMap Expr Int) := do
+  Core.checkMaxHeartbeats "varBalance"
   trace[Meta.debug] "s: {s}" 
   s.withApp fun f ss =>
     match f with
@@ -82,7 +84,7 @@ def compareVarBalance (vb : Std.HashMap Expr Int := {}) : MetaM Comparison := do
 
 -- TODO: Not quite KBO yet
 def kbo (s t : Expr) : MetaM Comparison := do
-  -- Core.checkMaxHeartbeats "kbo"
+  Core.checkMaxHeartbeats "kbo"
   if s == t then Equal
   else
     let wb : Int := 0

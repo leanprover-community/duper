@@ -5,6 +5,7 @@ import LeanHammer.MClause
 import LeanHammer.Boolean
 import LeanHammer.Simp
 import LeanHammer.Superposition
+import LeanHammer.TrivialSimp
 import Std.Data.BinomialHeap
 
 namespace Schroedinger
@@ -24,7 +25,10 @@ set_option maxHeartbeats 10000
 
 open SimpResult
 
-def simpRules := #[(clausificationStep.toSimpRule, "clausification")]
+def simpRules := #[
+  (clausificationStep.toSimpRule, "clausification"),
+  (trivialSimp.toSimpRule, "trivial simp")
+]
 
 def applySimpRules (givenClause : Clause) :
     ProverM (SimpResult Clause) := do
@@ -36,13 +40,14 @@ def applySimpRules (givenClause : Clause) :
   return Unapplicable
 
 partial def simpLoop (givenClause : Clause) : ProverM (Option Clause) := do
+  Core.checkMaxHeartbeats "simpLoop"
   match ← applySimpRules givenClause with
   | Applied c => 
     simpLoop c
   | Unapplicable => some givenClause 
   | Removed => none
 
-partial def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
+def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
   simpLoop givenClause
   -- TODO: Check for empty clause and raise throwEmptyClauseException
 
@@ -56,6 +61,7 @@ def performInferences (givenClause : Clause) : ProverM Unit := do
 partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $
     try do
+      Core.checkMaxHeartbeats "saturate"
       let some givenClause ← chooseGivenClause
         | do
           setResult saturated
@@ -67,7 +73,6 @@ partial def saturate : ProverM Unit := do
       backwardSimplify givenClause
       addToActive givenClause
       performInferences givenClause
-      Core.checkMaxHeartbeats "saturate"
       trace[Prover.saturate] "### New active Set: {(← getActiveSet).toArray}"
       return LoopCtrl.next
     catch

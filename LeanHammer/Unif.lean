@@ -4,6 +4,7 @@ open Lean
 open Lean.Meta
 
 partial def Lean.Meta.unify (l : Array (Expr × Expr)) : MetaM Bool := do
+  Core.checkMaxHeartbeats "unify"
   trace[Meta.debug] "unify: {l}"
   for (t, s) in l do
     if ← unify1 t s

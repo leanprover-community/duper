@@ -149,7 +149,7 @@ def inferType (e : Expr) : RuleM Expr :=
 def instantiateMVars (e : Expr) : RuleM Expr :=
   runMetaAsRuleM $ Meta.instantiateMVars e
 
-partial def unify (l : Array (Expr × Expr)) : RuleM Bool := do
+def unify (l : Array (Expr × Expr)) : RuleM Bool := do
   runMetaAsRuleM $ Meta.unify l
 
 def isProof (e : Expr) : RuleM Bool := do
