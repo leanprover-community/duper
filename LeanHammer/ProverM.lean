@@ -201,7 +201,10 @@ def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
     setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (← c.weight, c)
 
 def addExprAssumptionToPassive (e : Expr) : ProverM Unit := do
-  addNewToPassive (Clause.fromExpr e) {ruleName := "assumption"}
+  let c ← Clause.fromExpr e
+  -- TODO: remove sorry
+  let mkProof := fun _ => Lean.Meta.mkSorry c.toForallExpr (synthetic := true)
+  addNewToPassive c {ruleName := "assumption", mkProof := mkProof}
   
 def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) (ctx : Context := {}) (s : State := {}) : 
     CoreM (α × State) := do

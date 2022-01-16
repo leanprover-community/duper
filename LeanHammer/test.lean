@@ -26,6 +26,12 @@ constant p : Nat → Prop
 --     sorry
 
 
+theorem test1 
+(div_self : ∀ x y : Nat, x ≠ x ∨ y ≠ y)
+: False := by prover
+
+#print test1
+
 theorem test 
 (div_self : ∀ x, div x x = one)
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))

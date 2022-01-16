@@ -25,6 +25,7 @@ structure Proof where
   parents : Array ProofParent := #[]
   ruleName : String := "unknown"
   introducedSkolems : Array (FVarId × Expr) := #[]
+  mkProof : Array Expr → MetaM Expr
 deriving Inhabited
 
 structure State where
@@ -188,7 +189,7 @@ def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) :
 def neutralizeMClause (c : MClause) : RuleM Clause := do
   (← neutralizeMClauseCore c).1
 
-def yieldClauseCore (c : MClause) (ruleName : String) : RuleM Unit := do
+def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option (Array Expr → MetaM Expr)) : RuleM Unit := do
   let (c, cVars) ← neutralizeMClauseCore c
   let mut proofParents := #[]
   for (loadedClause, instantiations) in ← getLoadedClauses do
@@ -202,16 +203,23 @@ def yieldClauseCore (c : MClause) (ruleName : String) : RuleM Unit := do
       instantiations := instantiations
       vanishingVarTypes := ← additionalVars.result.mapM getMVarType
     }
+  let mkProof := match mkProof with
+  | some mkProof => mkProof
+  | none => fun _ => 
+    -- TODO: Remove sorry!?
+    Lean.Meta.mkSorry c.toForallExpr (synthetic := true)
   let proof := {
-    parents := proofParents, 
+    parents := proofParents,  
     ruleName := ruleName,
     introducedSkolems := ← getIntroducedSkolems --TODO: neutralize MVars?
+    mkProof := mkProof
   }
   setResultClauses ((← getResultClauses).push (c, proof))
 
 
-def yieldClause (c : MClause) (ruleName : String) : RuleM Unit := do
-  let _ ← yieldClauseCore c ruleName
+
+def yieldClause (c : MClause) (ruleName : String) (mkProof : Option (Array Expr → MetaM Expr) := none) : RuleM Unit := do
+  let _ ← yieldClauseCore c ruleName mkProof
 
 def compare (s t : Expr) : RuleM Comparison := do
   let ord ← getOrder

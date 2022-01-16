@@ -6,13 +6,20 @@ namespace Schroedinger
 open RuleM
 open Lean
 
+-- TODO: Pass in the clauses later?
+def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) : MetaM Expr := do
+  let premise := premises[0]
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    Meta.mkLambdaFVars xs $ ← Lean.Meta.mkSorry body (synthetic := true)
+
 def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]
     if ← unify #[(lit.lhs, lit.rhs)]
     then
       let c := c.eraseLit i
-      yieldClause c "equality resolution"
+      yieldClause c "equality resolution" 
+        (mkProof := mkEqualityResolutionProof (← neutralizeMClause c) i)
 
 def equalityResolution (c : MClause) : RuleM Unit := do
   for i in [:c.lits.size] do

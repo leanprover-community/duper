@@ -43,10 +43,10 @@ partial def mkList (state : ProverM.State) (c : Clause) (acc : List Clause := []
     acc ← mkList state proofParent.clause acc
   return acc
 
-partial def mkGoals (state : ProverM.State) : List Clause → TacticM (List Expr)
+partial def mkProof (state : ProverM.State) : List Clause → TacticM (List Expr)
 | [] => []
 | c :: cs => do
-  Core.checkMaxHeartbeats "mkGoals"
+  Core.checkMaxHeartbeats "mkProof"
   let info ← getClauseInfo! state c
   let newTarget ← c.toForallExpr
   let mut lctx ← getLCtx
@@ -58,10 +58,14 @@ partial def mkGoals (state : ProverM.State) : List Clause → TacticM (List Expr
     skdefs := skdef :: skdefs
     lctx := lctx.mkLetDecl fvarId userName ty skdef
   let (newProof, otherProofs) ← withLCtx lctx (← getLocalInstances) do
-    let newProof ← mkSorry newTarget (synthetic := true)
+    let mut parents := #[]
+    for parent in info.proof.parents do
+      let number := (← getClauseInfo! state parent.clause).number
+      parents := parents.push (mkFVar ⟨(Name.mkNum `goal number)⟩)
+    let newProof ← info.proof.mkProof parents -- TODO: add as argument? : newTarget
     let otherProofs ←
       withLetDecl (Name.mkNum `goal info.number) newTarget newProof fun g => do
-        let otherProofs ← mkGoals state cs
+        let otherProofs ← mkProof state cs
         let otherProofs ← otherProofs.mapM fun otherProof => do
           let mut otherProof ← mkLambdaFVars (usedLetOnly := false) #[g] otherProof
           for (fvarId, _) in info.proof.introducedSkolems do
@@ -75,11 +79,8 @@ partial def mkGoals (state : ProverM.State) : List Clause → TacticM (List Expr
 def applyProof (state : ProverM.State) : TacticM Unit := do
   let l ← mkList state Clause.empty
   trace[Meta.debug] "{l}"
-  let goals ← mkGoals state l
-  -- IO.println s!"{(l.drop 14).head!.toForallExpr}"
-  -- trace[Meta.debug] "{goals.map (mkMVar $ Prod.fst ·)}"
-  -- trace[Meta.debug] "{goals.map Prod.snd}"
-  assignExprMVar (← getMainGoal) goals.reverse.head! -- TODO: List.last?
+  let proofs ← mkProof state l
+  assignExprMVar (← getMainGoal) proofs.reverse.head! -- TODO: List.last?
 
 def collectAssumptions : TacticM (Array Expr) := do
   let mut formulas := #[]
