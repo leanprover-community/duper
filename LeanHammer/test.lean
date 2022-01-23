@@ -36,7 +36,7 @@ theorem test1'
 (div_self : ∀ x y z : Nat, f x ≠ f x ∨ g y ≠ g y ∨ h z ≠ h z)
 : False := by prover
 
-#print test1
+#print test1'
 
 theorem test 
 (div_self : ∀ x, div x x = one)
