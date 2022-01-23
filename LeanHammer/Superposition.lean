@@ -35,8 +35,21 @@ def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (pa
     let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiate (xs ++ vanishingVarSkolems))
     let parentLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
 
-    let caseProofs ← parentLits.mapM fun lit => do Lean.Meta.mkSorry (← Meta.mkArrow lit.toExpr body) (synthetic := true)
-    
+    let mut caseProofs := #[]
+    for j in [:parentLits.size] do
+      let lit := parentLits[j]
+      if j == i then
+        -- lit has the form t ≠ t
+        let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          let pr ← mkApp2 (mkConst ``rfl [lit.lvl]) lit.ty lit.lhs
+          let pr ← mkApp h pr
+          let pr ← mkApp2 (mkConst ``False.elim [levelZero]) body pr
+          Meta.mkLambdaFVars #[h] pr
+        caseProofs := caseProofs.push pr
+      else
+        -- need proof of `L_j → L_1 ∨ ... ∨ L_n`
+        caseProofs := caseProofs.push $ ← Lean.Meta.mkSorry (← Meta.mkArrow lit.toExpr body) (synthetic := true)
+
     let r ← orCases (← parentLits.map Lit.toExpr) body caseProofs
     let appliedPremise := mkAppN premise parentInstantiations
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
