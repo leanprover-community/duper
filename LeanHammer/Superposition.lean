@@ -7,6 +7,7 @@ open RuleM
 open Lean
 
 -- move to proof reconstruction file
+/-- Construct a proof of `lits[0] ∨ ... ∨ lits[n] → target`, given proofs (`casesProofs`) of `lits[i] → target` -/
 def orCases (lits : Array Expr) (target : Expr) (caseProofs : Array Expr) : MetaM Expr := do
   let mut ors := #[lits[lits.size - 1]]
   for l in [2:lits.size+1] do
@@ -26,14 +27,33 @@ def orCases (lits : Array Expr) (target : Expr) (caseProofs : Array Expr) : Meta
       Meta.mkLambdaFVars #[h] p
   return r
 
+-- move to proof reconstruction file
+/-- Construct a proof of `lits[0] ∨ ... ∨ lits[n]`, given a `proof` of `lits[i]` -/
+def orIntro (lits : Array Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
+  let mut tyR := lits[lits.size-1]
+  for j in [2:lits.size-i] do
+    tyR := mkApp2 (mkConst ``Or) lits[lits.size - j] tyR
+  let mut proofRight := ←
+    if i != lits.size - 1 then
+      mkApp3 (mkConst ``Or.inl) lits[i] tyR proof
+    else
+      proof
+  if i != lits.size - 1 then
+    tyR := mkApp2 (mkConst ``Or) lits[i] tyR
+  for j in [lits.size-i+1:lits.size+1] do
+    proofRight := mkApp3 (mkConst ``Or.inr) lits[lits.size-j] tyR proofRight
+    tyR := mkApp2 (mkConst ``Or) lits[lits.size-j] tyR
+  return proofRight
+
 -- TODO: Pass in the clauses later?
 def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (parents: Array ProofParent) : MetaM Expr := do
   let premise := premises[0]
   let parent := parents[0]
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let vanishingVarSkolems ← parent.vanishingVarTypes.mapM (fun ty => Lean.Meta.mkSorry ty (synthetic := true))
-    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiate (xs ++ vanishingVarSkolems))
+    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
     let parentLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
+    let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
 
     let mut caseProofs := #[]
     for j in [:parentLits.size] do
@@ -48,7 +68,11 @@ def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (pa
         caseProofs := caseProofs.push pr
       else
         -- need proof of `L_j → L_1 ∨ ... ∨ L_n`
-        caseProofs := caseProofs.push $ ← Lean.Meta.mkSorry (← Meta.mkArrow lit.toExpr body) (synthetic := true)
+        let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          let idx := if j ≥ i then j - 1 else j
+          Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
+        -- caseProofs := caseProofs.push $ ← Lean.Meta.mkSorry (← Meta.mkArrow lit.toExpr body) (synthetic := true)
+        caseProofs := caseProofs.push $ pr
 
     let r ← orCases (← parentLits.map Lit.toExpr) body caseProofs
     let appliedPremise := mkAppN premise parentInstantiations
