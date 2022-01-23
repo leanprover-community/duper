@@ -170,7 +170,7 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
   let lits := c.lits.map fun l =>
-    l.map fun e => e.instantiate mVars
+    l.map fun e => e.instantiateRev mVars
   setLoadedClauses ((← getLoadedClauses).push (c, mVars.map Expr.mvarId!))
   return (mVars, MClause.mk lits)
 

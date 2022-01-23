@@ -6,8 +6,6 @@ namespace Schroedinger
 open RuleM
 open Lean
 
-
--- TODO: Check instantiate vs instantiateRev. I think I'd like to favor instantiateRev.
 -- TODO: Pass in the clauses later?
 def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (parents: Array ProofParent) : MetaM Expr := do
   let premise := premises[0]
