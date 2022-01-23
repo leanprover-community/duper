@@ -16,6 +16,8 @@ constant mul : Nat → Nat → Nat
 constant add : Nat → Nat → Nat
 constant inv : Nat → Nat
 constant f : Nat → Nat
+constant g : Nat → Nat
+constant h : Nat → Nat
 constant p : Nat → Prop
 
 -- example --(h : ∃ x, x ≠ c ∨ a = b) 
@@ -27,7 +29,11 @@ constant p : Nat → Prop
 
 
 theorem test1 
-(div_self : ∀ x y : Nat, x ≠ x ∨ y ≠ y)
+(div_self : a ≠ a ∨ b ≠ b ∨ c ≠ c)
+: False := by prover
+
+theorem test1'
+(div_self : ∀ x y z : Nat, f x ≠ f x ∨ g y ≠ g y ∨ h z ≠ h z)
 : False := by prover
 
 #print test1

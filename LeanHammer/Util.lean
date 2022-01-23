@@ -12,7 +12,7 @@ def Lean.Expr.abstractMVars (e : Expr) (mVars : Array Expr) : Expr :=
     match e with
     | Expr.mvar .. => 
       match mVars.indexOf? e with
-      | some i => mkBVar (offset + i)
+      | some i => mkBVar (mVars.size - 1 - i + offset)
       | none => e
     | Expr.app f a _       => return e.updateApp! (visit f offset) (visit a offset)
     | Expr.mdata _ b _     => return e.updateMData! (visit b offset)

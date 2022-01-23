@@ -6,11 +6,50 @@ namespace Schroedinger
 open RuleM
 open Lean
 
+
+-- TODO: Check instantiate vs instantiateRev. I think I'd like to favor instantiateRev.
 -- TODO: Pass in the clauses later?
-def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) : MetaM Expr := do
+def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (parents: Array ProofParent) : MetaM Expr := do
   let premise := premises[0]
+  let parent := parents[0]
   Meta.forallTelescope c.toForallExpr fun xs body => do
-    Meta.mkLambdaFVars xs $ ← Lean.Meta.mkSorry body (synthetic := true)
+    let vanishingVarSkolems ← parent.vanishingVarTypes.mapM (fun ty => Lean.Meta.mkSorry ty (synthetic := true))
+    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiate (xs ++ vanishingVarSkolems))
+    let parentLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
+    let mut ors := #[parentLits[parentLits.size - 1].toExpr]
+    for l in [2:parentLits.size+1] do
+      ors := ors.push (mkApp2 (mkConst ``Or) parentLits[parentLits.size - l].toExpr ors[ors.size-1])
+    trace[Meta.debug] "Parent lits: {parentLits}"
+    trace[Meta.debug] "Parent toExpr: {parent.clause.toExpr}"
+    trace[Meta.debug] "instantiations: {parent.instantiations}"
+    trace[Meta.debug] "instantiations: {parentInstantiations}"
+    trace[Meta.debug] "Premise type: {← Meta.inferType premise}"
+    trace[Meta.debug] "apppremise: {← Meta.inferType (mkAppN premise parentInstantiations)}"
+      
+
+
+    let mut r ← Lean.Meta.mkSorry (← Meta.mkArrow parentLits[parentLits.size - 1].toExpr body) (synthetic := true)
+    for k in [2:parentLits.size+1] do
+      let newOne ← Lean.Meta.mkSorry (← Meta.mkArrow parentLits[parentLits.size - k].toExpr body) (synthetic := true)
+      r ← Meta.withLocalDeclD `h ors[k-1] fun h => do
+        let p := mkApp6
+          (mkConst ``Or.elim)
+          parentLits[parentLits.size - k].toExpr
+          ors[k-2]
+          body
+          h
+          newOne
+          r
+        Meta.mkLambdaFVars #[h] p
+      
+
+    trace[Meta.debug] "r: {r}"
+    trace[Meta.debug] "Type1: {← Meta.inferType r}"
+    let appliedPremise := mkAppN premise parentInstantiations
+    trace[Meta.debug] "Type2: {← Meta.inferType appliedPremise}"
+    trace[Meta.debug] "{← Meta.inferType $ mkApp r appliedPremise}"
+    Meta.check (mkApp r appliedPremise)
+    Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
 def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
   withoutModifyingMCtx $ do
