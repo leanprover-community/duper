@@ -1,6 +1,6 @@
 import LeanHammer.ProverM
 import LeanHammer.MClause
-import LeanHammer.Iterate
+import LeanHammer.Util.Iterate
 
 namespace Schroedinger
 open RuleM
