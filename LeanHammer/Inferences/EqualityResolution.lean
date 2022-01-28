@@ -1,0 +1,64 @@
+import LeanHammer.ProverM
+import LeanHammer.RuleM
+import LeanHammer.MClause
+import LeanHammer.Util.ProofReconstruction
+
+namespace Schroedinger
+open RuleM
+open Lean
+
+-- TODO: Pass in the clauses later?
+def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (parents: Array ProofParent) : MetaM Expr := do
+  let premise := premises[0]
+  let parent := parents[0]
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    -- TODO: get rid of this sorry (need inhabited types!)
+    let vanishingVarSkolems ← parent.vanishingVarTypes.mapM (fun ty => Lean.Meta.mkSorry ty (synthetic := true))
+    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
+    let parentLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
+    let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
+
+    let mut caseProofs := #[]
+    for j in [:parentLits.size] do
+      let lit := parentLits[j]
+      if j == i then
+        -- lit has the form t ≠ t
+        let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          let pr ← mkApp2 (mkConst ``rfl [lit.lvl]) lit.ty lit.lhs
+          let pr ← mkApp h pr
+          let pr ← mkApp2 (mkConst ``False.elim [levelZero]) body pr
+          Meta.mkLambdaFVars #[h] pr
+        caseProofs := caseProofs.push pr
+      else
+        -- need proof of `L_j → L_1 ∨ ... ∨ L_n`
+        let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          let idx := if j ≥ i then j - 1 else j
+          Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
+        -- caseProofs := caseProofs.push $ ← Lean.Meta.mkSorry (← Meta.mkArrow lit.toExpr body) (synthetic := true)
+        caseProofs := caseProofs.push $ pr
+
+    let r ← orCases (← parentLits.map Lit.toExpr) body caseProofs
+    let appliedPremise := mkAppN premise parentInstantiations
+    Meta.mkLambdaFVars xs $ mkApp r appliedPremise
+
+def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
+  withoutModifyingMCtx $ do
+    let lit := c.lits[i]
+    if ← unify #[(lit.lhs, lit.rhs)]
+    then
+      let c := c.eraseLit i
+      yieldClause c "equality resolution" 
+        (mkProof := mkEqualityResolutionProof (← neutralizeMClause c) i)
+
+def equalityResolution (c : MClause) : RuleM Unit := do
+  for i in [:c.lits.size] do
+    if c.lits[i].sign = false then
+      equalityResolutionAtLit c i
+
+open ProverM
+
+def performEqualityResolution (givenClause : Clause) : ProverM Unit := do
+  trace[Prover.debug] "EqRes inferences with {givenClause}"
+  performInference equalityResolution givenClause
+
+end Schroedinger

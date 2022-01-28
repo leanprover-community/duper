@@ -40,7 +40,7 @@ theorem test2
 (div_self : ∀ x, x ≠ a)
 : False := by prover
 
-#print test1
+#print test1'
 
 theorem test 
 (div_self : ∀ x, div x x = one)

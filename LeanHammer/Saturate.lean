@@ -4,7 +4,8 @@ import LeanHammer.RuleM
 import LeanHammer.MClause
 import LeanHammer.Boolean
 import LeanHammer.Simp
-import LeanHammer.Superposition
+import LeanHammer.Inferences.Superposition
+import LeanHammer.Inferences.EqualityResolution
 import LeanHammer.TrivialSimp
 import Std.Data.BinomialHeap
 
