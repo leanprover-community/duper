@@ -1,12 +1,12 @@
 import LeanHammer.ProverM
-import LeanHammer.Iterate
+import LeanHammer.Util.Iterate
 import LeanHammer.RuleM
 import LeanHammer.MClause
-import LeanHammer.Boolean
+import LeanHammer.Rules.Clausification
 import LeanHammer.Simp
-import LeanHammer.Inferences.Superposition
-import LeanHammer.Inferences.EqualityResolution
-import LeanHammer.TrivialSimp
+import LeanHammer.Rules.Superposition
+import LeanHammer.Rules.EqualityResolution
+import LeanHammer.Rules.TrivialSimp
 import Std.Data.BinomialHeap
 
 namespace Schroedinger

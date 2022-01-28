@@ -1,5 +1,5 @@
 import Lean
-import LeanHammer.Util
+import LeanHammer.Util.Misc
 import LeanHammer.Expr
 
 namespace Schroedinger
