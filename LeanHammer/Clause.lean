@@ -75,6 +75,10 @@ def makeLhs (lit : Lit) (side : LitSide) := match side with
 | LitSide.lhs => lit
 | LitSide.rhs => lit.symm
 
+def getSide (lit : Lit) (side : LitSide) := match side with
+| LitSide.lhs => lit.lhs
+| LitSide.rhs => lit.rhs
+
 instance : ToFormat Lit :=
 ⟨ fun lit => format lit.toExpr ⟩
 

@@ -32,19 +32,22 @@ def mkSuperpositionProof (c : Clause) (sidePremiseLitIdx : Nat) (sidePremiseLitS
     for j in [:sideParentLits.size] do
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]
-        let pr ← Meta.withLocalDeclD `h_eq eqLit.toExpr fun h_eq => do
+        let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
+          let eq := if sidePremiseLitSide == LitSide.rhs 
+                      then ← Meta.mkAppM ``Eq.symm #[heq] 
+                      else heq
           let mut caseProofsMain : Array Expr := #[]
           for i in [:mainParentLits.size] do
             let lit := mainParentLits[i]
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
-              let abstr := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) $ ← Meta.kabstract lit.toExpr eqLit.lhs
-              let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,h_eq], h]
+              let abstr ← Meta.kabstract lit.toExpr $ eqLit.getSide sidePremiseLitSide
+              let abstr := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstr
+              let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,eq], h]
               Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
             caseProofsMain := caseProofsMain.push $ pr
-
           let r ← orCases (← mainParentLits.map Lit.toExpr) body caseProofsMain
-          Meta.mkLambdaFVars #[h_eq] $ mkApp r appliedMainPremise
+          Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
         caseProofsSide := caseProofsSide.push $ pr
       else
         let lit := sideParentLits[j]
