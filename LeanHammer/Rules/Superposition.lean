@@ -1,15 +1,69 @@
 import LeanHammer.ProverM
 import LeanHammer.RuleM
 import LeanHammer.MClause
+import LeanHammer.Util.ProofReconstruction
 
 namespace Schroedinger
 open RuleM
 open Lean
 
+
+-- TODO: Pass in the clauses later?
+def mkSuperpositionProof (c : Clause) (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) 
+    (premises : Array Expr) (parents: Array ProofParent) : MetaM Expr := do
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    -- TODO: make this external function and reuse for EqRes
+    let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
+    let mut parentsLits := #[]
+    let mut appliedPremises := #[]
+    for k in [:parents.size] do
+      -- TODO: get rid of this sorry (need inhabited types!)
+      let vanishingVarSkolems ← parents[k].vanishingVarTypes.mapM (fun ty => Lean.Meta.mkSorry ty (synthetic := true))
+      let parentInstantiations := parents[k].instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
+      parentsLits := parentsLits.push $ parents[k].clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
+      appliedPremises := appliedPremises.push $ mkAppN premises[k] parentInstantiations
+
+    let mainParentLits := if givenIsMain then parentsLits[0] else parentsLits[1]
+    let sideParentLits := if givenIsMain then parentsLits[1] else parentsLits[0]
+    let appliedMainPremise := if givenIsMain then appliedPremises[0] else appliedPremises[1]
+    let appliedSidePremise := if givenIsMain then appliedPremises[1] else appliedPremises[0]
+
+    let mut caseProofsSide := #[]
+    for j in [:sideParentLits.size] do
+      if j == sidePremiseLitIdx then
+        let eqLit := sideParentLits[j]
+        let pr ← Meta.withLocalDeclD `h_eq eqLit.toExpr fun h_eq => do
+          let mut caseProofsMain : Array Expr := #[]
+          for i in [:mainParentLits.size] do
+            let lit := mainParentLits[i]
+            let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+              let idx := sideParentLits.size - 1 + i
+              let abstr := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) $ ← Meta.kabstract lit.toExpr eqLit.lhs
+              let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,h_eq], h]
+              Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
+            caseProofsMain := caseProofsMain.push $ pr
+
+          let r ← orCases (← mainParentLits.map Lit.toExpr) body caseProofsMain
+          Meta.mkLambdaFVars #[h_eq] $ mkApp r appliedMainPremise
+        caseProofsSide := caseProofsSide.push $ pr
+      else
+        let lit := sideParentLits[j]
+        let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          let idx := if j ≥ sidePremiseLitIdx then j - 1 else j
+          Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
+        caseProofsSide := caseProofsSide.push $ pr
+
+    let r ← orCases (← sideParentLits.map Lit.toExpr) body caseProofsSide
+    let proof ← Meta.mkLambdaFVars xs $ mkApp r appliedSidePremise
+    -- Meta.mkLambdaFVars xs $ ← Lean.Meta.mkSorry body (synthetic := true)
+    proof
+
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) 
-    (sidePremiseLit : Lit) (restOfSidePremise : MClause) : RuleM Unit := do
+    (sidePremise : MClause) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (givenIsMain : Bool): RuleM Unit := do
   Core.checkMaxHeartbeats "superposition"
   withoutModifyingMCtx $ do
+    let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx].makeLhs sidePremiseSide
+    let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
     if mainPremiseSubterm.isMVar then
       return ()
     if not $ ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)] then
@@ -20,13 +74,16 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
       return ()
     let mainPremiseReplaced ← 
       mainPremise.mapM fun e => do
-        replace (← instantiateMVars e) lhs rhs
+        replace (← instantiateMVars e) lhs rhs --TODO: Replace only green subterms
     let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
-    yieldClause (MClause.append mainPremiseReplaced restOfSidePremise) "superposition"
+    let res := MClause.append restOfSidePremise mainPremiseReplaced 
+    yieldClause res "superposition" 
+      (mkProof := mkSuperpositionProof (← neutralizeMClause res) sidePremiseLitIdx sidePremiseSide givenIsMain)
 
 def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
-    (sidePremiseLit : Lit) (restOfSidePremise : MClause) : 
+      (sidePremise : MClause) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) : 
     RuleM Unit := do
+  let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx].makeLhs sidePremiseSide
   trace[Rule.debug] "Superposition inferences at literal {sidePremiseLit}"
   let potentialPartners ← mainPremiseIdx.getUnify sidePremiseLit.lhs
   -- trace[Rule.debug] "Potential partners {potentialPartners}"
@@ -35,7 +92,7 @@ def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos)
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
       let c ← loadClause partnerClause
       superpositionAtLitWithPartner c (c.getAtPos! partnerPos)
-          sidePremiseLit restOfSidePremise
+          sidePremise sidePremiseLitIdx sidePremiseSide (givenIsMain := false)
 
 def superpositionAtExpr (e : Expr) (sidePremiseIdx : ProverM.ClauseDiscrTree ClausePos)
     (mainPremise : MClause) : RuleM Unit := do
@@ -46,12 +103,9 @@ def superpositionAtExpr (e : Expr) (sidePremiseIdx : ProverM.ClauseDiscrTree Cla
     withoutModifyingLoadedClauses $ do
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
       let c ← loadClause partnerClause
-      let lit := match partnerPos.side with
-      | LitSide.lhs => c.lits[partnerPos.lit]
-      | LitSide.rhs => c.lits[partnerPos.lit].symm
       superpositionAtLitWithPartner mainPremise e
-          lit
-          (c.eraseIdx partnerPos.lit)
+          c partnerPos.lit partnerPos.side (givenIsMain := true)
+          
 
 def superposition 
     (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
@@ -63,10 +117,11 @@ def superposition
     if givenMClause.lits[i].sign = true
     then 
       let restOfGivenClause ← givenMClause.eraseIdx i
-      for lit in #[(givenMClause.lits[i]), (givenMClause.lits[i]).symm] do
-        if (← RuleM.compare lit.lhs lit.rhs) == Comparison.LessThan then
+      for side in #[LitSide.lhs, LitSide.rhs] do
+        let flippedLit := givenMClause.lits[i].makeLhs side
+        if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then
           continue
-        let cs ← superpositionAtLit mainPremiseIdx lit restOfGivenClause
+        let cs ← superpositionAtLit mainPremiseIdx givenMClause i side
   -- With given clause as main premise
   -- trace[Rule.debug] "Superposition inferences with {givenClause} as main premise"
   givenMClause.foldGreenM fun acc e pos => do

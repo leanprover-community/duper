@@ -37,7 +37,6 @@ def fromExpr (e : Expr) (sign := true) : Lit :=
     (ty := mkSort levelZero)
     (lhs := e)
     (rhs := if sign then mkConst ``True else mkConst ``False)
-  
 
 def map (f : Expr → Expr) (l : Lit) :=
   {l with ty := f l.ty, lhs := f l.lhs, rhs := f l.rhs}
@@ -71,6 +70,10 @@ def symm (l : Lit) : Lit :=
 {l with 
   lhs := l.rhs
   rhs := l.lhs}
+
+def makeLhs (lit : Lit) (side : LitSide) := match side with
+| LitSide.lhs => lit
+| LitSide.rhs => lit.symm
 
 instance : ToFormat Lit :=
 ⟨ fun lit => format lit.toExpr ⟩
@@ -132,3 +135,4 @@ where
   | Expr.proj _ _ b _    => 1 + weightExpr b
 
 end Clause
+

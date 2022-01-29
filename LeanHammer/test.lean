@@ -27,10 +27,20 @@ constant p : Nat → Prop
 --   all_goals
 --     sorry
 
+theorem test0
+(ax1 : f a ≠ b ∨ f c ≠ b)
+(ax2 : ∀ x, f x = b ∨ c ≠ c)
+: False := by prover
+
+#print test0
 
 theorem test1 
-(div_self : a ≠ a ∨ b ≠ b ∨ c ≠ c)
+(div_self : ∀ x, f x = a)
+(div_self : ∀ x, f x ≠ a)
 : False := by prover
+
+
+#print test1
 
 theorem test1'
 (div_self : ∀ x y z : Nat, f x ≠ f x ∨ g y ≠ g y ∨ h z ≠ h z)
