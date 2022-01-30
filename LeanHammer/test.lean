@@ -1,7 +1,7 @@
 import LeanHammer.Tactic
 
-set_option trace.Meta.debug true
-set_option trace.Prover.saturate true
+-- set_option trace.Meta.debug true
+-- set_option trace.Prover.saturate true
 -- set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
@@ -47,10 +47,10 @@ theorem test1'
 : False := by prover
 
 theorem test2
-(div_self : ∀ x, x ≠ a)
+(div_self : ∀ (x : Nat), x ≠ x)
 : False := by prover
 
-#print test1'
+#print test2
 
 theorem test 
 (div_self : ∀ x, div x x = one)

@@ -116,6 +116,8 @@ def withoutModifyingLoadedClauses (x : RuleM α) : RuleM α := do
 instance : AddMessageContext RuleM where
   addMessageContext := addMessageContextFull
 
+
+-- TODO: MonadLift
 def runMetaAsRuleM (x : MetaM α) : RuleM α := do
   let lctx ← getLCtx
   let mctx ← getMCtx

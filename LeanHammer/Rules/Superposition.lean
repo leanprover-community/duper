@@ -7,22 +7,14 @@ namespace Schroedinger
 open RuleM
 open Lean
 
-
 -- TODO: Pass in the clauses later?
 def mkSuperpositionProof (c : Clause) (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) 
     (premises : Array Expr) (parents: Array ProofParent) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     -- TODO: make this external function and reuse for EqRes
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let mut parentsLits := #[]
-    let mut appliedPremises := #[]
-    for k in [:parents.size] do
-      -- TODO: get rid of this sorry (need inhabited types!)
-      let vanishingVarSkolems ← parents[k].vanishingVarTypes.mapM (fun ty => Lean.Meta.mkSorry ty (synthetic := true))
-      let parentInstantiations := parents[k].instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
-      parentsLits := parentsLits.push $ parents[k].clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
-      appliedPremises := appliedPremises.push $ mkAppN premises[k] parentInstantiations
-
+    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    
     let mainParentLits := if givenIsMain then parentsLits[0] else parentsLits[1]
     let sideParentLits := if givenIsMain then parentsLits[1] else parentsLits[0]
     let appliedMainPremise := if givenIsMain then appliedPremises[0] else appliedPremises[1]

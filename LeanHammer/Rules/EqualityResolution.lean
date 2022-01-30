@@ -12,11 +12,10 @@ def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (pa
   let premise := premises[0]
   let parent := parents[0]
   Meta.forallTelescope c.toForallExpr fun xs body => do
-    -- TODO: get rid of this sorry (need inhabited types!)
-    let vanishingVarSkolems ← parent.vanishingVarTypes.mapM (fun ty => Lean.Meta.mkSorry ty (synthetic := true))
-    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
-    let parentLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
+    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let parentLits := parentsLits[0]
+    let appliedPremise := appliedPremises[0]
 
     let mut caseProofs := #[]
     for j in [:parentLits.size] do
@@ -38,7 +37,6 @@ def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (pa
         caseProofs := caseProofs.push $ pr
 
     let r ← orCases (← parentLits.map Lit.toExpr) body caseProofs
-    let appliedPremise := mkAppN premise parentInstantiations
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
 def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=

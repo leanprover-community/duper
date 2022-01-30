@@ -6,7 +6,18 @@ namespace Schroedinger
 open RuleM
 open Lean
 
--- move to proof reconstruction file
+def instantiatePremises (parents : Array ProofParent) (premises : Array Expr) (xs : Array Expr) : 
+    MetaM (Array (Array Lit) × Array Expr) := do
+  let mut parentsLits := #[]
+  let mut appliedPremises := #[]
+  for k in [:parents.size] do
+    let vanishingVarSkolems ← parents[k].vanishingVarTypes.mapM fun ty =>
+      Meta.mkAppOptM ``arbitrary #[some ty, none]
+    let parentInstantiations := parents[k].instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
+    parentsLits := parentsLits.push $ parents[k].clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
+    appliedPremises := appliedPremises.push $ mkAppN premises[k] parentInstantiations
+  return (parentsLits, appliedPremises)
+
 /-- Construct a proof of `lits[0] ∨ ... ∨ lits[n] → target`, given proofs (`casesProofs`) of `lits[i] → target` -/
 def orCases (lits : Array Expr) (target : Expr) (caseProofs : Array Expr) : MetaM Expr := do
   let mut ors := #[lits[lits.size - 1]]
@@ -27,7 +38,6 @@ def orCases (lits : Array Expr) (target : Expr) (caseProofs : Array Expr) : Meta
       Meta.mkLambdaFVars #[h] p
   return r
 
--- move to proof reconstruction file
 /-- Construct a proof of `lits[0] ∨ ... ∨ lits[n]`, given a `proof` of `lits[i]` -/
 def orIntro (lits : Array Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
   let mut tyR := lits[lits.size-1]
