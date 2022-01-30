@@ -65,6 +65,7 @@ def clausificationStepLit (l : Lit) : RuleM (SimpResult (List MClause)) := do
   | Expr.const ``False _ _ => clausificationStepE l.lhs false
   | _ => return Unapplicable
 
+-- TODO: Make this function retrun a method to reconstruct proof
 def clausificationStep : MSimpRule := fun c => do
   let mut ls := c.lits
   for i in [:ls.size] do

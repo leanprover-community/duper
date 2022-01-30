@@ -62,7 +62,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM (List Expr
     for parent in info.proof.parents do
       let number := (← getClauseInfo! state parent.clause).number
       parents := parents.push ((← getLCtx).findFromUserName? (Name.mkNum `goal number)).get!.toExpr
-    let newProof ← info.proof.mkProof parents info.proof.parents -- TODO: add as argument? : newTarget
+    let newProof ← info.proof.mkProof parents info.proof.parents c
     let otherProofs ←
       withLetDecl (Name.mkNum `goal info.number) newTarget newProof fun g => do
         let otherProofs ← mkProof state cs

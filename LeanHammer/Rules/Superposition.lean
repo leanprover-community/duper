@@ -8,8 +8,8 @@ open RuleM
 open Lean
 
 -- TODO: Pass in the clauses later?
-def mkSuperpositionProof (c : Clause) (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) 
-    (premises : Array Expr) (parents: Array ProofParent) : MetaM Expr := do
+def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) 
+    (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     -- TODO: make this external function and reuse for EqRes
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
@@ -73,7 +73,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
     let res := MClause.append restOfSidePremise mainPremiseReplaced 
     yieldClause res "superposition" 
-      (mkProof := mkSuperpositionProof (← neutralizeMClause res) sidePremiseLitIdx sidePremiseSide givenIsMain)
+      (mkProof := mkSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain)
 
 def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
       (sidePremise : MClause) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) : 

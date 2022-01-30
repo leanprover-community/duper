@@ -22,11 +22,14 @@ structure ProofParent where
 -- e.g., EqRes on x != y
 deriving Inhabited
 
+/-- Takes: Proofs of the parent clauses, ProofParent information, the target clause -/
+abbrev ProofReconstructor := Array Expr → Array ProofParent → Clause → MetaM Expr
+
 structure Proof where
   parents : Array ProofParent := #[]
   ruleName : String := "unknown"
   introducedSkolems : Array (FVarId × Expr) := #[]
-  mkProof : Array Expr → Array ProofParent → MetaM Expr --TODO: Remove `Array Expr`?
+  mkProof : ProofReconstructor
 deriving Inhabited
 
 structure State where
@@ -192,7 +195,7 @@ def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) :
 def neutralizeMClause (c : MClause) : RuleM Clause := do
   (← neutralizeMClauseCore c).1
 
-def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option (Array Expr → Array ProofParent → MetaM Expr)) : RuleM Unit := do
+def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
   let (c, cVars) ← neutralizeMClauseCore c
   let mut proofParents := #[]
   for (loadedClause, instantiations) in ← getLoadedClauses do
@@ -208,7 +211,7 @@ def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option (Array E
     }
   let mkProof := match mkProof with
   | some mkProof => mkProof
-  | none => fun _ _ => 
+  | none => fun _ _ _ => 
     -- TODO: Remove sorry!?
     Lean.Meta.mkSorry c.toForallExpr (synthetic := true)
   let proof := {
@@ -221,7 +224,7 @@ def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option (Array E
 
 
 
-def yieldClause (c : MClause) (ruleName : String) (mkProof : Option (Array Expr → Array ProofParent → MetaM Expr) := none) : RuleM Unit := do
+def yieldClause (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor := none) : RuleM Unit := do
   let _ ← yieldClauseCore c ruleName mkProof
 
 def compare (s t : Expr) : RuleM Comparison := do

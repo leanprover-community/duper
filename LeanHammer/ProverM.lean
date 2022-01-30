@@ -203,7 +203,7 @@ def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
 def addExprAssumptionToPassive (e : Expr) : ProverM Unit := do
   let c ← Clause.fromExpr e
   -- TODO: remove sorry
-  let mkProof := fun _ _ => Lean.Meta.mkSorry c.toForallExpr (synthetic := true)
+  let mkProof := fun _ _ _ => Lean.Meta.mkSorry c.toForallExpr (synthetic := true)
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof}
   
 def ProverM.runWithExprs (x : ProverM α) (es : Array Expr) (ctx : Context := {}) (s : State := {}) : 

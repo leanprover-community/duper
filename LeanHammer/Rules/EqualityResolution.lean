@@ -8,7 +8,7 @@ open RuleM
 open Lean
 
 -- TODO: Pass in the clauses later?
-def mkEqualityResolutionProof (c : Clause) (i : Nat) (premises : Array Expr) (parents: Array ProofParent) : MetaM Expr := do
+def mkEqualityResolutionProof (i : Nat) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
   let premise := premises[0]
   let parent := parents[0]
   Meta.forallTelescope c.toForallExpr fun xs body => do
@@ -46,7 +46,7 @@ def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
     then
       let c := c.eraseLit i
       yieldClause c "equality resolution" 
-        (mkProof := mkEqualityResolutionProof (← neutralizeMClause c) i)
+        (mkProof := mkEqualityResolutionProof i)
 
 def equalityResolution (c : MClause) : RuleM Unit := do
   for i in [:c.lits.size] do
