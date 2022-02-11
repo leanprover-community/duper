@@ -1,4 +1,5 @@
 import LeanHammer.ProverM
+import LeanHammer.RuleM
 import LeanHammer.MClause
 import LeanHammer.Util.Iterate
 
@@ -28,7 +29,7 @@ end SimpResult
 
 open SimpResult
 
-abbrev MSimpRule := MClause → RuleM (SimpResult (List MClause))
+abbrev MSimpRule := MClause → RuleM (SimpResult (List (MClause × Option ProofReconstructor)))
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
     
 
@@ -39,7 +40,7 @@ def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String)
     let mclause ← loadClause givenClause
     let cs? ← rule mclause
     cs?.forM fun cs => do
-      for c in cs do yieldClause c ruleName
+      for (c, mkProof) in cs do yieldClause c ruleName mkProof
     return cs?
   match res with
   | Removed           => Removed

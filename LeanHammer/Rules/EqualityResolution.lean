@@ -7,7 +7,6 @@ namespace Schroedinger
 open RuleM
 open Lean
 
--- TODO: Pass in the clauses later?
 def mkEqualityResolutionProof (i : Nat) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
   let premise := premises[0]
   let parent := parents[0]

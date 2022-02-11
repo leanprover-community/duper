@@ -1,6 +1,6 @@
 import LeanHammer.Tactic
 
--- set_option trace.Meta.debug true
+set_option trace.Meta.debug true
 -- set_option trace.Prover.saturate true
 -- set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
@@ -26,6 +26,15 @@ constant p : Nat → Prop
 --   prover
 --   all_goals
 --     sorry
+#check fun h => Eq.mpr h True.intro
+#check propext
+
+theorem test00
+(ax1 : (a ≠ b) = False)
+(ax1 : a ≠ b)
+: False := by prover
+
+#print test00
 
 theorem test0
 (ax1 : f a ≠ b ∨ f c ≠ b)
