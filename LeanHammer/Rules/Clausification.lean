@@ -13,14 +13,34 @@ theorem not_of_eq_false (h: p = False) : ¬ p :=
   fun hp => h ▸ hp
 
 --TODO: move?
-theorem eq_of_neq_false {α : Sort u} {a b : α} (h: (a ≠ b) = False) : a = b := 
+theorem of_not_eq_false (h: (¬ p) = False) : p := 
   Classical.byContradiction fun hn => h ▸ hn
 
+--TODO: move?
+theorem eq_true_of_not_eq_false (h : (¬ p) = False) : p = True := 
+  eq_true (of_not_eq_false h)
+
+--TODO: move?
+theorem eq_false_of_not_eq_true (h : (¬ p) = True) : p = False := 
+  eq_false (of_eq_true h)
+
 def clausificationStepE (e : Expr) (sign : Bool): 
-    RuleM (SimpResult (List (MClause × Option (Expr → Expr → MetaM Expr)))) := do
+    RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   match sign, e with
-  | sign, Expr.app (Expr.const ``Not _ _) e _ => do
-    clausificationStepE e (not sign)
+  | true, Expr.app (Expr.const ``Not _ _) e _ => do
+    let res ← clausificationStepE e false
+    res.mapM fun res => res.mapM fun (c, pr?) => do 
+      return (c, ← pr?.mapM fun pr => do 
+        let pr : Expr → MetaM Expr := fun premise => do
+          return ← pr $ ← Meta.mkAppM ``eq_false_of_not_eq_true #[premise]
+        return pr)
+  | false, Expr.app (Expr.const ``Not _ _) e _ => do
+    let res ← clausificationStepE e true
+    res.mapM fun res => res.mapM fun (c, pr?) => do 
+      return (c, ← pr?.mapM fun pr => do 
+        let pr : Expr → MetaM Expr := fun premise => do
+          return ← pr $ ← Meta.mkAppM ``eq_true_of_not_eq_false #[premise]
+        return pr)
   | true, Expr.app (Expr.app (Expr.const ``And _ _) e₁ _) e₂ _ => 
     clausifyAnd e₁ e₂
   | true, Expr.app (Expr.app (Expr.const ``Or _ _) e₁ _) e₂ _ =>
@@ -42,39 +62,27 @@ def clausificationStepE (e : Expr) (sign : Bool):
   | false, Expr.app (Expr.app (Expr.const ``Exists _ _) ty _) (Expr.lam _ _ b _) _ => do
     clausifyForall ty (mkNot b)
   | true, Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl] _) ty _) e₁ _) e₂ _  =>
-    let pr : Expr → Expr → MetaM Expr := fun ty premise => do
+    let pr : Expr → MetaM Expr := fun premise => do
       return ← Meta.mkAppM ``of_eq_true #[premise]
     Applied [(MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], some pr)]
   | false, Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl] _) ty _) e₁ _) e₂ _  =>
-    let pr : Expr → Expr → MetaM Expr := fun ty premise => do
-      trace[Meta.debug] "ty {ty}"
-      trace[Meta.debug] "premise {premise}"
+    let pr : Expr → MetaM Expr := fun premise => do
       return ← Meta.mkAppM ``not_of_eq_false #[premise] 
     Applied [(MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], some pr)]
   | true, Expr.app (Expr.app (Expr.app (Expr.const ``Ne [lvl] _) ty _) e₁ _) e₂ _  =>
-    let pr : Expr → Expr → MetaM Expr := fun ty premise => do
+    let pr : Expr → MetaM Expr := fun premise => do
       return ← Meta.mkAppM ``of_eq_true #[premise]
     Applied [(MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], some pr)]
   | false, Expr.app (Expr.app (Expr.app (Expr.const ``Ne [lvl] _) ty _) e₁ _) e₂ _  =>
-    let pr : Expr → Expr → MetaM Expr := fun ty premise => do
-      trace[Meta.debug] "ty {ty}"
-      trace[Meta.debug] "premise {premise}"
-      return ← ← Meta.mkAppM ``eq_of_neq_false #[premise]
+    let pr : Expr → MetaM Expr := fun premise => do
+      return ← ← Meta.mkAppM ``of_not_eq_false #[premise]
     Applied [(MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], some pr)]
   | _, _ => Unapplicable
 where
   clausifyAnd e₁ e₂ := do
-    let pr : Expr → Expr → MetaM Expr := fun ty premise => do
-      trace[Meta.debug] "ty {ty}"
-      trace[Meta.debug] "premise {premise}"
-      return ← Meta.mkSorry ty true
-    Applied [(MClause.mk #[Lit.fromExpr e₁], none), (MClause.mk #[Lit.fromExpr e₂], some pr)]
+    Applied [(MClause.mk #[Lit.fromExpr e₁], none), (MClause.mk #[Lit.fromExpr e₂], none)]
   clausifyOr e₁ e₂ := do
-    let pr : Expr → Expr → MetaM Expr := fun ty premise => do
-      trace[Meta.debug] "ty {ty}"
-      trace[Meta.debug] "premise {premise}"
-      return ← Meta.mkSorry ty true
-    Applied [(MClause.mk #[Lit.fromExpr e₁, Lit.fromExpr e₂], some pr)]
+    Applied [(MClause.mk #[Lit.fromExpr e₁, Lit.fromExpr e₂], none)]
   clausifyForall ty b := do
     let mvar ← mkFreshExprMVar ty
     Applied [(MClause.mk #[Lit.fromExpr $ b.instantiate1 mvar], none)]
@@ -88,7 +96,7 @@ where
     let b ← b.instantiate1 (mkAppN fvar (mVarIds.map mkMVar))
     Applied [(MClause.mk #[Lit.fromExpr b], none)]
 
-def clausificationStepLit (l : Lit) : RuleM (SimpResult (List (MClause × Option (Expr → Expr → MetaM Expr)))) := do
+def clausificationStepLit (l : Lit) : RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   match l.rhs with
   | Expr.const ``True _ _ => clausificationStepE l.lhs true
   | Expr.const ``False _ _ => clausificationStepE l.lhs false
@@ -121,7 +129,7 @@ def clausificationStep : MSimpRule := fun c => do
                     -- TODO: use dproof and h
                     let dproof ← match dproof with
                     | none => Meta.mkSorry resRight true
-                    | some dproof => dproof resRight h
+                    | some dproof => dproof h
                     Meta.mkLambdaFVars #[h] $ ← orIntro resLits' (c.lits.size - 1) dproof
                   else
                     let idx := if j ≥ i then j - 1 else j
