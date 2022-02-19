@@ -1,8 +1,8 @@
 import LeanHammer.Tactic
 
 set_option trace.Meta.debug true
--- set_option trace.Prover.saturate true
--- set_option trace.Prover.debug true
+set_option trace.Prover.saturate true
+set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
 
@@ -30,15 +30,14 @@ constant p : Nat → Prop
 #check propext
 
 theorem test00
-(ax1 : (a ≠ b) = False)
-(ax1 : a ≠ b)
+(ax1 : ∀ (y : Nat), ∃ x, ¬ (x = y → x = y))
 : False := by prover
 
 #print test00
 
 theorem test0
-(ax1 : f a ≠ b ∨ f c ≠ b)
-(ax2 : ∀ x, f x = b ∨ c ≠ c)
+(ax1 : f a = b → f c ≠ b)
+(ax2 : ¬ ∃ x, f x ≠ b ∧ c = c)
 : False := by prover
 
 #print test0

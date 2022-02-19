@@ -52,7 +52,9 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM (List Expr
   let mut lctx ← getLCtx
   let mut skdefs : List Expr := []
   for (fvarId, _) in info.proof.introducedSkolems do
+    trace[Meta.debug] "Reconstructing skolems {mkFVar fvarId}"
     let ty := (state.lctx.get! fvarId).type
+    trace[Meta.debug] "Reconstructing skolems {toString ty}"
     let userName := (state.lctx.get! fvarId).userName
     let skdef ← mkSorry ty (synthetic := true)
     skdefs := skdef :: skdefs
@@ -62,6 +64,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM (List Expr
     for parent in info.proof.parents do
       let number := (← getClauseInfo! state parent.clause).number
       parents := parents.push ((← getLCtx).findFromUserName? (Name.mkNum `goal number)).get!.toExpr
+    trace[Meta.debug] "Reconstructing proof for #{info.number}: {c}"
     let newProof ← info.proof.mkProof parents info.proof.parents c
     let otherProofs ←
       withLetDecl (Name.mkNum `goal info.number) newTarget newProof fun g => do
