@@ -99,6 +99,16 @@ theorem Inhabited.some_spec [Inhabited α] {p : α → Prop} (hp : ∃ a, p a) :
   simp only [Inhabited.some, hp]
   exact Classical.choose_spec _
 
+theorem exists_of_forall_eq_false {p : α → Prop} (h : (∀ x, p x) = False) : ∃ x, ¬ p x := by
+  apply Classical.byContradiction
+  intro hnex
+  apply not_of_eq_false h
+  intro x
+  apply Classical.byContradiction
+  intro hp
+  apply hnex
+  exact Exists.intro x hp
+
 def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) : 
     RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   match sign, e with
@@ -143,8 +153,6 @@ def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) :
   | true, Expr.app (Expr.app (Expr.const ``Exists _ _) ty _) (Expr.lam _ _ b _) _ => do
     let skTerm ← makeSkTerm ty b
     let pr : Expr → MetaM Expr := fun premise => do
-      let mvar ← Meta.mkFreshExprMVar ty
-      -- TODO: Decompose Or
       return ← Meta.mkAppM ``eq_true
         #[← Meta.mkAppM ``Inhabited.some_spec #[← Meta.mkAppM ``of_eq_true #[premise]]]
     Applied [(MClause.mk #[Lit.fromExpr $ b.instantiate1 skTerm], some pr)]
@@ -170,7 +178,12 @@ def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) :
         return ← Meta.mkAppM ``clausify_imp_false_right #[premise]
       Applied [(MClause.mk #[Lit.fromExpr ty], some pr₁),
                (MClause.mk #[Lit.fromExpr b false], some pr₂)]
-    else clausifyExists ty (mkNot b)
+    else
+      let skTerm ← makeSkTerm ty (mkNot b)
+      let pr : Expr → MetaM Expr := fun premise => do
+        return ← Meta.mkAppM ``eq_true
+          #[← Meta.mkAppM ``Inhabited.some_spec #[← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
+      Applied [(MClause.mk #[Lit.fromExpr $ (mkNot b).instantiate1 skTerm], some pr)]
   | false, Expr.app (Expr.app (Expr.const ``Exists _ _) ty _) (Expr.lam _ _ b _) _ => do
     let mvar ← mkFreshExprMVar ty
     let pr : Expr → MetaM Expr := fun premise => do
@@ -204,26 +217,10 @@ where
       (fun mVarIdTy skTy => mkForall `_ BinderInfo.default mVarIdTy skTy)
       skTy
     let mkProof := fun parents => do
-      trace[Meta.debug] "##B {b}"
-      trace[Meta.debug] "##PRTS {parents}"
-      -- TODO: Unfold Or
       let d ← Meta.mkAppM ``Inhabited.some #[mkLambda `x BinderInfo.default ty b]
-      trace[Meta.debug] "##D {d}"
       return d
     let fvar ← mkFreshSkolem `sk skTy mkProof
     mkAppN fvar (mVarIds.map mkMVar)
-  clausifyExists ty b := do
-    let mVarIds ← (e.collectMVars {}).result
-    let ty := ty.abstractMVars (mVarIds.map mkMVar)
-    let mVarIdTys ← (mVarIds.mapM (fun mvarId => do ← inferType (mkMVar mvarId)))
-    let ty := mVarIdTys.foldr
-      (fun mVarIdTy ty => mkForall `_ BinderInfo.default mVarIdTy ty)
-      ty
-    let mkProof := fun parents => do
-      return b
-    let fvar ← mkFreshSkolem `sk ty mkProof
-    let skTerm := mkAppN fvar (mVarIds.map mkMVar)
-    Applied [(MClause.mk #[Lit.fromExpr $ b.instantiate1 skTerm], none)]
 
 def clausificationStepLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   let l := c.lits[i]
