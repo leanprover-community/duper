@@ -19,7 +19,7 @@ def instantiatePremises (parents : Array ProofParent) (premises : Array Expr) (x
   return (parentsLits, appliedPremises)
 
 /-- Construct a proof of `lits[0] ∨ ... ∨ lits[n] → target`, given proofs (`casesProofs`) of `lits[i] → target` -/
-def orCases (lits : Array Expr) (target : Expr) (caseProofs : Array Expr) : MetaM Expr := do
+def orCases (lits : Array Expr) (caseProofs : Array Expr) : MetaM Expr := do
   let mut ors := #[lits[lits.size - 1]]
   for l in [2:lits.size+1] do
     ors := ors.push (mkApp2 (mkConst ``Or) lits[lits.size - l] ors[ors.size-1])
@@ -27,14 +27,9 @@ def orCases (lits : Array Expr) (target : Expr) (caseProofs : Array Expr) : Meta
   for k in [2:caseProofs.size+1] do
     let newOne ← caseProofs[caseProofs.size - k]
     r ← Meta.withLocalDeclD `h ors[k-1] fun h => do
-      let p := mkApp6
-        (mkConst ``Or.elim)
-        lits[lits.size - k]
-        ors[k-2]
-        target
-        h
-        newOne
-        r
+      let p ← Meta.mkAppM
+        ``Or.elim
+        #[h, newOne, r]
       Meta.mkLambdaFVars #[h] p
   return r
 

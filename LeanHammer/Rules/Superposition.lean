@@ -37,7 +37,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
               let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,eq], h]
               Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
             caseProofsMain := caseProofsMain.push $ pr
-          let r ← orCases (← mainParentLits.map Lit.toExpr) body caseProofsMain
+          let r ← orCases (← mainParentLits.map Lit.toExpr) caseProofsMain
           Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
         caseProofsSide := caseProofsSide.push $ pr
       else
@@ -47,7 +47,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
         caseProofsSide := caseProofsSide.push $ pr
 
-    let r ← orCases (← sideParentLits.map Lit.toExpr) body caseProofsSide
+    let r ← orCases (← sideParentLits.map Lit.toExpr) caseProofsSide
     let proof ← Meta.mkLambdaFVars xs $ mkApp r appliedSidePremise
     -- Meta.mkLambdaFVars xs $ ← Lean.Meta.mkSorry body (synthetic := true)
     proof

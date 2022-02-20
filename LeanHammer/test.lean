@@ -30,7 +30,7 @@ constant p : Nat → Prop
 #check propext
 
 theorem test00
-(ax1 : ∃ x, ¬ (x = a → x = a))
+(ax1 : a ≠ a ∨ (∃ x : Nat, x ≠ x) ∨ b ≠ b)
 : False := by prover
 
 #print test00

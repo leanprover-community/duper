@@ -35,7 +35,7 @@ def mkEqualityResolutionProof (i : Nat) (premises : Array Expr) (parents: Array 
         -- caseProofs := caseProofs.push $ ← Lean.Meta.mkSorry (← Meta.mkArrow lit.toExpr body) (synthetic := true)
         caseProofs := caseProofs.push $ pr
 
-    let r ← orCases (← parentLits.map Lit.toExpr) body caseProofs
+    let r ← orCases (← parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
 def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
