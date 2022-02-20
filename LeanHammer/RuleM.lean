@@ -28,7 +28,7 @@ abbrev ProofReconstructor := Array Expr → Array ProofParent → Clause → Met
 structure Proof where
   parents : Array ProofParent := #[]
   ruleName : String := "unknown"
-  introducedSkolems : Array (FVarId × Expr) := #[]
+  introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
   mkProof : ProofReconstructor
 deriving Inhabited
 
@@ -37,7 +37,7 @@ structure State where
   lctx : LocalContext := {}
   loadedClauses : Array (Clause × Array MVarId) := #[]
   resultClauses : Array (Clause × Proof) := #[]
-  introducedSkolems : Array (FVarId × Expr) := #[]
+  introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -83,7 +83,7 @@ def getLoadedClauses : RuleM (Array (Clause × Array MVarId)) :=
 def getResultClauses : RuleM (Array (Clause × Proof)) :=
   return (← get).resultClauses
 
-def getIntroducedSkolems : RuleM (Array (FVarId × Expr)) :=
+def getIntroducedSkolems : RuleM (Array (FVarId × (Array Expr → MetaM Expr))) :=
   return (← get).introducedSkolems
 
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
@@ -98,7 +98,7 @@ def setLoadedClauses (loadedClauses : Array (Clause × Array MVarId)) : RuleM Un
 def setResultClauses (resultClauses : Array (Clause × Proof)) : RuleM Unit :=
   modify fun s => { s with resultClauses := resultClauses }
 
-def setIntroducedSkolems (introducedSkolems : Array (FVarId × Expr)) : RuleM Unit :=
+def setIntroducedSkolems (introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr))) : RuleM Unit :=
   modify fun s => { s with introducedSkolems := introducedSkolems }
 
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
@@ -138,13 +138,13 @@ def getMVarType (mvarId : MVarId) : RuleM Expr := do
 def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescope e kind
 
-def mkFreshSkolem (name : Name) (type : Expr) (witnessing : Expr) : RuleM Expr := do
+def mkFreshSkolem (name : Name) (type : Expr) (mkProof : Array Expr → MetaM Expr) : RuleM Expr := do
   let name := Name.mkNum name (← getLCtx).decls.size
   let (lctx, res) ← runMetaAsRuleM $ do
     Meta.withLocalDeclD name type fun x => do
       return (← getLCtx, x)
   setLCtx lctx
-  setIntroducedSkolems $ (← getIntroducedSkolems).push (res.fvarId!, witnessing)
+  setIntroducedSkolems $ (← getIntroducedSkolems).push (res.fvarId!, mkProof)
   return res
 
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=

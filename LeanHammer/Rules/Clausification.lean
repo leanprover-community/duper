@@ -80,21 +80,29 @@ theorem clausify_forall {p : α → Prop} (x : α) (h : (∀ x, p x) = True) : p
   eq_true (of_eq_true h x)
 
 --TODO: move?
+theorem clausify_exists {p : α → Prop} (h : (∃ x, p x) = True) :
+  p (Classical.choose (of_eq_true h)) = True := 
+eq_true $ Classical.choose_spec _
+
+--TODO: move?
 theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False := 
   eq_false (fun hp => not_of_eq_false h ⟨x, hp⟩)
 
-def clausificationStepE (e : Expr) (sign : Bool): 
+theorem ex_eq_true_of_ex_eq_true {p : α → Prop} (h : (∃ x, p x) = True) : ∃ x, (p x = True) :=
+  (of_eq_true h).elim fun a ha => ⟨a, eq_true ha⟩
+
+def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) : 
     RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   match sign, e with
   | true, Expr.app (Expr.const ``Not _ _) e _ => do
-    let res ← clausificationStepE e false
+    let res ← clausificationStepE e false c i -- TODO: Avoid recursive call?
     res.mapM fun res => res.mapM fun (c, pr?) => do 
       return (c, ← pr?.mapM fun pr => do 
         let pr : Expr → MetaM Expr := fun premise => do
           return ← pr $ ← Meta.mkAppM ``eq_false_of_not_eq_true #[premise]
         return pr)
   | false, Expr.app (Expr.const ``Not _ _) e _ => do
-    let res ← clausificationStepE e true
+    let res ← clausificationStepE e true c i -- TODO: Avoid recursive call?
     res.mapM fun res => res.mapM fun (c, pr?) => do 
       return (c, ← pr?.mapM fun pr => do 
         let pr : Expr → MetaM Expr := fun premise => do
@@ -125,7 +133,12 @@ def clausificationStepE (e : Expr) (sign : Bool):
         return ← Meta.mkAppM ``clausify_forall #[mvar, premise]
       Applied [(MClause.mk #[Lit.fromExpr $ b.instantiate1 mvar], some pr)]
   | true, Expr.app (Expr.app (Expr.const ``Exists _ _) ty _) (Expr.lam _ _ b _) _ => do
-    clausifyExists ty b
+    let skTerm ← makeSkTerm ty b
+    let pr : Expr → MetaM Expr := fun premise => do
+      let mvar ← Meta.mkFreshExprMVar ty
+      -- TODO: Decompose Or
+      return ← Meta.mkAppM ``Classical.choose_spec #[← Meta.mkAppM ``ex_eq_true_of_ex_eq_true #[premise]]
+    Applied [(MClause.mk #[Lit.fromExpr $ b.instantiate1 skTerm], some pr)]
   | false, Expr.app (Expr.app (Expr.const ``And _ _) e₁ _) e₂ _  => 
     let pr : Expr → MetaM Expr := fun premise => do
       return ← Meta.mkAppM ``clausify_and_false #[premise]
@@ -172,7 +185,22 @@ def clausificationStepE (e : Expr) (sign : Bool):
       return ← ← Meta.mkAppM ``of_not_eq_false #[premise]
     Applied [(MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], some pr)]
   | _, _ => Unapplicable
+
 where
+  makeSkTerm ty b := do
+    let mVarIds ← (e.collectMVars {}).result
+    let skTy := ty.abstractMVars (mVarIds.map mkMVar)
+    let mVarIdTys ← (mVarIds.mapM (fun mvarId => do ← inferType (mkMVar mvarId)))
+    let skTy := mVarIdTys.foldr
+      (fun mVarIdTy skTy => mkForall `_ BinderInfo.default mVarIdTy skTy)
+      skTy
+    let mkProof := fun parents => do
+      trace[Meta.debug] "##B {b}"
+      trace[Meta.debug] "##PRTS {parents}"
+      -- TODO: Unfold Or
+      return ← Meta.mkAppM ``Classical.choose #[← Meta.mkAppM ``ex_eq_true_of_ex_eq_true #[parents[0]]]
+    let fvar ← mkFreshSkolem `sk skTy mkProof
+    mkAppN fvar (mVarIds.map mkMVar)
   clausifyExists ty b := do
     let mVarIds ← (e.collectMVars {}).result
     let ty := ty.abstractMVars (mVarIds.map mkMVar)
@@ -180,22 +208,24 @@ where
     let ty := mVarIdTys.foldr
       (fun mVarIdTy ty => mkForall `_ BinderInfo.default mVarIdTy ty)
       ty
-    trace[Meta.debug] "##TY: {ty}"
-    let fvar ← mkFreshSkolem `sk (← instantiateMVars ty) b
-    let b ← b.instantiate1 (mkAppN fvar (mVarIds.map mkMVar))
-    Applied [(MClause.mk #[Lit.fromExpr b], none)]
+    let mkProof := fun parents => do
+      return b
+    let fvar ← mkFreshSkolem `sk ty mkProof
+    let skTerm := mkAppN fvar (mVarIds.map mkMVar)
+    Applied [(MClause.mk #[Lit.fromExpr $ b.instantiate1 skTerm], none)]
 
-def clausificationStepLit (l : Lit) : RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
+def clausificationStepLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
+  let l := c.lits[i]
   match l.rhs with
-  | Expr.const ``True _ _ => clausificationStepE l.lhs true
-  | Expr.const ``False _ _ => clausificationStepE l.lhs false
+  | Expr.const ``True _ _ => clausificationStepE l.lhs true c i
+  | Expr.const ``False _ _ => clausificationStepE l.lhs false c i
   | _ => return Unapplicable
 -- TODO: True/False on left-hand side?
 
 -- TODO: Proof reconstruction
 def clausificationStep : MSimpRule := fun c => do
   for i in [:c.lits.size] do
-    match ← clausificationStepLit c.lits[i] with
+    match ← clausificationStepLit c i with
     | Applied ds =>
       return Applied $ ds.map fun (d, dproof) => 
         let mkProof : ProofReconstructor := 
