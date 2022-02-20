@@ -1,6 +1,6 @@
 import LeanHammer.Tactic
 
-set_option trace.Meta.debug true
+-- set_option trace.Meta.debug true
 -- set_option trace.Prover.saturate true
 -- set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
@@ -55,8 +55,7 @@ theorem test1'
 : False := by prover
 
 theorem test2
-(div_self : ∀ (x : Nat), x ≠ x)
-: False := by prover
+: ∀ (x : Nat), x = x := by prover
 
 #print test2
 
@@ -64,10 +63,10 @@ theorem test
 (div_self : ∀ x, div x x = one)
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
 (div_def : ∀ (x y : Nat), div x y = mul x (inv y))
-(neg_conj : ¬ ∀ (x y : Nat), div (add x y) y = add (div x y) one)
-: False := by prover
+: ∀ (x y : Nat), div (add x y) y = add (div x y) one := by prover
 
 #print test
+#print axioms test
 
 -- example (a : Nat)
 -- (h1 : ∀ (x : Nat), f x = a)

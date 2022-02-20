@@ -10,8 +10,6 @@ open ProverM
 
 namespace Lean.Elab.Tactic
 
-syntax (name := prover) "prover" : tactic
-
 partial def printProof (state : ProverM.State) : TacticM Unit := do
   Core.checkMaxHeartbeats "printProof"
   let rec go c : TacticM Unit := do
@@ -86,31 +84,37 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
   let proofs ← mkProof state l
   assignExprMVar (← getMainGoal) proofs.reverse.head! -- TODO: List.last?
 
-def collectAssumptions : TacticM (Array Expr) := do
+def collectAssumptions : TacticM (Array (Expr × Expr)) := do
   let mut formulas := #[]
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← getLocalDecl fVarId
     unless ldecl.binderInfo.isAuxDecl ∨ not (← inferType ldecl.type).isProp do
-      formulas := formulas.push ldecl.type
+      formulas := formulas.push (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId])
   return formulas
+
+syntax (name := prover) "prover" : tactic
 
 @[tactic prover]
 def evalProver : Tactic
 | `(tactic| prover) => withMainContext do
   let startTime ← IO.monoMsNow
-  let formulas ← collectAssumptions
-  trace[Meta.debug] "{formulas}"
-  let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx}) ProverM.saturate formulas
-  match state.result with
-  | Result.contradiction => do
-      printProof state
-      applyProof state
-      trace[Prover.saturate] "Time: {(← IO.monoMsNow) - startTime}ms {(← getUnsolvedGoals).length}"
-  | Result.saturated => 
-    trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
-    -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
-    throwError "Prover saturated."
-  | Result.unknown => throwError "Prover was terminated."
+  replaceMainGoal [(← intros (← getMainGoal)).2]
+  replaceMainGoal $ ← apply (← getMainGoal) (mkConst ``Classical.byContradiction)
+  replaceMainGoal [(← intro (← getMainGoal) `h).2]
+  withMainContext do
+    let formulas ← collectAssumptions
+    trace[Meta.debug] "{formulas}"
+    let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx}) ProverM.saturate formulas
+    match state.result with
+    | Result.contradiction => do
+        printProof state
+        applyProof state
+        trace[Prover.saturate] "Time: {(← IO.monoMsNow) - startTime}ms {(← getUnsolvedGoals).length}"
+    | Result.saturated => 
+      trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
+      -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
+      throwError "Prover saturated."
+    | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic
