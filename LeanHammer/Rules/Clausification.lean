@@ -88,46 +88,12 @@ eq_true $ Classical.choose_spec _
 theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False := 
   eq_false (fun hp => not_of_eq_false h ⟨x, hp⟩)
 
-theorem ex_eq_true_of_ex_eq_true {p : α → Prop} (h : (∃ x, p x) = True) : ∃ x, (p x = True) :=
-  (of_eq_true h).elim fun a ha => ⟨a, eq_true ha⟩
-
--- theorem xxx {p : α → Prop} (h : (∃ x, p x) = True ∨ q) : ∃ x, (p x = True) :=
---   (of_eq_true h).elim fun a ha => ⟨a, eq_true ha⟩
-
---TODO: generalize `orIntro` + `orCases` & use everywhere
-/-- Construct a proof of 
- `∃ a, lits[0] ∨ ... ∨ lits[i-1] ∨ lits[i+1] ∨ ... ∨ lits[n] ∨ p a = True` 
- from a proof of
-`lits[0] ∨ ... ∨ (∃ a, p a) = True ∨ ... ∨ lits[n]`-/
-def existsClause (lits : Array Expr) (i : Nat) (p : Expr) (ty : Expr) (pr : Expr) : MetaM Expr := do
-  Meta.withLocalDeclD `a ty fun a => do
-    let mut resLits := #[]
-    for j in [:lits.size] do
-      if j != i then
-        resLits := resLits.push lits[j]
-    resLits := resLits.push $ p.instantiate1 a
-
-    let mut caseProofs := #[]
-    for j in [:lits.size] do
-      let lit := lits[j]
-      let pr ← Meta.withLocalDeclD `h lit fun h => do
-        if j == i then
-          Meta.mkLambdaFVars #[h] $ ← orIntro resLits (lits.size - 1) (mkApp pr h)
-        else
-          let idx := if j ≥ i then j - 1 else j
-          Meta.mkLambdaFVars #[h] $ ← orIntro resLits idx h
-      caseProofs := caseProofs.push $ pr
-
-    let r ← orCases lits caseProofs
-
-    return ← Meta.mkAppM ``Exists.intro #[a, pr]
-
-
 --TODO: move
 noncomputable def Inhabited.some [Inhabited α] (p : α → Prop) :=
   let _ : Decidable (∃ a, p a) := Classical.propDecidable _
   if hp: ∃ a, p a then Classical.choose hp else Inhabited.default
 
+--TODO: move
 theorem Inhabited.some_spec [Inhabited α] {p : α → Prop} (hp : ∃ a, p a) : 
   p (Inhabited.some p) := by
   simp only [Inhabited.some, hp]
@@ -267,7 +233,7 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MCl
   | _ => return Unapplicable
 -- TODO: True/False on left-hand side?
 
-
+-- TODO: generalize combination of `orCases` and `orIntro`?
 def clausificationStep : MSimpRule := fun c => do
   for i in [:c.lits.size] do
     match ← clausificationStepLit c i with
