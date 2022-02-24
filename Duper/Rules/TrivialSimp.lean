@@ -1,6 +1,6 @@
 import LeanHammer.Simp
 
-namespace Schroedinger
+namespace Duper
 open RuleM
 open SimpResult
 
@@ -11,4 +11,4 @@ def trivialSimp : MSimpRule := fun c => do
       return Removed
   return Unapplicable
 
-end Schroedinger
+end Duper

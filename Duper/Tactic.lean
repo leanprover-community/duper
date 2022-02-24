@@ -4,7 +4,7 @@ import LeanHammer.Unif
 
 open Lean
 open Lean.Meta
-open Schroedinger
+open Duper
 open ProverM
 
 

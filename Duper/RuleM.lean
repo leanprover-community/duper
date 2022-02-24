@@ -3,7 +3,7 @@ import LeanHammer.Unif
 import LeanHammer.MClause
 import LeanHammer.Order
 
-namespace Schroedinger
+namespace Duper
 
 namespace RuleM
 open Lean
@@ -233,4 +233,4 @@ def compare (s t : Expr) : RuleM Comparison := do
 
 end RuleM
 
-end Schroedinger
+end Duper

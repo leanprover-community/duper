@@ -1,7 +1,7 @@
 
 import LeanHammer.Clause
 
-namespace Schroedinger
+namespace Duper
 open Lean
 
 structure MClause :=
@@ -43,4 +43,4 @@ def append (c : MClause) (d : MClause) : MClause := ⟨c.lits.append d.lits⟩
 def eraseIdx (i : Nat) (c : MClause) : MClause := ⟨c.lits.eraseIdx i⟩
 
 end MClause
-end Schroedinger
+end Duper

@@ -9,7 +9,7 @@ import LeanHammer.Rules.EqualityResolution
 import LeanHammer.Rules.TrivialSimp
 import Std.Data.BinomialHeap
 
-namespace Schroedinger
+namespace Duper
 
 namespace ProverM
 open Lean
@@ -84,4 +84,4 @@ partial def saturate : ProverM Unit := do
 
 end ProverM
 
-end Schroedinger
+end Duper

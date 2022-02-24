@@ -1,6 +1,6 @@
 import Lean
 
-namespace Schroedinger
+namespace Duper
 open Lean
 
 inductive Comparison
@@ -120,4 +120,4 @@ set_option trace.Meta.debug true
 
 end Order
 
-end Schroedinger
+end Duper

@@ -3,7 +3,7 @@ import LeanHammer.RuleM
 import LeanHammer.MClause
 import LeanHammer.Util.ProofReconstruction
 
-namespace Schroedinger
+namespace Duper
 open RuleM
 open Lean
 
@@ -133,4 +133,4 @@ def performSuperposition (givenClause : Clause) : ProverM Unit := do
   performInference (superposition mainPremiseIdx sidePremiseIdx) givenClause
 
 
-end Schroedinger
+end Duper

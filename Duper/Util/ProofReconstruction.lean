@@ -2,7 +2,7 @@ import LeanHammer.ProverM
 import LeanHammer.RuleM
 import LeanHammer.MClause
 
-namespace Schroedinger
+namespace Duper
 open RuleM
 open Lean
 
@@ -50,4 +50,4 @@ def orIntro (lits : Array Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
     tyR := mkApp2 (mkConst ``Or) lits[lits.size-j] tyR
   return proofRight
 
-end Schroedinger
+end Duper

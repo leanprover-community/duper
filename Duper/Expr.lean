@@ -1,7 +1,7 @@
 import Lean
 
 
-namespace Schroedinger
+namespace Duper
 
 -- TODO: add to Lean?
 instance [Hashable α] : Hashable (Array α) where
@@ -18,10 +18,10 @@ protected def empty : ExprPos := #[]
 
 end ExprPos
 
-end Schroedinger
+end Duper
 
 namespace Lean.Expr
-open Schroedinger
+open Duper
 
 partial def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
     (f : β → Expr → ExprPos → m β) (init : β) (e : Expr)

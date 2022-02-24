@@ -3,7 +3,7 @@ import LeanHammer.RuleM
 import LeanHammer.MClause
 import LeanHammer.Util.ProofReconstruction
 
-namespace Schroedinger
+namespace Duper
 open RuleM
 open Lean
 
@@ -58,4 +58,4 @@ def performEqualityResolution (givenClause : Clause) : ProverM Unit := do
   trace[Prover.debug] "EqRes inferences with {givenClause}"
   performInference equalityResolution givenClause
 
-end Schroedinger
+end Duper

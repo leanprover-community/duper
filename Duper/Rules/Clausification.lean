@@ -3,7 +3,7 @@ import LeanHammer.RuleM
 import LeanHammer.Simp
 import LeanHammer.Util.ProofReconstruction
 
-namespace Schroedinger
+namespace Duper
 open Lean
 open RuleM
 open SimpResult
@@ -278,4 +278,4 @@ def clausificationStep : MSimpRule := fun c => do
       continue
   return Unapplicable
 
-end Schroedinger
+end Duper

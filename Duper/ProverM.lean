@@ -3,7 +3,7 @@ import Std.Data.BinomialHeap
 import LeanHammer.DiscrTree
 import LeanHammer.MClause
 
-namespace Schroedinger
+namespace Duper
 namespace ProverM
 open Lean
 open Lean.Core
@@ -24,7 +24,7 @@ structure ClauseInfo where
 
 abbrev ClauseSet := HashSet Clause 
 abbrev ClauseHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
-abbrev ClauseDiscrTree α := Schroedinger.DiscrTree (Clause × α)
+abbrev ClauseDiscrTree α := Duper.DiscrTree (Clause × α)
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -273,4 +273,4 @@ def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   return fVarId
 
 end ProverM
-end Schroedinger
+end Duper

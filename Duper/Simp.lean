@@ -3,7 +3,7 @@ import LeanHammer.RuleM
 import LeanHammer.MClause
 import LeanHammer.Util.Iterate
 
-namespace Schroedinger
+namespace Duper
 open RuleM
 open ProverM
 
@@ -57,4 +57,4 @@ def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String)
     Applied cs[0].1
 
 
-end Schroedinger
+end Duper

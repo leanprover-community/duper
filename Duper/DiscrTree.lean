@@ -1,7 +1,7 @@
 import Lean
 import LeanHammer.RuleM
 
-namespace Schroedinger
+namespace Duper
 
 open Lean
 open RuleM
@@ -380,7 +380,7 @@ where
         | _         => visitNonStar k args (← visitStar result)
 
 end DiscrTree
-end Schroedinger
+end Duper
 
 
 

@@ -2,7 +2,7 @@ import Lean
 import LeanHammer.Util.Misc
 import LeanHammer.Expr
 
-namespace Schroedinger
+namespace Duper
 open Lean
 open Lean.Meta
 
