@@ -7,6 +7,7 @@ import Duper.Simp
 import Duper.Rules.Superposition
 import Duper.Rules.EqualityResolution
 import Duper.Rules.TrivialSimp
+import Duper.Rules.ElimDupLit
 import Std.Data.BinomialHeap
 
 namespace Duper
@@ -28,7 +29,8 @@ open SimpResult
 
 def simpRules := #[
   (clausificationStep.toSimpRule, "clausification"),
-  (trivialSimp.toSimpRule, "trivial simp")
+  (trivialSimp.toSimpRule, "trivial simp"),
+  (elimDupLit.toSimpRule, "eliminate duplicate literals")
 ]
 
 def applySimpRules (givenClause : Clause) :

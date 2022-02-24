@@ -22,19 +22,17 @@ constant p : Nat → Prop
 constant q : Prop
 constant isZero : Nat → Prop
 
-
 theorem test0000
 (div_self : ∀ x, ¬ isZero x → div x x = one)
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
 (div_def : ∀ (x y : Nat), ¬ isZero y → div x y = mul x (inv y)) :
 ∀ (x y : Nat), ¬ isZero y → div (add x y) y = add (div x y) one := by duper
 
-
-theorem test00008
-(div_self : ∀ x, x ≠ zero → div x x = one)
-(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
-(div_def : ∀ (x y : Nat), y ≠ zero → div x y = mul x (inv y)) :
-∀ (x y : Nat), y ≠ zero → div (add x y) y = add (div x y) one := by duper
+-- theorem test00008
+-- (div_self : ∀ x, x ≠ zero → div x x = one)
+-- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+-- (div_def : ∀ (x y : Nat), y ≠ zero → div x y = mul x (inv y)) :
+-- ∀ (x y : Nat), y ≠ zero → mul (add x y) (inv y) = add (mul x (inv y)) one := by duper
 
 -- #print test
 -- #print axioms test
