@@ -1,6 +1,6 @@
 import Lake
 open Lake DSL
 
-package LeanHammer {
+package Duper {
   -- add configuration options here
 }

@@ -20,6 +20,17 @@ constant g : Nat → Nat
 constant h : Nat → Nat
 constant p : Nat → Prop
 
+
+
+theorem test 
+(div_self : ∀ x, div x x = one)
+(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+(div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
+∀ (x y : Nat), div (add x y) y = add (div x y) one := by prover
+
+#print test
+#print axioms test
+
 -- example --(h : ∃ x, x ≠ c ∨ a = b) 
 -- (h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b) 
 -- : False := by
@@ -59,14 +70,6 @@ theorem test2
 
 #print test2
 
-theorem test 
-(div_self : ∀ x, div x x = one)
-(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
-(div_def : ∀ (x y : Nat), div x y = mul x (inv y))
-: ∀ (x y : Nat), div (add x y) y = add (div x y) one := by prover
-
-#print test
-#print axioms test
 
 -- example (a : Nat)
 -- (h1 : ∀ (x : Nat), f x = a)
