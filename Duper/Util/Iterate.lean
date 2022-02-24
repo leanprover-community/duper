@@ -1,4 +1,4 @@
-import LeanHammer.ProverM
+import Duper.ProverM
 
 
 inductive LoopCtrl

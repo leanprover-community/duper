@@ -1,12 +1,12 @@
-import LeanHammer.ProverM
-import LeanHammer.Util.Iterate
-import LeanHammer.RuleM
-import LeanHammer.MClause
-import LeanHammer.Rules.Clausification
-import LeanHammer.Simp
-import LeanHammer.Rules.Superposition
-import LeanHammer.Rules.EqualityResolution
-import LeanHammer.Rules.TrivialSimp
+import Duper.ProverM
+import Duper.Util.Iterate
+import Duper.RuleM
+import Duper.MClause
+import Duper.Rules.Clausification
+import Duper.Simp
+import Duper.Rules.Superposition
+import Duper.Rules.EqualityResolution
+import Duper.Rules.TrivialSimp
 import Std.Data.BinomialHeap
 
 namespace Duper

@@ -1,4 +1,4 @@
-import LeanHammer.Simp
+import Duper.Simp
 
 namespace Duper
 open RuleM

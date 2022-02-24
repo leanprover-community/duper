@@ -1,7 +1,7 @@
 import Lean
-import LeanHammer.Unif
-import LeanHammer.MClause
-import LeanHammer.Order
+import Duper.Unif
+import Duper.MClause
+import Duper.Order
 
 namespace Duper
 

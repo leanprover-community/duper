@@ -1,6 +1,6 @@
-import LeanHammer.ProverM
-import LeanHammer.RuleM
-import LeanHammer.MClause
+import Duper.ProverM
+import Duper.RuleM
+import Duper.MClause
 
 namespace Duper
 open RuleM

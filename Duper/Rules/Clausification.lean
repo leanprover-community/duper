@@ -1,7 +1,7 @@
-import LeanHammer.MClause
-import LeanHammer.RuleM
-import LeanHammer.Simp
-import LeanHammer.Util.ProofReconstruction
+import Duper.MClause
+import Duper.RuleM
+import Duper.Simp
+import Duper.Util.ProofReconstruction
 
 namespace Duper
 open Lean

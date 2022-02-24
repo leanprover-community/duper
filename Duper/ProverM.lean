@@ -1,7 +1,7 @@
-import LeanHammer.Clause
+import Duper.Clause
 import Std.Data.BinomialHeap
-import LeanHammer.DiscrTree
-import LeanHammer.MClause
+import Duper.DiscrTree
+import Duper.MClause
 
 namespace Duper
 namespace ProverM

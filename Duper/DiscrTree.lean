@@ -1,5 +1,5 @@
 import Lean
-import LeanHammer.RuleM
+import Duper.RuleM
 
 namespace Duper
 

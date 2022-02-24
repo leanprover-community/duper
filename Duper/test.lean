@@ -1,4 +1,4 @@
-import LeanHammer.Tactic
+import Duper.Tactic
 
 -- set_option trace.Meta.debug true
 -- set_option trace.Prover.saturate true

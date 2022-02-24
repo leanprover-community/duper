@@ -1,5 +1,5 @@
 
-import LeanHammer.Clause
+import Duper.Clause
 
 namespace Duper
 open Lean

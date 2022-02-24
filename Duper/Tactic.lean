@@ -1,6 +1,6 @@
 import Lean
-import LeanHammer.Saturate
-import LeanHammer.Unif
+import Duper.Saturate
+import Duper.Unif
 
 open Lean
 open Lean.Meta

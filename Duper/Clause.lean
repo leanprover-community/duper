@@ -1,6 +1,6 @@
 import Lean
-import LeanHammer.Util.Misc
-import LeanHammer.Expr
+import Duper.Util.Misc
+import Duper.Expr
 
 namespace Duper
 open Lean
