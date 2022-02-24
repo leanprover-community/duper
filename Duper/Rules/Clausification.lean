@@ -58,6 +58,13 @@ theorem clausify_or_false_left (h : (p ∨ q) = False) : p = False :=
 theorem clausify_or_false_right (h : (p ∨ q) = False) : q = False := 
   eq_false fun hp => not_of_eq_false h (Or.intro_right _ hp)
 
+--TODO: move?
+theorem clausify_not (h : (¬ p) = True) : p = False := 
+eq_false fun hp => of_eq_true h hp
+
+--TODO: move?
+theorem clausify_not_false (h : (¬ p) = False) : p = True := 
+eq_true (Classical.byContradiction fun hp => not_of_eq_false h hp)
 
 --TODO: move?
 theorem clausify_imp (h : (p → q) = True) : (¬ p) = True ∨ q = True := 
@@ -109,23 +116,29 @@ theorem exists_of_forall_eq_false {p : α → Prop} (h : (∀ x, p x) = False) :
   apply hnex
   exact Exists.intro x hp
 
+theorem false_neq_true : False ≠ True := fun h => of_eq_true h
+
+theorem true_neq_false : True ≠ False := fun h => of_eq_true h.symm
+
 def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) : 
     RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   match sign, e with
+  | false, Expr.const ``True _ _ => do
+    let pr : Expr → MetaM Expr := fun premise => do
+      return ← Meta.mkAppM ``true_neq_false #[premise]
+    Applied [(MClause.mk #[], some pr)]
+  | true, Expr.const ``False _ _ => do
+    let pr : Expr → MetaM Expr := fun premise => do
+      return ← Meta.mkAppM ``false_neq_true #[premise]
+    Applied [(MClause.mk #[], some pr)]
   | true, Expr.app (Expr.const ``Not _ _) e _ => do
-    let res ← clausificationStepE e false c i -- TODO: Avoid recursive call?
-    res.mapM fun res => res.mapM fun (c, pr?) => do 
-      return (c, ← pr?.mapM fun pr => do 
-        let pr : Expr → MetaM Expr := fun premise => do
-          return ← pr $ ← Meta.mkAppM ``eq_false_of_not_eq_true #[premise]
-        return pr)
-  | false, Expr.app (Expr.const ``Not _ _) e _ => do
-    let res ← clausificationStepE e true c i -- TODO: Avoid recursive call?
-    res.mapM fun res => res.mapM fun (c, pr?) => do 
-      return (c, ← pr?.mapM fun pr => do 
-        let pr : Expr → MetaM Expr := fun premise => do
-          return ← pr $ ← Meta.mkAppM ``eq_true_of_not_eq_false #[premise]
-        return pr)
+    let pr : Expr → MetaM Expr := fun premise => do
+      return ← Meta.mkAppM ``clausify_not #[premise]
+    Applied [(MClause.mk #[Lit.fromExpr e false], some pr)]
+  | false, Expr.app (Expr.const ``Not _ _) e _ => 
+    let pr : Expr → MetaM Expr := fun premise => do
+      return ← Meta.mkAppM ``clausify_not_false #[premise]
+    Applied [(MClause.mk #[Lit.fromExpr e true], some pr)]
   | true, Expr.app (Expr.app (Expr.const ``And _ _) e₁ _) e₂ _ => do
     let pr₁ : Expr → MetaM Expr := fun premise => do
       return ← Meta.mkAppM ``clausify_and_left #[premise]
@@ -209,7 +222,7 @@ def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) :
   | _, _ => Unapplicable
 
 where
-  makeSkTerm ty b := do
+  makeSkTerm ty b : RuleM Expr := do
     let mVarIds ← (e.collectMVars {}).result
     let skTy := ty.abstractMVars (mVarIds.map mkMVar)
     let mVarIdTys ← (mVarIds.mapM (fun mvarId => do ← inferType (mkMVar mvarId)))
@@ -251,15 +264,18 @@ def clausificationStep : MSimpRule := fun c => do
                   if j == i then
                     let resLeft := resLits.toList.take (c.lits.size - 1)
                     let resRight := resLits.toList.drop (c.lits.size - 1)
-                    let resRight := (Clause.mk #[] resRight.toArray).toForallExpr
-                    let resLits' := (resLeft.map Lit.toExpr).toArray.push resRight
+                    let resRight' := (Clause.mk #[] resRight.toArray).toForallExpr
+                    let resLits' := (resLeft.map Lit.toExpr).toArray.push resRight'
                     -- TODO: use dproof and h
                     let dproof ← match dproof with
-                    | none => Meta.mkSorry resRight true
+                    | none => Meta.mkSorry resRight' true
                     | some dproof => dproof h
-                    if not (← Meta.isDefEq (← Meta.inferType dproof) resRight) then
-                      throwError "Error when reconstructing clausification. Expected type: {resRight}, but got: {dproof}"
-                    Meta.mkLambdaFVars #[h] $ ← orIntro resLits' (c.lits.size - 1) dproof
+                    if not (← Meta.isDefEq (← Meta.inferType dproof) resRight') then
+                      throwError "Error when reconstructing clausification. Expected type: {resRight'}, but got: {dproof}"
+                    if resRight.length == 0 then
+                      Meta.mkLambdaFVars #[h] $ ← Meta.mkAppOptM ``False.elim #[body, dproof]
+                    else
+                      Meta.mkLambdaFVars #[h] $ ← orIntro resLits' (c.lits.size - 1) dproof
                   else
                     let idx := if j ≥ i then j - 1 else j
                     Meta.mkLambdaFVars #[h] $ ← orIntro (resLits.map Lit.toExpr) idx h

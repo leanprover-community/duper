@@ -1,7 +1,7 @@
 import Duper.Clause
 import Std.Data.BinomialHeap
 import Duper.DiscrTree
-import Duper.MClause
+import Duper.Selection
 
 namespace Duper
 namespace ProverM
@@ -181,14 +181,17 @@ partial def chooseGivenClause : ProverM (Option Clause) := do
 /-- Registers a new clause, but does not add it to active or passive set.
   Typically, you'll want to use `addNewToPassive` instead. -/
 def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
-  let allClauses ← (← get).allClauses
-  let ci : ClauseInfo := {
-    number := allClauses.size
-    proof := proof
-  }
-  setAllClauses (allClauses.insert c ci)
-  if c.lits.size == 0 then throwEmptyClauseException
-  return ci
+  match (← getAllClauses).find? c with
+  | some ci => return ci
+  | none =>
+    let allClauses ← (← get).allClauses
+    let ci : ClauseInfo := {
+      number := allClauses.size
+      proof := proof
+    }
+    setAllClauses (allClauses.insert c ci)
+    if c.lits.size == 0 then throwEmptyClauseException
+    return ci
 
 def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
   if (← getAllClauses).contains c
@@ -245,12 +248,12 @@ def addToActive (c : Clause) : ProverM Unit := do
     let (mvars, mclause) ← loadClauseCore c
     mclause.foldM
       fun idx e pos => do
-        if mclause.lits[pos.lit].sign
+        if mclause.lits[pos.lit].sign ∧ litSelectedOrNothingSelected mclause pos.lit
         then return ← idx.insert e (c, pos)
         else return idx
       idx
   setSupSidePremiseIdx idx
-  -- Add to side premise index:
+  -- Add to main premise index:
   let idx ← getSupMainPremiseIdx
   let idx ← runRuleM do
     let (mvars, mclause) ← loadClauseCore c

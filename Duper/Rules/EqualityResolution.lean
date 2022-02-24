@@ -49,7 +49,7 @@ def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
 
 def equalityResolution (c : MClause) : RuleM Unit := do
   for i in [:c.lits.size] do
-    if c.lits[i].sign = false then
+    if c.lits[i].sign = false ∧ litSelectedOrNothingSelected c i then
       equalityResolutionAtLit c i
 
 open ProverM

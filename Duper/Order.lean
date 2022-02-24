@@ -43,7 +43,7 @@ partial def weight (s : Expr) (w : Int := 0) (sign : Int) : MetaM Int := do
       return w
     | Expr.mvar mVarId .. => do
       return w + sign * 1
-    | _ => throwError "Not implemented"
+    | _ => throwError "Not implemented {s}"
 
 partial def varBalance (s : Expr) (vb : Std.HashMap Expr Int := {}) (sign : Int) : MetaM (Std.HashMap Expr Int) := do
   Core.checkMaxHeartbeats "varBalance"
@@ -63,7 +63,7 @@ partial def varBalance (s : Expr) (vb : Std.HashMap Expr Int := {}) (sign : Int)
     | Expr.mvar mVarId .. => do
       let vb := vb.insert s $ (← vb.findD s 0) + sign
       return vb
-    | _ => throwError "Not implemented"
+    | _ => throwError "Not implemented {s}"
 
 def compareVarBalance (vb : Std.HashMap Expr Int := {}) : MetaM Comparison := do
   let mut res := Equal

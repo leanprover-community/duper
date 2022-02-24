@@ -49,8 +49,9 @@ partial def simpLoop (givenClause : Clause) : ProverM (Option Clause) := do
   | Removed => none
 
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
-  simpLoop givenClause
+  let c := simpLoop givenClause
   -- TODO: Check for empty clause and raise throwEmptyClauseException
+  c
 
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
   ()

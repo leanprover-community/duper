@@ -1,6 +1,6 @@
 import Duper.ProverM
 import Duper.RuleM
-import Duper.MClause
+import Duper.Selection
 import Duper.Util.ProofReconstruction
 
 namespace Duper
@@ -108,7 +108,7 @@ def superposition
   -- With given clause as side premise:
   -- trace[Rule.debug] "Superposition inferences with {givenClause} as side premise"
   for i in [:givenMClause.lits.size] do
-    if givenMClause.lits[i].sign = true
+    if givenMClause.lits[i].sign = true && litSelectedOrNothingSelected givenMClause i
     then 
       let restOfGivenClause ← givenMClause.eraseIdx i
       for side in #[LitSide.lhs, LitSide.rhs] do

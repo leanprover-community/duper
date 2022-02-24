@@ -12,13 +12,15 @@ namespace Lean.Elab.Tactic
 
 partial def printProof (state : ProverM.State) : TacticM Unit := do
   Core.checkMaxHeartbeats "printProof"
-  let rec go c : TacticM Unit := do
+  let rec go c (hm : Array (Nat × Clause) := {}) : TacticM Unit := do
     let info ← getClauseInfo! c
+    if hm.contains (info.number, c) then throwError "Loop! {hm} {info.number}"
+    let hm := hm.push (info.number, c)
     let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! pp.clause) 
     let parentIds ← parentInfo.map fun info => info.number
     trace[Prover.debug] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
     for proofParent in info.proof.parents do
-      go proofParent.clause
+      go proofParent.clause hm
   go Clause.empty
 where 
   getClauseInfo! (c : Clause) : TacticM ClauseInfo := do
@@ -99,7 +101,9 @@ def evalDuper : Tactic
 | `(tactic| duper) => withMainContext do
   let startTime ← IO.monoMsNow
   replaceMainGoal [(← intros (← getMainGoal)).2]
-  replaceMainGoal $ ← apply (← getMainGoal) (mkConst ``Classical.byContradiction)
+  let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
+  assignExprMVar (← getMainGoal) (← mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
+  replaceMainGoal [mvar.mvarId!]
   replaceMainGoal [(← intro (← getMainGoal) `h).2]
   withMainContext do
     let formulas ← collectAssumptions
@@ -109,7 +113,7 @@ def evalDuper : Tactic
     | Result.contradiction => do
         printProof state
         applyProof state
-        trace[Prover.saturate] "Time: {(← IO.monoMsNow) - startTime}ms {(← getUnsolvedGoals).length}"
+        logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated => 
       trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
       -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
