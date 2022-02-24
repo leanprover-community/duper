@@ -92,11 +92,11 @@ def collectAssumptions : TacticM (Array (Expr × Expr)) := do
       formulas := formulas.push (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId])
   return formulas
 
-syntax (name := prover) "prover" : tactic
+syntax (name := duper) "duper" : tactic
 
-@[tactic prover]
-def evalProver : Tactic
-| `(tactic| prover) => withMainContext do
+@[tactic duper]
+def evalDuper : Tactic
+| `(tactic| duper) => withMainContext do
   let startTime ← IO.monoMsNow
   replaceMainGoal [(← intros (← getMainGoal)).2]
   replaceMainGoal $ ← apply (← getMainGoal) (mkConst ``Classical.byContradiction)

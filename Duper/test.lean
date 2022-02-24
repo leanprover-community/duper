@@ -26,7 +26,7 @@ theorem test
 (div_self : ∀ x, div x x = one)
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
 (div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
-∀ (x y : Nat), div (add x y) y = add (div x y) one := by prover
+∀ (x y : Nat), div (add x y) y = add (div x y) one := by duper
 
 #print test
 #print axioms test
@@ -42,31 +42,31 @@ theorem test
 
 theorem test00
 (ax1 : a ≠ a ∨ ¬ (∀ x : Nat, x = x) ∨ b ≠ b)
-: False := by prover
+: False := by duper
 
 #print test00
 
 theorem test0
 (ax1 : f a = b → f c ≠ b)
 (ax2 : ¬ ∃ x, f x ≠ b ∧ c = c)
-: False := by prover
+: False := by duper
 
 #print test0
 
 theorem test1 
 (div_self : ∀ x, f x = a)
 (div_self : ∀ x, f x ≠ a)
-: False := by prover
+: False := by duper
 
 
 #print test1
 
 theorem test1'
 (div_self : ∀ x y z : Nat, f x ≠ f x ∨ g y ≠ g y ∨ h z ≠ h z)
-: False := by prover
+: False := by duper
 
 theorem test2
-: ∀ (x : Nat), x = x := by prover
+: ∀ (x : Nat), x = x := by duper
 
 #print test2
 
@@ -75,7 +75,7 @@ theorem test2
 -- (h1 : ∀ (x : Nat), f x = a)
 -- (h2 : ¬ ∀ (x : Nat), f x = a)
 -- : False := by
---   prover
+--   duper
 --   · sorry
 --   · sorry
 --   · sorry
@@ -92,13 +92,13 @@ theorem test2
 -- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
 -- (div_def : ∀ (x y : Nat), div x y = mul x (inv y))
 -- : False := by
---   prover
+--   duper
 --   all_goals
 --     sorry
 
 -- example (h : ∀ (x y : Nat), y ≠ x)
 -- : False := by
---   prover
+--   duper
 --   all_goals
 --     sorry
 
@@ -115,14 +115,14 @@ theorem test2
 
 -- example  (h : ∀ x, f x ≠ b ∨ f x ≠ b)  (h : f c = b)
 -- : False := by
---   prover
+--   duper
 --   done
 
 
 
 -- example  (h : a = b) (h : a ≠ b)
 -- : False := by
---   prover
+--   duper
 --   · exact (fun h => h rfl)
 --   · intro h
 --     rw [h]
