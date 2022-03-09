@@ -5,6 +5,7 @@ import Duper.MClause
 import Duper.Rules.Clausification
 import Duper.Simp
 import Duper.Rules.Superposition
+import Duper.Rules.ClausifyPropEq
 import Duper.Rules.EqualityResolution
 import Duper.Rules.TrivialSimp
 import Duper.Rules.ElimDupLit
@@ -60,6 +61,7 @@ def backwardSimplify (givenClause : Clause) : ProverM Unit := do
 
 def performInferences (givenClause : Clause) : ProverM Unit := do
   performEqualityResolution givenClause
+  performClausifyPropEq givenClause
   performSuperposition givenClause
 
 partial def saturate : ProverM Unit := do

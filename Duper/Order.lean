@@ -41,6 +41,18 @@ partial def weight (s : Expr) (w : Int := 0) (sign : Int) : MetaM Int := do
       for u in ss do
         w ← weight u w sign
       return w
+    | Expr.forallE _ _ body _ => do -- TODO: Also search type? 
+      let mut w := w + sign * 1
+      w ← weight body w sign
+      -- TODO: Assert ss empty?
+      return w
+    | Expr.bvar .. => do
+      let mut w := w + sign * 1
+      for u in ss do
+        w ← weight u w sign
+      return w
+    | Expr.sort .. => do
+      return w + sign * 1
     | Expr.mvar mVarId .. => do
       return w + sign * 1
     | _ => throwError "Not implemented {s}"
@@ -59,6 +71,17 @@ partial def varBalance (s : Expr) (vb : Std.HashMap Expr Int := {}) (sign : Int)
       let mut vb := vb
       for u in ss do
         vb ← varBalance u vb sign
+      return vb
+    | Expr.forallE _ _ body _ => do -- TODO: Also search type?
+      let vb ← varBalance body vb sign
+      -- TODO: Assert ss empty?
+      return vb
+    | Expr.bvar .. => do
+      let mut vb := vb
+      for u in ss do
+        vb ← varBalance u vb sign
+      return vb
+    | Expr.sort .. => do
       return vb
     | Expr.mvar mVarId .. => do
       let vb := vb.insert s $ (← vb.findD s 0) + sign

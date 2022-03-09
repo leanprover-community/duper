@@ -68,7 +68,7 @@ theorem test0
 
 #print test0
 
-theorem test1 
+theorem test1
 (div_self : ∀ x, f x = a)
 (div_self : ∀ x, f x ≠ a)
 : False := by duper
@@ -86,63 +86,32 @@ theorem test2
 #print test2
 
 
--- example (a : Nat)
--- (h1 : ∀ (x : Nat), f x = a)
--- (h2 : ¬ ∀ (x : Nat), f x = a)
--- : False := by
---   duper
---   · sorry
---   · sorry
---   · sorry
---   · sorry
---   · sorry
---   · sorry
---   · sorry
---   · sorry
---   · sorry
+theorem puzzle1 {ι : Type} (johanna : ι) (bill : ι) (peanuts : ι)
+  (food : ι → Prop) (alive : ι → Prop) 
+  (likes : ι → ι → Prop) (eats : ι → ι → Prop) (was_killed_by : ι → ι → Prop)
+  (h1 : ∀ x, food x → likes johanna x)
+  (h2 : ∀ x, (∃ y, eats y x ∧ ¬ was_killed_by y x) → food x)
+  (h3 : eats bill peanuts)
+  (h4 : alive bill)
+  (h5 : ∀ y, alive y → ∀ x, ¬ was_killed_by y x) :
+likes johanna peanuts := by duper
 
--- set_option maxHeartbeats 500
--- example 
--- (neg_conj : ¬ ∀ (x y : Nat), mul (add x y) (inv y) = add (mul x (inv y)) (mul y (inv y)))
--- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
--- (div_def : ∀ (x y : Nat), div x y = mul x (inv y))
--- : False := by
---   duper
---   all_goals
---     sorry
+#print puzzle1
 
--- example (h : ∀ (x y : Nat), y ≠ x)
--- : False := by
---   duper
---   all_goals
---     sorry
+#print axioms puzzle1
+-- set_option trace.Meta.debug true
+-- set_option trace.Prover.saturate true
+-- set_option trace.Prover.debug true
+-- set_option trace.Rule.debug true
+-- set_option pp.all true
 
--- theorem eq_True : h = True ↔ h := by
---   apply Iff.intro 
---   · intro hh
---     rw [hh]
---     exact True.intro
---   · intro hh
---     apply propext
---     apply Iff.intro
---     exact fun _ => True.intro
---     exact fun _ => hh
-
--- example  (h : ∀ x, f x ≠ b ∨ f x ≠ b)  (h : f c = b)
--- : False := by
---   duper
---   done
-
-
-
--- example  (h : a = b) (h : a ≠ b)
--- : False := by
---   duper
---   · exact (fun h => h rfl)
---   · intro h
---     rw [h]
---     exact (fun g => g)
---   · exact eq_True.1
---   · exact eq_True.2 (by assumption)
---   · exact eq_True.1
---   · exact eq_True.2 (by assumption)
+theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι) 
+  (Doctor : ι → Prop) (Peculiar : ι → Prop) (Sane : ι → Prop)
+  (bestFriend : ι → ι) (Special : ι → Prop)
+  (h4 : ∀x, Peculiar x = (Sane x = ¬ Doctor x))
+  (h5 : ∀x, Special x = (∀y, ¬ Doctor y = (Sane y = Peculiar x)))
+  (h7 : ∀x, ∀y, (Sane x = Special y) → (Sane (bestFriend x) = ¬ Doctor y))
+  (h8 : Sane Tarr = ∀x, Doctor x → Sane x)
+  (h10 : Sane Fether = ∀x, Doctor x → ¬ Sane x)
+  (h12 : Sane Fether = Sane Tarr) : 
+False := by duper

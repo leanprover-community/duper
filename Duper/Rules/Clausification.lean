@@ -120,6 +120,7 @@ theorem false_neq_true : False ≠ True := fun h => of_eq_true h
 
 theorem true_neq_false : True ≠ False := fun h => of_eq_true h.symm
 
+-- TODO: Clausify ↔ as =
 def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) : 
     RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   match sign, e with
