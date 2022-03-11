@@ -1,6 +1,6 @@
 import Lake
+
 open Lake DSL
 
-package Duper {
-  -- add configuration options here
-}
+package Duper where
+  defaultFacet := PackageFacet.oleans
