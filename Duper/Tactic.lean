@@ -17,21 +17,21 @@ partial def printProof (state : ProverM.State) : TacticM Unit := do
     if hm.contains (info.number, c) then throwError "Loop! {hm} {info.number}"
     let hm := hm.push (info.number, c)
     let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! pp.clause) 
-    let parentIds ← parentInfo.map fun info => info.number
+    let parentIds := parentInfo.map fun info => info.number
     trace[Prover.debug] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
     for proofParent in info.proof.parents do
       go proofParent.clause hm
   go Clause.empty
 where 
   getClauseInfo! (c : Clause) : TacticM ClauseInfo := do
-    let some ci ← state.allClauses.find? c
+    let some ci := state.allClauses.find? c
       | throwError "clause info not found: {c}"
-    ci
+    return ci
 
 def getClauseInfo! (state : ProverM.State) (c : Clause) : TacticM ClauseInfo := do
-  let some ci ← state.allClauses.find? c
+  let some ci := state.allClauses.find? c
     | throwError "clause info not found: {c}"
-  ci
+  return ci
 
 partial def mkList (state : ProverM.State) (c : Clause) (acc : List Clause := []) : TacticM (List Clause) := do
   Core.checkMaxHeartbeats "mkList"
@@ -44,11 +44,11 @@ partial def mkList (state : ProverM.State) (c : Clause) (acc : List Clause := []
   return acc
 
 partial def mkProof (state : ProverM.State) : List Clause → TacticM (List Expr)
-| [] => []
+| [] => return []
 | c :: cs => do
   Core.checkMaxHeartbeats "mkProof"
   let info ← getClauseInfo! state c
-  let newTarget ← c.toForallExpr
+  let newTarget := c.toForallExpr
   let mut parents := #[]
   for parent in info.proof.parents do
     let number := (← getClauseInfo! state parent.clause).number
@@ -75,8 +75,8 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM (List Expr
           for (fvarId, _) in info.proof.introducedSkolems do
             otherProof ← mkLambdaFVars (usedLetOnly := false) #[mkFVar fvarId] otherProof
           return otherProof
-        otherProofs
-    (newProof, otherProofs)
+        return otherProofs
+    return (newProof, otherProofs)
   -- trace[Meta.debug] "{newProof :: otherProofs}"
   return newProof :: otherProofs
 
@@ -102,7 +102,7 @@ def evalDuper : Tactic
   let startTime ← IO.monoMsNow
   replaceMainGoal [(← intros (← getMainGoal)).2]
   let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
-  assignExprMVar (← getMainGoal) (← mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
+  assignExprMVar (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
   replaceMainGoal [mvar.mvarId!]
   replaceMainGoal [(← intro (← getMainGoal) `h).2]
   withMainContext do

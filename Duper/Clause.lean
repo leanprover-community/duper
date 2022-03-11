@@ -99,15 +99,15 @@ def compare (ord : Expr → Expr → MetaM Comparison) (l₁ l₂ : Lit) : MetaM
   if crr == Incomparable then return Incomparable
 
   match cll, clr, crl, crr with
-  | GreaterThan, GreaterThan, _, _ => GreaterThan
-  | _, _, GreaterThan, GreaterThan => GreaterThan
-  | LessThan, _, LessThan, _ => LessThan
-  | _, LessThan, _, LessThan => LessThan
+  | GreaterThan, GreaterThan, _, _ => return GreaterThan
+  | _, _, GreaterThan, GreaterThan => return GreaterThan
+  | LessThan, _, LessThan, _ => return LessThan
+  | _, LessThan, _, LessThan => return LessThan
 
-  | GreaterThan, _, _, GreaterThan => GreaterThan
-  | LessThan, _, _, LessThan => LessThan
-  | _, GreaterThan, GreaterThan, _ => GreaterThan
-  | _, LessThan, LessThan, _ => LessThan
+  | GreaterThan, _, _, GreaterThan => return GreaterThan
+  | LessThan, _, _, LessThan => return LessThan
+  | _, GreaterThan, GreaterThan, _ => return GreaterThan
+  | _, LessThan, LessThan, _ => return LessThan
   | _, _, _, _ => do
 
     let csign := match l₁.sign, l₂.sign with
@@ -117,18 +117,18 @@ def compare (ord : Expr → Expr → MetaM Comparison) (l₁ l₂ : Lit) : MetaM
     | false, false => Equal
 
     match cll, clr, crl, crr, csign with
-    | Equal, _, _, c, Equal => c
-    | _, Equal, c, _, Equal => c
-    | _, c, Equal, _, Equal => c
-    | c, _, _, Equal, Equal => c
+    | Equal, _, _, c, Equal => return c
+    | _, Equal, c, _, Equal => return c
+    | _, c, Equal, _, Equal => return c
+    | c, _, _, Equal, Equal => return c
 
-    | Equal, _, _, Equal, _ => Equal
-    | _, Equal, Equal, _, _ => Equal
+    | Equal, _, _, Equal, _ => return Equal
+    | _, Equal, Equal, _, _ => return Equal
     
-    | Equal, _, _, _, c => c
-    | _, Equal, _, _, c => c
-    | _, _, Equal, _, c => c
-    | _, _, _, Equal, c => c
+    | Equal, _, _, _, c => return c
+    | _, Equal, _, _, c => return c
+    | _, _, Equal, _, c => return c
+    | _, _, _, Equal, c => return c
 
     | _, _, _, _, _ => throwError "unexpected comparisons : {cll} {clr} {crl} {crr} {csign}"
 

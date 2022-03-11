@@ -48,8 +48,8 @@ partial def simpLoop (givenClause : Clause) : ProverM (Option Clause) := do
   match ← applySimpRules givenClause with
   | Applied c => 
     simpLoop c
-  | Unapplicable => some givenClause 
-  | Removed => none
+  | Unapplicable => return some givenClause 
+  | Removed => return none
 
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
   let c := simpLoop givenClause
@@ -57,7 +57,7 @@ def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
   c
 
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
-  ()
+  return ()
 
 def performInferences (givenClause : Clause) : ProverM Unit := do
   performEqualityResolution givenClause

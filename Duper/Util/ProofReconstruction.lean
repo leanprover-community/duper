@@ -12,7 +12,7 @@ def instantiatePremises (parents : Array ProofParent) (premises : Array Expr) (x
   let mut appliedPremises := #[]
   for k in [:parents.size] do
     let vanishingVarSkolems ← parents[k].vanishingVarTypes.mapM fun ty =>
-      Meta.mkAppOptM ``arbitrary #[some ty, none]
+      Meta.mkAppOptM ``default #[some ty, none]
     let parentInstantiations := parents[k].instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
     parentsLits := parentsLits.push $ parents[k].clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
     appliedPremises := appliedPremises.push $ mkAppN premises[k] parentInstantiations
@@ -23,9 +23,9 @@ def orCases (lits : Array Expr) (caseProofs : Array Expr) : MetaM Expr := do
   let mut ors := #[lits[lits.size - 1]]
   for l in [2:lits.size+1] do
     ors := ors.push (mkApp2 (mkConst ``Or) lits[lits.size - l] ors[ors.size-1])
-  let mut r ← caseProofs[caseProofs.size - 1]
+  let mut r := caseProofs[caseProofs.size - 1]
   for k in [2:caseProofs.size+1] do
-    let newOne ← caseProofs[caseProofs.size - k]
+    let newOne := caseProofs[caseProofs.size - k]
     r ← Meta.withLocalDeclD `h ors[k-1] fun h => do
       let p ← Meta.mkAppM
         ``Or.elim
@@ -38,7 +38,7 @@ def orIntro (lits : Array Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
   let mut tyR := lits[lits.size-1]
   for j in [2:lits.size-i] do
     tyR := mkApp2 (mkConst ``Or) lits[lits.size - j] tyR
-  let mut proofRight := ←
+  let mut proofRight :=
     if i != lits.size - 1 then
       mkApp3 (mkConst ``Or.inl) lits[i] tyR proof
     else

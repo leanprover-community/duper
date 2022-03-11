@@ -22,9 +22,9 @@ def mkEqualityResolutionProof (i : Nat) (premises : Array Expr) (parents: Array 
       if j == i then
         -- lit has the form t ≠ t
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
-          let pr ← mkApp2 (mkConst ``rfl [lit.lvl]) lit.ty lit.lhs
-          let pr ← mkApp h pr
-          let pr ← mkApp2 (mkConst ``False.elim [levelZero]) body pr
+          let pr := mkApp2 (mkConst ``rfl [lit.lvl]) lit.ty lit.lhs
+          let pr := mkApp h pr
+          let pr := mkApp2 (mkConst ``False.elim [levelZero]) body pr
           Meta.mkLambdaFVars #[h] pr
         caseProofs := caseProofs.push pr
       else
@@ -35,7 +35,7 @@ def mkEqualityResolutionProof (i : Nat) (premises : Array Expr) (parents: Array 
         -- caseProofs := caseProofs.push $ ← Lean.Meta.mkSorry (← Meta.mkArrow lit.toExpr body) (synthetic := true)
         caseProofs := caseProofs.push $ pr
 
-    let r ← orCases (← parentLits.map Lit.toExpr) caseProofs
+    let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
 def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=

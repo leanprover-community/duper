@@ -9,4 +9,4 @@ inductive LoopCtrl
 partial def iterate [Monad m] (f : m LoopCtrl) : m Unit := do
   match ← f with
   | LoopCtrl.next => iterate f
-  | LoopCtrl.abort => ()
+  | LoopCtrl.abort => pure ()
