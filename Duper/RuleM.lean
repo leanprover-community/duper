@@ -45,17 +45,12 @@ initialize
   registerTraceClass `Rule
   registerTraceClass `Rule.debug
 
-instance : Monad RuleM := let i := inferInstanceAs (Monad RuleM); { pure := i.pure, bind := i.bind }
-
 instance : MonadLCtx RuleM where
   getLCtx := return (← get).lctx
 
 instance : MonadMCtx RuleM where
   getMCtx    := return (← get).mctx
   modifyMCtx f := modify fun s => { s with mctx := f s.mctx }
-
-instance : Inhabited (RuleM α) where
-  default := fun _ _ => arbitrary
 
 @[inline] def RuleM.run (x : RuleM α) (ctx : Context := {}) (s : State := {}) : CoreM (α × State) :=
   x ctx |>.run s
@@ -169,7 +164,7 @@ def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
 
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
   Core.transform e (pre := fun s => 
-    if s == target then TransformStep.done replacement else TransformStep.visit s )
+    return if s == target then TransformStep.done replacement else TransformStep.visit s )
 
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
@@ -189,10 +184,10 @@ def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) :
   let lits := c.lits.map fun l =>
     l.map fun e => e.abstractMVars (mVarIds.result.map mkMVar)
   let c := Clause.mk (← mVarIds.result.mapM getMVarType) lits
-  (c, mVarIds)
+  return (c, mVarIds)
 
 def neutralizeMClause (c : MClause) : RuleM Clause := do
-  (← neutralizeMClauseCore c).1
+  return (← neutralizeMClauseCore c).1
 
 def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
   let (c, cVars) ← neutralizeMClauseCore c
@@ -203,7 +198,7 @@ def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option ProofRec
       {visitedExpr := cVars.visitedExpr, result := #[]} -- ignore vars in `cVars`
     let instantiations := instantiations.map 
       (fun e => e.abstractMVars ((cVars.result ++ additionalVars.result).map mkMVar))
-    proofParents ← proofParents.push {
+    proofParents := proofParents.push {
       clause := loadedClause
       instantiations := instantiations
       vanishingVarTypes := ← additionalVars.result.mapM getMVarType

@@ -84,7 +84,7 @@ partial def varBalance (s : Expr) (vb : Std.HashMap Expr Int := {}) (sign : Int)
     | Expr.sort .. => do
       return vb
     | Expr.mvar mVarId .. => do
-      let vb := vb.insert s $ (← vb.findD s 0) + sign
+      let vb := vb.insert s $ vb.findD s 0 + sign
       return vb
     | _ => throwError "Not implemented {s}"
 
@@ -108,7 +108,7 @@ def compareVarBalance (vb : Std.HashMap Expr Int := {}) : MetaM Comparison := do
 -- TODO: Not quite KBO yet
 def kbo (s t : Expr) : MetaM Comparison := do
   Core.checkMaxHeartbeats "kbo"
-  if s == t then Equal
+  if s == t then return Equal
   else
     let wb : Int := 0
     let wb ← weight s wb 1
@@ -119,7 +119,7 @@ def kbo (s t : Expr) : MetaM Comparison := do
     trace[Meta.debug] "wb: {wb}"
     trace[Meta.debug] "vb: {vb.toArray}"
     let vbComparison ← compareVarBalance vb
-    if wb > 0 ∧ (vbComparison == GreaterThan ∨ vbComparison == Equal) then
+    return if wb > 0 ∧ (vbComparison == GreaterThan ∨ vbComparison == Equal) then
       GreaterThan
     else if wb < 0 ∧ (vbComparison == LessThan ∨ vbComparison == Equal) then
       LessThan

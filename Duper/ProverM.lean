@@ -50,13 +50,8 @@ structure State where
 
 abbrev ProverM := ReaderT Context $ StateRefT State CoreM
 
-instance : Monad ProverM := let i := inferInstanceAs (Monad ProverM); { pure := i.pure, bind := i.bind }
-
 instance : MonadLCtx ProverM where
   getLCtx := return (← get).lctx
-
-instance : Inhabited (ProverM α) where
-  default := fun _ _ => arbitrary
 
 instance : AddMessageContext ProverM where
   addMessageContext := fun msgData => do
@@ -114,7 +109,7 @@ def getSupSidePremiseIdx : ProverM (ClauseDiscrTree ClausePos) :=
   return (← get).supSidePremiseIdx
 
 def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
-  let some ci ← (← getAllClauses).find? c
+  let some ci := (← getAllClauses).find? c
     | throwError "Clause not found: {c}"
   return ci
 
@@ -161,12 +156,12 @@ partial def chooseGivenClause : ProverM (Option Clause) := do
     if fc ≥ 5 then
       setFairnessCounter 0
       trace[Prover.debug] "Clause selected by age ({fc})"
-      (getPassiveSetAgeHeap, setPassiveSetAgeHeap)
+      pure (getPassiveSetAgeHeap, setPassiveSetAgeHeap)
     else
       trace[Prover.debug] "Clause selected by weight ({fc})"
-      (getPassiveSetWeightHeap, setPassiveSetWeightHeap)
+      pure (getPassiveSetWeightHeap, setPassiveSetWeightHeap)
   -- Extract clause from heap
-  let some (c, h) ← (← getHeap).deleteMin
+  let some (c, h) := (← getHeap).deleteMin
     | return none
   setHeap h
   -- If selected clause is no longer in passive set, restart.
@@ -184,7 +179,7 @@ def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
   match (← getAllClauses).find? c with
   | some ci => return ci
   | none =>
-    let allClauses ← (← get).allClauses
+    let allClauses := (← get).allClauses
     let ci : ClauseInfo := {
       number := allClauses.size
       proof := proof
@@ -195,16 +190,16 @@ def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
 
 def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
   if (← getAllClauses).contains c
-  then () -- clause is not new, ignore.
+  then pure () -- clause is not new, ignore.
   else
     trace[Prover.saturate] "New passive clause: {c}"
     let ci ← addNewClause c proof
     setPassiveSet $ (← getPassiveSet).insert c
     setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
-    setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (← c.weight, c)
+    setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
 
 def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
-  let c ← Clause.fromExpr e
+  let c := Clause.fromExpr e
   -- TODO: remove sorry
   let mkProof := fun _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof}

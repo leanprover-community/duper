@@ -37,7 +37,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
               let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,eq], h]
               Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
             caseProofsMain := caseProofsMain.push $ pr
-          let r ← orCases (← mainParentLits.map Lit.toExpr) caseProofsMain
+          let r ← orCases (mainParentLits.map Lit.toExpr) caseProofsMain
           Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
         caseProofsSide := caseProofsSide.push $ pr
       else
@@ -47,10 +47,10 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
         caseProofsSide := caseProofsSide.push $ pr
 
-    let r ← orCases (← sideParentLits.map Lit.toExpr) caseProofsSide
+    let r ← orCases (sideParentLits.map Lit.toExpr) caseProofsSide
     let proof ← Meta.mkLambdaFVars xs $ mkApp r appliedSidePremise
     -- Meta.mkLambdaFVars xs $ ← Lean.Meta.mkSorry body (synthetic := true)
-    proof
+    return proof
 
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) 
     (sidePremise : MClause) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (givenIsMain : Bool): RuleM Unit := do
@@ -123,7 +123,7 @@ def superposition
   for i in [:givenMClause.lits.size] do
     if givenMClause.lits[i].sign = true && litSelectedOrNothingSelected givenMClause i
     then 
-      let restOfGivenClause ← givenMClause.eraseIdx i
+      let restOfGivenClause := givenMClause.eraseIdx i
       for side in #[LitSide.lhs, LitSide.rhs] do
         let flippedLit := givenMClause.lits[i].makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then
@@ -133,7 +133,6 @@ def superposition
   -- trace[Rule.debug] "Superposition inferences with {givenClause} as main premise"
   givenMClause.foldGreenM fun acc e pos => do
       superpositionAtExpr e sidePremiseIdx givenMClause
-      ()
     ()
   -- TODO: What about inference with itself?
       

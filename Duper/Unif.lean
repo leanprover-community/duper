@@ -15,7 +15,7 @@ where
   unify1 (s t : Expr) : MetaM Bool := do
     let s ← instantiateMVars s --TODO: instantiate more lazily?
     let t ← instantiateMVars t
-    if s == t then true else
+    if s == t then return true else
     s.withApp fun f ss => t.withApp fun g tt =>
       match f, g with
       | Expr.fvar .., Expr.fvar .. =>
@@ -46,11 +46,11 @@ where
       if tt.isEmpty && ss.isEmpty
       then
         if f == g
-        then true
+        then return true
         else 
           assignExprMVar f.mvarId! t
           return true
-      else false
+      else return false
   unifyFlexRigid (s t : Expr) : MetaM Bool := do
     s.withApp fun f ss => t.withApp fun g tt => do
       match ← getExprMVarAssignment? f.mvarId! with
@@ -64,8 +64,8 @@ where
             assignExprMVar f.mvarId! t
             return true
           else 
-            false
-        else false
+            return false
+        else return false
 
 -- def test : MetaM Unit := do
 --   let ty := mkConst ``Nat

@@ -226,7 +226,7 @@ private partial def insertAux [BEq α] (keys : Array Key) (v : α) : Nat → Tri
           (fun a b => a.1 < b.1)
           (fun ⟨_, s⟩ => let c := insertAux keys v (i+1) s; (k, c)) -- merge with existing
           (fun _ => let c := createNodes keys v (i+1); (k, c))
-          (k, arbitrary)
+          (k, default)
       Trie.node vs c
     else
       Trie.node (insertVal vs v) cs
@@ -284,7 +284,7 @@ private def getStarResult (d : DiscrTree α) : Array α :=
   | some (Trie.node vs _) => result ++ vs
 
 private abbrev findKey (cs : Array (Key × Trie α)) (k : Key) : Option (Key × Trie α) :=
-  cs.binSearch (k, arbitrary) (fun a b => a.1 < b.1)
+  cs.binSearch (k, default) (fun a b => a.1 < b.1)
 
 private partial def getMatchLoop (todo : Array Expr) (c : Trie α) (result : Array α) : RuleM (Array α) := do
   match c with
@@ -308,11 +308,11 @@ private partial def getMatchLoop (todo : Array Expr) (c : Trie α) (result : Arr
           return result
       let visitNonStar (k : Key) (args : Array Expr) (result : Array α) : RuleM (Array α) :=
         match findKey cs k with
-        | none   => result
+        | none   => return result
         | some c => getMatchLoop (todo ++ args) c.2 result
       let result ← visitStar result
       match k with
-      | Key.star  => result
+      | Key.star  => return result
       /-
         Recall that dependent arrows are `(Key.other, #[])`, and non-dependent arrows are `(Key.arrow, #[a, b])`.
         A non-dependent arrow may be an instance of a dependent arrow (stored at `DiscrTree`). Thus, we also visit the `Key.other` child.
@@ -371,7 +371,7 @@ where
             return result
         let visitNonStar (k : Key) (args : Array Expr) (result : Array α) : RuleM (Array α) :=
           match findKey cs k with
-          | none   => result
+          | none   => return result
           | some c => process 0 (todo ++ args) c.2 result
         match k with
         | Key.star  => cs.foldlM (init := result) fun result ⟨k, c⟩ => process k.arity todo c result

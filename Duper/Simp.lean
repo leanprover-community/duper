@@ -15,15 +15,15 @@ inductive SimpResult (α : Type)
 namespace SimpResult
 
 def mapM [Monad m] (f : α → m β): SimpResult α → m (SimpResult β)
-| Applied c    => do Applied (← f c)
-| Unapplicable => Unapplicable
-| Removed      => Removed
+| Applied c    => return Applied (← f c)
+| Unapplicable => return Unapplicable
+| Removed      => return Removed
 
 def forM {m : Type u → Type v} [Monad m] {α : Type} (r : SimpResult α) (f : α → m PUnit) : m PUnit :=
 match r with
 | Applied c    => f c
-| Unapplicable => PUnit.unit
-| Removed      => PUnit.unit
+| Unapplicable => return PUnit.unit
+| Removed      => return PUnit.unit
 
 end SimpResult
 
@@ -43,9 +43,9 @@ def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String)
       for (c, mkProof) in cs do yieldClause c ruleName mkProof
     return cs?
   match res with
-  | Removed           => Removed
-  | Unapplicable      => Unapplicable
-  | Applied []        => Removed
+  | Removed           => return Removed
+  | Unapplicable      => return Unapplicable
+  | Applied []        => return Removed
   | Applied _ => do
     -- Return first clause, add others to passive set
     for i in [:cs.size] do
@@ -54,7 +54,7 @@ def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String)
         let _ ← addNewClause c proof
       else
         addNewToPassive c proof
-    Applied cs[0].1
+    return Applied cs[0].1
 
 
 end Duper
