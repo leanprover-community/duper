@@ -238,10 +238,18 @@ where
 
 def clausificationStepLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   let l := c.lits[i]
-  match l.rhs with
-  | Expr.const ``True _ _ => clausificationStepE l.lhs true c i
-  | Expr.const ``False _ _ => clausificationStepE l.lhs false c i
-  | _ => return Unapplicable
+  if not l.ty.isProp then return Unapplicable
+  if l.sign then
+    -- Clausify " = False" and "= True":
+    match l.rhs with
+    | Expr.const ``True _ _ => clausificationStepE l.lhs true c i
+    | Expr.const ``False _ _ => clausificationStepE l.lhs false c i
+    | _ => return Unapplicable
+  else
+    -- Clausify inequalities of type Prop:
+    Applied [(MClause.mk #[Lit.fromExpr l.lhs false, Lit.fromExpr l.rhs false], none),
+             (MClause.mk #[Lit.fromExpr l.lhs true, Lit.fromExpr l.rhs true], none)]
+             -- TODO: Proofs
 -- TODO: True/False on left-hand side?
 
 -- TODO: generalize combination of `orCases` and `orIntro`?

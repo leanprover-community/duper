@@ -66,9 +66,22 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     let rhs ← instantiateMVars sidePremiseLit.rhs
     if (← compare lhs rhs) == Comparison.LessThan then
       return ()
+
+    let sidePremise ← sidePremise.mapM fun e => instantiateMVars e
+    if not $ ← runMetaAsRuleM $ sidePremise.isMaximalLit (← getOrder) sidePremiseLitIdx then
+      return ()
+    -- TODO: make exception for selected lits
+
+    -- TODO: also check maximality for main premise
+
     let mainPremiseReplaced ← 
       mainPremise.mapM fun e => do
         replace (← instantiateMVars e) lhs rhs --TODO: Replace only green subterms
+
+    -- if mainPremiseReplaced.isTrivial then
+    --   trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
+      -- return ()
+      
     let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
     let res := MClause.append restOfSidePremise mainPremiseReplaced 
     yieldClause res "superposition" 

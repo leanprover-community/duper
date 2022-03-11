@@ -1,6 +1,7 @@
 import Lean
 import Duper.Util.Misc
 import Duper.Expr
+import Duper.Order
 
 namespace Duper
 open Lean
@@ -84,6 +85,52 @@ instance : ToFormat Lit :=
 
 instance : ToMessageData Lit :=
 ⟨ fun lit => lit.toExpr ⟩
+
+
+open Comparison
+def compare (ord : Expr → Expr → MetaM Comparison) (l₁ l₂ : Lit) : MetaM Comparison := do
+  let cll ← ord l₁.lhs l₂.lhs
+  if cll == Incomparable then return Incomparable
+  let clr ← ord l₁.lhs l₂.rhs
+  if clr == Incomparable then return Incomparable
+  let crl ← ord l₁.rhs l₂.lhs
+  if crl == Incomparable then return Incomparable
+  let crr ← ord l₁.rhs l₂.rhs
+  if crr == Incomparable then return Incomparable
+
+  match cll, clr, crl, crr with
+  | GreaterThan, GreaterThan, _, _ => GreaterThan
+  | _, _, GreaterThan, GreaterThan => GreaterThan
+  | LessThan, _, LessThan, _ => LessThan
+  | _, LessThan, _, LessThan => LessThan
+
+  | GreaterThan, _, _, GreaterThan => GreaterThan
+  | LessThan, _, _, LessThan => LessThan
+  | _, GreaterThan, GreaterThan, _ => GreaterThan
+  | _, LessThan, LessThan, _ => LessThan
+  | _, _, _, _ => do
+
+    let csign := match l₁.sign, l₂.sign with
+    | true, true => Equal
+    | false, true => GreaterThan
+    | true, false => LessThan
+    | false, false => Equal
+
+    match cll, clr, crl, crr, csign with
+    | Equal, _, _, c, Equal => c
+    | _, Equal, c, _, Equal => c
+    | _, c, Equal, _, Equal => c
+    | c, _, _, Equal, Equal => c
+
+    | Equal, _, _, Equal, _ => Equal
+    | _, Equal, Equal, _, _ => Equal
+    
+    | Equal, _, _, _, c => c
+    | _, Equal, _, _, c => c
+    | _, _, Equal, _, c => c
+    | _, _, _, Equal, c => c
+
+    | _, _, _, _, _ => throwError "unexpected comparisons : {cll} {clr} {crl} {crr} {csign}"
 
 end Lit
 

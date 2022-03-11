@@ -9,6 +9,7 @@ import Duper.Tactic
 constant a : Nat
 constant b : Nat
 constant c : Nat
+constant d : Nat
 constant zero : Nat
 constant one : Nat
 constant div : Nat → Nat → Nat
@@ -28,6 +29,34 @@ theorem test0000
 (div_def : ∀ (x y : Nat), ¬ isZero y → div x y = mul x (inv y)) :
 ∀ (x y : Nat), ¬ isZero y → div (add x y) y = add (div x y) one := by duper
 
+-- Contradiction found. Time: 1565ms
+theorem test0018 (a1 a2 a3 a4 a5 a6 : Nat)
+(h1 : 
+f (f (f (f (f (f (f (f a5))))))) = d ∨
+f (f (f (f (f (f (f a4)))))) = d ∨
+f (f (f (f (f (f a3))))) = d ∨
+f (f (f (f (f a2)))) = d ∨
+f (f (f (f a1))) = d ∨
+f (f (f a)) = d ∨ f (f b) = d ∨ f c = d)
+(h2 : f (f (f (f (f (f (f (f a5))))))) ≠ d)
+(h2 : f (f (f (f (f (f (f a4)))))) ≠ d)
+(h2 : f (f (f (f (f (f a3))))) ≠ d)
+(h2 : f (f (f (f (f a2)))) ≠ d)
+(h2 : f (f (f (f a1))) ≠ d)
+(h2 : f (f (f a)) ≠ d)
+(h3 : f (f b) ≠ d)
+(h4 : f c ≠ d)
+: False := by duper
+
+#print test0018
+
+-- theorem test00008
+-- (div_self : ∀ x, x ≠ zero → mul x (inv x) = one)
+-- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z)) :
+-- -- (div_def : ∀ (x y : Nat), y ≠ zero → div x y = mul x (inv y)) :
+-- ∀ (x y : Nat), y ≠ zero → mul (add x y) (inv y) = add (mul x (inv y)) one := by duper
+
+
 -- theorem test00008
 -- (div_self : ∀ x, x ≠ zero → div x x = one)
 -- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
@@ -37,6 +66,7 @@ theorem test0000
 -- #print test
 -- #print axioms test
 
+set_option trace.Prover.debug true
 theorem test 
 (div_self : ∀ x, div x x = one)
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
@@ -100,18 +130,18 @@ likes johanna peanuts := by duper
 
 #print axioms puzzle1
 -- set_option trace.Meta.debug true
--- set_option trace.Prover.saturate true
+set_option trace.Prover.saturate true
 -- set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
 
-theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι) 
-  (Doctor : ι → Prop) (Peculiar : ι → Prop) (Sane : ι → Prop)
-  (bestFriend : ι → ι) (Special : ι → Prop)
-  (h4 : ∀x, Peculiar x = (Sane x = ¬ Doctor x))
-  (h5 : ∀x, Special x = (∀y, ¬ Doctor y = (Sane y = Peculiar x)))
-  (h7 : ∀x, ∀y, (Sane x = Special y) → (Sane (bestFriend x) = ¬ Doctor y))
-  (h8 : Sane Tarr = ∀x, Doctor x → Sane x)
-  (h10 : Sane Fether = ∀x, Doctor x → ¬ Sane x)
-  (h12 : Sane Fether = Sane Tarr) : 
-False := by duper
+-- theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι) 
+--   (Doctor : ι → Prop) (Peculiar : ι → Prop) (Sane : ι → Prop)
+--   (bestFriend : ι → ι) (Special : ι → Prop)
+--   (h4 : ∀x, Peculiar x = (Sane x = ¬ Doctor x))
+--   (h5 : ∀x, Special x = (∀y, ¬ Doctor y = (Sane y = Peculiar x)))
+--   (h7 : ∀x, ∀y, (Sane x = Special y) → (Sane (bestFriend x) = ¬ Doctor y))
+--   (h8 : Sane Tarr = ∀x, Doctor x → Sane x)
+--   (h10 : Sane Fether = ∀x, Doctor x → ¬ Sane x)
+--   (h12 : Sane Fether = Sane Tarr) : 
+-- False := by duper

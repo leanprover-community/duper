@@ -42,5 +42,22 @@ def append (c : MClause) (d : MClause) : MClause := ⟨c.lits.append d.lits⟩
 
 def eraseIdx (i : Nat) (c : MClause) : MClause := ⟨c.lits.eraseIdx i⟩
 
+def isTrivial (c : MClause) : Bool := Id.run do
+  -- TODO: Also check if it contains the same literal positively and negatively?
+  for lit in c.lits do
+    if lit.sign ∧ lit.lhs == lit.rhs then
+      return true
+  return false
+
+open Comparison
+def isMaximalLit (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx : Nat) (strict := false): MetaM Bool := do
+  for j in [:c.lits.size] do
+    if j == idx then continue
+    let c ← Lit.compare ord c.lits[idx] c.lits[j]
+    if c == GreaterThan ∨ (¬ strict ∧ c == Equal)
+      then continue
+    else return false
+  return true
+
 end MClause
 end Duper

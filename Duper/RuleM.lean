@@ -1,7 +1,6 @@
 import Lean
 import Duper.Unif
 import Duper.MClause
-import Duper.Order
 
 namespace Duper
 
