@@ -17,4 +17,8 @@ def litSelectedOrNothingSelected (c : MClause) (i : Nat) :=
   then true
   else sel.contains i
 
+def litSelected (c : MClause) (i : Nat) :=
+  let sel := getSelections c
+  sel.contains i
+
 end Duper

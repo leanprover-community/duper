@@ -2,7 +2,7 @@ import Duper.Tactic
 
 -- set_option trace.Meta.debug true
 -- set_option trace.Prover.saturate true
--- set_option trace.Prover.debug true
+set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
 
@@ -23,13 +23,16 @@ constant p : Nat → Prop
 constant q : Prop
 constant isZero : Nat → Prop
 
-theorem test0000
-(div_self : ∀ x, ¬ isZero x → div x x = one)
-(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
-(div_def : ∀ (x y : Nat), ¬ isZero y → div x y = mul x (inv y)) :
-∀ (x y : Nat), ¬ isZero y → div (add x y) y = add (div x y) one := by duper
 
--- Contradiction found. Time: 1565ms
+
+-- theorem test0000 (one : Nat) (isZero : Nat → Prop) (div mul add : Nat → Nat → Nat)
+-- (div_self : ∀ x, ¬ isZero x → div x x = one)
+-- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+-- (div_def : ∀ (x y : Nat), ¬ isZero y → div x y = mul x (inv y)) :
+-- ∀ (x y : Nat), ¬ isZero y → div (add x y) y = add (div x y) one := by duper
+-- #print axioms test0000
+
+-- Contradiction found. Time: 647ms
 theorem test0018 (a1 a2 a3 a4 a5 a6 : Nat)
 (h1 : 
 f (f (f (f (f (f (f (f a5))))))) = d ∨
@@ -66,15 +69,14 @@ f (f (f a)) = d ∨ f (f b) = d ∨ f c = d)
 -- #print test
 -- #print axioms test
 
-set_option trace.Prover.debug true
-theorem test 
-(div_self : ∀ x, div x x = one)
-(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
-(div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
-∀ (x y : Nat), div (add x y) y = add (div x y) one := by duper
+-- theorem test 
+-- (div_self : ∀ x, div x x = one)
+-- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+-- (div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
+-- ∀ (x y : Nat), div (add x y) y = add (div x y) one := by duper
 
-#print test
-#print axioms test
+-- #print test
+-- #print axioms test
 
 -- example --(h : ∃ x, x ≠ c ∨ a = b) 
 -- (h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b) 
