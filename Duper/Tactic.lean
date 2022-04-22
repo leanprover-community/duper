@@ -43,8 +43,8 @@ partial def mkList (state : ProverM.State) (c : Clause) (acc : List Clause := []
     acc ← mkList state proofParent.clause acc
   return acc
 
-partial def mkProof (state : ProverM.State) : List Clause → TacticM (List Expr)
-| [] => return []
+partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
+| [] => panic! "empty clause list"
 | c :: cs => do
   Core.checkMaxHeartbeats "mkProof"
   let info ← getClauseInfo! state c
@@ -60,31 +60,28 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM (List Expr
     let ty := (state.lctx.get! fvarId).type
     trace[Meta.debug] "Reconstructing skolems {toString ty}"
     let userName := (state.lctx.get! fvarId).userName
-    -- let skdef ← mkSorry ty (synthetic := true)
     let skdef ← mkSkProof parents
     skdefs := skdef :: skdefs
     lctx := lctx.mkLetDecl fvarId userName ty skdef
-  let (newProof, otherProofs) ← withLCtx lctx (← getLocalInstances) do
+  let proof ← withLCtx lctx (← getLocalInstances) do
     trace[Meta.debug] "Reconstructing proof for #{info.number}: {c}"
     let newProof ← info.proof.mkProof parents info.proof.parents c
-    let otherProofs ←
+    if cs == [] then return newProof
+    let proof ←
       withLetDecl (Name.mkNum `goal info.number) newTarget newProof fun g => do
-        let otherProofs ← mkProof state cs
-        let otherProofs ← otherProofs.mapM fun otherProof => do
-          let mut otherProof ← mkLambdaFVars (usedLetOnly := false) #[g] otherProof
-          for (fvarId, _) in info.proof.introducedSkolems do
-            otherProof ← mkLambdaFVars (usedLetOnly := false) #[mkFVar fvarId] otherProof
-          return otherProof
-        return otherProofs
-    return (newProof, otherProofs)
-  -- trace[Meta.debug] "{newProof :: otherProofs}"
-  return newProof :: otherProofs
+        let remainingProof ← mkProof state cs
+        let mut remainingProof ← mkLambdaFVars (usedLetOnly := false) #[g] remainingProof
+        for (fvarId, _) in info.proof.introducedSkolems do
+          remainingProof ← mkLambdaFVars (usedLetOnly := false) #[mkFVar fvarId] remainingProof
+        return remainingProof
+    return proof
+  return proof
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
   let l ← mkList state Clause.empty
   trace[Meta.debug] "{l}"
-  let proofs ← mkProof state l
-  assignExprMVar (← getMainGoal) proofs.reverse.head! -- TODO: List.last?
+  let proof ← mkProof state l
+  assignExprMVar (← getMainGoal) proof -- TODO: List.last?
 
 def collectAssumptions : TacticM (Array (Expr × Expr)) := do
   let mut formulas := #[]
