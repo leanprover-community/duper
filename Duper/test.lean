@@ -2,7 +2,7 @@ import Duper.Tactic
 
 -- set_option trace.Meta.debug true
 -- set_option trace.Prover.saturate true
-set_option trace.Prover.debug true
+-- set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
 
@@ -22,7 +22,6 @@ constant h : Nat → Nat
 constant p : Nat → Prop
 constant q : Prop
 constant isZero : Nat → Prop
-
 
 
 -- theorem test0000 (one : Nat) (isZero : Nat → Prop) (div mul add : Nat → Nat → Nat)
@@ -147,3 +146,12 @@ set_option trace.Prover.saturate true
 --   (h10 : Sane Fether = ∀x, Doctor x → ¬ Sane x)
 --   (h12 : Sane Fether = Sane Tarr) : 
 -- False := by duper
+
+
+-- Time 29717ms
+theorem test0011 (one : Nat) (div mul add : Nat → Nat → Nat)
+(div_self : ∀ x, div x x = one)
+(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+(div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
+∀ (x y : Nat), div (add x y) y = add (div x y) one := by duper
+#print test0011

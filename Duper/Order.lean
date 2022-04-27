@@ -8,7 +8,7 @@ inductive Comparison
 | LessThan
 | Equal
 | Incomparable
-deriving BEq
+deriving BEq, Inhabited
 
 namespace Comparison
 
@@ -26,122 +26,131 @@ namespace Order
 open Lean.Meta
 open Comparison
 
-partial def weight (s : Expr) (w : Int := 0) (sign : Int) : MetaM Int := do
-  Core.checkMaxHeartbeats "weight"
-  trace[Meta.debug] "s: {s}" 
-  s.withApp fun f ss =>
-    match f with
-    | Expr.fvar .. => do
-      let mut w := w + sign * 1
-      for u in ss do
-        w ← weight u w sign
-      return w
-    | Expr.const .. => do
-      let mut w := w + sign * 1
-      for u in ss do
-        w ← weight u w sign
-      return w
-    | Expr.forallE _ _ body _ => do -- TODO: Also search type? 
-      let mut w := w + sign * 1
-      w ← weight body w sign
-      -- TODO: Assert ss empty?
-      return w
-    | Expr.bvar .. => do
-      let mut w := w + sign * 1
-      for u in ss do
-        w ← weight u w sign
-      return w
-    | Expr.sort .. => do
-      return w + sign * 1
-    | Expr.mvar mVarId .. => do
-      return w + sign * 1
-    | _ => throwError "Not implemented {s}"
-
 def VarBalance := Std.HashMap Expr Int
 
-partial def varBalance (s : Expr) (vb : Std.HashMap Expr Int := {}) (sign : Int) : MetaM (Std.HashMap Expr Int) := do
-  Core.checkMaxHeartbeats "varBalance"
-  trace[Meta.debug] "s: {s}" 
-  s.withApp fun f ss =>
-    match f with
-    | Expr.fvar .. => do
-      let mut vb := vb
-      for u in ss do
-        vb ← varBalance u vb sign
-      return vb
-    | Expr.const .. => do
-      let mut vb := vb
-      for u in ss do
-        vb ← varBalance u vb sign
-      return vb
-    | Expr.forallE _ _ body _ => do -- TODO: Also search type?
-      let vb ← varBalance body vb sign
-      -- TODO: Assert ss empty?
-      return vb
-    | Expr.bvar .. => do
-      let mut vb := vb
-      for u in ss do
-        vb ← varBalance u vb sign
-      return vb
-    | Expr.sort .. => do
-      return vb
-    | Expr.mvar mVarId .. => do
-      let vb := vb.insert s $ vb.findD s 0 + sign
-      return vb
-    | _ => throwError "Not implemented {s}"
+def VarBalance.addPosVar (vb : VarBalance) (t : Expr) : VarBalance :=
+  vb.insert t $ vb.findD t 0 + 1
 
-def compareVarBalance (vb : Std.HashMap Expr Int := {}) : MetaM Comparison := do
-  let mut res := Equal
+def VarBalance.addNegVar (vb : VarBalance) (t : Expr) : VarBalance :=
+  vb.insert t $ vb.findD t 0 - 1
+
+def headWeight (f : Expr) : Int := match f with
+| Expr.const .. => 1
+| Expr.mvar .. => 1
+| Expr.fvar .. => 1
+| Expr.bvar .. => 1
+| Expr.sort .. => 1
+| _ => panic! s!"head_weight: not implemented {f}"
+
+-- The orderings treat lambda-expressions like a "LAM" symbol applied to the
+-- type and body of the lambda-expression
+constant LAM : Prop
+constant FORALL : Prop
+def getHead (t : Expr) := match t with
+| Expr.lam .. => mkConst ``LAM
+| Expr.forallE .. => mkConst ``FORALL
+| _ => t.getAppFn
+
+def getArgs (t : Expr) := match t with
+| Expr.lam _ ty b _ => [ty, b]
+| Expr.forallE _ ty b _ => [ty, b]
+| _ => t.getAppArgs.toList
+
+def weightVarHeaded : Int := 1
+
+def VarBalance.noNegatives (vb : VarBalance) : Bool := Id.run do
+  for (v, b) in vb.toArray do
+    if b < 0 then
+      return False
+  return True
+
+def VarBalance.noPositives (vb : VarBalance) : Bool := Id.run do
   for (v, b) in vb.toArray do
     if b > 0 then
-      if res == LessThan then
-        res := Incomparable
-        break
-      else
-        res := GreaterThan
-    else if b < 0 then
-      if res == GreaterThan then
-        res := Incomparable
-        break
-      else
-        res := LessThan
-  return res
+      return False
+  return True
 
--- TODO: Not quite KBO yet
-def kbo (s t : Expr) : MetaM Comparison := do
-  Core.checkMaxHeartbeats "kbo"
-  if s == t then return Equal
-  else
-    let wb : Int := 0
-    let wb ← weight s wb 1
-    let wb ← weight t wb (-1)
-    let vb := {}
-    let vb ← varBalance s vb 1
-    let vb ← varBalance t vb (-1)
-    trace[Meta.debug] "wb: {wb}"
-    trace[Meta.debug] "vb: {vb.toArray}"
-    let vbComparison ← compareVarBalance vb
-    return if wb > 0 ∧ (vbComparison == GreaterThan ∨ vbComparison == Equal) then
-      GreaterThan
-    else if wb < 0 ∧ (vbComparison == LessThan ∨ vbComparison == Equal) then
-      LessThan
-    else
-      Incomparable
+def precCompare (f g : Expr) : Comparison := match f, g with
 
-inductive Head
-| V (v : Expr) : Head
-| C (c : Expr) : Head
-def Head.term_to_head (t : Expr) : Head := sorry
-def Head.term_to_args (t : Expr) : List Expr := sorry
-def add_pos_var (vb : VarBalance) (t : Expr) : VarBalance := sorry
-def add_neg_var (vb : VarBalance) (t : Expr) : VarBalance := sorry
-def Head.weight (f : Head) : Int := sorry
-def weight_var_headed : Int := 1
-def no_negatives (vb : VarBalance) : Bool := sorry
-def no_positives (vb : VarBalance) : Bool := sorry
-def prec_compare (f g : Head) : Comparison := sorry
+-- Sort > lam > db > quantifier > symbols > False > True 
+| Expr.sort .., Expr.const ``LAM _ _ => GreaterThan
+| Expr.sort .., Expr.bvar .. => GreaterThan
+| Expr.sort .., Expr.fvar .. => GreaterThan
+| Expr.sort .., Expr.const ``False _ _ => GreaterThan
+| Expr.sort .., Expr.const ``True _ _ => GreaterThan
 
-partial def kbo' (t1 t2 : Expr) : MetaM Comparison := do
+| Expr.const ``LAM _ _, Expr.sort .. => LessThan
+| Expr.const ``LAM _ _, Expr.bvar .. => GreaterThan
+| Expr.const ``LAM _ _, Expr.fvar .. => GreaterThan
+| Expr.const ``LAM _ _, Expr.const ``False _ _ => GreaterThan
+| Expr.const ``LAM _ _, Expr.const ``True _ _ => GreaterThan
+
+| Expr.bvar .., Expr.sort .. => LessThan
+| Expr.bvar .., Expr.const ``LAM _ _ => LessThan
+| Expr.bvar .., Expr.fvar .. => GreaterThan
+| Expr.bvar .., Expr.const ``False _ _ => GreaterThan
+| Expr.bvar .., Expr.const ``True _ _ => GreaterThan
+
+| Expr.fvar .., Expr.sort .. => LessThan
+| Expr.fvar .., Expr.const ``LAM _ _ => LessThan
+| Expr.fvar .., Expr.bvar .. => LessThan
+| Expr.fvar .., Expr.const ``False _ _ => GreaterThan
+| Expr.fvar .., Expr.const ``True _ _ => GreaterThan
+
+| Expr.const ``False _ _, Expr.sort .. => LessThan
+| Expr.const ``False _ _, Expr.const ``LAM _ _ => LessThan
+| Expr.const ``False _ _, Expr.bvar .. => LessThan
+| Expr.const ``False _ _, Expr.fvar .. => LessThan
+| Expr.const ``False _ _, Expr.const ``True _ _ => GreaterThan
+
+| Expr.const ``True _ _, Expr.sort .. => LessThan
+| Expr.const ``True _ _, Expr.const ``LAM _ _ => LessThan
+| Expr.const ``True _ _, Expr.bvar .. => LessThan
+| Expr.const ``True _ _, Expr.fvar .. => LessThan
+| Expr.const ``True _ _, Expr.const ``False _ _ => LessThan
+
+| Expr.sort l .., Expr.sort m .. => if l == m then Equal else Incomparable -- TODO?
+| Expr.const ``LAM _ _, Expr.const ``LAM _ _ => Equal
+| Expr.bvar m .., Expr.bvar n .. => 
+  if m == n then Equal
+  else if m > n then GreaterThan
+  else if m < n then LessThan
+  else Incomparable
+| Expr.fvar m .., Expr.fvar n .. => 
+  if m == n then Equal
+  else if m.name.hash > n.name.hash then GreaterThan
+  else if m.name.hash < n.name.hash then LessThan
+  else Incomparable
+| Expr.const ``False _ _, Expr.const ``False _ _ => Equal
+| Expr.const ``True _ _, Expr.const ``True _ _ => Equal
+
+
+| Expr.const ``LAM _ _, Expr.const .. => GreaterThan
+| Expr.bvar .., Expr.const .. => GreaterThan
+| Expr.fvar .., Expr.const .. => GreaterThan
+| Expr.const ``True _ _, Expr.const .. => LessThan
+| Expr.const ``False _ _, Expr.const .. => LessThan
+
+| Expr.const .., Expr.const ``LAM _ _ => LessThan
+| Expr.const .., Expr.bvar .. => LessThan
+| Expr.const .., Expr.fvar .. => LessThan
+| Expr.const .., Expr.const ``False _ _ => GreaterThan
+| Expr.const .., Expr.const ``True _ _ => GreaterThan
+
+| Expr.const m .., Expr.const n .. =>
+  if m == n then Equal
+  else if m.hash > n.hash then GreaterThan
+  else if m.hash < n.hash then LessThan
+  else Incomparable
+
+| Expr.mvar v _, Expr.mvar w _ => 
+  if v == w then Equal else Incomparable
+| _, Expr.mvar _ _ => Incomparable
+| Expr.mvar _ _, _ => Incomparable
+| _, _ => panic! s!"precCompare: not implemented {f} <> {g}"
+
+-- Inspired by Zipperposition
+partial def kbo (t1 t2 : Expr) : MetaM Comparison := do
   let (_, _, res) ← tckbo 0 Std.HashMap.empty t1 t2
   return res
 where
@@ -149,32 +158,32 @@ where
 --     --     @param pos stands for positive (is t the left term?)
 --     --     @return weight balance, was `s` found?
 --     -- *)
-  balance_weight (wb : Int) vb t s pos : MetaM (Int × VarBalance × Bool) := do
+  balance_weight (wb : Int) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) : MetaM (Int × VarBalance × Bool) := do
     if t.isMVar then
       return ← balance_weight_var wb vb t s pos
     else
-      match Head.term_to_head t, Head.term_to_args t with
-      | Head.V v, args =>
-        let (wb, vb, res) := ← balance_weight_var wb vb v s pos
+      match getHead t, getArgs t with
+      | h@(Expr.mvar v _), args =>
+        let (wb, vb, res) := ← balance_weight_var wb vb h s pos
         balance_weight_rec wb vb args s pos res
       | h, args =>
         let wb :=
           if pos
-          then wb + Head.weight h
-          else wb - Head.weight h
+          then wb + headWeight h
+          else wb - headWeight h
         balance_weight_rec wb vb args s pos false
   -- (** balance_weight for the case where t is an applied variable *)
-  balance_weight_var wb vb t s pos : MetaM (Int × VarBalance × Bool) := do
+  balance_weight_var (wb : Int) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) : MetaM (Int × VarBalance × Bool) := do
     if pos then
-      let vb := add_pos_var vb t
-      let wb := wb + weight_var_headed
+      let vb := vb.addPosVar t
+      let wb := wb + weightVarHeaded
       return (wb, vb, s == some t)
     else
-      let vb := add_neg_var vb t
-      let wb := wb - weight_var_headed
+      let vb := vb.addNegVar t
+      let wb := wb - weightVarHeaded
       return (wb, vb, s == some t)
 --     (** list version of the previous one, threaded with the check result *)
-  balance_weight_rec wb vb terms (s : Option Expr) pos res : MetaM _ := 
+  balance_weight_rec (wb : Int) (vb : VarBalance) (terms : List Expr) (s : Option Expr) (pos : Bool) (res : Bool) : MetaM _ := 
     match terms with
     | [] => pure (wb, vb, res)
     | t::terms' => do
@@ -216,45 +225,45 @@ where
     if t1 == t2
     then return (wb, vb, Equal) -- do not update weight or var balance
     else
-      match Head.term_to_head t1, Head.term_to_head t2 with
-      | Head.V _, Head.V _ =>
-        let vb := add_pos_var vb t1;
-        let vb := add_neg_var vb t2;
+      match getHead t1, getHead t2 with
+      | Expr.mvar _ _, Expr.mvar _ _ =>
+        let vb := vb.addPosVar t1;
+        let vb := vb.addNegVar t2;
         return (wb, vb, Incomparable)
-      | Head.V _,  _ =>
-        let vb := add_pos_var vb t1;
+      | Expr.mvar _ _,  _ =>
+        let vb := vb.addPosVar t1;
         let (wb, vb, contains) ← balance_weight wb vb t2 (some t1) (pos := false)
-        return ((wb + weight_var_headed), vb, if contains then LessThan else Incomparable)
-      |  _, Head.V _ =>
-        let vb := add_neg_var vb t2;
+        return ((wb + weightVarHeaded), vb, if contains then LessThan else Incomparable)
+      |  _, Expr.mvar _ _ =>
+        let vb := vb.addNegVar t2;
         let (wb, vb, contains) ← balance_weight wb vb t1 (some t2) (pos := true)
-        return ((wb - weight_var_headed), vb, if contains then GreaterThan else Incomparable)
+        return ((wb - weightVarHeaded), vb, if contains then GreaterThan else Incomparable)
       | h1, h2 => 
-        return ← tckbo_composite wb vb h1 h2 (Head.term_to_args t1) (Head.term_to_args t2)
+        return ← tckbo_composite wb vb h1 h2 (getArgs t1) (getArgs t2)
 --     (** tckbo, for non-variable-headed terms). *)
   tckbo_composite wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
 --       (* do the recursive computation of kbo *)
-    let (wb', vb', res) := ← tckbo_rec wb vb f g ss ts
-    let wb'' := wb' + Head.weight f - Head.weight g
+    let (wb, vb, res) := ← tckbo_rec wb vb f g ss ts
+    let wb := wb + headWeight f - headWeight g
     --(* check variable condition *)
-    let g_or_n := if no_negatives vb then GreaterThan else Incomparable
-    let l_or_n := if no_positives vb then LessThan else Incomparable
+    let g_or_n := if vb.noNegatives then GreaterThan else Incomparable
+    let l_or_n := if vb.noPositives then LessThan else Incomparable
     --(* lexicographic product of weight and precedence *)
-    if wb'' > 0 then return (wb'', vb', g_or_n)
-    else if wb'' < 0 then return (wb'', vb', l_or_n)
+    if wb > 0 then return (wb, vb, g_or_n)
+    else if wb < 0 then return (wb, vb, l_or_n)
     else 
-      match prec_compare f g with
-      | GreaterThan => return (wb'', vb', g_or_n)
-      | LessThan => return (wb'', vb', l_or_n)
+      match precCompare f g with
+      | GreaterThan => return (wb, vb, g_or_n)
+      | LessThan => return (wb, vb, l_or_n)
       | Equal =>
-        if res == Equal then return (wb'', vb', Equal)
-        else if res == LessThan then return (wb'', vb', l_or_n)
-        else if res == GreaterThan then return (wb'', vb', g_or_n)
-        else return (wb'', vb', Incomparable)
-      | _ => return (wb'', vb', Incomparable)
+        if res == Equal then return (wb, vb, Equal)
+        else if res == LessThan then return (wb, vb, l_or_n)
+        else if res == GreaterThan then return (wb, vb, g_or_n)
+        else return (wb, vb, Incomparable)
+      | _ => return (wb, vb, Incomparable)
 --     (* recursive comparison *)
   tckbo_rec wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
-    if prec_compare f g == Comparison.Equal
+    if precCompare f g == Comparison.Equal
     then return ← tckbolenlex wb vb ss ts
     else
       --(* just compute variable and weight balances *)
@@ -267,8 +276,8 @@ def test : MetaM Unit := do
   let ty := mkConst ``Nat
   let x ← mkFreshExprMVar ty
   let y ← mkFreshExprMVar ty
-  let s := (mkConst ``Nat.zero)
-  let t := mkApp (mkConst ``Nat.succ) x
+  let s := mkApp2 (mkConst ``Nat.sub) x x
+  let t := mkApp2 (mkConst ``Nat.add) x y
   let res ← kbo s t
   trace[Meta.debug] "s: {s}"
   trace[Meta.debug] "t: {t}"
