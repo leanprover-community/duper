@@ -395,13 +395,13 @@ syntax fof_annotated : annotated_formula
 syntax cnf_annotated : annotated_formula
 syntax tpi_annotated : annotated_formula
 ----Future languages may include ...  english | efof | tfof | mathml | ...
-syntax "tpi" "(" name "," formula_role "," tpi_formula annotations ")" "." : tpi_annotated
+syntax (name := tpi) "tpi" "(" name "," formula_role "," tpi_formula annotations ")" "." : tpi_annotated
 syntax fof_formula : tpi_formula
 syntax "thf" "(" name "," formula_role "," thf_formula annotations ")" "." : thf_annotated
-syntax "tff" "(" name "," formula_role "," tff_formula annotations ")" "." : tff_annotated
-syntax "tcf" "(" name "," formula_role "," tcf_formula annotations ")" "." : tcf_annotated
-syntax "fof" "(" name "," formula_role "," fof_formula annotations ")" "." : fof_annotated
-syntax "cnf" "(" name "," formula_role "," cnf_formula annotations "." : cnf_annotated
+syntax (name := tff) "tff" "(" name "," formula_role "," tff_formula annotations ")" "." : tff_annotated
+syntax (name := tcf) "tcf" "(" name "," formula_role "," tcf_formula annotations ")" "." : tcf_annotated
+syntax (name := fof) "fof" "(" name "," formula_role "," fof_formula annotations ")" "." : fof_annotated
+syntax (name := cnf) "cnf" "(" name "," formula_role "," cnf_formula annotations "." : cnf_annotated
 syntax "," source optional_info : annotations
 syntax null : annotations
 
@@ -601,7 +601,7 @@ syntax «constant» : untyped_atom
 syntax system_constant : untyped_atom
 
 syntax predicate : proposition
-syntax atomic_word : predicate
+syntax (name := predicate) atomic_word : predicate
 syntax defined_predicate : defined_proposition
 syntax "$true" : defined_proposition
 syntax "$false" : defined_proposition
@@ -667,7 +667,7 @@ syntax upper_word : «variable»
 
 
 ----General purpose
-syntax atomic_word : name
+-- syntax atomic_word : name
 syntax integer : name
 ----Integer names are expected to be unsigned
 syntax lower_word : atomic_word
@@ -695,6 +695,73 @@ syntax &"axiom" : lower_word
 
 open Lean
 open Lean.Parser
+
+#check Syntax
+
+def explicitBinder : Parser := Term.explicitBinder false
+
+def processTffFormula (stx : Syntax) : MacroM Syntax := do
+  match stx with
+  | `(tff_formula| $p:ident) => return p
+  | _ => Macro.throwError s!"Unsupported tff_formula: {stx}"
+
+def processTffType (stx : Syntax) : MacroM Syntax := do
+  match stx with
+  | `(tff_top_level_type| $ty:defined_type) =>
+    match ty[0].getKind with
+    | `«$tType» => return ← `(Type)
+    | `«$o» => return ← `(Prop)
+    | _ => Macro.throwError s!"Unsupported defined_type: {ty[0].getKind.toString}"
+  | _ => Macro.throwError s!"Unsupported tff_top_level_type: {stx}"
+
+macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
+  let hyps ← s[0].getArgs.mapM fun input => do
+    match input with
+    | `(TPTP_input| tff($n, type, $name:untyped_atom : $ty:tff_top_level_type ).) =>
+      let ty ← processTffType ty
+      let name ← match name with
+      | `(untyped_atom| $name:ident) => pure name
+      | _ => Macro.throwError s!"Unsupported name: {name}"
+      return ← `(explicitBinder| ($name : $ty))
+    | `(TPTP_input| tff($name:name,$role,$formula:tff_formula $ann).) =>
+      let formula ← processTffFormula formula
+      let name ← match name with
+      | `(name| $name:ident) => pure name
+      | _ => Macro.throwError s!"Unsupported name: {name}"
+      return ← `(explicitBinder| ($name : $formula))
+    | _ => Macro.throwError s!"Unsupported TPTP_input: {input}"
+  let hyps := mkNode ``many hyps
+  let spec ← `(Term.typeSpec| : False)
+  let sig := mkNode ``Command.declSig #[hyps,spec]
+  return ← `(theorem $name $sig := $proof)
+
+BEGIN_TPTP my_problem
+tff(wolf_type, type, wolf: $tType ).
+tff(q_type, type, q: $o ).
+tff(x,axiom,q).
+tff(y,axiom,q).
+END_TPTP
+sorry
+
+#check my_problem
+
+partial def parseMyType (env : Environment) (s : String) : CoreM String := do
+  match runParserCategory env `command s with
+  | Except.error e => throwError e
+  | Except.ok r => return s!"{r}"
+
+set_option trace.Meta.debug true
+#eval show CoreM _ from return ← parseMyType (← getEnv) "BEGIN_TPTP my_problem
+tff(a,axiom,q).
+END_TPTP
+rfl"
+
+
+ 
+
+ 
+
+
 
 partial def parseMyType (env : Environment) (s : String) : CoreM String := do
   match runParserCategory env `TPTP_file s with
