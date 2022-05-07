@@ -687,10 +687,13 @@ syntax real : number
 syntax single_quoted : file_name
 syntax skip : null
 
+syntax ident : upper_word
 syntax ident : name
 syntax ident : lower_word
 syntax &"axiom" : lower_word
 syntax ">" : arrow
+syntax "*" : star
+syntax "|" : vline
 
 open Lean
 open Lean.Parser
@@ -699,10 +702,22 @@ open Lean.Parser
 
 def explicitBinder : Parser := Term.explicitBinder false
 
-def processTffTerm (stx : Syntax) : MacroM Syntax := do
+partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
   match stx with
   | `(tff_term| $c:ident) => return c
-  | _ => Macro.throwError s!"Unsupported tff_formula: {stx}"
+  | `(tff_term| $f:functor ( $args )) => do
+    let f ← match f with
+    | `(functor| $f:ident) => pure f
+    | _ => Macro.throwError s!"Unsupported functor: {f}"
+    let ts ← match args with
+    | `(tff_arguments| $t:tff_term) =>
+      let t ← processTffTerm t
+      pure #[t]
+    | _ => Macro.throwError s!"Unsupported tff_arguments: {args}"
+    let ts := mkNode ``many ts
+    let ts := mkNode ``Term.app #[f, ts]
+    return ← `($ts)
+  | _ => Macro.throwError s!"Unsupported tff_term: {stx}"
 
 #check Term.app
 
@@ -733,15 +748,30 @@ def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
     | `«$o» => return ← `(Prop)
     | `«$i» => return ← `(TPTP.iota)
     | _ => Macro.throwError s!"Unsupported defined_type: {ty[0].getKind.toString}"
-  | `(tff_top_level_type| $ty₁:tff_unitary_type > $ty₂:tff_atomic_type) =>
-    Macro.throwError s!"Unsupported tff_top_level_type: {stx}"
-  | _ => Macro.throwError s!"Unsupported tff_top_level_type: {stx}"
+  | `(tff_atomic_type| $ty:ident) => `($ty)
+  | _ => Macro.throwError s!"Unsupported tff_atomic_type: {stx}"
 
-def processTffUnitaryType (stx : Syntax) : MacroM Syntax := do
+mutual
+partial def processTffXProdType (stx : Syntax) : MacroM Syntax := do
+  match stx with
+  | `(tff_xprod_type| $ty₁:tff_xprod_type * $ty₂:tff_atomic_type) =>
+    let ty₁ ← processTffXProdType ty₁
+    let ty₂ ← processTffAtomicType ty₂
+    return ← `($ty₁ × $ty₂)
+  | `(tff_xprod_type| $ty₁:tff_unitary_type * $ty₂:tff_atomic_type) =>
+    let ty₁ ← processTffUnitaryType ty₁
+    let ty₂ ← processTffAtomicType ty₂
+    return ← `($ty₁ × $ty₂)
+  | _ => Macro.throwError s!"Unsupported tff_xprod_type: {stx}"
+
+partial def processTffUnitaryType (stx : Syntax) : MacroM Syntax := do
   match stx with
   | `(tff_unitary_type| $ty:tff_atomic_type) =>
     processTffAtomicType ty
-  | _ => Macro.throwError s!"Unsupported tff_top_level_type: {stx}"
+  | `(tff_unitary_type| ($ty:tff_xprod_type)) =>
+    processTffXProdType ty
+  | _ => Macro.throwError s!"Unsupported tff_unitary_type: {stx}"
+end
 
 def processTffTopLevelType (stx : Syntax) : MacroM Syntax := do
   match stx with
@@ -779,20 +809,136 @@ tff(wolf_type, type, wolf: $tType ).
 tff(q_type, type, q: $o ).
 tff(c_type, type, c: $i ).
 tff(c_type, type, p: $i > $o).
-tff(x,axiom,p(c)).
-tff(y,axiom,q).
+tff(c_type, type, f: $i > $i).
+
+tff(eats_type,type,
+    eats: ( animal * edible ) > $o ).
+tff(x,axiom,p(f(f(c)))).
+-- tff(pel47_7,axiom,
+--     ! [X: animal] :
+--       ( ! [Y: plant] : eats(X,plant_to_edible(Y))
+--       | ! [Y1: animal] :
+--           q ) ).
+
 END_TPTP
 sorry
 
-#check my_problem
 
-partial def parseMyType (env : Environment) (s : String) : CoreM String := do
-  match runParserCategory env `term s with
-  | Except.error e => throwError e
-  | Except.ok r => return s!"{r}"
+-- BEGIN_TPTP my_problem
+-- tff(animal_type,type,
+--     animal: $tType ).
 
-set_option trace.Meta.debug true
-#eval show CoreM _ from return ← parseMyType (← getEnv) "Nat.succ c d e"
+-- tff(wolf_type,type,
+--     wolf: $tType ).
+
+-- tff(wolf_is_animal,type,
+--     wolf_to_animal: wolf > animal ).
+
+-- tff(fox_type,type,
+--     fox: $tType ).
+
+-- tff(fox_is_animal,type,
+--     fox_to_animal: fox > animal ).
+
+-- tff(bird_type,type,
+--     bird: $tType ).
+
+-- tff(bird_is_animal,type,
+--     bird_to_animal: bird > animal ).
+
+-- tff(caterpillar_type,type,
+--     caterpillar: $tType ).
+
+-- tff(caterpillar_is_animal,type,
+--     caterpillar_to_animal: caterpillar > animal ).
+
+-- tff(snail_type,type,
+--     snail: $tType ).
+
+-- tff(snail_is_animal,type,
+--     snail_to_animal: snail > animal ).
+
+-- tff(plant_type,type,
+--     plant: $tType ).
+
+-- tff(grain_type,type,
+--     grain: $tType ).
+
+-- tff(grain_is_plant,type,
+--     grain_to_plant: grain > plant ).
+
+-- tff(edible_type,type,
+--     edible: $tType ).
+
+-- tff(animal_is_edible,type,
+--     animal_to_edible: animal > edible ).
+
+-- tff(plant_is_edible,type,
+--     plant_to_edible: plant > edible ).
+
+-- tff(eats_type,type,
+--     eats: ( animal * edible ) > $o ).
+
+-- tff(much_smaller_type,type,
+--     much_smaller: ( animal * animal ) > $o ).
+
+-- tff(pel47_7,axiom,
+--     ! [X: animal] :
+--       ( ! [Y: plant] : eats(X,plant_to_edible(Y))
+--       | ! [Y1: animal] :
+--           ( ( much_smaller(Y1,X)
+--             & ? [Z: plant] : eats(Y1,plant_to_edible(Z)) )
+--          => eats(X,animal_to_edible(Y1)) ) ) ).
+
+-- tff(pel47_8,axiom,
+--     ! [X: snail,Y: bird] : much_smaller(snail_to_animal(X),bird_to_animal(Y)) ).
+
+-- tff(pel47_8a,axiom,
+--     ! [X: caterpillar,Y: bird] : much_smaller(caterpillar_to_animal(X),bird_to_animal(Y)) ).
+
+-- tff(pel47_9,axiom,
+--     ! [X: bird,Y: fox] : much_smaller(bird_to_animal(X),fox_to_animal(Y)) ).
+
+-- tff(pel47_10,axiom,
+--     ! [X: fox,Y: wolf] : much_smaller(fox_to_animal(X),wolf_to_animal(Y)) ).
+
+-- tff(pel47_11,axiom,
+--     ! [X: wolf,Y: fox] : ~ eats(wolf_to_animal(X),animal_to_edible(fox_to_animal(Y))) ).
+
+-- tff(pel47_11a,axiom,
+--     ! [X: wolf,Y: grain] : ~ eats(wolf_to_animal(X),plant_to_edible(grain_to_plant(Y))) ).
+
+-- tff(pel47_12,axiom,
+--     ! [X: bird,Y: caterpillar] : eats(bird_to_animal(X),animal_to_edible(caterpillar_to_animal(Y))) ).
+
+-- tff(pel47_13,axiom,
+--     ! [X: bird,Y: snail] : ~ eats(bird_to_animal(X),animal_to_edible(snail_to_animal(Y))) ).
+
+-- tff(pel47_14,axiom,
+--     ! [X: caterpillar] :
+--     ? [Y: plant] : eats(caterpillar_to_animal(X),plant_to_edible(Y)) ).
+
+-- tff(pel47_14a,axiom,
+--     ! [X: snail] :
+--     ? [Y: plant] : eats(snail_to_animal(X),plant_to_edible(Y)) ).
+
+-- tff(pel47,conjecture,
+--     ? [X: animal,Y: animal,Z: grain] :
+--       ( eats(Y,plant_to_edible(grain_to_plant(Z)))
+--       & eats(X,animal_to_edible(Y)) ) ).
+
+-- END_TPTP
+-- sorry
+
+-- #check my_problem
+
+-- partial def parseMyType (env : Environment) (s : String) : CoreM String := do
+--   match runParserCategory env `term s with
+--   | Except.error e => throwError e
+--   | Except.ok r => return s!"{r}"
+
+-- set_option trace.Meta.debug true
+-- #eval show CoreM _ from return ← parseMyType (← getEnv) "Nat.succ c d e"
 
 
  
@@ -801,13 +947,13 @@ set_option trace.Meta.debug true
 
 
 
-partial def parseMyType (env : Environment) (s : String) : CoreM String := do
-  match runParserCategory env `TPTP_file s with
-  | Except.error e => throwError e
-  | Except.ok r => return s!"{r}"
+-- partial def parseMyType (env : Environment) (s : String) : CoreM String := do
+--   match runParserCategory env `TPTP_file s with
+--   | Except.error e => throwError e
+--   | Except.ok r => return s!"{r}"
 
-set_option trace.Meta.debug true
-#eval show CoreM _ from return ← parseMyType (← getEnv) "tff(a,axiom,q)."
+-- set_option trace.Meta.debug true
+-- #eval show CoreM _ from return ← parseMyType (← getEnv) "tff(a,axiom,q)."
 
 
  
