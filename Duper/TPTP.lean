@@ -461,8 +461,6 @@ syntax tff_defined_atomic : tff_atomic_formula
 syntax tff_system_atomic : tff_atomic_formula
 syntax «constant» : tff_plain_atomic
 syntax functor "(" tff_arguments ")" : tff_plain_atomic
-syntax proposition : tff_plain_atomic
-syntax predicate "(" tff_arguments ")" : tff_plain_atomic
 ----tnc_connective allowed as formulae for logic specifications
 syntax tff_defined_plain : tff_defined_atomic
 syntax tnc_connective : tff_defined_atomic
@@ -692,6 +690,7 @@ syntax skip : null
 syntax ident : name
 syntax ident : lower_word
 syntax &"axiom" : lower_word
+syntax ">" : arrow
 
 open Lean
 open Lean.Parser
@@ -700,25 +699,65 @@ open Lean.Parser
 
 def explicitBinder : Parser := Term.explicitBinder false
 
+def processTffTerm (stx : Syntax) : MacroM Syntax := do
+  match stx with
+  | `(tff_term| $c:ident) => return c
+  | _ => Macro.throwError s!"Unsupported tff_formula: {stx}"
+
+#check Term.app
+
 def processTffFormula (stx : Syntax) : MacroM Syntax := do
   match stx with
   | `(tff_formula| $p:ident) => return p
+  | `(tff_formula| $p:functor ( $args )) => 
+    let p ← match p with
+    | `(functor| $p:ident) => pure p
+    | _ => Macro.throwError s!"Unsupported predicate: {p}"
+    let ts ← match args with
+    | `(tff_arguments| $t:tff_term) =>
+      let t ← processTffTerm t
+      pure #[t]
+    | _ => Macro.throwError s!"Unsupported tff_arguments: {args}"
+    let ts := mkNode ``many ts
+    let ts := mkNode ``Term.app #[p, ts]
+    return ← `($ts)
   | _ => Macro.throwError s!"Unsupported tff_formula: {stx}"
 
-def processTffType (stx : Syntax) : MacroM Syntax := do
+constant iota : Type
+
+def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
   match stx with
-  | `(tff_top_level_type| $ty:defined_type) =>
+  | `(tff_atomic_type| $ty:defined_type) =>
     match ty[0].getKind with
     | `«$tType» => return ← `(Type)
     | `«$o» => return ← `(Prop)
+    | `«$i» => return ← `(TPTP.iota)
     | _ => Macro.throwError s!"Unsupported defined_type: {ty[0].getKind.toString}"
+  | `(tff_top_level_type| $ty₁:tff_unitary_type > $ty₂:tff_atomic_type) =>
+    Macro.throwError s!"Unsupported tff_top_level_type: {stx}"
+  | _ => Macro.throwError s!"Unsupported tff_top_level_type: {stx}"
+
+def processTffUnitaryType (stx : Syntax) : MacroM Syntax := do
+  match stx with
+  | `(tff_unitary_type| $ty:tff_atomic_type) =>
+    processTffAtomicType ty
+  | _ => Macro.throwError s!"Unsupported tff_top_level_type: {stx}"
+
+def processTffTopLevelType (stx : Syntax) : MacroM Syntax := do
+  match stx with
+  | `(tff_top_level_type| $ty:tff_atomic_type) =>
+    processTffAtomicType ty
+  | `(tff_top_level_type| $ty₁:tff_unitary_type > $ty₂:tff_atomic_type) =>
+    let ty₁ ← processTffUnitaryType ty₁
+    let ty₂ ← processTffAtomicType ty₂
+    return ← `($ty₁ → $ty₂)
   | _ => Macro.throwError s!"Unsupported tff_top_level_type: {stx}"
 
 macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
   let hyps ← s[0].getArgs.mapM fun input => do
     match input with
     | `(TPTP_input| tff($n, type, $name:untyped_atom : $ty:tff_top_level_type ).) =>
-      let ty ← processTffType ty
+      let ty ← processTffTopLevelType ty
       let name ← match name with
       | `(untyped_atom| $name:ident) => pure name
       | _ => Macro.throwError s!"Unsupported name: {name}"
@@ -738,7 +777,9 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
 BEGIN_TPTP my_problem
 tff(wolf_type, type, wolf: $tType ).
 tff(q_type, type, q: $o ).
-tff(x,axiom,q).
+tff(c_type, type, c: $i ).
+tff(c_type, type, p: $i > $o).
+tff(x,axiom,p(c)).
 tff(y,axiom,q).
 END_TPTP
 sorry
@@ -746,15 +787,12 @@ sorry
 #check my_problem
 
 partial def parseMyType (env : Environment) (s : String) : CoreM String := do
-  match runParserCategory env `command s with
+  match runParserCategory env `term s with
   | Except.error e => throwError e
   | Except.ok r => return s!"{r}"
 
 set_option trace.Meta.debug true
-#eval show CoreM _ from return ← parseMyType (← getEnv) "BEGIN_TPTP my_problem
-tff(a,axiom,q).
-END_TPTP
-rfl"
+#eval show CoreM _ from return ← parseMyType (← getEnv) "Nat.succ c d e"
 
 
  
