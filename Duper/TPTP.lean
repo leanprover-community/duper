@@ -259,3 +259,33 @@ tff(prove_boxa_contains_bananas_and_boxc_oranges,conjecture,
 
 END_TPTP
 sorry
+
+open Lean.Elab.Command
+
+partial def parseMyType (s : String) : CommandElabM Syntax := do
+  match runParserCategory (← getEnv) `TPTP_file s with
+  | Except.error e => throwError e
+  | Except.ok r => return r
+
+def loadTptp (path : System.FilePath) : CommandElabM Syntax := do
+  let lines ← IO.FS.lines path
+  let lines := lines.filter fun l => ¬ l.startsWith "%"
+  let s := String.join lines.toList
+  parseMyType s
+
+syntax (name := tptpKind) "tptp " ident strLit term : command
+
+@[commandElab tptpKind] def elabResolve : CommandElab := fun stx => do
+  match stx with
+  | `(tptp $name $file $proof) =>
+    match Syntax.isStrLit? file with
+    | some file =>
+        let fstx ← loadTptp file
+        elabCommand (← `(BEGIN_TPTP $name $fstx END_TPTP $proof))
+    | _ => throwError "Expected strLit: {file}"
+  | _ => throwError "Failed to parse tptp command"
+
+tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
+  sorry
+
+#check PUZ031_1
