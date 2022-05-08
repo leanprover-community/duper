@@ -8,7 +8,6 @@ declare_syntax_cat TPTP_file
 
 declare_syntax_cat tff_type
 declare_syntax_cat tff_term
-declare_syntax_cat tff_formula
 declare_syntax_cat tff_atomic_type
 
 syntax tff_arguments := "(" tff_term,* ")"
@@ -20,9 +19,6 @@ syntax tff_term binary_connective tff_term : tff_term
 syntax "~" tff_term : tff_term
 
 syntax tff_annotation := "," ident
-
-syntax tff_term : tff_formula
-syntax ident ":" tff_type : tff_formula
 
 syntax defined_type := "$" noWs ident
 syntax defined_type : tff_atomic_type
@@ -39,8 +35,10 @@ syntax fof_quantifier := "!" <|> "?"
 syntax tff_variable := ident (":" tff_atomic_type) ?
 syntax fof_quantifier "[" tff_variable,* "]" ":" tff_term : tff_term
 
-syntax TPTP_input := 
-  "tff" "(" ident "," (ident <|> "axiom") "," tff_formula tff_annotation ? ")" "."
+declare_syntax_cat TPTP_input
+syntax "tff" "(" ident "," (ident <|> "axiom") "," tff_term tff_annotation ? ")" "." : TPTP_input
+syntax "tff" "(" ident "," &"type" "," ident ":" tff_type tff_annotation ? ")" "." : TPTP_input
+
 
 
 syntax TPTP_input* : TPTP_file
@@ -73,6 +71,9 @@ partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
     | `«&» => `($t₁ ∧ $t₂)
     | `«=>» => `($t₁ → $t₂)
     | `«|» => `($t₁ ∨ $t₂)
+    | `«=» => `($t₁ = $t₂)
+    | `«!=» => `($t₁ ≠ $t₂)
+    | `«<=>» => `($t₁ ↔ $t₂)
     | _ => Macro.throwError s!"Unsupported binary_connective: {conn[0].getKind}"
   | `(tff_term| $f:ident $args:tff_arguments ?) => do
     let ts : Array Syntax ← match args with
@@ -121,144 +122,21 @@ partial def processTffType (stx : Syntax) : MacroM Syntax := do
 macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
   let hyps ← s[0].getArgs.mapM fun input => do
     match input with
-    | `(TPTP_input| tff($name:ident,$role,$formula:tff_formula $annotation:tff_annotation ?).) =>
-      match formula with
-      | `(tff_formula| $term:tff_term) =>
-        let term ← processTffTerm term
+    | `(TPTP_input| tff($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+      let term ← processTffTerm term
+      let name := (mkIdent $ name.getId.appendBefore "h")
+      if role.getId == `conjecture then
+        return ← `(explicitBinder| ($name : ¬ $term))
+      else
         return ← `(explicitBinder| ($name : $term))
-      | `(tff_formula| $name:ident : $ty:tff_type) =>
-        let ty ← processTffType ty
-        return ← `(explicitBinder| ($name : $ty))
-      | _ => Macro.throwError s!"Unsupported tff_formula: {formula}"
+    | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:tff_type $annotation:tff_annotation ?).) =>
+      let ty ← processTffType ty
+      return ← `(explicitBinder| ($name : $ty))
     | _ => Macro.throwError s!"Unsupported TPTP_input: {input}"
   let hyps := mkNode ``many hyps
   let spec ← `(Term.typeSpec| : False)
   let sig := mkNode ``Command.declSig #[hyps,spec]
   return ← `(theorem $name $sig := $proof)
-
-BEGIN_TPTP my_problem
-tff(wolf_type, type, c: $i ).
-tff(wolf_type, type, f: ($i * $i) > $i ).
-tff(wolf_type, type, p: $i > $o ).
--- tff(wolf_type, ax, p(f(x,f(x),f(c)))).
-tff(hp, axiom, ! [X : $i] : p(f(f(f(f(c,c),c),c),X)) ).
-tff(hp, axiom, ? [X : $i] : p(f(f(f(f(c,c),c),c),X)) ).
-tff(hp, axiom, ! [X] : p(f(f(f(f(c,c),c),c),X)) ).
-tff(hp, axiom, ? [X] : p(f(f(f(f(c,c),c),c),X)) ).
-
--- tff(wolf_type, ax, q ).
-END_TPTP
-by sorry
-
-
-BEGIN_TPTP my_problem2
-tff(box_type,type,
-    box: $tType ).
-
-tff(fruit_type,type,
-    fruit: $tType ).
-
-tff(boxa_type,type,
-    boxa: box ).
-
-tff(boxb_type,type,
-    boxb: box ).
-
-tff(boxc_type,type,
-    boxc: box ).
-
-tff(apples_type,type,
-    apples: fruit ).
-
-tff(bananas_type,type,
-    bananas: fruit ).
-
-tff(oranges_type,type,
-    oranges: fruit ).
-
-tff(equal_fruits_type,type,
-    equal_fruits: ( fruit * fruit ) > $o ).
-
-tff(equal_boxes_type,type,
-    equal_boxes: ( box * box ) > $o ).
-
-tff(contains_type,type,
-    contains: ( box * fruit ) > $o ).
-
-tff(label_type,type,
-    label: ( box * fruit ) > $o ).
-
-tff(reflexivity_for_fruits,axiom,
-    ! [X: fruit] : equal_fruits(X,X) ).
-
-tff(reflexivity_for_boxes,axiom,
-    ! [X: box] : equal_boxes(X,X) ).
-
-tff(label_is_wrong,axiom,
-    ! [X: box,Y: fruit] :
-      ~ ( label(X,Y)
-        & contains(X,Y) ) ).
-
-tff(each_thing_is_in_a_box,axiom,
-    ! [X: fruit] :
-      ( contains(boxa,X)
-      | contains(boxb,X)
-      | contains(boxc,X) ) ).
-
-tff(each_box_contains_something,axiom,
-    ! [X: box] :
-      ( contains(X,apples)
-      | contains(X,bananas)
-      | contains(X,oranges) ) ).
-
-tff(contains_is_well_defined1,axiom,
-    ! [X: box,Y: fruit,Z: fruit] :
-      ( ( contains(X,Y)
-        & contains(X,Z) )
-     => equal_fruits(Y,Z) ) ).
-
-tff(contains_is_well_defined2,axiom,
-    ! [X: box,Y: fruit,Z: box] :
-      ( ( contains(X,Y)
-        & contains(Z,Y) )
-     => equal_boxes(X,Z) ) ).
-
-tff(boxa_not_boxb,axiom,
-    ~ equal_boxes(boxa,boxb) ).
-
-tff(boxb_not_boxc,axiom,
-    ~ equal_boxes(boxb,boxc) ).
-
-tff(boxa_not_boxc,axiom,
-    ~ equal_boxes(boxa,boxc) ).
-
-tff(apples_not_bananas,axiom,
-    ~ equal_fruits(apples,bananas) ).
-
-tff(bananas_not_oranges,axiom,
-    ~ equal_fruits(bananas,oranges) ).
-
-tff(apples_not_oranges,axiom,
-    ~ equal_fruits(apples,oranges) ).
-
-tff(boxa_labelled_apples,hypothesis,
-    label(boxa,apples) ).
-
-tff(boxb_labelled_oranges,hypothesis,
-    label(boxb,oranges) ).
-
-tff(boxc_labelled_bananas,hypothesis,
-    label(boxc,bananas) ).
-
-tff(boxb_contains_apples,hypothesis,
-    contains(boxb,apples) ).
-
-tff(prove_boxa_contains_bananas_and_boxc_oranges,conjecture,
-    ( contains(boxa,bananas)
-    & contains(boxc,oranges) ) ).
-
-END_TPTP
-sorry
 
 open Lean.Elab.Command
 
@@ -284,8 +162,3 @@ syntax (name := tptpKind) "tptp " ident strLit term : command
         elabCommand (← `(BEGIN_TPTP $name $fstx END_TPTP $proof))
     | _ => throwError "Expected strLit: {file}"
   | _ => throwError "Failed to parse tptp command"
-
-tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
-  sorry
-
-#check PUZ031_1
