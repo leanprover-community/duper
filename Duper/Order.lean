@@ -40,6 +40,7 @@ def headWeight (f : Expr) : Int := match f with
 | Expr.fvar .. => 1
 | Expr.bvar .. => 1
 | Expr.sort .. => 1
+| Expr.mdata _ e _ => headWeight e
 | _ => panic! s!"head_weight: not implemented {f}"
 
 -- The orderings treat lambda-expressions like a "LAM" symbol applied to the
