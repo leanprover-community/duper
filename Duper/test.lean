@@ -131,7 +131,9 @@ likes johanna peanuts := by duper
 
 #print axioms puzzle1
 -- set_option trace.Meta.debug true
-set_option trace.Prover.saturate true
+
+-- set_option trace.Prover.saturate true
+
 -- set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
@@ -155,3 +157,31 @@ theorem test0011 (one : Nat) (div mul add : Nat → Nat → Nat)
 (div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
 ∀ (x y : Nat), div (add x y) y = add (div x y) one := by duper
 #print test0011
+
+set_option trace.Prover.saturate false
+
+-- syntacticTautologyDeletion2 and elimResolvedLit tests
+set_option trace.Simp.debug true
+/-
+Prover becomes saturated as expected, but the point is just to confirm that trace.Simp.debug is printing that the correct clause is being removed
+for the correct reason
+
+theorem syntacticTautologyDeletionTest {t : Type} (a : t) (b : t) (c : t)
+  (h : a = b ∨ a = c ∨ b ≠ a) : False := by duper
+-/
+
+theorem elimResolvedLitTest {t : Type} (a : t) (b : t) (c : t)
+  (h : a = b ∨ a = c ∨ b ≠ b) : a = b ∨ a = c := by duper
+
+theorem elimResolvedLitTest2 {t : Type} (a : t) (b : t) (c : t)
+  (h : b ≠ b ∨ a = b ∨ a ≠ a ∨ a = c ∨ b ≠ b ∨ c ≠ c) : a = b ∨ a = c := by duper
+
+theorem elimResolvedLitTest3 {t : Type} (a : t) (b : t) (c : t)
+  (h : a ≠ a ∨ b ≠ b ∨ c ≠ c) : a = a ∨ b = b ∨ c = c := by duper
+
+#print elimResolvedLitTest
+#print axioms elimResolvedLitTest
+#print axioms elimResolvedLitTest2
+#print axioms elimResolvedLitTest3
+
+set_option trace.Simp.debug false

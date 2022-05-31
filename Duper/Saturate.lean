@@ -8,8 +8,10 @@ import Duper.Rules.Superposition
 import Duper.Rules.ClausifyPropEq
 import Duper.Rules.EqualityResolution
 import Duper.Rules.TrivialSimp
+import Duper.Rules.SyntacticTautologyDeletion2
 import Duper.Rules.ElimDupLit
 import Duper.Rules.Demodulation
+import Duper.Rules.ElimResolvedLit
 import Std.Data.BinomialHeap
 
 namespace Duper
@@ -23,6 +25,10 @@ open Std
 open ProverM
 open RuleM
 
+initialize
+  registerTraceClass `Simp
+  registerTraceClass `Simp.debug
+
 set_option trace.Prover.debug true
 
 set_option maxHeartbeats 10000
@@ -34,8 +40,10 @@ def simpRules : ProverM (Array SimpRule) := do
     (forwardDemodulation (← getSupMainPremiseIdx)).toSimpRule "forward demodulation",
     -- backwardDemodulation,
     clausificationStep.toSimpRule "clausification",
-    trivialSimp.toSimpRule "trivial simp",
-    elimDupLit.toSimpRule "eliminate duplicate literals"
+    trivialSimp.toSimpRule "trivial simp", -- syntactic tautology deletion 1
+    syntacticTautologyDeletion2.toSimpRule "syntactic tautology deletion 2",
+    elimDupLit.toSimpRule "eliminate duplicate literals",
+    elimResolvedLit.toSimpRule "eliminate resolved literals"
   ]
 
 def applySimpRules (givenClause : Clause) :

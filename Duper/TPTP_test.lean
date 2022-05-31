@@ -116,45 +116,56 @@ tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
 tptp COM001_1 "../TPTP-v8.0.0/Problems/COM/COM001_1.p"
   by duper -- Time: 309ms May 8
 
+#print axioms COM001_1
+
 tptp COM002_1 "../TPTP-v8.0.0/Problems/COM/COM002_1.p"
   by duper -- Time: 711ms May 8
 
+#print axioms COM002_1
+
 tptp COM002_2 "../TPTP-v8.0.0/Problems/COM/COM002_2.p"
-  by duper
+  by duper -- Prover saturated
 
 tptp COM003_1 "../TPTP-v8.0.0/Problems/COM/COM003_1.p"
-  by duper
+  by duper -- Prover saturated
 
 tptp HWV039_3 "../TPTP-v8.0.0/Problems/HWV/HWV039_3.p"
   by duper -- Time: 16663ms May 8
 
+#print axioms HWV039_3
+
 tptp PHI044_1 "../TPTP-v8.0.0/Problems/PHI/PHI044_1.p"
-  by duper
+  by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
   by duper -- Time: 444ms May 8
 
+#print axioms PUZ012_1
+
 tptp PUZ018_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ018_1.p"
-  by duper
+  by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
-  by duper
+  by duper -- Prover saturated
 
 tptp PUZ130_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ130_1.p"
   by duper -- Time: 61ms May 8
 
+#print axioms PUZ130_1
+
 tptp PUZ131_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ131_1.p"
   by duper -- Time: 76ms May 8
 
+#print axioms PUZ131_1
+
 tptp PUZ134_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p"
-  by duper
+  by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ135_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_1.p"
-  by duper
+  by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"
-  by duper
+  by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ139_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ139_1.p"
-  by duper
-
+  by duper -- <input>:1:281: expected tff_atomic_type
