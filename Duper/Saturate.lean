@@ -9,6 +9,7 @@ import Duper.Rules.ClausifyPropEq
 import Duper.Rules.EqualityResolution
 import Duper.Rules.TrivialSimp
 import Duper.Rules.ElimDupLit
+import Duper.Rules.Demodulation
 import Std.Data.BinomialHeap
 
 namespace Duper
@@ -28,16 +29,19 @@ set_option maxHeartbeats 10000
 
 open SimpResult
 
-def simpRules := #[
-  (clausificationStep.toSimpRule, "clausification"),
-  (trivialSimp.toSimpRule, "trivial simp"),
-  (elimDupLit.toSimpRule, "eliminate duplicate literals")
-]
+def simpRules : ProverM (Array SimpRule) := do
+  return #[
+    (forwardDemodulation (← getSupMainPremiseIdx)).toSimpRule "forward demodulation",
+    -- backwardDemodulation,
+    clausificationStep.toSimpRule "clausification",
+    trivialSimp.toSimpRule "trivial simp",
+    elimDupLit.toSimpRule "eliminate duplicate literals"
+  ]
 
 def applySimpRules (givenClause : Clause) :
     ProverM (SimpResult Clause) := do
-  for (simpRule, ruleName) in simpRules do
-    match ← simpRule ruleName givenClause with
+  for simpRule in ← simpRules do
+    match ← simpRule givenClause with
     | Removed => return Removed
     | Applied c => return Applied c
     | Unapplicable => continue
