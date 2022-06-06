@@ -120,6 +120,16 @@ theorem false_neq_true : False ≠ True := fun h => of_eq_true h
 
 theorem true_neq_false : True ≠ False := fun h => of_eq_true h.symm
 
+theorem clausify_iff (h : (p ↔ q) = True) : p = q := by
+  apply propext
+  rw [h]
+  exact True.intro
+
+theorem clausify_not_iff (h : (p ↔ q) = False) : p ≠ q := by
+  intro p_eq_q
+  rw [← h, p_eq_q]
+  exact Iff.rfl
+
 -- TODO: Clausify ↔ as =
 def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) : 
     RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
@@ -217,10 +227,27 @@ def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) :
        Meta.mkAppM ``of_eq_true #[premise]
     return Applied [(MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], some pr)]
   | false, Expr.app (Expr.app (Expr.app (Expr.const ``Ne [lvl] _) ty _) e₁ _) e₂ _  =>
+    --This case is saying if the clause is (e_1 ≠ e_2) = False, then we can turn that into e_1 = e_2
     let pr : Expr → MetaM Expr := fun premise => do
       Meta.mkAppM ``of_not_eq_false #[premise]
     return Applied [(MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], some pr)]
-  | _, _ => return Unapplicable
+  | true, Expr.app (Expr.app (Expr.const ``Iff _ _) e₁ _) e₂ _ =>
+    --This case is saying if the clause is (e_1 ↔ e_2) = True, then we can turn that into e_1 = e_2
+    trace[Simp.debug] "### clausificationStepE first new case called"
+    let pr : Expr → MetaM Expr := fun premise => do
+      Meta.mkAppM ``clausify_iff #[premise]
+    -- I believe lvl should be levelOne and ty should be mkSort levelZero because Iff produces an expression of type Prop
+    return Applied [(MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := levelOne, ty := mkSort levelZero}], some pr)]
+  | false, Expr.app (Expr.app (Expr.const ``Iff _ _) e₁ _) e₂ _  =>
+    --This case is saying if the clause is (e_1 ↔ e_2) = False, then we can turn that into e_1 ≠ e_2
+    trace[Simp.debug] "### clausificationStepE second new case called"
+    let pr : Expr → MetaM Expr := fun premise => do
+      Meta.mkAppM ``clausify_not_iff #[premise]
+    -- I believe lvl should be levelOne and ty should be mkSort levelZero because Iff produces an expression of type Prop
+    return Applied [(MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := levelOne, ty := mkSort levelZero}], some pr)]
+  | _, _ => 
+    trace[Simp.debug] "### clausificationStepE returned Unapplicable with e = {e} and sign = {sign}"
+    return Unapplicable
 
 where
   makeSkTerm ty b : RuleM Expr := do
@@ -246,10 +273,11 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MCl
     | Expr.const ``False _ _ => clausificationStepE l.lhs false c i
     | _ => return Unapplicable
   else
+    trace[Simp.debug] "clausificationStepLit is clausifying an inequality of type Prop without a corresponding proof"
     -- Clausify inequalities of type Prop:
     return Applied [(MClause.mk #[Lit.fromExpr l.lhs false, Lit.fromExpr l.rhs false], none),
-             (MClause.mk #[Lit.fromExpr l.lhs true, Lit.fromExpr l.rhs true], none)]
-             -- TODO: Proofs
+                    (MClause.mk #[Lit.fromExpr l.lhs true, Lit.fromExpr l.rhs true], none)]
+                    -- TODO: Proofs
 -- TODO: True/False on left-hand side?
 
 -- TODO: generalize combination of `orCases` and `orIntro`?

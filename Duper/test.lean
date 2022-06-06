@@ -23,7 +23,6 @@ constant p : Nat → Prop
 constant q : Prop
 constant isZero : Nat → Prop
 
-
 -- theorem test0000 (one : Nat) (isZero : Nat → Prop) (div mul add : Nat → Nat → Nat)
 -- (div_self : ∀ x, ¬ isZero x → div x x = one)
 -- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
@@ -160,8 +159,82 @@ theorem test0011 (one : Nat) (div mul add : Nat → Nat → Nat)
 
 set_option trace.Prover.saturate false
 
--- syntacticTautologyDeletion2 and elimResolvedLit tests
+--###############################################################################################################################
+--Iff clausification tests
 set_option trace.Simp.debug true
+
+theorem iffClausificationTest1 {p : Prop} {q : Prop} (h : p ↔ q) : (p → q) ∧ (q → p) :=
+  by duper
+
+theorem iffClausificationTest2 {p : Prop} {q : Prop} (h : ¬(p ↔ q)) : (p → ¬q) ∧ (q → ¬p) :=
+  by duper
+
+#print iffClausificationTest1
+#print iffClausificationTest2
+#print axioms iffClausificationTest1
+#print axioms iffClausificationTest2 --NOTE: Currently, iffClausificationTest2 uses sorryAx because clausificationStepLit in Clausification.lean does not
+                                     --yet produce proof reconstructions for Prop inequalities 
+
+set_option trace.Simp.debug false
+--###############################################################################################################################
+--Aside from being an interesting thing to prove on its own, the barber_paradox tests rely on the first case of Iff clausification and
+--on the soundness of ClausifyPropEq's reconstructed proofs
+/-
+List of problems pertaining to the barber paradox:
+- Duper is unable to synthesize the type "Inhabited person" unless it is given an argument of that type or an argument of type person
+- General issues with using duper in larger tactic-style proofs (mdata isn't handled properly)
+-/
+
+theorem barber_paradox1 {person : Type} {person_inhabited : Inhabited person} {shaves : person → person → Prop}
+  (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := 
+  by duper
+
+theorem barber_paradox2 {person : Type} {shaves : person → person → Prop} {b : person}
+  (h : ∀ p : person, (shaves b p ↔ (¬shaves p p))) : False := 
+  by duper
+
+theorem barber_paradox3 {person : Type} {shaves : person → person → Prop} {b : person}
+  (h1 : ∀ p : person, (shaves b p ↔ (¬ shaves p p))) (h2 : shaves b b ∨ ¬ shaves b b) : False :=
+  by duper
+
+theorem barber_paradox4 {person : Type} {person_inhabited : Inhabited person} {shaves : person → person → Prop}
+  (h : ∃ b : person, ∀ p : person, (shaves b p → (¬ shaves p p)) ∧ ((¬ shaves p p) → shaves b p)) : False :=
+  by duper
+
+#print barber_paradox1
+#print axioms barber_paradox1
+#print axioms barber_paradox2
+#print axioms barber_paradox3
+#print axioms barber_paradox4
+
+--inline tests are to expose the issues that arise when we try to call duper in the midst of a larger tactic-style proof
+theorem barber_paradox_inline1 {person : Type} {shaves : person → person → Prop}
+  (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := by
+  cases h with
+  | intro b h' =>
+    -- duper gives the output: "unknown metavariable '?_uniq.53070'"
+    sorry
+
+theorem barber_paradox_inline2 {person : Type} {shaves : person → person → Prop}
+  (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := by
+  cases h with
+  | intro b h' =>
+    have h'_b := h' b
+    -- duper gives the output: "unknown metavariable '?_uniq.53173'". Duper also gives a bunch of panic statements about precCompare
+    sorry
+
+theorem barber_paradox_inline3 {person : Type} {shaves : person → person → Prop}
+  (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := by
+  cases h with
+  | intro b h' =>
+    have h'_b := h' b
+    clear h'
+    --duper yields a bunch of PANIC statements in the output concerning [mdata noImplicitLambda:1 False] not begin implemented in precCompare in Duper.Order:151:10
+    --duper then has a deterministic timeout given long enough (at superposition, though I don't think it matters)
+    sorry
+
+--###############################################################################################################################
+-- syntacticTautologyDeletion2 and elimResolvedLit tests
 /-
 Prover becomes saturated as expected, but the point is just to confirm that trace.Simp.debug is printing that the correct clause is being removed
 for the correct reason
@@ -183,5 +256,3 @@ theorem elimResolvedLitTest3 {t : Type} (a : t) (b : t) (c : t)
 #print axioms elimResolvedLitTest
 #print axioms elimResolvedLitTest2
 #print axioms elimResolvedLitTest3
-
-set_option trace.Simp.debug false

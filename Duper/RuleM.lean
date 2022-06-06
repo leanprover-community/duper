@@ -216,8 +216,6 @@ def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option ProofRec
   }
   setResultClauses ((← getResultClauses).push (c, proof))
 
-
-
 def yieldClause (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor := none) : RuleM Unit := do
   let _ ← yieldClauseCore c ruleName mkProof
 
