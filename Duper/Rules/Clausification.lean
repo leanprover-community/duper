@@ -130,6 +130,26 @@ theorem clausify_not_iff (h : (p ↔ q) = False) : p ≠ q := by
   rw [← h, p_eq_q]
   exact Iff.rfl
 
+theorem clausify_prop_inequality1 {p : Prop} {q : Prop} (h : p ≠ q) : p = False ∨ q = False := by
+  cases Classical.propComplete p with
+  | inl p_eq_true =>
+    cases Classical.propComplete q with
+    | inl q_eq_true =>
+      rw [p_eq_true, q_eq_true] at h
+      exact False.elim $ h rfl
+    | inr q_eq_false => exact Or.intro_right _ q_eq_false
+  | inr p_eq_false => exact Or.intro_left _ p_eq_false
+
+theorem clausify_prop_inequality2 {p : Prop} {q : Prop} (h : p ≠ q) : p = True ∨ q = True := by
+  cases Classical.propComplete p with
+  | inl p_eq_true => exact Or.intro_left _ p_eq_true
+  | inr p_eq_false =>
+    cases Classical.propComplete q with
+    | inl q_eq_true => exact Or.intro_right _ q_eq_true
+    | inr q_eq_false =>
+      rw [p_eq_false, q_eq_false] at h
+      exact False.elim $ h rfl
+
 -- TODO: Clausify ↔ as =
 def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) : 
     RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
@@ -273,11 +293,13 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MCl
     | Expr.const ``False _ _ => clausificationStepE l.lhs false c i
     | _ => return Unapplicable
   else
-    trace[Simp.debug] "clausificationStepLit is clausifying an inequality of type Prop without a corresponding proof"
     -- Clausify inequalities of type Prop:
-    return Applied [(MClause.mk #[Lit.fromExpr l.lhs false, Lit.fromExpr l.rhs false], none),
-                    (MClause.mk #[Lit.fromExpr l.lhs true, Lit.fromExpr l.rhs true], none)]
-                    -- TODO: Proofs
+    let pr1 : Expr → MetaM Expr := fun premise => do
+      Meta.mkAppM ``clausify_prop_inequality1 #[premise]
+    let pr2 : Expr → MetaM Expr := fun premise => do
+      Meta.mkAppM ``clausify_prop_inequality2 #[premise]
+    return Applied [(MClause.mk #[Lit.fromExpr l.lhs false, Lit.fromExpr l.rhs false], some pr1),
+                    (MClause.mk #[Lit.fromExpr l.lhs true, Lit.fromExpr l.rhs true], some pr2)]
 -- TODO: True/False on left-hand side?
 
 -- TODO: generalize combination of `orCases` and `orIntro`?

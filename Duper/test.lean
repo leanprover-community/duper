@@ -160,6 +160,21 @@ theorem test0011 (one : Nat) (div mul add : Nat → Nat → Nat)
 set_option trace.Prover.saturate false
 
 --###############################################################################################################################
+--Clausifying prop inequality tests
+set_option trace.Simp.debug true
+theorem propInequalityTest1 {p : Prop} {q : Prop} (h : p ≠ q) : p ∨ q :=
+  by duper
+
+theorem propInequalityTest2 {p : Prop} {q : Prop} (h : p ≠ q) : ¬p ∨ ¬q :=
+  by duper
+
+#print propInequalityTest1 -- clause 4 uses clausify_prop_inequality2
+#print axioms propInequalityTest1
+#print propInequalityTest2 -- clause 3 uses clausify_prop_inequality1
+#print axioms propInequalityTest2
+
+set_option trace.Simp.debug false
+--###############################################################################################################################
 --Iff clausification tests
 set_option trace.Simp.debug true
 
@@ -172,8 +187,7 @@ theorem iffClausificationTest2 {p : Prop} {q : Prop} (h : ¬(p ↔ q)) : (p → 
 #print iffClausificationTest1
 #print iffClausificationTest2
 #print axioms iffClausificationTest1
-#print axioms iffClausificationTest2 --NOTE: Currently, iffClausificationTest2 uses sorryAx because clausificationStepLit in Clausification.lean does not
-                                     --yet produce proof reconstructions for Prop inequalities 
+#print axioms iffClausificationTest2
 
 set_option trace.Simp.debug false
 --###############################################################################################################################
