@@ -215,27 +215,41 @@ theorem barber_paradox4 {person : Type} {person_inhabited : Inhabited person} {s
   (h : ∃ b : person, ∀ p : person, (shaves b p → (¬ shaves p p)) ∧ ((¬ shaves p p) → shaves b p)) : False :=
   by duper
 
+theorem barber_paradox5 {person : Type} {shaves : person → person → Prop} {b : person}
+  (h : shaves b b ↔ ¬shaves b b) : False :=
+  by duper
+
 #print barber_paradox1
 #print axioms barber_paradox1
 #print axioms barber_paradox2
 #print axioms barber_paradox3
 #print axioms barber_paradox4
+#print axioms barber_paradox5
 
 --inline tests are to expose the issues that arise when we try to call duper in the midst of a larger tactic-style proof
+theorem barber_paradox_inline0 {person : Type} {person_inhabited : Inhabited person} {shaves : person → person → Prop}
+  (h : ∃ b : person, ∀ p : person, (shaves b p → (¬ shaves p p)) ∧ ((¬ shaves p p) → shaves b p)) : False := by
+  cases h with
+  | intro b h' =>
+    duper
+
 theorem barber_paradox_inline1 {person : Type} {shaves : person → person → Prop}
   (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := by
   cases h with
   | intro b h' =>
-    -- duper gives the output: "unknown metavariable '?_uniq.53070'"
-    sorry
+    duper
 
 theorem barber_paradox_inline2 {person : Type} {shaves : person → person → Prop}
   (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := by
   cases h with
   | intro b h' =>
     have h'_b := h' b
-    -- duper gives the output: "unknown metavariable '?_uniq.53173'". Duper also gives a bunch of panic statements about precCompare
-    sorry
+    duper
+
+set_option trace.Prover.debug true
+set_option trace.Meta.debug true
+set_option trace.Prover.saturate true
+set_option maxHeartbeats 1000
 
 theorem barber_paradox_inline3 {person : Type} {shaves : person → person → Prop}
   (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := by
@@ -243,9 +257,17 @@ theorem barber_paradox_inline3 {person : Type} {shaves : person → person → P
   | intro b h' =>
     have h'_b := h' b
     clear h'
-    --duper yields a bunch of PANIC statements in the output concerning [mdata noImplicitLambda:1 False] not begin implemented in precCompare in Duper.Order:151:10
-    --duper then has a deterministic timeout given long enough (at superposition, though I don't think it matters)
+    --duper yields a deterministic timeout. I'm not yet sure why, but it's very strange that this test fails while barber_paradox5 succeeds
     sorry
+
+set_option trace.Prover.debug false
+set_option trace.Meta.debug false
+set_option trace.Prover.saturate false
+
+#print barber_paradox_inline0
+#print axioms barber_paradox_inline0
+#print axioms barber_paradox_inline1
+#print axioms barber_paradox_inline2
 
 --###############################################################################################################################
 -- syntacticTautologyDeletion2 and elimResolvedLit tests

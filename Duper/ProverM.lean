@@ -47,11 +47,16 @@ structure State where
   supMainPremiseIdx : ClauseDiscrTree ClausePos := {}
   supSidePremiseIdx : ClauseDiscrTree ClausePos := {}
   lctx : LocalContext := {}
+  mctx : MetavarContext := {}
 
 abbrev ProverM := ReaderT Context $ StateRefT State CoreM
 
 instance : MonadLCtx ProverM where
   getLCtx := return (← get).lctx
+
+instance : MonadMCtx ProverM where
+  getMCtx    := return (← get).mctx
+  modifyMCtx f := modify fun s => { s with mctx := f s.mctx }
 
 instance : AddMessageContext ProverM where
   addMessageContext := fun msgData => do
@@ -143,6 +148,9 @@ def setSupMainPremiseIdx (supMainPremiseIdx : (ClauseDiscrTree ClausePos)) : Pro
 def setLCtx (lctx : LocalContext) : ProverM Unit :=
   modify fun s => { s with lctx := lctx }
 
+def setMCtx (mctx : MetavarContext) : ProverM Unit :=
+  modify fun s => { s with mctx := mctx }
+
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
 def throwEmptyClauseException : ProverM α :=
@@ -212,8 +220,9 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array (Expr × Expr)) (ctx : Con
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
-  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
+  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
+  ProverM.setMCtx state.mctx
   return res
 
 @[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (Array (Clause × Proof)) := do

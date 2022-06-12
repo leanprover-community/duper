@@ -71,7 +71,7 @@ def VarBalance.noPositives (vb : VarBalance) : Bool := Id.run do
       return False
   return True
 
-def precCompare (f g : Expr) : Comparison := match f, g with
+def precCompare (f g : Expr) : Comparison := match Expr.consumeMData f, Expr.consumeMData g with
 
 -- Sort > lam > db > quantifier > symbols > False > True 
 | Expr.sort .., Expr.const ``LAM _ _ => GreaterThan
