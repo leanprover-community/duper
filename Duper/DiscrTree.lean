@@ -1,6 +1,9 @@
 import Lean
 import Duper.RuleM
 
+/- This code is copied from Lean's Discrimination Trees, but the support for
+definitional equality has been removed. -/
+
 namespace Duper
 
 open Lean
