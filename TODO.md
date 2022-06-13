@@ -10,7 +10,6 @@ Inference rules:
 
 Simplification rules:
 - Semantic tautology deletion?
-- Destructive Equality Resolution
 - Rewriting of positive/negative literals (aka Demodulation)
 - Positive/Negative simplify-reflect
 - Clause subsumption
@@ -27,7 +26,9 @@ Other:
     - Do repeated clauses indicate that we're unnecessarily reproving things, and if so, how much does that impact efficiency?
 - barber_paradox_inline3 appears to be show that there are some conditions in which duper can run into what's effectively an infinite loop. The fact that this
   occurs in barber_paradox_inline3 but not in barber_paradox5 (which I would expect to behave identically) potentially points to an error in how I modified duper
-  to be able to funciton in larger tactic-style proofs.
+  to be able to function in larger tactic-style proofs.
+    - COM001_1_modified in TPTP_test.lean appears to have a similar behavior
+- Determine the cause of the error in PUZ134_2_modified in TPTP_test.lean
 
 ## For later:
 
@@ -47,3 +48,6 @@ Other:
       hypothesis that states there exists a person with some property is insufficient. I'm not sure whether it matters to us that Duper be able to synthesize
       the "Inhabited" property for types it's given, but I note that Duper cannot give full proofs to the barber_paradox tests unless if the inhabited property
       is given.
+    - Perhaps more pressingly than the above example, the fact that duper cannot synthesize the "Inhabited" attribute prevents it from proving PUZ134_2 in TPTP_test.lean.
+      If this issue arises only in a small number of cases, then it might not interfere with more rigorous testing, but otherwise, it may be necessary to add this
+      functionality so that we can use more TPTP files for testing.

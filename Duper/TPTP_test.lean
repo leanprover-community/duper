@@ -159,7 +159,7 @@ tptp PUZ131_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ131_1.p"
 #print axioms PUZ131_1
 
 tptp PUZ134_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p"
-  by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
+  by duper -- Contradiction found but failed to synthesize "Inhabited knowheyan"
 
 tptp PUZ135_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_1.p"
   by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
@@ -169,3 +169,22 @@ tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"
 
 tptp PUZ139_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ139_1.p"
   by duper -- <input>:1:281: expected tff_atomic_type
+
+tptp COM001_1_modified "../TPTP-v8.0.0/Problems/COM/COM001_1.p" by 
+  have number_inhabited : Inhabited number := Inhabited.mk n
+  duper -- Deterministic timeout (appears to be the result of the same sort of infinite loop as barber_paradox_inline3)
+
+tptp PUZ134_2_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p" by 
+  have inhabited_knowheyan : Inhabited knowheyan := Inhabited.mk a
+  duper 
+
+/- PUZ134_2_modified gives the error: 
+application type mismatch
+h rfl
+argument has type
+  [anonymous] = [anonymous]
+but function has type
+  [anonymous] = [anonymous] → False
+
+At present, I'm not sure how to interpret this error, or even whether it indicates a bug in duper or tptp
+-/
