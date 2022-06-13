@@ -50,4 +50,15 @@ def orIntro (lits : Array Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
     tyR := mkApp2 (mkConst ``Or) lits[lits.size-j] tyR
   return proofRight
 
+/-- Construct a proof of `lits[0] ∨ ... ∨ lits[n]`, given a `proof` of the subclause consisting of the last `i` literals -/
+def orSubclause (lits : Array Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
+  let mut tyR := lits[lits.size - 1]
+  for j in [2:i+1] do
+    tyR := mkApp2 (mkConst ``Or) lits[lits.size - j] tyR
+  let mut proofRight := proof -- proof is a proof of the last `i` literals, which is currently the subclause contained by tyR
+  for j in [i+1:lits.size+1] do
+    proofRight := mkApp3 (mkConst ``Or.inr) lits[lits.size-j] tyR proofRight
+    tyR := mkApp2 (mkConst ``Or) lits[lits.size-j] tyR
+  return proofRight
+
 end Duper

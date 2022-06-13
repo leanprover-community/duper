@@ -105,7 +105,7 @@ def evalDuper : Tactic
   withMainContext do
     let formulas ← collectAssumptions
     trace[Meta.debug] "{formulas}"
-    let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx}) ProverM.saturate formulas
+    let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
     | Result.contradiction => do
         logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
