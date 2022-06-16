@@ -259,7 +259,7 @@ theorem barber_paradox_inline3 {person : Type} {shaves : person → person → P
   | intro b h' =>
     have h'_b := h' b
     clear h'
-    --duper yields a deterministic timeout. I'm not yet sure why, but it's very strange that this test fails while barber_paradox5 succeeds
+    --duper yields "Prover saturated". I'm not yet sure why, but it's very strange that this test fails while barber_paradox5 succeeds
     sorry
 
 set_option trace.Prover.debug false

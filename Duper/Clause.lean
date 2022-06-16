@@ -43,7 +43,7 @@ def fromExpr (e : Expr) (sign := true) : Lit :=
     (sign := true)
     (lvl := levelOne)
     (ty := mkSort levelZero)
-    (lhs := e)
+    (lhs := Expr.consumeMData e)
     (rhs := if sign then mkConst ``True else mkConst ``False)
 
 def map (f : Expr → Expr) (l : Lit) :=

@@ -181,12 +181,13 @@ tptp PUZ139_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ139_1.p"
 
 tptp COM001_1_modified "../TPTP-v8.0.0/Problems/COM/COM001_1.p" by 
   have number_inhabited : Inhabited number := Inhabited.mk n
-  duper -- Deterministic timeout (appears to be the result of the same sort of infinite loop as barber_paradox_inline3)
+  duper -- Succeeds in finding a contradiction after commit that consumes the mData of expressions before converting them to literals
+
+#print axioms COM001_1_modified
 
 tptp PUZ134_2_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p" by 
   have inhabited_knowheyan : Inhabited knowheyan := Inhabited.mk a
   duper 
-
 /- PUZ134_2_modified gives the error: 
 application type mismatch
 h rfl
