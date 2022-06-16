@@ -11,7 +11,7 @@ open RuleM
 
 /- 
   Notes on the equality_factoring_soundness proofs:
-  1. s, t, and v should all have the same type (α) because if they didn't, then equalityFactoringWithAllConstraints would throw an error.
+  1. s, t, u, and v should all have the same type (α) because if they didn't, then equalityFactoringWithAllConstraints would throw an error.
   2. The reason we require four soundness proofs is that from the literals s = t and u = v, we may have s unified with u, s unified with v,
      t unified with u, or t unified with v.
 -/
@@ -58,18 +58,6 @@ def mkEqualityFactoringProof (i : Nat) (j : Nat) (litside_i : LitSide) (litside_
     for k in [:parentLits.size] do
       let lit := parentLits[k]
       if k == i then
-        trace[Prover.debug] "mkEqualityFactoringProof k == i case (k = {k}, i = {i}, j = {j}):"
-        trace[Prover.debug] "Clause we're trying to prove c : {c.lits}"
-        trace[Prover.debug] "Parent clause : {parentLits}"
-        let litside_i_str :=
-          match litside_i with
-          | LitSide.lhs => "lhs"
-          | LitSide.rhs => "rhs"
-        let litside_j_str :=
-          match litside_j with
-          | LitSide.lhs => "lhs"
-          | LitSide.rhs => "rhs"
-        trace[Prover.debug] "litside_i : {litside_i_str}, litside_j : {litside_j_str}"
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let proofCase ←
             match (litside_i, litside_j) with
