@@ -160,9 +160,18 @@ tptp PUZ131_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ131_1.p"
 
 tptp PUZ134_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p"
   by duper -- Contradiction found but failed to synthesize "Inhabited knowheyan"
+           -- Note: After adding equality factoring, this test changed from the above result to a deterministic timeout
 
 tptp PUZ135_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_1.p"
   by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
+/-
+Note: After adding equality factoring, this test changed from the above result to:
+  equalityFactoringWithAllConstraints: Types of second = reconstituted_materials_sculpture and reconstituted_materials_sculpture = first are not the same
+
+I think this error makes sense, since reconstituted_materials_sculpture has the type entry and second has the type place, and there's no particular reason that elements
+of those two types should be comparable. That said, it's not clear to me whether the fact there seem to already be equalities between different types indicates a bug or
+oversight (either in the equality factoring code or elsewhere). So I think it would be worthwhile to spend some time looking into what's occuring in this example.
+-/
 
 tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"
   by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)

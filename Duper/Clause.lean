@@ -18,11 +18,18 @@ deriving Inhabited, BEq, Hashable
 inductive LitSide | lhs | rhs
 deriving Inhabited, BEq, Hashable
 
+namespace LitSide
+
+def toggleSide (side : LitSide) : LitSide := match side with
+| LitSide.lhs => LitSide.rhs
+| LitSide.rhs => LitSide.lhs
+
+end LitSide
+
 structure LitPos where
   side : LitSide
   pos : ExprPos
 deriving Inhabited, BEq, Hashable
-
 
 namespace Lit
 
@@ -79,6 +86,8 @@ def makeLhs (lit : Lit) (side : LitSide) := match side with
 def getSide (lit : Lit) (side : LitSide) := match side with
 | LitSide.lhs => lit.lhs
 | LitSide.rhs => lit.rhs
+
+def getOtherSide (lit : Lit) (side : LitSide) := getSide lit (LitSide.toggleSide side)
 
 instance : ToFormat Lit :=
 ⟨ fun lit => format lit.toExpr ⟩

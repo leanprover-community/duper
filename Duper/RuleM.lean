@@ -68,6 +68,9 @@ instance [MetaEval α] : MetaEval (RuleM α) :=
 def getOrder : RuleM (Expr → Expr → MetaM Comparison) :=
   return (← read).order
 
+def getContext : RuleM Context :=
+  return {order := ← getOrder}
+
 def getMCtx : RuleM MetavarContext :=
   return (← get).mctx
 
@@ -79,6 +82,9 @@ def getResultClauses : RuleM (Array (Clause × Proof)) :=
 
 def getIntroducedSkolems : RuleM (Array (FVarId × (Array Expr → MetaM Expr))) :=
   return (← get).introducedSkolems
+
+def getState : RuleM State :=
+  return (← get)
 
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
   modify fun s => { s with mctx := mctx }
@@ -94,6 +100,9 @@ def setResultClauses (resultClauses : Array (Clause × Proof)) : RuleM Unit :=
 
 def setIntroducedSkolems (introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr))) : RuleM Unit :=
   modify fun s => { s with introducedSkolems := introducedSkolems }
+
+def setState (s : State) : RuleM Unit :=
+  modify fun _ => s
 
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
   let s ← getMCtx

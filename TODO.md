@@ -1,7 +1,6 @@
 # TODO
 
 Inference rules:
-- Equality Factoring inference rule
 - check for strict maximality in superposition rule
 - perform superposition only on maximal sides of main premise literal
 - Add ordering checks to Equality Resolution
@@ -29,6 +28,9 @@ Other:
   to be able to function in larger tactic-style proofs.
     - COM001_1_modified in TPTP_test.lean appears to have a similar behavior
 - Determine the cause of the error in PUZ134_2_modified in TPTP_test.lean
+- Determine why incomparable types are being equated in PUZ135_1 in TPTP_test.lean
+- Determine why several tests in TPTP_test.lean reach saturation without being solved
+- Look into whether it would be useful/more efficient to have a lhs/rhs convention so that clauses aren't duplicated up to symmetries (e.g. a = b and b = a)
 
 ## For later:
 

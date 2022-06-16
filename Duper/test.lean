@@ -177,6 +177,7 @@ set_option trace.Simp.debug false
 --###############################################################################################################################
 --Iff clausification tests
 set_option trace.Simp.debug true
+set_option trace.Prover.debug true
 
 theorem iffClausificationTest1 {p : Prop} {q : Prop} (h : p ↔ q) : (p → q) ∧ (q → p) :=
   by duper
@@ -190,6 +191,7 @@ theorem iffClausificationTest2 {p : Prop} {q : Prop} (h : ¬(p ↔ q)) : (p → 
 #print axioms iffClausificationTest2
 
 set_option trace.Simp.debug false
+set_option trace.Prover.debug false
 --###############################################################################################################################
 --Aside from being an interesting thing to prove on its own, the barber_paradox tests rely on the first case of Iff clausification and
 --on the soundness of ClausifyPropEq's reconstructed proofs
@@ -292,3 +294,45 @@ theorem elimResolvedLitTest3 {t : Type} (a : t) (b : t) (c : t)
 #print axioms elimResolvedLitTest
 #print axioms elimResolvedLitTest2
 #print axioms elimResolvedLitTest3
+
+--###############################################################################################################################
+-- equalityFactoring tests (Trying to test each equality_factoring_soundness theorem)
+
+theorem equalityFactoringTest1 {α : Type} (s t u v : α) 
+  (h1 : s = t ∨ s = v) : t ≠ v ∨ s = v :=
+  by duper
+
+theorem equalityFactoringTest2 {α : Type} (s t u v : α) 
+  (h1 : s = t ∨ u = s) : t ≠ u ∨ u = s :=
+  by duper
+
+set_option trace.Prover.debug true
+
+theorem equalityFactoringTest3 {α : Type} (s t v : α)
+  (h1 : s = t ∨ t = v) : s ≠ v ∨ t = v :=
+  by duper
+
+/-
+  Note to self: The only difference between equalityFactoringTest3 and equalityFactoringTest4 is the order of s t and v as arguments. This fact influences
+  something in how they are compared to each other in Order.lean (I think it has an effect on VarBalance), which is why equalityFactoringTest3 uses
+  equality_factoring_soundness2 and equalityFactoringTest4 uses equality_factoring_soundness4
+-/
+theorem equalityFactoringTest4 {α : Type} (v t s : α)
+  (h1 : s = t ∨ t = v) : s ≠ v ∨ t = v :=
+  by duper
+
+theorem equalityFactoringTest5 {α : Type} (s t u v : α)
+  (h1 : s = t ∨ u = t) : s ≠ u ∨ u = t :=
+  by duper
+
+#print equalityFactoringTest1 -- This proof uses equality_factoring_soundness1 (in the commit where this test is added, it is used in clause 5)
+#print equalityFactoringTest2 -- This proof uses equality_factoring_soundness2 (in the commit where this test is added, it is used in clause 13)
+#print equalityFactoringTest3 -- This proof uses equality_factoring_soundness2 (again) (in the commit where this test is added, it is used in clause 5)
+#print equalityFactoringTest4 -- This proof uses equality_factoring_soundness3 (in the commit where this test is added, it is used in clause 5)
+#print equalityFactoringTest5 -- This proof uses equality_factoring_soundness4 (in the commit where this test is added, it is used in clause 5)
+
+#print axioms equalityFactoringTest1
+#print axioms equalityFactoringTest2
+#print axioms equalityFactoringTest3
+#print axioms equalityFactoringTest4
+#print axioms equalityFactoringTest5

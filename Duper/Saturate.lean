@@ -13,6 +13,7 @@ import Duper.Rules.ElimDupLit
 import Duper.Rules.Demodulation
 import Duper.Rules.ElimResolvedLit
 import Duper.Rules.DestructiveEqualityResolution
+import Duper.Rules.EqualityFactoring
 import Std.Data.BinomialHeap
 
 namespace Duper
@@ -77,6 +78,7 @@ def performInferences (givenClause : Clause) : ProverM Unit := do
   performEqualityResolution givenClause
   performClausifyPropEq givenClause
   performSuperposition givenClause
+  performEqualityFactoring givenClause
 
 partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $
