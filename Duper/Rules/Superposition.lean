@@ -99,7 +99,7 @@ def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos)
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx].makeLhs sidePremiseSide
   trace[Rule.debug] "Superposition inferences at literal {sidePremiseLit}"
   let potentialPartners ← mainPremiseIdx.getUnify sidePremiseLit.lhs
-  -- trace[Rule.debug] "Potential partners {potentialPartners}"
+  -- trace[Rule.debug] "Potential partners {List.map (λ x => x.1) potentialPartners.1}"
   for (partnerClause, partnerPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
@@ -111,7 +111,7 @@ def superpositionAtExpr (e : Expr) (pos : ClausePos) (sidePremiseIdx : ProverM.C
     (mainPremise : MClause) : RuleM Unit := do
   trace[Rule.debug] "Superposition inferences at expression {e}"
   let potentialPartners ← sidePremiseIdx.getUnify e
-  -- trace[Rule.debug] "Potential partners {potentialPartners}"
+  -- trace[Rule.debug] "Potential partners {List.map (λ x => x.1) potentialPartners.1}"
   for (partnerClause, partnerPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
@@ -120,7 +120,7 @@ def superpositionAtExpr (e : Expr) (pos : ClausePos) (sidePremiseIdx : ProverM.C
           c partnerPos.lit partnerPos.side (givenIsMain := true)
           
 
-def superposition 
+def superposition
     (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
     (sidePremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
     (givenMClause : MClause) : RuleM Unit := do

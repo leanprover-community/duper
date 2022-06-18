@@ -171,6 +171,9 @@ Note: After adding equality factoring, this test changed from the above result t
 I think this error makes sense, since reconstituted_materials_sculpture has the type entry and second has the type place, and there's no particular reason that elements
 of those two types should be comparable. That said, it's not clear to me whether the fact there seem to already be equalities between different types indicates a bug or
 oversight (either in the equality factoring code or elsewhere). So I think it would be worthwhile to spend some time looking into what's occuring in this example.
+
+Second note: After adding ordering checks to equality resolution, PUZ135_1 returned to a deterministic timeout, but PUZ135_2 below began listing an extremely similar
+error to the one described above. Also, if PUZ134_2 above is given the proof sorry, PUZ135_1 still returns the error described above (not 100% sure why though)
 -/
 
 tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"

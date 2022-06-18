@@ -50,11 +50,23 @@ def isTrivial (c : MClause) : Bool := Id.run do
   return false
 
 open Comparison
-def isMaximalLit (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx : Nat) (strict := false): MetaM Bool := do
+def isMaximalLit (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx : Nat) (strict := false) : MetaM Bool := do
   for j in [:c.lits.size] do
     if j == idx then continue
     let c ← Lit.compare ord c.lits[idx] c.lits[j]
     if c == GreaterThan ∨ (¬ strict ∧ c == Equal)
+      then continue
+    else return false
+  return true
+
+/-- Determines if idx is a maximal literal in the given clause c among the list of indices given -/
+def isMaximalInSubClause (ord : Expr → Expr → MetaM Comparison) (c : MClause) (subclause : List Nat) (idx : Nat) (strict := false) : MetaM Bool := do
+  if(not (subclause.contains idx)) then
+    return false -- idx cannot be a maximal literal in c among the list of indices given because idx is not among the list of indices given
+  for j in subclause do
+    if j == idx then continue
+    let c ← Lit.compare ord c.lits[idx] c.lits[j]
+    if c == GreaterThan || (not strict && c == Equal)
       then continue
     else return false
   return true

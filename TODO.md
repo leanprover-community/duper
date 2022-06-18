@@ -3,7 +3,6 @@
 Inference rules:
 - check for strict maximality in superposition rule
 - perform superposition only on maximal sides of main premise literal
-- Add ordering checks to Equality Resolution
 - Check ordering constraints before unification
 - Check whether a clause is still in active set when retrieving it from an index. (Or alternatively, remove clauses from indices when they are removed from active set)
 
