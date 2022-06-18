@@ -259,8 +259,7 @@ theorem barber_paradox_inline3 {person : Type} {shaves : person → person → P
   | intro b h' =>
     have h'_b := h' b
     clear h'
-    --duper yields "Prover saturated". I'm not yet sure why, but it's very strange that this test fails while barber_paradox5 succeeds
-    sorry
+    duper
 
 set_option trace.Prover.debug false
 set_option trace.Meta.debug false
@@ -270,6 +269,7 @@ set_option trace.Prover.saturate false
 #print axioms barber_paradox_inline0
 #print axioms barber_paradox_inline1
 #print axioms barber_paradox_inline2
+#print axioms barber_paradox_inline3
 
 --###############################################################################################################################
 -- syntacticTautologyDeletion2 and elimResolvedLit tests

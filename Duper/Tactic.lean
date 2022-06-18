@@ -87,7 +87,7 @@ def collectAssumptions : TacticM (Array (Expr × Expr)) := do
   let mut formulas := #[]
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← getLocalDecl fVarId
-    unless ldecl.binderInfo.isAuxDecl ∨ not (← inferType ldecl.type).isProp do
+    unless ldecl.binderInfo.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       formulas := formulas.push (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId])
   return formulas
 
@@ -104,7 +104,7 @@ def evalDuper : Tactic
   replaceMainGoal [(← intro (← getMainGoal) `h).2]
   withMainContext do
     let formulas ← collectAssumptions
-    trace[Meta.debug] "{formulas}"
+    trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
     | Result.contradiction => do
