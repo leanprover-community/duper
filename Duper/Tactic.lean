@@ -114,6 +114,7 @@ def evalDuper : Tactic
         logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated => 
       trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
+      trace[Superposition] "Final Active Set: {state.activeSet.toArray}"
       -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."

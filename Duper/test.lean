@@ -1,4 +1,5 @@
 import Duper.Tactic
+import Duper.TPTP
 
 -- set_option trace.Meta.debug true
 -- set_option trace.Prover.saturate true
@@ -251,7 +252,6 @@ theorem barber_paradox_inline2 {person : Type} {shaves : person → person → P
 set_option trace.Prover.debug true
 set_option trace.Meta.debug true
 set_option trace.Prover.saturate true
-set_option maxHeartbeats 1000
 
 theorem barber_paradox_inline3 {person : Type} {shaves : person → person → Prop}
   (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := by
@@ -336,3 +336,37 @@ theorem equalityFactoringTest5 {α : Type} (s t u v : α)
 #print axioms equalityFactoringTest3
 #print axioms equalityFactoringTest4
 #print axioms equalityFactoringTest5
+
+set_option trace.Prover.debug false
+
+--###############################################################################################################################
+set_option maxHeartbeats 5000
+
+/-
+tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
+  by duper -- Prover saturated!?
+-/
+
+set_option trace.Superposition true
+
+theorem COM002_2_test (state : Type) (follows fails : state → state → Prop) (p3 p6 : state)
+  (h0 : ∀ (Start_state Goal_state : state), ¬(fails Goal_state Start_state ∧ follows Goal_state Start_state))
+  (h1 : follows p6 p3) : ¬fails p6 p3 := by duper
+
+theorem COM002_2_test2 (state label statement : Type) (p8 : state) (loop : label) (goto : label → statement)
+  (follows fails : state → state → Prop) (labels : label → state → Prop) (has : state → statement → Prop)
+  (h0 : ∀ s1 s2 : state, ∀ l1 : label, ¬(fails s1 s2 ∧ has s2 (goto l1) ∧ labels l1 s1))
+  (h1 : has p8 (goto loop)) : ∀ s1 : state, ¬(fails s1 p8 ∧ labels loop s1) := by duper
+
+set_option trace.Superposition false
+
+tptp COM002_2 "../TPTP-v8.0.0/Problems/COM/COM002_2.p"
+  by duper -- Prover saturated
+
+/-
+tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
+  by duper -- Prover saturated
+
+tptp COM003_1 "../TPTP-v8.0.0/Problems/COM/COM003_1.p"
+  by duper -- Prover saturated
+-/
