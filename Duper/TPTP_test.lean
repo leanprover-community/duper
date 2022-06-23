@@ -111,9 +111,9 @@ tff(prove_boxa_contains_bananas_and_boxc_oranges,conjecture,
 END_TPTP sorry
 
 tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
-  by duper -- Prover saturated!?
-           -- This appears to be due to a parsing bug in the tptp tactic (the conclusion is read as ¬¬(e exist ∨ ¬f exist) when it should
-           -- be read as ¬(¬e exist ∨ ¬f exist))
+  by duper -- Succeeds
+
+#print axioms KRS003_1
 
 tptp COM001_1 "../TPTP-v8.0.0/Problems/COM/COM001_1.p"
   by duper -- Time: 309ms May 8
@@ -134,7 +134,7 @@ tptp COM003_1 "../TPTP-v8.0.0/Problems/COM/COM003_1.p"
   by duper -- Deterministic timeout
 
 tptp HWV039_3 "../TPTP-v8.0.0/Problems/HWV/HWV039_3.p"
-  by duper -- Time: 16663ms May 8
+  by duper -- Deterministic timeout (duper previously could solve this, but only because a parsing bug in tptp resulted in the wrong problem being made)
 
 #print axioms HWV039_3
 

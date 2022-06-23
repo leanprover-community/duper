@@ -12,11 +12,11 @@ declare_syntax_cat tff_atomic_type
 
 syntax tff_arguments := "(" tff_term,* ")"
 syntax ident tff_arguments ? : tff_term
-syntax "(" tff_term ")" : tff_term
+syntax:max "(" tff_term ")" : tff_term
 
 syntax binary_connective := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<=" <|> "=" <|> "!="
-syntax tff_term binary_connective tff_term : tff_term
-syntax "~" tff_term : tff_term
+syntax:60 tff_term binary_connective tff_term : tff_term
+syntax:70 "~" tff_term:70 : tff_term
 
 syntax tff_annotation := "," ident
 
@@ -33,13 +33,11 @@ syntax "(" tff_xprod_args ")" ">" tff_atomic_type : tff_type
 
 syntax fof_quantifier := "!" <|> "?"
 syntax tff_variable := ident (":" tff_atomic_type) ?
-syntax fof_quantifier "[" tff_variable,* "]" ":" tff_term : tff_term
+syntax:70 fof_quantifier "[" tff_variable,* "]" ":" tff_term : tff_term
 
 declare_syntax_cat TPTP_input
 syntax "tff" "(" ident "," (ident <|> "axiom") "," tff_term tff_annotation ? ")" "." : TPTP_input
 syntax "tff" "(" ident "," &"type" "," ident ":" tff_type tff_annotation ? ")" "." : TPTP_input
-
-
 
 syntax TPTP_input* : TPTP_file
 
