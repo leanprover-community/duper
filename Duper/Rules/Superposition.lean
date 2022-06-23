@@ -7,9 +7,6 @@ namespace Duper
 open RuleM
 open Lean
 
-initialize
-  registerTraceClass `Superposition
-
 -- TODO: Pass in the clauses later?
 def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) 
     (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
@@ -59,29 +56,21 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     (sidePremise : MClause) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (givenIsMain : Bool): RuleM Unit := do
   Core.checkMaxHeartbeats "superposition"
   withoutModifyingMCtx $ do
-    trace[Superposition] 
-      "superpositionAtLitWithPartner (givenIsMain = {givenIsMain}):
-      mainPremise: {mainPremise.lits}, subterm: {mainPremiseSubterm},
-      sidePremise: {sidePremise.lits}, lit: {sidePremise.lits[sidePremiseLitIdx]}, expr: {Lit.getSide sidePremise.lits[sidePremiseLitIdx] sidePremiseSide}"
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx].makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
     if mainPremiseSubterm.isMVar then
-      --trace[Superposition] "Quitting because mainPremiseSubterm is a metavariable"
       return ()
     if not $ ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)] then
-      --trace[Superposition] "Quitting because mainPremiseSubterm couldn't be unified with sidePremiseLit.sidePremiseSide"
       return ()
     let lhs ← instantiateMVars sidePremiseLit.lhs
     let rhs ← instantiateMVars sidePremiseLit.rhs
     if (← compare lhs rhs) == Comparison.LessThan then
-      --trace[Superposition] "Quitting because the comparison check was failed"
       return ()
 
     -- Check eligibility for side premise
     let sidePremise ← sidePremise.mapM fun e => instantiateMVars e
     if not (litSelected sidePremise sidePremiseLitIdx)
         ∧ not (← runMetaAsRuleM $ sidePremise.isMaximalLit (← getOrder) sidePremiseLitIdx) then
-      --trace[Superposition] "Quitting because side premise was ineligible"
       return ()
     
     -- Check eligibility for main premise
@@ -89,14 +78,6 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     let mainPremise ← mainPremise.mapM fun e => instantiateMVars e
     if not (litSelected mainPremise mainPremisePos.lit)
         ∧ not (← runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit) then
-      trace[Superposition] 
-        "superpositionAtLitWithPartner (givenIsMain = {givenIsMain}):
-        mainPremise: {mainPremise.lits}, subterm: {mainPremiseSubterm},
-        sidePremise: {sidePremise.lits}, lit: {sidePremise.lits[sidePremiseLitIdx]}, expr: {Lit.getSide sidePremise.lits[sidePremiseLitIdx] sidePremiseSide}"
-      trace[Superposition] "litSelected mainPremise mainPremisePos.lit: {litSelected mainPremise mainPremisePos.lit}"
-      trace[Superposition] "lit selections from the mainPremise clause: {getSelections mainPremise}"
-      trace[Superposition] "is maximal lit: {← runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit}"
-      trace[Superposition] "Quitting because main premise was ineligible"
       return ()
 
     let mainPremiseReplaced ← 
@@ -105,13 +86,10 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
 
     if mainPremiseReplaced.isTrivial then
       trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
-      --trace[Superposition] "Quitting because resulting main premise was trivial"
       return ()
       
     let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
     let res := MClause.append restOfSidePremise mainPremiseReplaced
-    trace[Superposition] "superpositionAtLitWithPartner succeeded!"
-    trace[Superposition] "Resulting clause is: {res.lits}"
     yieldClause res "superposition" 
       (mkProof := mkSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain)
 
@@ -121,7 +99,6 @@ def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos)
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx].makeLhs sidePremiseSide
   trace[Rule.debug] "Superposition inferences at literal {sidePremiseLit}"
   let potentialPartners ← mainPremiseIdx.getUnify sidePremiseLit.lhs
-  --trace[Superposition] "Potential partners {List.map (λ x => x.1) potentialPartners.1}"
   for (partnerClause, partnerPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
@@ -133,7 +110,6 @@ def superpositionAtExpr (e : Expr) (pos : ClausePos) (sidePremiseIdx : ProverM.C
     (mainPremise : MClause) : RuleM Unit := do
   trace[Rule.debug] "Superposition inferences at expression {e}"
   let potentialPartners ← sidePremiseIdx.getUnify e
-  trace[Superposition] "For the main premise: {mainPremise.lits}, potential partners are: {List.map (λ x => x.1) potentialPartners.1}"
   for (partnerClause, partnerPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       trace[Rule.debug] "Superposition with partner clause {partnerClause}"
@@ -148,7 +124,6 @@ def superposition
     (givenMClause : MClause) : RuleM Unit := do
   -- With given clause as side premise:
   --trace[Rule.debug] "Superposition inferences with {givenMClause.lits} as side premise"
-  --trace[Superposition] "Superposition inferences with {givenMClause.lits} as side premise"
   for i in [:givenMClause.lits.size] do
     if givenMClause.lits[i].sign = true && litSelectedOrNothingSelected givenMClause i
     then
@@ -160,7 +135,6 @@ def superposition
         let cs ← superpositionAtLit mainPremiseIdx givenMClause i side
   -- With given clause as main premise
   --trace[Rule.debug] "Superposition inferences with {givenMClause.lits} as main premise"
-  --trace[Superposition] "Superposition inferences with {givenMClause.lits} as main premise"
   givenMClause.foldGreenM fun acc e pos => do
       superpositionAtExpr e pos sidePremiseIdx givenMClause
     ()

@@ -340,15 +340,6 @@ theorem equalityFactoringTest5 {α : Type} (s t u v : α)
 set_option trace.Prover.debug false
 
 --###############################################################################################################################
-set_option maxHeartbeats 5000
-
-/-
-tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
-  by duper -- Prover saturated!?
--/
-
-set_option trace.Superposition true
-
 theorem COM002_2_test (state : Type) (follows fails : state → state → Prop) (p3 p6 : state)
   (h0 : ∀ (Start_state Goal_state : state), ¬(fails Goal_state Start_state ∧ follows Goal_state Start_state))
   (h1 : follows p6 p3) : ¬fails p6 p3 := by duper
@@ -358,15 +349,25 @@ theorem COM002_2_test2 (state label statement : Type) (p8 : state) (loop : label
   (h0 : ∀ s1 s2 : state, ∀ l1 : label, ¬(fails s1 s2 ∧ has s2 (goto l1) ∧ labels l1 s1))
   (h1 : has p8 (goto loop)) : ∀ s1 : state, ¬(fails s1 p8 ∧ labels loop s1) := by duper
 
-set_option trace.Superposition false
+/- Saturates because the goal is "False" rather than anything coherent, but the final active set is:
+[fails p3 #0 = True ∨ fails #0 p3 = True,
+ fails #2 #1 = False ∨ has #1 (goto #0) = False ∨ labels #0 #2 = False,
+ has p3 (goto #0) = False ∨ labels #0 p3 = False,
+ has p3 (goto #1) = False ∨ labels #1 #0 = False ∨ fails p3 #0 = True,
+ fails p3 #1 = True ∨ has p3 (goto #0) = False ∨ labels #0 #1 = False,
+ has #1 (goto #0) = False ∨ labels #0 p3 = False ∨ fails #1 p3 = True,
+ fails #1 p3 = True ∨ has #1 (goto #0) = False ∨ labels #0 p3 = False,
+ has #2 (goto #1) = False ∨ labels #1 p3 = False ∨ has p3 (goto #0) = False ∨ labels #0 #2 = False,
+ fails p3 p3 = True]
 
-tptp COM002_2 "../TPTP-v8.0.0/Problems/COM/COM002_2.p"
-  by duper -- Prover saturated
-
-/-
-tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
-  by duper -- Prover saturated
-
-tptp COM003_1 "../TPTP-v8.0.0/Problems/COM/COM003_1.p"
-  by duper -- Prover saturated
+theorem COM002_2_test3 (state label statement : Type) (p3 : state) (goto : label → statement)
+  (follows fails : state → state → Prop) (labels : label → state → Prop) (has : state → statement → Prop)
+  (h0 : ∀ s1 s2 : state, ∀ l1 : label, ¬(fails s1 s2 ∧ has s2 (goto l1) ∧ labels l1 s1))
+  (h1 : ∀ s : state, fails p3 s ∨ fails s p3) : False := by duper
 -/
+
+--###############################################################################################################################
+set_option trace.TPTP_Testing true
+
+tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
+  by duper

@@ -54,7 +54,7 @@ def isMaximalLit (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx :
   for j in [:c.lits.size] do
     if j == idx then continue
     let c ← Lit.compare ord c.lits[idx] c.lits[j]
-    if c == GreaterThan ∨ (¬ strict ∧ c == Equal)
+    if c == GreaterThan || (not strict && c == Equal) || c == Incomparable
       then continue
     else return false
   return true
@@ -66,7 +66,7 @@ def isMaximalInSubClause (ord : Expr → Expr → MetaM Comparison) (c : MClause
   for j in subclause do
     if j == idx then continue
     let c ← Lit.compare ord c.lits[idx] c.lits[j]
-    if c == GreaterThan || (not strict && c == Equal)
+    if c == GreaterThan || (not strict && c == Equal) || c == Incomparable
       then continue
     else return false
   return true

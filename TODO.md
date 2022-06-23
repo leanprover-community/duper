@@ -24,7 +24,7 @@ Other:
     - Do repeated clauses indicate that we're unnecessarily reproving things, and if so, how much does that impact efficiency?
 - Determine the cause of the error in PUZ134_2_modified in TPTP_test.lean
 - Determine why incomparable types are being equated in PUZ135_1 in TPTP_test.lean
-- Determine why several tests in TPTP_test.lean reach saturation without being solved
+- Fix TPTP parsing bug (in KRS003_1, the conclusion is parsed as ¬¬(e exist ∨ ¬f exist) when it should be parsed as ¬(¬e exist ∨ ¬f exist))
 - Look into whether it would be useful/more efficient to have a lhs/rhs convention so that clauses aren't duplicated up to symmetries (e.g. a = b and b = a)
 
 ## For later:

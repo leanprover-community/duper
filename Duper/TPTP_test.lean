@@ -112,6 +112,8 @@ END_TPTP sorry
 
 tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
   by duper -- Prover saturated!?
+           -- This appears to be due to a parsing bug in the tptp tactic (the conclusion is read as ¬¬(e exist ∨ ¬f exist) when it should
+           -- be read as ¬(¬e exist ∨ ¬f exist))
 
 tptp COM001_1 "../TPTP-v8.0.0/Problems/COM/COM001_1.p"
   by duper -- Time: 309ms May 8
@@ -124,10 +126,12 @@ tptp COM002_1 "../TPTP-v8.0.0/Problems/COM/COM002_1.p"
 #print axioms COM002_1
 
 tptp COM002_2 "../TPTP-v8.0.0/Problems/COM/COM002_2.p"
-  by duper -- Prover saturated
+  by duper -- Succeeds in finding a contradiction after changing isMaximalLit/isMaximalInSubClause to let maximal literals be incomparable
+
+#print axioms COM002_2
 
 tptp COM003_1 "../TPTP-v8.0.0/Problems/COM/COM003_1.p"
-  by duper -- Prover saturated
+  by duper -- Deterministic timeout
 
 tptp HWV039_3 "../TPTP-v8.0.0/Problems/HWV/HWV039_3.p"
   by duper -- Time: 16663ms May 8
@@ -146,7 +150,7 @@ tptp PUZ018_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ018_1.p"
   by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
-  by duper -- Prover saturated
+  by duper -- Contradiction found but failed to synthesize type "Inhabited grain"
 
 tptp PUZ130_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ130_1.p"
   by duper -- Time: 61ms May 8
