@@ -39,15 +39,15 @@ def mkEqualityResolutionProof (i : Nat) (premises : Array Expr) (parents: Array 
 def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]
-    if ← unify #[(lit.lhs, lit.rhs)]
-    then
+    let able_to_unify ← unify #[(lit.lhs, lit.rhs)]
+    if able_to_unify && (← eligibleForResolution c i) then -- Need to check eligibility for resolution after unification
       let c := c.eraseLit i
       yieldClause c "equality resolution" 
         (mkProof := mkEqualityResolutionProof i)
 
 def equalityResolution (c : MClause) : RuleM Unit := do
   for i in [:c.lits.size] do
-    if c.lits[i].sign = false && (← eligibleForResolution c i) then
+    if c.lits[i].sign = false then
       equalityResolutionAtLit c i
 
 open ProverM
