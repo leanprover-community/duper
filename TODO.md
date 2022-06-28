@@ -22,8 +22,7 @@ Other:
 - Command line version of duper?
 - Why are some clauses repeated in the proofs that duper produces (e.g. clauses 6-8 in test0011 and almost all of the early clauses in iffClausificationTest1)?
     - Do repeated clauses indicate that we're unnecessarily reproving things, and if so, how much does that impact efficiency?
-- Determine the cause of the error in PUZ134_2_modified in TPTP_test.lean
-- Determine why incomparable types are being equated in PUZ135_1 in TPTP_test.lean
+- Determine the cause of the error in PUZ134_2_modified and similar tests in TPTP_test.lean (application type mismatch h rfl)
 - Look into whether it would be useful/more efficient to have a lhs/rhs convention so that clauses aren't duplicated up to symmetries (e.g. a = b and b = a)
 
 ## For later:

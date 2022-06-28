@@ -7,8 +7,10 @@ partial def Lean.Meta.unify (l : Array (Expr × Expr)) : MetaM Bool := do
   Core.checkMaxHeartbeats "unify"
   trace[Meta.debug] "unify: {l}"
   for (t, s) in l do
-    if ← unify1 t s
-    then continue
+    let t_type := (← instantiateMVars (← inferType t))
+    let s_type := (← instantiateMVars (← inferType s))
+    if (t_type != s_type) then return false
+    else if ← unify1 t s then continue
     else return false
   return true
 where 

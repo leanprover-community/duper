@@ -6,6 +6,7 @@ import Duper.TPTP
 -- set_option trace.Prover.debug true
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
+-- set_option pp.rawOnError true
 
 constant a : Nat
 constant b : Nat
@@ -371,3 +372,5 @@ set_option trace.TPTP_Testing true
 
 tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
   by duper
+
+#print axioms KRS003_1

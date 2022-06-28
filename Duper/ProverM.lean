@@ -226,13 +226,13 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array (Expr × Expr)) (ctx : Con
   return res
 
 @[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (Array (Clause × Proof)) := do
-  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
+  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return state.resultClauses
 
 @[inline] def runSimpRule (x : RuleM α) : 
     ProverM.ProverM (α × Array (Clause × Proof)) := do
-  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx})
+  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return (res, state.resultClauses)
 
