@@ -1,5 +1,9 @@
 # TODO
 
+Bugs exposed/created in the most recent commit (editing superposition's side condition checks):
+- Figure out why some tests (e.g. test0011 in test.lean) have deterministic timeout when duper was previously able to prove them
+- Figure out why some tests (e.g. barber_paradox1) fail to have their proofs verified
+
 Inference rules:
 - check for strict maximality in superposition rule
 - perform superposition only on maximal sides of main premise literal

@@ -7,6 +7,12 @@ namespace Duper
 open RuleM
 open Lean
 
+inductive Eligibility 
+  | eligible 
+  | potentially_eligible 
+  | not_eligible
+deriving Inhabited, BEq, Repr
+
 -- TODO: Pass in the clauses later?
 def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) 
     (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
@@ -49,8 +55,72 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
 
     let r ← orCases (sideParentLits.map Lit.toExpr) caseProofsSide
     let proof ← Meta.mkLambdaFVars xs $ mkApp r appliedSidePremise
-    -- let proof ← Meta.mkLambdaFVars xs $ ← Lean.Meta.mkSorry body (synthetic := true)
     return proof
+
+/-- The side premise must be strictly eligible in order to proceed for superposition. This means that either:
+  1. sidePremise.lits[sidePremiseLitIdx] is a selected literal in sidePremise
+  2. There are no selected literals in sidePremise and sidePremise.lits[sidePremiseLitIdx] is strictly maximal in sidePremise
+
+  Checking whether sidePremise.lits[sidePremiseLitIdx] is a selected literal and whether there are no selected literals in sidePremise
+  must occur before unification. Checking whether sidePremise.lits[sidePremiseLitIdx] is strictly maximal in sidePremise must occur after,
+  but we can do a partial check before to see whether it's even possible for sidePremise.lits[sidePremiseLitIdx] to be strictly maximal.
+  The benefit of this is that if we can already see that sidePremise.lits[sidePremiseLitIdx] can never be strictly maximal under any
+  substituttion, then we can exit superpositionAtLitWithPartner prior to performing the expensive unification operation.
+-/
+def sidePremiseEligiblePreUnificationCheck (sidePremise : MClause) (sidePremiseLitIdx : Nat) : RuleM Eligibility :=
+  let sel := getSelections sidePremise
+  if(sel.contains sidePremiseLitIdx) then
+    return Eligibility.eligible -- sidePremiseLitIdx is eligible for superposition and the post unification check is not necessary
+  else if(sel == []) then do
+    if (← runMetaAsRuleM $ sidePremise.canNeverBeMaximal (← getOrder) sidePremiseLitIdx) then
+      return Eligibility.not_eligible
+    else
+      return Eligibility.potentially_eligible -- sidePremiseLitIdx may be eligible but the post unification check is needed to confirm maximality
+  else
+    return Eligibility.not_eligible
+
+/-- If sidePremiseEligiblePostUnificationCheck is being called, then there are no selected literals in the pre-unification sidePremise, and
+    to determine the eligibility of sidePremise.lits[sidePremiseLitIdx], we have to determine whether sidePremise.lits[sidePremiseLitIdx]
+    is strictly maximal in sidePremise. sidePremise.lits[sidePremiseLitIdx] is eligible for superposition if it is strictly maximal in
+    sidePremise, and is not eligible otherwise.
+-/
+def sidePremiseEligiblePostUnificationCheck (sidePremise : MClause) (sidePremiseLitIdx : Nat) : RuleM Bool := do
+  runMetaAsRuleM $ sidePremise.isMaximalLit (← getOrder) sidePremiseLitIdx (strict := true)
+
+/-- The main premise must be eligible if negative and strictly eligible if positive in order to proceed for superposition. 
+    This means that either:
+  1. mainPremisePos.lit is a selected literal in mainPremise
+  2. There are no selected literals in mainPremise and either:
+      - mainPremisePos.lit is negative and nonstrictly maximal in mainPremise
+      - mainPremisePos.lit is positive and strictly maximal in mainPremise
+
+  Checking whether mainPremisePos.lit is a selected literal and whether there are no selected literals in mainPremise must occur before
+  unification. Checking whether mainPremisePos.lit is (strictly or nonstrictly) maximal in mainPremise must occur after, but we can do
+  a partial check before to see whether it's even possible for mainPremisePos.lit to be (strictly or nonstrictly) maximal. The benefit
+  of this is that if we can already see that mainPremisePos.lit can never be (strictly or nonstrictly) maximal under any substitution,
+  then we can exit superpositionAtLitWithPartner prior to performing the expensive unification operation.
+-/
+def mainPremiseEligiblePreUnificationCheck (mainPremise : MClause) (mainPremisePos : ClausePos) : RuleM Eligibility :=
+  let sel := getSelections mainPremise
+  if(sel.contains mainPremisePos.lit) then
+    return Eligibility.eligible -- mainPremisePos.lit is eligible for superposition and the post unificaiton check is not necessary
+  else if(sel == []) then do
+    if (← runMetaAsRuleM $ mainPremise.canNeverBeMaximal (← getOrder) mainPremisePos.lit) then
+      return Eligibility.not_eligible
+    else
+      return Eligibility.potentially_eligible -- mainPremisePos.lit may be eligibile but the post unification check is needed to confirm maximality
+  else
+    return Eligibility.not_eligible
+
+/-- If mainPremiseEligiblePostUnificationCheck is being called, then there are no selected literals in the pre-unification mainPremise,
+    and to determine the eligibility of mainPremisePos.lit, we have to determine whether:
+    - mainPremisePos.lit is negative and nonstrictly maximal in mainPremise
+    - mainPremisePos.lit is positive and strictly maximal in mainPremise
+    If either of the above two cases hold, then mainPremisePos.lit is eligible for superposition. Otherwise, it is not.
+-/
+def mainPremiseEligiblePostUnificationCheck (mainPremise : MClause) (mainPremisePos : ClausePos) : RuleM Bool := do
+  let strictness := mainPremise.lits[mainPremisePos.lit].sign -- strictness is true iff mainPremisePos.lit is positive
+  runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit strictness
 
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) (mainPremisePos : ClausePos)
     (sidePremise : MClause) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (givenIsMain : Bool): RuleM Unit := do
@@ -59,25 +129,27 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx].makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
     if mainPremiseSubterm.isMVar then
-      return ()
+      return () 
+    
+    let sidePremiseEligibility ← sidePremiseEligiblePreUnificationCheck sidePremise sidePremiseLitIdx
+    let mainPremiseEligibility ← mainPremiseEligiblePreUnificationCheck mainPremise mainPremisePos
+
+    if sidePremiseEligibility == Eligibility.not_eligible || mainPremiseEligibility == Eligibility.not_eligible then
+      return () -- Preunification checks determined ineligibility, so we don't need to bother with unificaiton
     if not $ ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)] then
-      return ()
+      return () -- Unification failed, so superposition cannot occur
+    if sidePremiseEligibility == Eligibility.potentially_eligible then
+      -- Only need to run the post unificaiton check if the side premise is potentially eligible (as opposed to eligible)
+      let sidePremiseFinalEligibility ← sidePremiseEligiblePostUnificationCheck sidePremise sidePremiseLitIdx
+      if not sidePremiseFinalEligibility then return ()
+    if mainPremiseEligibility == Eligibility.potentially_eligible then
+      -- Only need to run the post unificaiton check if the main premise is potentially eligible (as opposed to eligible)
+      let mainPremiseFinalEligibility ← mainPremiseEligiblePostUnificationCheck mainPremise mainPremisePos
+      if not mainPremiseFinalEligibility then return ()
+    
     let lhs ← instantiateMVars sidePremiseLit.lhs
     let rhs ← instantiateMVars sidePremiseLit.rhs
     if (← compare lhs rhs) == Comparison.LessThan then
-      return ()
-
-    -- Check eligibility for side premise
-    let sidePremise ← sidePremise.mapM fun e => instantiateMVars e
-    if not (litSelected sidePremise sidePremiseLitIdx)
-        ∧ not (← runMetaAsRuleM $ sidePremise.isMaximalLit (← getOrder) sidePremiseLitIdx) then
-      return ()
-    
-    -- Check eligibility for main premise
-    -- TODO: use strict maximality when possible
-    let mainPremise ← mainPremise.mapM fun e => instantiateMVars e
-    if not (litSelected mainPremise mainPremisePos.lit)
-        ∧ not (← runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit) then
       return ()
 
     let mainPremiseReplaced ← 
@@ -116,7 +188,6 @@ def superpositionAtExpr (e : Expr) (pos : ClausePos) (sidePremiseIdx : ProverM.C
       let c ← loadClause partnerClause
       superpositionAtLitWithPartner mainPremise e pos
           c partnerPos.lit partnerPos.side (givenIsMain := true)
-          
 
 def superposition
     (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 

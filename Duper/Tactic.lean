@@ -7,7 +7,9 @@ open Lean.Meta
 open Duper
 open ProverM
 
-initialize registerTraceClass `TPTP_Testing
+initialize 
+  registerTraceClass `TPTP_Testing
+  registerTraceClass `Print_Proof
 
 namespace Lean.Elab.Tactic
 
@@ -19,7 +21,7 @@ partial def printProof (state : ProverM.State) : TacticM Unit := do
     let hm := hm.push (info.number, c)
     let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! pp.clause) 
     let parentIds := parentInfo.map fun info => info.number
-    trace[Prover.debug] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
+    trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
     for proofParent in info.proof.parents do
       go proofParent.clause hm
   go Clause.empty
@@ -57,10 +59,11 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   let mut lctx ← getLCtx
   let mut skdefs : List Expr := []
   for (fvarId, mkSkProof) in info.proof.introducedSkolems do
-    trace[Meta.debug] "Reconstructing skolems {mkFVar fvarId}"
+    trace[Print_Proof] "Reconstructing skolems {mkFVar fvarId}"
     let ty := (state.lctx.get! fvarId).type
     trace[Meta.debug] "Reconstructing skolems {toString ty}"
     let userName := (state.lctx.get! fvarId).userName
+    trace[Print_Proof] "Reconstructed skloem userName: {userName}"
     let skdef ← mkSkProof parents
     skdefs := skdef :: skdefs
     lctx := lctx.mkLetDecl fvarId userName ty skdef
@@ -82,6 +85,7 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
   let l := (← collectClauses state Clause.empty Std.BinomialHeap.empty).toList.map Prod.snd
   trace[Meta.debug] "{l}"
   let proof ← mkProof state l
+  trace[Print_Proof] "Proof: {proof}"
   assignExprMVar (← getMainGoal) proof -- TODO: List.last?
 
 def collectAssumptions : TacticM (Array (Expr × Expr)) := do
@@ -110,6 +114,7 @@ def evalDuper : Tactic
     match state.result with
     | Result.contradiction => do
         logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
+        trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
         printProof state
         applyProof state
         logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"

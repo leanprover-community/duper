@@ -71,5 +71,18 @@ def isMaximalInSubClause (ord : Expr → Expr → MetaM Comparison) (c : MClause
     else return false
   return true
 
+/-- Returns true if there may be some assignment in which the given idx is maximal, and false if there is some idx' that is strictly greater
+    than idx (in this case, since idx < idx', for any subsitution σ, idx σ < idx' σ so idx can never be maximal)
+
+    Note that for this function, strictness does not actually matter, because regardless of whether we are considering potential strict maximality
+    or potential nonstrict maximality, we can only determine that idx can never be maximal if we find an idx' that is strictly gerater than it
+-/
+def canNeverBeMaximal (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx : Nat) : MetaM Bool := do
+  for j in [:c.lits.size] do
+    if j != idx && (← Lit.compare ord c.lits[idx] c.lits[j]) == LessThan then
+      return true
+    else continue
+  return false
+
 end MClause
 end Duper
