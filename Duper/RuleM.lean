@@ -172,8 +172,10 @@ def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
   runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
 
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
-  Core.transform e (pre := fun s => 
-    return if s == target then TransformStep.done replacement else TransformStep.visit s )
+  Core.transform e (pre := fun s => do
+    if (← instantiateMVars s) == (← instantiateMVars target) then
+      return TransformStep.done replacement
+    else return TransformStep.visit s)
 
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)

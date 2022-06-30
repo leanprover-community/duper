@@ -158,6 +158,7 @@ theorem test0011 (one : Nat) (div mul add : Nat → Nat → Nat)
 (div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
 ∀ (x y : Nat), div (add x y) y = add (div x y) one := by duper
 #print test0011
+#print axioms test0011
 
 set_option trace.Prover.saturate false
 

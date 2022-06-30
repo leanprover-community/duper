@@ -1,8 +1,14 @@
 # TODO
 
-Bugs exposed/created in the most recent commit (editing superposition's side condition checks):
-- Figure out why some tests (e.g. test0011 in test.lean) have deterministic timeout when duper was previously able to prove them
-- Figure out why some tests (e.g. barber_paradox1) fail to have their proofs verified
+Bugs exposed/created by changing superposition's side condition checks:
+- Modifying replace to instantiate metavariables seems to fix most of the issues exposed/created by the change
+  to superposition's side condition checks (all of the issues described in the previous commit's TODO.md comment
+  are resolved by this edit)
+- However, COM003_1, which previously failed due to deterministic timeout, now fails due to premature saturation.
+  Deterministic timeout doesn't necessarily indicate a problem, but premature saturation does, so look into why this
+  test is getting stuck and failing to continue
+- All other tests (in test.lean and TPTP_test.lean) appear to be working as well (or poorly) as they did prior to changing
+  superposition's side condition checks
 
 Inference rules:
 - check for strict maximality in superposition rule
