@@ -115,7 +115,7 @@ def evalDuper : Tactic
     | Result.contradiction => do
         logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
         trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-        printProof state
+        --printProof state
         applyProof state
         logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated => 
@@ -124,6 +124,14 @@ def evalDuper : Tactic
       -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
+| _ => throwUnsupportedSyntax
+
+syntax (name := try_duper) "try_duper" : tactic
+
+@[tactic try_duper]
+def evalTryDuper : Tactic
+| `(tactic| try_duper) => do
+  Lean.Elab.Tactic.evalTactic (← `(tactic| (try duper); (try sorry)))
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic

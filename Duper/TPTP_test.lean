@@ -172,7 +172,7 @@ tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"
   by duper -- Failed to synthesize "Inhabited place"
 
 tptp PUZ139_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ139_1.p"
-  by duper -- <input>:1:281: expected tff_atomic_type
+  by duper -- Succeeds
 
 tptp COM001_1_modified "../TPTP-v8.0.0/Problems/COM/COM001_1.p" by 
   have number_inhabited : Inhabited number := Inhabited.mk n

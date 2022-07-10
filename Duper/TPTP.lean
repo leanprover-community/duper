@@ -11,33 +11,42 @@ declare_syntax_cat tff_term
 declare_syntax_cat tff_atomic_type
 
 syntax tff_arguments := "(" tff_term,* ")"
-syntax ident tff_arguments ? : tff_term
+syntax rawIdent tff_arguments ? : tff_term
 syntax:max "(" tff_term ")" : tff_term
 
 syntax binary_connective := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<=" <|> "=" <|> "!="
 syntax:60 tff_term binary_connective tff_term : tff_term
 syntax:70 "~" tff_term:70 : tff_term
 
-syntax tff_annotation := "," ident
+syntax tff_annotation := "," rawIdent
 
 syntax defined_type := "$" noWs ident
 syntax defined_type : tff_atomic_type
-syntax ident : tff_atomic_type
+syntax rawIdent : tff_atomic_type
 syntax tff_atomic_type : tff_type
+syntax:max "(" tff_type ")" : tff_type
 
 def tffXProdArgsParser := sepBy1 (categoryParser `tff_atomic_type 0) "*"
 syntax tff_xprod_args := tffXProdArgsParser
 
+--tff_mapping_type
 syntax tff_atomic_type ">" tff_atomic_type : tff_type
 syntax "(" tff_xprod_args ")" ">" tff_atomic_type : tff_type
 
+--tff_type_arguments are needed because <type_functor>(<tff_type_arguments>) is a tff_atomic_type
+syntax tff_type_arguments := "(" tff_atomic_type,* ")"
+syntax rawIdent tff_type_arguments : tff_atomic_type
+
 syntax fof_quantifier := "!" <|> "?"
-syntax tff_variable := ident (":" tff_atomic_type) ?
+syntax tff_variable := rawIdent (":" tff_atomic_type) ?
 syntax:70 fof_quantifier "[" tff_variable,* "]" ":" tff_term : tff_term
 
+syntax tf1_quantifier := "!>"
+syntax tf1_quantifier "[" tff_variable,* "]" ":" tff_type : tff_type --tf1_quantified_type
+
 declare_syntax_cat TPTP_input
-syntax "tff" "(" ident "," (ident <|> "axiom") "," tff_term tff_annotation ? ")" "." : TPTP_input
-syntax "tff" "(" ident "," &"type" "," ident ":" tff_type tff_annotation ? ")" "." : TPTP_input
+syntax "tff" "(" rawIdent "," rawIdent "," tff_term tff_annotation ? ")" "." : TPTP_input
+syntax "tff" "(" rawIdent "," &"type" "," rawIdent ":" tff_type tff_annotation ? ")" "." : TPTP_input
 
 syntax TPTP_input* : TPTP_file
 
@@ -45,7 +54,7 @@ def explicitBinder : Parser := Term.explicitBinder false
 
 constant iota : Type
 
-def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
+partial def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
   match stx with
   | `(tff_atomic_type| $ty:ident) => pure ty
   | `(tff_atomic_type| $ty:defined_type) =>
@@ -54,6 +63,13 @@ def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
     | `o => return ← `(Prop)
     | `tType => return ← `(Type)
     | _ => Macro.throwError s!"Unsupported tff_atomic_type: {ty}"
+  | `(tff_atomic_type| $f:ident $args:tff_type_arguments) => do
+    let ts ←
+      pure $ ← ((@Syntax.SepArray.mk "," args[1].getArgs) : Array Syntax).mapM 
+                fun arg => processTffAtomicType arg
+    let ts := mkNode ``many ts
+    let ts := mkNode ``Term.app #[f, ts]
+    return ← `($ts)
   | _ => Macro.throwError s!"Unsupported tff_atomic_type: {stx}"
 
 partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
@@ -102,6 +118,7 @@ partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
 
 partial def processTffType (stx : Syntax) : MacroM Syntax := do
   match stx with
+  | `(tff_type| ( $t:tff_type ) ) => processTffType t
   | `(tff_type| $ty:tff_atomic_type) =>
     processTffAtomicType ty
   | `(tff_type| $arg:tff_atomic_type > $ret:tff_atomic_type) =>
@@ -115,6 +132,21 @@ partial def processTffType (stx : Syntax) : MacroM Syntax := do
       let a ← processTffAtomicType a
       `($a → $acc)) ret
     return stx
+  | `(tff_type| $q:tf1_quantifier [ $vs,* ] : $ty) =>
+    let ty ← processTffType ty
+    let vs : Array Syntax := vs
+    return ← vs.foldrM
+      fun v acc => do
+        let (v, v_ty) ← match v with
+        | `(tff_variable| $v:ident) =>
+          pure (v, ← `(_))
+        | `(tff_variable| $v:ident : $v_ty:tff_atomic_type) =>
+          pure (v, ← processTffAtomicType v_ty)
+        | _ => Macro.throwError s!"Unsupported tff_variable: {v} when trying to process a tf1_quantified_type"
+        match q[0].getKind with
+        | `«!>» => `(∀ ($v : $v_ty), $acc)
+        | _ => Macro.throwError s!"Unsupported tf1_quantifier: {q.getKind}"
+      ty
   | _ => Macro.throwError s!"Unsupported tff_type: {stx}"
 
 macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
