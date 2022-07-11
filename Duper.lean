@@ -1,7 +1,7 @@
---import Duper.test
-import Duper.LCL_tests
-import Duper.COM_tests
-import Duper.PUZ_tests
+--import Duper.Tests.test
+import Duper.Tests.LCL_tests
+import Duper.Tests.COM_tests
+import Duper.Tests.PUZ_tests
 
 /-
 --LCL Tests
