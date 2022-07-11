@@ -6,6 +6,7 @@ open Lean
 open Lean.Meta
 open Duper
 open ProverM
+open Lean.Parser
 
 initialize 
   registerTraceClass `TPTP_Testing
@@ -96,7 +97,7 @@ def collectAssumptions : TacticM (Array (Expr × Expr)) := do
       formulas := formulas.push (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId])
   return formulas
 
-syntax (name := duper) "duper" : tactic
+syntax (name := duper) "duper" ident ? : tactic
 
 @[tactic duper]
 def evalDuper : Tactic
@@ -115,7 +116,7 @@ def evalDuper : Tactic
     | Result.contradiction => do
         logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
         trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-        --printProof state
+        printProof state
         applyProof state
         logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated => 
@@ -124,14 +125,36 @@ def evalDuper : Tactic
       -- trace[Prover.debug] "supMainPremiseIdx: {state.supMainPremiseIdx}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
+| `(tactic| duper $ident:ident) => withMainContext do
+  replaceMainGoal [(← intros (← getMainGoal)).2]
+  let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
+  assignExprMVar (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
+  replaceMainGoal [mvar.mvarId!]
+  replaceMainGoal [(← intro (← getMainGoal) `h).2]
+  withMainContext do
+    let formulas ← collectAssumptions
+    let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
+    match state.result with
+    | Result.contradiction => do 
+      logInfo s!"{ident} test succeeded in finding a contradiction"
+      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
+      printProof state
+      applyProof state
+    | Result.saturated =>
+      logInfo s!"{ident} test resulted in prover saturation"
+      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
+      Lean.Elab.Tactic.evalTactic (← `(tactic| sorry))
+    | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
-syntax (name := try_duper) "try_duper" : tactic
+syntax (name := try_duper) "try_duper" ident ? : tactic
 
 @[tactic try_duper]
 def evalTryDuper : Tactic
 | `(tactic| try_duper) => do
-  Lean.Elab.Tactic.evalTactic (← `(tactic| (try duper); (try sorry)))
+  Lean.Elab.Tactic.evalTactic (← `(tactic| (first | duper | sorry )))
+| `(tactic| try_duper $ident:ident) => do
+  Lean.Elab.Tactic.evalTactic (← `(tactic| (first | duper $ident | sorry )))
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic

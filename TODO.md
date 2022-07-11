@@ -1,19 +1,7 @@
 # TODO
 
-Bugs exposed/created by changing superposition's side condition checks:
-- Modifying replace to instantiate metavariables seems to fix most of the issues exposed/created by the change
-  to superposition's side condition checks (all of the issues described in the previous commit's TODO.md comment
-  are resolved by this edit)
-- However, COM003_1, which previously failed due to deterministic timeout, now fails due to premature saturation.
-  Deterministic timeout doesn't necessarily indicate a problem, but premature saturation does, so look into why this
-  test is getting stuck and failing to continue
-- All other tests (in test.lean and TPTP_test.lean) appear to be working as well (or poorly) as they did prior to changing
-  superposition's side condition checks
-
 Inference rules:
-- check for strict maximality in superposition rule
 - perform superposition only on maximal sides of main premise literal
-- Check ordering constraints before unification
 - Check whether a clause is still in active set when retrieving it from an index. (Or alternatively, remove clauses from indices when they are removed from active set)
 
 Simplification rules:
@@ -27,7 +15,22 @@ Refactoring to consider:
 - Use mvars in Clause to avoid cost of conversion?
 - Use an inductive type to store information about proof steps for reconstruction instead of using closures?
 
+Premature saturation instances:
+- PUZ082_8 achieves premature saturation because our current unificaiton algorithm cannot unify "says Peter #0" with
+  "says Peter (\forall X, says Peter X -> not X)". This is because unifying "#0" (which becomes a metavariable) and
+  "(\forall X, says Peter X -> not X)" is not supported as the latter is not an mvar, fvar, or constant.
+    - PUZ083_8 achieves premature saturation for a very similar reason (PUZ082_8 and PUZ083_8 are nearly identical puzzles)
+- PUZ137_8 achieves premature saturation because our current interpretation of $o/$oType in tff isn't correct. Currently, we interpreting $o/$oType
+  as Prop, but there is an important sense in which we should at least sometimes be interpreting it as Bool. PUZ137_8 is one such instance.
+    - Though at present, I don't know that fully interpreting $o/$oType as Bool would necessarily work either
+- Prior to changing superposition's side condition checks (commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a), COM003_1 failed due to deterministic
+  timeout, but did not visibly have any issue of premature saturation. After changing superposition's side condition checks, COM003_1 now results
+  in premature saturation. Need to look into why this is the case.
+
 Other:
+- Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests
+  that have more consistent output (e.g. test succeeded, test saturated, test ran out of time, or test encountered error) so that it can quickly/easily be
+  determined what effects any given commit had on the outputs for PUZ_tests, LCL_tests, and COM_tests (i.e. which tests' behavior changed from the previous commit).
 - Unit tests, e.g. for the ordering. (How do unit tests work in Lean 4?)
 - Command line version of duper?
 - Why are some clauses repeated in the proofs that duper produces (e.g. clauses 6-8 in test0011 and almost all of the early clauses in iffClausificationTest1)?
