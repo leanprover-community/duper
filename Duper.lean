@@ -5,7 +5,7 @@ import Duper.Tests.COM_tests
 import Duper.Tests.PUZ_tests
 -/
 
-import Duper.Tests.TPTP_Test
+import Duper.Tests.PUZ_test
 
 /-
 --LCL Tests

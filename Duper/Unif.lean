@@ -34,6 +34,13 @@ where
         unifyFlexRigid t s
       | Expr.mvar mVarId .., Expr.mvar .. =>
         unifyFlexFlex s t
+      -- Adding cases involving forallE (treating it similar to Expr.const)
+      | Expr.forallE .., Expr.forallE .. =>
+        unifyRigidRigid s t
+      | Expr.mvar .., Expr.forallE .. =>
+        unifyFlexRigid s t
+      | Expr.forallE .., Expr.mvar .. =>
+        unifyFlexRigid t s
       | _, _ => return false
   unifyRigidRigid (s t : Expr) : MetaM Bool := do
     s.withApp fun f ss => t.withApp fun g tt =>
