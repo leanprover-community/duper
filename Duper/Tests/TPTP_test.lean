@@ -131,12 +131,10 @@ tptp COM002_2 "../TPTP-v8.0.0/Problems/COM/COM002_2.p"
 #print axioms COM002_2
 
 tptp COM003_1 "../TPTP-v8.0.0/Problems/COM/COM003_1.p"
-  by duper -- Deterministic timeout
+  by duper -- Prover saturated!? (since commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a)
 
 tptp HWV039_3 "../TPTP-v8.0.0/Problems/HWV/HWV039_3.p"
   by duper -- Deterministic timeout (duper previously could solve this, but only because a parsing bug in tptp resulted in the wrong problem being made)
-
-#print axioms HWV039_3
 
 tptp PHI044_1 "../TPTP-v8.0.0/Problems/PHI/PHI044_1.p"
   by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
@@ -163,33 +161,21 @@ tptp PUZ131_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ131_1.p"
 #print axioms PUZ131_1
 
 tptp PUZ134_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p"
-  by duper -- Contradiction found but failed to synthesize "Inhabited job"
+  by duper -- Deterministic timeout (previously made an erroneous proof due to bug in destructiveEqualityResolution)
 
 tptp PUZ135_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_1.p"
   by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"
-  by duper -- Failed to synthesize "Inhabited place"
+  by duper -- Deterministic timeout (previously made an erroneous proof due to bug in destructiveEqualityResolution)
 
 tptp PUZ139_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ139_1.p"
   by duper -- Succeeds
+
+#print axioms PUZ139_1
 
 tptp COM001_1_modified "../TPTP-v8.0.0/Problems/COM/COM001_1.p" by 
   have number_inhabited : Inhabited number := Inhabited.mk n
   duper -- Succeeds in finding a contradiction after commit that consumes the mData of expressions before converting them to literals
 
 #print axioms COM001_1_modified
-
-tptp PUZ134_2_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p" by 
-  have inhabited_knowheyan : Inhabited knowheyan := Inhabited.mk a
-  duper 
-/- PUZ134_2_modified gives the error: 
-application type mismatch
-h rfl
-argument has type
-  [anonymous] = [anonymous]
-but function has type
-  [anonymous] = [anonymous] → False
-
-At present, I'm not sure how to interpret this error, or even whether it indicates a bug in duper or tptp
--/

@@ -27,6 +27,9 @@ Premature saturation instances:
   timeout, but did not visibly have any issue of premature saturation. After changing superposition's side condition checks, COM003_1 now results
   in premature saturation. Need to look into why this is the case.
 
+Other testing issues:
+- Error when reconstructing clausification in PUZ031_1_modified in PUZ_tests.lean
+
 Other:
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests
   that have more consistent output (e.g. test succeeded, test saturated, test ran out of time, or test encountered error) so that it can quickly/easily be
@@ -35,7 +38,6 @@ Other:
 - Command line version of duper?
 - Why are some clauses repeated in the proofs that duper produces (e.g. clauses 6-8 in test0011 and almost all of the early clauses in iffClausificationTest1)?
     - Do repeated clauses indicate that we're unnecessarily reproving things, and if so, how much does that impact efficiency?
-- Determine the cause of the error in PUZ134_2_modified and similar tests in TPTP_test.lean (application type mismatch h rfl)
 - Look into whether it would be useful/more efficient to have a lhs/rhs convention so that clauses aren't duplicated up to symmetries (e.g. a = b and b = a)
 
 ## For later:

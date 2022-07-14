@@ -1,7 +1,11 @@
 --import Duper.Tests.test
+/-
 import Duper.Tests.LCL_tests
 import Duper.Tests.COM_tests
 import Duper.Tests.PUZ_tests
+-/
+
+import Duper.Tests.TPTP_Test
 
 /-
 --LCL Tests

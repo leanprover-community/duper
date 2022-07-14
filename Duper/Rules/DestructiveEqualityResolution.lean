@@ -45,6 +45,12 @@ def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM (SimpResu
   withoutModifyingMCtx $ do
     let lit := c.lits[i]
     if ← unify #[(lit.lhs, lit.rhs)] then
+      /-
+        Need to instantiate MVars so that the unification remains even after we exit the current MCtx
+        destructiveEqualityResolution requires this line even though equalityResolution doesn't because 
+        equalityResolution calls yieldClause which does this
+      -/
+      let c ← c |>.mapM instantiateMVars 
       return Applied [(c.eraseLit i, some (mkDestructiveEqualtiyResolutionProof i))]
     else
       return Unapplicable -- Cannot apply destructive equality resolution to this literal, 

@@ -2,49 +2,53 @@ import Duper.Tactic
 import Duper.TPTP
 
 tptp PUZ018_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ018_1.p"
-  by try_duper PUZ018_1
+  by duper PUZ018_1 -- Det timeout
 
 tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
-  by try_duper PUZ031_1
+  by duper PUZ031_1 -- Failed to synthesize inhabited_plant
+
+tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by 
+  have inhabited_plant : Inhabited plant := sorry
+  duper -- Error when reconstructing clausification
 
 tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
-  by try_duper PUZ137_8
+  by duper PUZ137_8 -- Prover saturated (noted in TODO.md)
 
-tptp PUZ081_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ081_8.p"
-  by try_duper PUZ081_8
+tptp PUZ081_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ081_8.p" -- Parsing issue
+  by duper PUZ081_8
 
 tptp PUZ083_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ083_8.p"
-  by try_duper PUZ083_8
+  by duper PUZ083_8 -- Prover saturated (noted in TODO.md)
 
 tptp PUZ134_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p"
-  by try_duper PUZ134_2
+  by duper PUZ134_2 -- Det timeout
 
 tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"
-  by try_duper PUZ135_2
+  by duper PUZ135_2 -- Det timeout
 
 tptp PUZ082_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ082_8.p"
-  by try_duper PUZ082_8
+  by duper PUZ082_8 -- Prover saturated (noted in TODO.md)
 
 tptp PUZ130_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ130_1.p"
-  by try_duper PUZ130_1
+  by duper PUZ130_1 -- Succeeds
 
 tptp PUZ131_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ131_1.p"
-  by try_duper PUZ131_1
+  by duper PUZ131_1 -- Succeeds
 
 tptp PUZ135_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_1.p"
-  by try_duper PUZ135_1
+  by duper PUZ135_1 -- Det timeout
 
 tptp PUZ134_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_1.p"
-  by try_duper PUZ134_1
+  by duper PUZ134_1 -- Det timeout
 
 tptp PUZ139_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ139_1.p"
-  by try_duper PUZ139_1
+  by duper PUZ139_1 -- Succeeds
 
-tptp PUZ133_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ133=2.p"
-  by try_duper PUZ133_2
+tptp PUZ133_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ133=2.p" -- Parsing issue
+  by duper PUZ133_2
 
 tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
-  by try_duper PUZ012_1
+  by duper PUZ012_1 -- Succeeds
 
 #print axioms PUZ018_1
 #print axioms PUZ031_1
