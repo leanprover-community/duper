@@ -329,8 +329,10 @@ def clausificationStep : MSimpRule := fun c => do
                     let dproof ← match dproof with
                     | none => Meta.mkSorry resRight' true
                     | some dproof => dproof h
+                    trace[TPTP_Testing] "Prior to defEq unification, dproof: {dproof}, resRight' {resRight'}"
                     if not (← Meta.isDefEq (← Meta.inferType dproof) resRight') then
                       throwError "Error when reconstructing clausification. Expected type: {resRight'}, but got: {dproof}"
+                    trace[TPTP_Testing] "After defEq unificaiton, dproof: {dproof}, resRight' {resRight'}"
                     if resRight.length == 0 then
                       Meta.mkLambdaFVars #[h] $ ← Meta.mkAppOptM ``False.elim #[body, dproof]
                     else

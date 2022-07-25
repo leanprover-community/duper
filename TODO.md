@@ -15,20 +15,31 @@ Refactoring to consider:
 - Use mvars in Clause to avoid cost of conversion?
 - Use an inductive type to store information about proof steps for reconstruction instead of using closures?
 
-Premature saturation instances:
-- PUZ137_8 achieves premature saturation because our current interpretation of $o/$oType in tff isn't correct. Currently, we interpreting $o/$oType
-  as Prop, but there is an important sense in which we should at least sometimes be interpreting it as Bool. PUZ137_8 is one such instance.
+Known bugs/issues (bugs.lean):
+- Premature saturation instances:
+  - PUZ137_8 achieves premature saturation because our current interpretation of $o/$oType in tff isn't correct. Currently, we interpreting $o/$oType
+    as Prop, but there is an important sense in which we should at least sometimes be interpreting it as Bool. PUZ137_8 is one such instance.
     - Though at present, I don't know that fully interpreting $o/$oType as Bool would necessarily work either
-- Prior to changing superposition's side condition checks (commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a), COM003_1 failed due to deterministic
-  timeout, but did not visibly have any issue of premature saturation. After changing superposition's side condition checks, COM003_1 now results
-  in premature saturation. Need to look into why this is the case.
-
-Other testing issues:
-- Error when reconstructing clausification in PUZ031_1_modified in PUZ_tests.lean
-- Determine what is causing "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error in PUZ012_1
+  - Prior to changing superposition's side condition checks (commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a), COM003_1 failed due to deterministic
+    timeout, but did not visibly have any issue of premature saturation. After changing superposition's side condition checks, COM003_1 now results
+    in premature saturation. Need to look into why this is the case.
 - Inconsistent behavior of PUZ012_1
-  - In PUZ_test.lean, if lines 4 through 9 are commented out, then PUZ012_1 will fail to find a contradiction due to deterministic timeout.
-    However, if lines 4 through 9 are not commented out, then PUZ012_1 quickly succeeds in finding a valid contradiction
+  - In bugs.lean, if lines 6 and 7 are commented out (the definition of PUZ082_8), then PUZ012_1 will fail to find a contradiction due to 
+    deterministic timeout. However, if lines 6 and 7 are not commented out, then PUZ012_1 quickly succeeds in finding a valid contradiction
+- PUZ031_1_modified:
+  - "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error
+  - Error when reconstructing clausification
+    - Determine why resRight' and the type of dproof cannot be unified
+- Escaped mvar tests
+  - In clausificationStepE, there are two cases that involve introducing fresh metavariables. (the (true, Expr.forallE ..) case and the case that
+    calls "clausify_exists_false"). In both of these cases, fresh metavariables are introduced with the assumption that they will be assigned
+    by the Meta.isDefEq call in clausificationStep. Usually, this works, however, when we have a forall or there exists statement where the variable
+    being bound does not appear in the resulting expression (e.g. (forall n : Nat, true)), the clause being produced will not reference the variable
+    being bound. Consequently, the unification performed by Meta.isDefEq will not need to (or be able to) assign the introduced metavariable, yielding
+    a final proof that contains metavariables (which the kernel will not accept).
+- false_eq_true test:
+  - duper cannot prove "not false" because it achieves the final active set [false = true] and can proceed no farther
+  - duper can handle the clause true = false and derive a contradiction, but not the clause false = true
 
 Other:
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests
