@@ -14,6 +14,7 @@ import Duper.Rules.Demodulation
 import Duper.Rules.ElimResolvedLit
 import Duper.Rules.DestructiveEqualityResolution
 import Duper.Rules.EqualityFactoring
+import Duper.Rules.IdentFalseElim
 import Std.Data.BinomialHeap
 
 namespace Duper
@@ -46,7 +47,8 @@ def simpRules : ProverM (Array SimpRule) := do
     syntacticTautologyDeletion2.toSimpRule "syntactic tautology deletion 2",
     elimDupLit.toSimpRule "eliminate duplicate literals",
     elimResolvedLit.toSimpRule "eliminate resolved literals",
-    destructiveEqualityResolution.toSimpRule "destructive equality resolution"
+    destructiveEqualityResolution.toSimpRule "destructive equality resolution",
+    identFalseElim.toSimpRule "identity false elimination"
   ]
 
 def applySimpRules (givenClause : Clause) :
