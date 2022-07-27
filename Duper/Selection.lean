@@ -9,7 +9,7 @@ open Lean
 def getSelections (c : MClause) : List Nat := Id.run do
   -- simply select first negative literal:
   for i in [:c.lits.size] do
-    if c.lits[i].sign == false || exprIsFalse c.lits[i].rhs || exprIsFalse c.lits[i].lhs then
+    if c.lits[i].sign == false || c.lits[i].rhs == mkConst ``False || c.lits[i].lhs == mkConst ``False then
       return [i]
   return []
 

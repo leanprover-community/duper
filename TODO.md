@@ -37,9 +37,6 @@ Known bugs/issues (bugs.lean):
     being bound does not appear in the resulting expression (e.g. (forall n : Nat, true)), the clause being produced will not reference the variable
     being bound. Consequently, the unification performed by Meta.isDefEq will not need to (or be able to) assign the introduced metavariable, yielding
     a final proof that contains metavariables (which the kernel will not accept).
-- false_eq_true test:
-  - duper cannot prove "not false" because it achieves the final active set [false = true] and can proceed no farther
-  - duper can handle the clause true = false and derive a contradiction, but not the clause false = true
 
 Other:
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests
@@ -62,6 +59,10 @@ Heuristics:
 - Precedence heuristics for ordering
 - Literal selection heuristics
 - Next given clause heuristics
+
+Special treatment for certain types/expressions:
+- Implementing rules explicitly concerning boolean reasoning to better handle Bools
+- Implementing rules or integrating tactics pertaining to Nats, Ints, and/or Reals
 
 Other:
 - Duper cannot synthesize the "Inhabited" property for types it is given 

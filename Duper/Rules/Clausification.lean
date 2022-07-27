@@ -343,10 +343,7 @@ def clausificationStep : MSimpRule := fun c => do
                 caseProofs := caseProofs.push $ pr
 
               let r ← orCases (parentLits.map Lit.toExpr) caseProofs
-              trace[Meta.debug] "###RES {res}"
-              trace[Meta.debug] "###R {← Meta.inferType r}"
               let r ← Meta.mkLambdaFVars xs $ mkApp r appliedPremise
-              trace[Meta.debug] "###R {r}"
               return r
         (⟨c.lits.eraseIdx i ++ d.lits⟩, mkProof)
     | Removed => 
