@@ -2,7 +2,6 @@
 
 Inference rules:
 - perform superposition only on maximal sides of main premise literal
-- Check whether a clause is still in active set when retrieving it from an index. (Or alternatively, remove clauses from indices when they are removed from active set)
 
 Simplification rules:
 - Semantic tautology deletion?
@@ -47,6 +46,8 @@ Other:
 - Why are some clauses repeated in the proofs that duper produces (e.g. clauses 6-8 in test0011 and almost all of the early clauses in iffClausificationTest1)?
     - Do repeated clauses indicate that we're unnecessarily reproving things, and if so, how much does that impact efficiency?
 - Look into whether it would be useful/more efficient to have a lhs/rhs convention so that clauses aren't duplicated up to symmetries (e.g. a = b and b = a)
+- Currently, we have a hacky implementation of removing clauses from indices (tacking on a filter before retrieving). If this turns out to be too inefficient,
+  implement removal from discrimination trees properly.
 
 ## For later:
 

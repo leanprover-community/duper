@@ -287,7 +287,12 @@ def addToActive (c : Clause) : ProverM Unit := do
 
 /-- Remove c from mainPremiseIdx, supSidePremiseIdx, and demodSidePremiseIdx -/
 def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
-  sorry
+  let mainIdx ← getMainPremiseIdx
+  let supSideIdx ← getSupSidePremiseIdx
+  let demodSideIdx ← getDemodSidePremiseIdx
+  setMainPremiseIdx (← runRuleM $ mainIdx.delete c)
+  setSupSidePremiseIdx (← runRuleM $ supSideIdx.delete c)
+  setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
 
 def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   let lctx ← getLCtx

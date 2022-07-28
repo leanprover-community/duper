@@ -92,7 +92,8 @@ partial def saturate : ProverM Unit := do
           return LoopCtrl.abort
       trace[Prover.saturate] "### Given clause: {givenClause}"
       let some givenClause ← forwardSimplify givenClause
-        | -- TODO: Remove givenClause from ProverM's discrimination trees
+        | do
+          removeFromDiscriminationTrees givenClause
           return LoopCtrl.next
       trace[Prover.saturate] "### Given clause after simp: {givenClause}"
       backwardSimplify givenClause

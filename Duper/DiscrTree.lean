@@ -33,8 +33,11 @@ instance : Hashable Key := ⟨Key.hash⟩
 inductive Trie (α : Type) where
   | node (vs : Array α) (children : Array (Key × Trie α)) : Trie α
 
+/- The filter_set argument is a temporary hack to simulate deletions from the discrimination tree. If that turns
+   out to be too slow though, I'll have to remove it and rewrite delete to actually remove elements from the tree -/
 structure DiscrTree (α : Type) where
   root : Std.PersistentHashMap Key (Trie α) := {}
+  filter_set : Std.HashSet Clause := {} -- Keeps track of the set of clauses that should be filtered out (i.e. "removed" clauses)
 
 def Key.ctorIdx : Key → Nat
   | Key.star     => 0
@@ -75,7 +78,6 @@ def Key.arity : Key → Nat
   | _             => 0
 
 instance : Inhabited (Trie α) := ⟨Trie.node #[] #[]⟩
-
 
 namespace DiscrTree
 
@@ -328,10 +330,7 @@ private def getMatchRoot (d : DiscrTree α) (k : Key) (args : Array Expr) (resul
   | none   => return result
   | some c => getMatchLoop args c result
 
-/--
-  Find values that match `e` in `d`.
--/
-partial def getMatch (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
+private partial def getMatch' (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
   Core.checkMaxHeartbeats "getMatch"
   let result := getStarResult d
   let (k, args) ← getMatchKeyArgs e (root := true)
@@ -339,7 +338,13 @@ partial def getMatch (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
   | Key.star => return result
   | _        => getMatchRoot d k args result
 
-partial def getUnify (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
+/-- Find values that match `e` in `d`. -/
+partial def getMatch (d : DiscrTree (Clause × α)) (e : Expr) : RuleM (Array (Clause × α)) := do
+  let unfiltered_result ← getMatch' d e
+  let filter_set := d.filter_set
+  return Array.filter (fun c => not (filter_set.contains c.1)) unfiltered_result
+
+private partial def getUnify' (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
   Core.checkMaxHeartbeats "getUnify"
   let (k, args) ← getUnifyKeyArgs e (root := true)
   match k with
@@ -381,6 +386,16 @@ where
         -- See comment a `getMatch` regarding non-dependent arrows vs dependent arrows
         | Key.arrow => visitNonStar Key.other #[] (← visitNonStar k args (← visitStar result))
         | _         => visitNonStar k args (← visitStar result)
+
+partial def getUnify (d : DiscrTree (Clause × α)) (e : Expr) : RuleM (Array (Clause × α)) := do
+  let unfiltered_result ← getUnify' d e
+  let filter_set := d.filter_set
+  return Array.filter (fun c => not (filter_set.contains c.1)) unfiltered_result
+
+def delete (d : DiscrTree α) (c : Clause) : RuleM (DiscrTree α) := do
+  let root := d.root
+  let filter_set := d.filter_set.insert c
+  return { root := root, filter_set := filter_set }
 
 end DiscrTree
 end Duper
