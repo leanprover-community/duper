@@ -9,8 +9,6 @@ tptp PUZ082_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ082_8.p"
 tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
   by duper PUZ012_1 -- Succeeds if PUZ082_8 above is uncommented, and times out if PUZ082_8 above is commented out
 
-set_option trace.Print_Proof false
-
 tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
   by duper -- Prover saturated (from PUZ_tests.lean)
 

@@ -215,7 +215,7 @@ open ProverM
 
 def performSuperposition (givenClause : Clause) : ProverM Unit := do
   trace[Prover.debug] "Superposition inferences with {givenClause}"
-  let mainPremiseIdx ← getSupMainPremiseIdx
+  let mainPremiseIdx ← getMainPremiseIdx
   let sidePremiseIdx ← getSupSidePremiseIdx
   performInference (superposition mainPremiseIdx sidePremiseIdx) givenClause
 

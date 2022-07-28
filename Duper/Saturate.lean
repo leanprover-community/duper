@@ -40,7 +40,7 @@ open SimpResult
 
 def simpRules : ProverM (Array SimpRule) := do
   return #[
-    (forwardDemodulation (← getSupMainPremiseIdx)).toSimpRule "forward demodulation",
+    (forwardDemodulation (← getMainPremiseIdx)).toSimpRule "forward demodulation",
     -- backwardDemodulation,
     clausificationStep.toSimpRule "clausification",
     syntacticTautologyDeletion1.toSimpRule "syntactic tautology deletion 1",
@@ -92,7 +92,8 @@ partial def saturate : ProverM Unit := do
           return LoopCtrl.abort
       trace[Prover.saturate] "### Given clause: {givenClause}"
       let some givenClause ← forwardSimplify givenClause
-        | return LoopCtrl.next
+        | -- TODO: Remove givenClause from ProverM's discrimination trees
+          return LoopCtrl.next
       trace[Prover.saturate] "### Given clause after simp: {givenClause}"
       backwardSimplify givenClause
       addToActive givenClause
