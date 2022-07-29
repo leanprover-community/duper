@@ -198,7 +198,6 @@ def superposition
   for i in [:givenMClause.lits.size] do
     if givenMClause.lits[i].sign = true && litSelectedOrNothingSelected givenMClause i
     then
-      let restOfGivenClause := givenMClause.eraseIdx i
       for side in #[LitSide.lhs, LitSide.rhs] do
         let flippedLit := givenMClause.lits[i].makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then

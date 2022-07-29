@@ -1,26 +1,64 @@
 import Duper.Simp
+import Duper.Selection
+import Duper.Util.ProofReconstruction
 
 namespace Duper
 
+open Lean
 open RuleM
 open SimpResult
 open Comparison
 initialize Lean.registerTraceClass `Rule.demodulation
 
-def forwardDemodulation (idx : ProverM.ClauseDiscrTree ClausePos) : MSimpRule := fun c => do
-  if c.lits.size == 1 ∧ c.lits[0].sign then
-    let l := c.lits[0]
-    let c ← compare l.lhs l.rhs
-    if c == Incomparable ∨ c == Equal then
-      return Unapplicable
-    let l := if c == LessThan then l.symm else l
-    let partnerClauses ← DiscrTree.getMatch idx l.lhs
-    trace[Rule.demodulation] "Demodulation Clause: {l}"
-    trace[Rule.demodulation] "partners: {partnerClauses.map Prod.fst}"
-    return Unapplicable
-  else
-    return Unapplicable
+/- Note: I am implementing Schulz's side conditions for RP and RN, except for the condition that RP is allowed if p ≠ λ or σ 
+   is a variable renaming. The reason for this is that I suspect I will just have to change the side conditions later to match
+   "Superposition for Full Higher-Order Logic", so there's little point in being super precise about implementing Schulz's more
+   annoying side conditions.
 
---TODO: Whereever indices are passed in (e.g. Sup), pass a closure instead
--- that checks whether the clauses found in the index are still in the
--- active set.
+   So the side conditions I'm implementing are:
+   - If mainPremise.lits[mainPremisePos.lit].sign is true (i.e. we are in the RP case), then all of the following must hold:
+      1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
+      2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
+      3. mainPremise.lits[mainPremisePos.lit] must not be eligible for paramodulation (in Schulz's paper, we could instead have
+         p ≠ λ or σ not be a variable renaming, but these are the conditions I'm not implementing right now)
+   - If mainPremise.lits[mainPremisePos.lit].sign is false (i.e. we are in the RN case), then all of the following must hold:
+      1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
+      2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
+-/
+def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) (mainPremisePos : ClausePos)
+  (sidePremise : MClause) (sidePremiseLhs : LitSide) (givenClauseIsMainPremise : Bool) :
+  RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  Core.checkMaxHeartbeats "forward demodulation"
+  withoutModifyingMCtx $ do
+    let sidePremiseLit := sidePremise.lits[0].makeLhs sidePremiseLhs
+    if (mainPremise.lits[mainPremisePos.lit].sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
+      return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
+    if not (← performMatch #[(sidePremiseLit.lhs, mainPremiseSubterm)]) then
+      return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
+    if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
+      return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
+    
+    return Unapplicable --TODO: Actually apply the rule
+
+def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.ClauseDiscrTree ClausePos) (givenMainClause : MClause) :
+  RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  let potentialPartners ← sideIdx.getMatch e
+  for (partnerClause, partnerPos) in potentialPartners do
+    let c ← loadClauseWithoutEffects partnerClause
+    match ← forwardDemodulationWithPartner givenMainClause e pos c partnerPos.side true with
+    | Unapplicable => continue
+    | Applied res => return Applied res
+    | Removed => throwError "Invalid demodulation result"
+  return Unapplicable
+
+/-- Performs rewriting of positive and negative literals (demodulation) with the given clause c as the main clause. We only attempt
+    to use c as the main clause (rather than attempt to use it as a side clause as well) because if we used c as a side clause, we
+    would remove the wrong clause from the active set (we would remove c rather than the main clause that c is paired with). c will 
+    considered as a side clause in the backward simplificaiton loop (i.e. in backwardDemodulation) -/
+def forwardDemodulation (sideIdx : ProverM.ClauseDiscrTree ClausePos) : MSimpRule := fun c => do
+  let fold_fn := fun acc e pos => do
+    match acc with
+    | Unapplicable => forwardDemodulationAtExpr e pos sideIdx c
+    | Applied res => return Applied res -- If forwardDemodulationAtExpr ever succeeds, just return the first success
+    | Removed => throwError "Invalid demodulation result"
+  c.foldM fold_fn Unapplicable

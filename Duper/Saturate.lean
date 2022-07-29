@@ -40,8 +40,7 @@ open SimpResult
 
 def simpRules : ProverM (Array SimpRule) := do
   return #[
-    (forwardDemodulation (← getMainPremiseIdx)).toSimpRule "forward demodulation",
-    -- backwardDemodulation,
+    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)",
     clausificationStep.toSimpRule "clausification",
     syntacticTautologyDeletion1.toSimpRule "syntactic tautology deletion 1",
     syntacticTautologyDeletion2.toSimpRule "syntactic tautology deletion 2",
@@ -70,10 +69,10 @@ partial def simpLoop (givenClause : Clause) : ProverM (Option Clause) := do
 
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
   let c := simpLoop givenClause
-  -- TODO: Check for empty clause and raise throwEmptyClauseException
   c
 
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
+  -- TODO: Add backward demodulation
   return ()
 
 def performInferences (givenClause : Clause) : ProverM Unit := do

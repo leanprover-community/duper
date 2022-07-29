@@ -1,6 +1,7 @@
 import Lean
 import Duper.Unif
 import Duper.MClause
+import Duper.Match
 
 namespace Duper
 
@@ -162,6 +163,9 @@ def instantiateMVars (e : Expr) : RuleM Expr :=
 def unify (l : Array (Expr × Expr)) : RuleM Bool := do
   runMetaAsRuleM $ Meta.unify l
 
+def performMatch (l : Array (Expr × Expr)) : RuleM Bool := do
+  runMetaAsRuleM $ Meta.performMatch l
+
 def isProof (e : Expr) : RuleM Bool := do
   runMetaAsRuleM $ Meta.isProof e
 
@@ -186,6 +190,16 @@ def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
 
 def loadClause (c : Clause) : RuleM MClause := do
   let (mvars, mclause) ← loadClauseCore c
+  return mclause
+
+def loadClauseCoreWithoutEffects (c : Clause) : RuleM (Array Expr × MClause) := do
+  let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
+  let lits := c.lits.map fun l =>
+    l.map fun e => e.instantiateRev mVars
+  return (mVars, MClause.mk lits)
+
+def loadClauseWithoutEffects (c : Clause) : RuleM MClause := do
+  let (mvars, mclause) ← loadClauseCoreWithoutEffects c
   return mclause
 
 def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) := do

@@ -37,6 +37,11 @@ Known bugs/issues (bugs.lean):
     being bound. Consequently, the unification performed by Meta.isDefEq will not need to (or be able to) assign the introduced metavariable, yielding
     a final proof that contains metavariables (which the kernel will not accept).
 
+Question:
+- In superpositionAtLitWithPartner, why do we "replace e lhs rhs" throughout the whole mainPremise? Why not just the relevant literal, 
+  or better yet, the relevant side of the relevant literal? Would it be more efficient to narrow the scope? Are any problems/bugs created by
+  the current way of doing things? Or does it need to be done this way for a reason I don't currently understand?
+
 Other:
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests
   that have more consistent output (e.g. test succeeded, test saturated, test ran out of time, or test encountered error) so that it can quickly/easily be
