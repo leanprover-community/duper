@@ -74,6 +74,30 @@ def getAtPos! (l : Lit) (pos : LitPos) : Expr :=
   | LitSide.lhs => l.lhs.getAtPos! pos.pos
   | LitSide.rhs => l.rhs.getAtPos! pos.pos
 
+def replaceAtPos? (l : Lit) (pos : LitPos) (replacement : Expr) : Option Lit :=
+  match pos.side with
+  | LitSide.lhs =>
+    match l.lhs.replaceAtPos? pos.pos replacement with
+    | some newLhs => some {l with lhs := newLhs}
+    | none => none
+  | LitSide.rhs =>
+    match l.rhs.replaceAtPos? pos.pos replacement with
+    | some newRhs => some {l with rhs := newRhs}
+    | none => none
+
+def replaceAtPos! (l : Lit) (pos : LitPos) (replacement : Expr) [Monad m] [MonadError m] : m Lit :=
+  match pos.side with
+  | LitSide.lhs => return {l with lhs := ← l.lhs.replaceAtPos! pos.pos replacement}
+  | LitSide.rhs => return {l with rhs := ← l.rhs.replaceAtPos! pos.pos replacement}
+
+/-- This function acts as Meta.kabstract except that it takes a LitPos rather than Occurrences and expects
+    the given expression to consist only of applications up to the given ExprPos. Additionally, since the exact
+    position is given, we don't need to pass in Meta.kabstract's second argument p -/
+def abstractAtPos! (l : Lit) (pos : LitPos) : MetaM Lit := do
+  match pos.side with
+  | LitSide.lhs => return {l with lhs := ← l.lhs.abstractAtPos! pos.pos}
+  | LitSide.rhs => return {l with rhs := ← l.rhs.abstractAtPos! pos.pos}
+
 def symm (l : Lit) : Lit :=
 {l with 
   lhs := l.rhs

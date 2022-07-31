@@ -13,9 +13,8 @@ inductive Eligibility
   | not_eligible
 deriving Inhabited, BEq, Repr
 
--- TODO: Pass in the clauses later?
-def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) 
-    (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
+def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
+  (givenIsMain : Bool) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -30,18 +29,23 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]
         let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
-          let eq := if sidePremiseLitSide == LitSide.rhs 
-                      then ← Meta.mkAppM ``Eq.symm #[heq] 
-                      else heq
+          let eq :=
+            if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
+            else heq
           let mut caseProofsMain : Array Expr := #[]
           for i in [:mainParentLits.size] do
             let lit := mainParentLits[i]
-            let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+            let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
-              let abstr ← Meta.kabstract lit.toExpr $ eqLit.getSide sidePremiseLitSide
-              let abstr := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstr
-              let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,eq], h]
-              Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
+              if(i == mainPremisePos.lit) then
+                let litPos : LitPos := {side := mainPremisePos.side, pos := mainPremisePos.pos}
+                let abstrLit ← (lit.abstractAtPos! litPos)
+                let abstrExp := abstrLit.toExpr
+                let abstrLam := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstrExp
+                let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstrLam, eq], h]
+                Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
+              else
+                Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
             caseProofsMain := caseProofsMain.push $ pr
           let r ← orCases (mainParentLits.map Lit.toExpr) caseProofsMain
           Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
@@ -152,9 +156,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     if (← compare lhs rhs) == Comparison.LessThan then
       return ()
 
-    let mainPremiseReplaced ← 
-      mainPremise.mapM fun e => do
-        replace e lhs rhs --TODO: Replace only green subterms
+    let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos rhs
 
     if mainPremiseReplaced.isTrivial then
       trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
@@ -163,7 +165,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
     let res := MClause.append restOfSidePremise mainPremiseReplaced
     yieldClause res "superposition" 
-      (mkProof := mkSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain)
+      (mkProof := mkSuperpositionProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain)
 
 def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) 
       (sidePremise : MClause) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) : 

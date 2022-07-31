@@ -1,4 +1,3 @@
-
 import Duper.Clause
 
 namespace Duper
@@ -37,6 +36,25 @@ def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m]
 
 def getAtPos! (c : MClause) (pos : ClausePos) : Expr :=
   c.lits[pos.lit].getAtPos! ⟨pos.side, pos.pos⟩
+
+def replaceAtPos? (c : MClause) (pos : ClausePos) (replacement : Expr) : Option MClause :=
+  if (pos.lit ≥ c.lits.size) then none
+  else
+    let litPos : LitPos := {side := pos.side, pos := pos.pos}
+    match c.lits[pos.lit].replaceAtPos? litPos replacement with
+    | some newLit => some {lits := Array.set! c.lits pos.lit newLit}
+    | none => none
+
+def replaceAtPos! (c : MClause) (pos : ClausePos) (replacement : Expr) [Monad m] [MonadError m] : m MClause :=
+  let litPos : LitPos := {side := pos.side, pos := pos.pos}
+  return {lits := Array.set! c.lits pos.lit $ ← c.lits[pos.lit].replaceAtPos! litPos replacement}
+
+/-- This function acts as Meta.kabstract except that it takes a ClausePos rather than Occurrences and expects
+    the given expression to consist only of applications up to the given ExprPos. Additionally, since the exact
+    position is given, we don't need to pass in Meta.kabstract's second argument p -/
+def abstractAtPos! (c : MClause) (pos : ClausePos) : MetaM MClause := do
+  let litPos : LitPos := {side := pos.side, pos := pos.pos}
+  return {lits := Array.set! c.lits pos.lit $ ← c.lits[pos.lit].abstractAtPos! litPos}
 
 def append (c : MClause) (d : MClause) : MClause := ⟨c.lits.append d.lits⟩
 
