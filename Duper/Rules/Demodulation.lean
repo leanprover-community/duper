@@ -10,6 +10,49 @@ open SimpResult
 open Comparison
 initialize Lean.registerTraceClass `Rule.demodulation
 
+-- Note: Currently does not work
+def mkForwardDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos)
+  (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
+    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+
+    let mainParentLits := parentsLits[0]
+    let sideParentLits := parentsLits[1]
+    let appliedMainPremise := appliedPremises[0]
+    let appliedSidePremise := appliedPremises[1]
+
+    let eqLit := sideParentLits[0]
+
+    trace[Rule.demodulation] "c: {c}"
+    trace[Rule.demodulation] "parentLits: {parentsLits}"
+    trace[Rule.demodulation] "appliedPremises: {appliedPremises}"
+    trace[Rule.demodulation] "mainParentLits: {mainParentLits}"
+    trace[Rule.demodulation] "sideParentLits: {sideParentLits}"
+    trace[Rule.demodulation] "eqLit: {eqLit}"
+
+    let proof ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
+      let mut caseProofs : Array Expr := #[]
+      let eq :=
+        if sidePremiseLhs == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
+        else heq
+      for i in [:mainParentLits.size] do
+        let lit := mainParentLits[i]
+        let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          if(i == mainPremisePos.lit) then
+            let litPos : LitPos := {side := mainPremisePos.side, pos := mainPremisePos.pos}
+            let abstrLit ← (lit.abstractAtPos! litPos)
+            let abstrExp := abstrLit.toExpr
+            let abstrLam := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstrExp
+            let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstrLam, eq], h]
+            Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i $ rwproof
+          else
+            Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i h
+        caseProofs := caseProofs.push $ pr
+      let r ← orCases (mainParentLits.map Lit.toExpr) caseProofs
+      Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
+    return proof
+
 /- Note: I am implementing Schulz's side conditions for RP and RN, except for the condition that RP is allowed if p ≠ λ or σ 
    is a variable renaming. The reason for this is that I suspect I will just have to change the side conditions later to match
    "Superposition for Full Higher-Order Logic", so there's little point in being super precise about implementing Schulz's more
@@ -37,8 +80,8 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm :
       return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
     if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
       return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
-    
-    return Unapplicable --TODO: Actually apply the rule
+    let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
+    return Applied [(mainPremiseReplaced, none)]
 
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.ClauseDiscrTree ClausePos) (givenMainClause : MClause) :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do

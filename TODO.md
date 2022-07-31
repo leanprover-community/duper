@@ -4,8 +4,10 @@ Inference rules:
 - perform superposition only on maximal sides of main premise literal
 
 Simplification rules:
+- Demodulation
+  - Proof reconstructions
+  - Backward demodulation (using given clause as side premise to simplify pre-existing clauses in the active set)
 - Semantic tautology deletion?
-- Rewriting of positive/negative literals (aka Demodulation)
 - Positive/Negative simplify-reflect
 - Clause subsumption
 - Equality subsumption?
@@ -36,11 +38,6 @@ Known bugs/issues (bugs.lean):
     being bound does not appear in the resulting expression (e.g. (forall n : Nat, true)), the clause being produced will not reference the variable
     being bound. Consequently, the unification performed by Meta.isDefEq will not need to (or be able to) assign the introduced metavariable, yielding
     a final proof that contains metavariables (which the kernel will not accept).
-
-Question:
-- In superpositionAtLitWithPartner, why do we "replace e lhs rhs" throughout the whole mainPremise? Why not just the relevant literal, 
-  or better yet, the relevant side of the relevant literal? Would it be more efficient to narrow the scope? Are any problems/bugs created by
-  the current way of doing things? Or does it need to be done this way for a reason I don't currently understand?
 
 Other:
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests

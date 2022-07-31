@@ -35,7 +35,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
           let mut caseProofsMain : Array Expr := #[]
           for i in [:mainParentLits.size] do
             let lit := mainParentLits[i]
-            let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+            let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
               if(i == mainPremisePos.lit) then
                 let litPos : LitPos := {side := mainPremisePos.side, pos := mainPremisePos.pos}
