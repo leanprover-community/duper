@@ -4,9 +4,7 @@ Inference rules:
 - perform superposition only on maximal sides of main premise literal
 
 Simplification rules:
-- Demodulation
-  - Proof reconstructions
-  - Backward demodulation (using given clause as side premise to simplify pre-existing clauses in the active set)
+- Backward demodulation (using given clause as side premise to simplify pre-existing clauses in the active set)
 - Semantic tautology deletion?
 - Positive/Negative simplify-reflect
 - Clause subsumption

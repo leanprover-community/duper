@@ -10,7 +10,6 @@ open SimpResult
 open Comparison
 initialize Lean.registerTraceClass `Rule.demodulation
 
--- Note: Currently does not work
 def mkForwardDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos)
   (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
@@ -23,13 +22,6 @@ def mkForwardDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : Clau
     let appliedSidePremise := appliedPremises[1]
 
     let eqLit := sideParentLits[0]
-
-    trace[Rule.demodulation] "c: {c}"
-    trace[Rule.demodulation] "parentLits: {parentsLits}"
-    trace[Rule.demodulation] "appliedPremises: {appliedPremises}"
-    trace[Rule.demodulation] "mainParentLits: {mainParentLits}"
-    trace[Rule.demodulation] "sideParentLits: {sideParentLits}"
-    trace[Rule.demodulation] "eqLit: {eqLit}"
 
     let proof ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
       let mut caseProofs : Array Expr := #[]
@@ -51,6 +43,7 @@ def mkForwardDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : Clau
         caseProofs := caseProofs.push $ pr
       let r ← orCases (mainParentLits.map Lit.toExpr) caseProofs
       Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
+    let proof ← Meta.mkLambdaFVars xs $ mkApp proof appliedSidePremise
     return proof
 
 /- Note: I am implementing Schulz's side conditions for RP and RN, except for the condition that RP is allowed if p ≠ λ or σ 
@@ -81,16 +74,19 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm :
     if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
       return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
     let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
-    return Applied [(mainPremiseReplaced, none)]
+    return Applied [(mainPremiseReplaced, (some $ mkForwardDemodulationProof sidePremiseLhs mainPremisePos))]
 
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.ClauseDiscrTree ClausePos) (givenMainClause : MClause) :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   let potentialPartners ← sideIdx.getMatch e
   for (partnerClause, partnerPos) in potentialPartners do
-    let c ← loadClauseWithoutEffects partnerClause
+    let c ← loadClauseWithoutEffects partnerClause -- forwardDemodulationWithPartner might not succeed so don't add to loadedClauses
     match ← forwardDemodulationWithPartner givenMainClause e pos c partnerPos.side true with
     | Unapplicable => continue
-    | Applied res => return Applied res
+    | Applied res =>
+      let _ ← loadClause partnerClause -- forwardDemodulationWithPartner succeeded so we need to add c to loadedClauses in the state
+      trace[Rule.demodulation] "ForwardDemodulationAtExpr: Trying to load clause {partnerClause} in forwardDemodulation"
+      return Applied res
     | Removed => throwError "Invalid demodulation result"
   return Unapplicable
 

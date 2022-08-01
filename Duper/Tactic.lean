@@ -71,6 +71,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   let proof ← withLCtx lctx (← getLocalInstances) do
     trace[Meta.debug] "Reconstructing proof for #{info.number}: {c}"
     let newProof ← info.proof.mkProof parents info.proof.parents c
+    trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
     if cs == [] then return newProof
     let proof ←
       withLetDecl (Name.mkNum `clause info.number) newTarget newProof fun g => do

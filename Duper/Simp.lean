@@ -33,8 +33,7 @@ abbrev MSimpRule := MClause → RuleM (SimpResult (List (MClause × Option Proof
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
     
 
-def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String)
-    : SimpRule := fun givenClause => do
+def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fun givenClause => do
   -- Run the rule
   let (res, cs) ← runSimpRule do
     let mclause ← loadClause givenClause
