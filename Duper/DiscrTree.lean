@@ -33,11 +33,11 @@ instance : Hashable Key := ⟨Key.hash⟩
 inductive Trie (α : Type) where
   | node (vs : Array α) (children : Array (Key × Trie α)) : Trie α
 
-/- The filter_set argument is a temporary hack to simulate deletions from the discrimination tree. If that turns
+/- The filterSet argument is a temporary hack to simulate deletions from the discrimination tree. If that turns
    out to be too slow though, I'll have to remove it and rewrite delete to actually remove elements from the tree -/
 structure DiscrTree (α : Type) where
   root : Std.PersistentHashMap Key (Trie α) := {}
-  filter_set : Std.HashSet Clause := {} -- Keeps track of the set of clauses that should be filtered out (i.e. "removed" clauses)
+  filterSet : Std.HashSet Clause := {} -- Keeps track of the set of clauses that should be filtered out (i.e. "removed" clauses)
 
 def Key.ctorIdx : Key → Nat
   | Key.star     => 0
@@ -248,8 +248,15 @@ def insertCore [BEq α] (d : DiscrTree α) (keys : Array Key) (v : α) : DiscrTr
       let c := insertAux keys v 1 c
       { root := d.root.insert k c }
 
+/- Original, more general insert code for discrimination trees
 def insert [BEq α] (d : DiscrTree α) (e : Expr) (v : α) : RuleM (DiscrTree α) := do
   let keys ← mkPath e
+  return d.insertCore keys v
+-/
+
+def insert [BEq α] (d : DiscrTree (Clause × α)) (e : Expr) (v : (Clause × α)) : RuleM (DiscrTree (Clause × α)) := do
+  let keys ← mkPath e
+  let d := {d with filterSet := d.filterSet.erase v.1} -- In case if v.1 was previously removed, erase v.1 from d.filterSet
   return d.insertCore keys v
 
 private def getKeyArgs (e : Expr) (isMatch root : Bool) : RuleM (Key × Array Expr) := do
@@ -341,8 +348,8 @@ private partial def getMatch' (d : DiscrTree α) (e : Expr) : RuleM (Array α) :
 /-- Find values that match `e` in `d`. -/
 partial def getMatch (d : DiscrTree (Clause × α)) (e : Expr) : RuleM (Array (Clause × α)) := do
   let unfiltered_result ← getMatch' d e
-  let filter_set := d.filter_set
-  return Array.filter (fun c => not (filter_set.contains c.1)) unfiltered_result
+  let filterSet := d.filterSet
+  return Array.filter (fun c => not (filterSet.contains c.1)) unfiltered_result
 
 private partial def getUnify' (d : DiscrTree α) (e : Expr) : RuleM (Array α) := do
   Core.checkMaxHeartbeats "getUnify"
@@ -389,13 +396,13 @@ where
 
 partial def getUnify (d : DiscrTree (Clause × α)) (e : Expr) : RuleM (Array (Clause × α)) := do
   let unfiltered_result ← getUnify' d e
-  let filter_set := d.filter_set
-  return Array.filter (fun c => not (filter_set.contains c.1)) unfiltered_result
+  let filterSet := d.filterSet
+  return Array.filter (fun c => not (filterSet.contains c.1)) unfiltered_result
 
 def delete (d : DiscrTree α) (c : Clause) : RuleM (DiscrTree α) := do
   let root := d.root
-  let filter_set := d.filter_set.insert c
-  return { root := root, filter_set := filter_set }
+  let filter_set := d.filterSet.insert c
+  return { root := root, filterSet := filter_set }
 
 end DiscrTree
 end Duper

@@ -90,14 +90,12 @@ partial def saturate : ProverM Unit := do
           setResult saturated
           return LoopCtrl.abort
       trace[Prover.saturate] "### Given clause: {givenClause}"
-      let some givenClause ← forwardSimplify givenClause
-        | do
-          removeFromDiscriminationTrees givenClause
-          return LoopCtrl.next
-      trace[Prover.saturate] "### Given clause after simp: {givenClause}"
-      backwardSimplify givenClause
-      addToActive givenClause
-      performInferences givenClause
+      let some simplifiedGivenClause ← forwardSimplify givenClause
+        | return LoopCtrl.next
+      trace[Prover.saturate] "### Given clause after simp: {simplifiedGivenClause}"
+      backwardSimplify simplifiedGivenClause
+      addToActive simplifiedGivenClause
+      performInferences simplifiedGivenClause
       trace[Prover.saturate] "### New active Set: {(← getActiveSet).toArray}"
       return LoopCtrl.next
     catch
