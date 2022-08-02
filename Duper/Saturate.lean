@@ -31,6 +31,7 @@ open RuleM
 initialize
   registerTraceClass `Simp
   registerTraceClass `Simp.debug
+  registerTraceClass `Timeout.debug
 
 set_option trace.Prover.debug true
 
@@ -38,7 +39,7 @@ set_option maxHeartbeats 10000
 
 open SimpResult
 
-def simpRules : ProverM (Array SimpRule) := do
+def forwardSimpRules : ProverM (Array SimpRule) := do
   return #[
     (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)",
     clausificationStep.toSimpRule "clausification",
@@ -50,27 +51,31 @@ def simpRules : ProverM (Array SimpRule) := do
     identBoolFalseElim.toSimpRule "identity boolean false elimination"
   ]
 
-def applySimpRules (givenClause : Clause) :
-    ProverM (SimpResult Clause) := do
-  for simpRule in ← simpRules do
+def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
+  for simpRule in ← forwardSimpRules do
     match ← simpRule givenClause with
     | Removed => return Removed
     | Applied c => return Applied c
     | Unapplicable => continue
   return Unapplicable
 
-partial def simpLoop (givenClause : Clause) : ProverM (Option Clause) := do
-  Core.checkMaxHeartbeats "simpLoop"
-  match ← applySimpRules givenClause with
-  | Applied c => 
-    simpLoop c
+partial def forwardSimpLoop (givenClause : Clause) : ProverM (Option Clause) := do
+  Core.checkMaxHeartbeats "forwardSimpLoop"
+  match ← applyForwardSimpRules givenClause with
+  | Applied c => forwardSimpLoop c
   | Unapplicable => return some givenClause 
   | Removed => return none
 
+/-- Uses other clauses in the active set to attempt to simplify the given clause. Returns some simplifiedGivenClause if
+    forwardSimpLoop is able to use simplification rules to transform givenClause to simplifiedGivenClause. Returns none if
+    forwardSimpLoop is able to use simplification rules to show that givenClause is unneeded. -/
 def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
-  let c := simpLoop givenClause
+  let c := forwardSimpLoop givenClause
   c
 
+/-- Uses the givenClause to attempt to simplify other clauses in the active set. For each clause that backwardSimpLoop is
+    able to produce a simplification for, backwardSimplify removes the clause from the active set (and all discrimination trees)
+    and adds the newly simplified clause to the passive set. -/
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
   -- TODO: Add backward demodulation
   return ()
@@ -102,7 +107,10 @@ partial def saturate : ProverM Unit := do
     | Exception.internal emptyClauseExceptionId _  =>
       setResult contradiction
       return LoopCtrl.abort
-    | e => throw e
+    | e =>
+      trace[Timeout.debug] "Active set at timeout: {(← getActiveSet).toArray}"
+      --trace[Timeout.debug] "All clauses at timeout: {Array.map (fun x => x.1) (← getAllClauses).toArray}"
+      throw e
 
 end ProverM
 

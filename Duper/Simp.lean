@@ -31,7 +31,6 @@ open SimpResult
 
 abbrev MSimpRule := MClause → RuleM (SimpResult (List (MClause × Option ProofReconstructor)))
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
-    
 
 def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fun givenClause => do
   -- Run the rule
@@ -54,6 +53,5 @@ def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fu
       else
         addNewToPassive c proof
     return Applied cs[0].1
-
 
 end Duper

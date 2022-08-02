@@ -252,7 +252,6 @@ def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit
 
 def addToActive (c : Clause) : ProverM Unit := do
   let ci ← getClauseInfo! c
-  --TODO: use event listeners for this?
   -- Add to superposition's side premise index:
   let idx ← getSupSidePremiseIdx
   let idx ← runRuleM do
@@ -293,6 +292,13 @@ def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
   setMainPremiseIdx (← runRuleM $ mainIdx.delete c)
   setSupSidePremiseIdx (← runRuleM $ supSideIdx.delete c)
   setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
+
+/-- Remove c from the active set and from all of the state's discrimination trees-/
+def removeFromActive (c : Clause) : ProverM Unit := do
+  let activeSet ← getActiveSet
+  if activeSet.contains c then
+    setActiveSet $ activeSet.erase c
+    removeFromDiscriminationTrees c
 
 def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   let lctx ← getLCtx
