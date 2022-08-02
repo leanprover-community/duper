@@ -9,6 +9,7 @@ import Duper.Rules.ClausifyPropEq
 import Duper.Rules.EqualityResolution
 import Duper.Rules.SyntacticTautologyDeletion1
 import Duper.Rules.SyntacticTautologyDeletion2
+import Duper.Rules.SyntacticTautologyDeletion3
 import Duper.Rules.ElimDupLit
 import Duper.Rules.Demodulation
 import Duper.Rules.ElimResolvedLit
@@ -41,10 +42,11 @@ open SimpResult
 
 def forwardSimpRules : ProverM (Array SimpRule) := do
   return #[
-    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)",
+    --(forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)",
     clausificationStep.toSimpRule "clausification",
     syntacticTautologyDeletion1.toSimpRule "syntactic tautology deletion 1",
     syntacticTautologyDeletion2.toSimpRule "syntactic tautology deletion 2",
+    syntacticTautologyDeletion3.toSimpRule "syntactic tautology deletion 3",
     elimDupLit.toSimpRule "eliminate duplicate literals",
     elimResolvedLit.toSimpRule "eliminate resolved literals",
     destructiveEqualityResolution.toSimpRule "destructive equality resolution",

@@ -32,7 +32,7 @@ example
   (ax4 : Sane Tarr ↔ ∀ x, Doctor x → Sane x)
   (ax5 : Sane Fether ↔ ∀ x, ¬ Doctor x → ¬ (Sane x))
   (ax6 : Sane Fether ↔ Sane Tarr)
-  : False := sorry -- by duper -- timeout
+  : False := sorry --by duper -- timeout
 
 theorem asylum_one
   (h1 : Sane Jones ↔ Doctor Smith)
@@ -47,9 +47,6 @@ theorem asylum_seven
   : (¬ Sane A ∨ Doctor A) ∨ (Sane A ∧ ¬ Doctor A) := by duper
 
 #print axioms asylum_seven
-
---set_option maxHeartbeats 10000
-set_option trace.Timeout.debug true
 
 theorem asylum_nine
   (h1 : Sane A ↔ (Sane B ↔ Sane C))

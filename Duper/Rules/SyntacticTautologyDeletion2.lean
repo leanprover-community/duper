@@ -5,7 +5,7 @@ open Std
 open RuleM
 open SimpResult
 
--- This implements the rule syntactic tautology deletion 2 (TD2)
+/-- This implements the rule syntactic tautology deletion 2 (TD2) -/
 def syntacticTautologyDeletion2 : MSimpRule := fun c => do
   --trace[Simp.debug] "Calling syntacticTautologyDeletion2 on clause {c.lits}"
   let mut eq_pairs : HashSet (Lean.Expr × Lean.Expr) := mkHashSet; -- A HashSet that stores pairs of Lean expressions that are equated in the clause
