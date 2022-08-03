@@ -35,11 +35,12 @@ abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fun givenClause => do
   -- Run the rule
   let (res, cs) ← runSimpRule do
-    let mclause ← loadClause givenClause
-    let cs? ← rule mclause
-    cs?.forM fun cs => do
-      for (c, mkProof) in cs do yieldClause c ruleName mkProof
-    return cs?
+    withoutModifyingMCtx do
+      let mclause ← loadClause givenClause
+      let cs? ← rule mclause
+      cs?.forM fun cs => do
+        for (c, mkProof) in cs do yieldClause c ruleName mkProof
+      return cs?
   match res with
   | Removed           => return Removed
   | Unapplicable      => return Unapplicable

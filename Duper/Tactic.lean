@@ -11,6 +11,7 @@ open Lean.Parser
 initialize 
   registerTraceClass `TPTP_Testing
   registerTraceClass `Print_Proof
+  registerTraceClass `Saturate.debug
 
 namespace Lean.Elab.Tactic
 
@@ -121,8 +122,8 @@ def evalDuper : Tactic
         applyProof state
         logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated => 
-      trace[Prover.debug] "Final Active Set: {state.activeSet.toArray}"
-      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
+      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+      trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident) => withMainContext do
@@ -142,7 +143,8 @@ def evalDuper : Tactic
       applyProof state
     | Result.saturated =>
       logInfo s!"{ident} test resulted in prover saturation"
-      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
+      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+      trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
       Lean.Elab.Tactic.evalTactic (← `(tactic| sorry))
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax

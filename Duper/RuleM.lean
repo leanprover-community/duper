@@ -163,6 +163,8 @@ def instantiateMVars (e : Expr) : RuleM Expr :=
 def unify (l : Array (Expr × Expr)) : RuleM Bool := do
   runMetaAsRuleM $ Meta.unify l
 
+/-- Given an array of expression pairs (match_target, e), attempts to assign mvars in e to make e equal to match_target.
+    Returns true and performs mvar assignments if successful, returns false and does not perform any mvar assignments otherwise -/
 def performMatch (l : Array (Expr × Expr)) : RuleM Bool := do
   runMetaAsRuleM $ Meta.performMatch l
 
@@ -192,15 +194,15 @@ def loadClause (c : Clause) : RuleM MClause := do
   let (mvars, mclause) ← loadClauseCore c
   return mclause
 
-def loadClauseCoreWithoutEffects (c : Clause) : RuleM (Array Expr × MClause) := do
+/-- Returns the MClause that would be returned by calling `loadClause c` and the Clause × Array MVarId pair that
+    would be pushed to loadedClauses if `loadClause c` were called, but does not actually change the set of
+    loaded clauses. The purpose of this function is to process a clause and turn it into an MClause while delaying
+    the decision of whether to actually load it -/
+def prepLoadClause (c : Clause) : RuleM (MClause × (Clause × Array MVarId)) := do
   let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
   let lits := c.lits.map fun l =>
     l.map fun e => e.instantiateRev mVars
-  return (mVars, MClause.mk lits)
-
-def loadClauseWithoutEffects (c : Clause) : RuleM MClause := do
-  let (mvars, mclause) ← loadClauseCoreWithoutEffects c
-  return mclause
+  return (MClause.mk lits, (c, mVars.map Expr.mvarId!))
 
 def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) := do
   let c ← c |>.mapM instantiateMVars

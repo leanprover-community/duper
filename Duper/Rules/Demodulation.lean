@@ -65,27 +65,29 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm :
   (sidePremise : MClause) (sidePremiseLhs : LitSide) (givenClauseIsMainPremise : Bool) :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   Core.checkMaxHeartbeats "forward demodulation"
-  withoutModifyingMCtx $ do
-    let sidePremiseLit := sidePremise.lits[0].makeLhs sidePremiseLhs
-    if (mainPremise.lits[mainPremisePos.lit].sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
-      return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
-    if not (← performMatch #[(sidePremiseLit.lhs, mainPremiseSubterm)]) then
-      return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
-    if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
-      return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
-    let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
-    return Applied [(mainPremiseReplaced, (some $ mkForwardDemodulationProof sidePremiseLhs mainPremisePos))]
+  let sidePremiseLit := sidePremise.lits[0].makeLhs sidePremiseLhs
+  if (mainPremise.lits[mainPremisePos.lit].sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
+    return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
+  if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)]) then
+    return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
+  if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
+    return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
+  let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
+  return Applied [(mainPremiseReplaced, (some $ mkForwardDemodulationProof sidePremiseLhs mainPremisePos))]
 
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.ClauseDiscrTree ClausePos) (givenMainClause : MClause) :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   let potentialPartners ← sideIdx.getMatch e
   for (partnerClause, partnerPos) in potentialPartners do
-    let c ← loadClauseWithoutEffects partnerClause -- forwardDemodulationWithPartner might not succeed so don't add to loadedClauses
-    match ← forwardDemodulationWithPartner givenMainClause e pos c partnerPos.side true with
+    let (mclause, cToLoad) ← prepLoadClause partnerClause
+    match ← forwardDemodulationWithPartner givenMainClause e pos mclause partnerPos.side true with
     | Unapplicable => continue
     | Applied res =>
-      let _ ← loadClause partnerClause -- forwardDemodulationWithPartner succeeded so we need to add c to loadedClauses in the state
-      trace[Rule.demodulation] "ForwardDemodulationAtExpr: Trying to load clause {partnerClause} in forwardDemodulation"
+      -- forwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
+      setLoadedClauses ((← getLoadedClauses).push cToLoad)
+      trace[Rule.demodulation] "Main clause: {givenMainClause.lits} at lit: {pos.lit} at expression: {e}"
+      trace[Rule.demodulation] "Side clause: {partnerClause} at lit: {partnerPos.lit}"
+      trace[Rule.demodulation] "Result: {(List.get! res 0).1.lits}"
       return Applied res
     | Removed => throwError "Invalid demodulation result"
   return Unapplicable
