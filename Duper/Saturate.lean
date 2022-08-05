@@ -51,8 +51,8 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     elimResolvedLit.toSimpRule "eliminate resolved literals",
     destructiveEqualityResolution.toSimpRule "destructive equality resolution",
     identPropFalseElim.toSimpRule "identity prop false elimination",
-    identBoolFalseElim.toSimpRule "identity boolean false elimination"
-    --(forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)"
+    identBoolFalseElim.toSimpRule "identity boolean false elimination",
+    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)"
   ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
