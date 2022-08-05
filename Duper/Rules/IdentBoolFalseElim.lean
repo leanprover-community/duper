@@ -6,8 +6,6 @@ open RuleM
 open SimpResult
 open Lean
 
-#check Meta.isDefEq
-
 /-- Determines whether a literal has exactly the form `false = true` or `true = false`-/
 def isFalseLiteral (lit : Lit) : MetaM Bool := do
   if ← Meta.isDefEq lit.ty (mkConst ``Bool) then
@@ -45,7 +43,7 @@ def mkIdentBoolFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
         proofCases := proofCases.push proofCase
       else -- refs[i] should have the value (some j) where parentLits[i] == c[j]
         match refs[i] with
-        | none => throwError "Refs invariant is not satisfied in identFalseElim"
+        | none => throwError "Refs invariant is not satisfied in identBoolFalseElim"
         | some j =>
           let proofCase ← Meta.withLocalDeclD `h parentLits[i].toExpr fun h => do
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j h
@@ -54,7 +52,7 @@ def mkIdentBoolFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
     Meta.mkLambdaFVars xs $ mkApp proof appliedPremise
 
 /-- Eliminate literals that are exactly of the form `false = true` or `true = false`. 
-    This is a special case of the falseElim inference rule in which σ is the identity. 
+    This is a special case of the boolFalseElim inference rule in which σ is the identity. 
     This rule is included as a means of giving Bools special attention. -/
 def identBoolFalseElim : MSimpRule := fun c => do
   let mut newLits : Array Lit := #[]

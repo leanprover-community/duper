@@ -16,6 +16,7 @@ import Duper.Rules.ElimResolvedLit
 import Duper.Rules.DestructiveEqualityResolution
 import Duper.Rules.EqualityFactoring
 import Duper.Rules.IdentBoolFalseElim
+import Duper.Rules.IdentPropFalseElim
 import Std.Data.BinomialHeap
 
 namespace Duper
@@ -42,7 +43,6 @@ open SimpResult
 
 def forwardSimpRules : ProverM (Array SimpRule) := do
   return #[
-    --(forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)",
     clausificationStep.toSimpRule "clausification",
     syntacticTautologyDeletion1.toSimpRule "syntactic tautology deletion 1",
     syntacticTautologyDeletion2.toSimpRule "syntactic tautology deletion 2",
@@ -50,7 +50,9 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     elimDupLit.toSimpRule "eliminate duplicate literals",
     elimResolvedLit.toSimpRule "eliminate resolved literals",
     destructiveEqualityResolution.toSimpRule "destructive equality resolution",
+    identPropFalseElim.toSimpRule "identity prop false elimination",
     identBoolFalseElim.toSimpRule "identity boolean false elimination"
+    --(forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)"
   ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
@@ -97,14 +99,14 @@ partial def saturate : ProverM Unit := do
         | do
           setResult saturated
           return LoopCtrl.abort
-      trace[Prover.saturate] "### Given clause: {givenClause}"
+      trace[Prover.saturate] "Given clause: {givenClause}"
       let some simplifiedGivenClause ← forwardSimplify givenClause
         | return LoopCtrl.next
-      trace[Prover.saturate] "### Given clause after simp: {simplifiedGivenClause}"
+      trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause}"
       backwardSimplify simplifiedGivenClause
       addToActive simplifiedGivenClause
       performInferences simplifiedGivenClause
-      trace[Prover.saturate] "### New active Set: {(← getActiveSet).toArray}"
+      trace[Prover.saturate] "New active Set: {(← getActiveSet).toArray}"
       return LoopCtrl.next
     catch
     | Exception.internal emptyClauseExceptionId _  =>

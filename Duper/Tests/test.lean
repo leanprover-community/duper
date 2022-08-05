@@ -377,4 +377,4 @@ tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
 #print axioms KRS003_1
 
 tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
-  by duper PUZ012_1 
+  by duper
