@@ -30,6 +30,7 @@ end SimpResult
 inductive BackwardSimpResult
 | Removed (removedClauses : List MClause) : BackwardSimpResult
 | Applied (transformedClauses : List (MClause × (MClause × Option ProofReconstructor))) : BackwardSimpResult
+| Unapplicable : BackwardSimpResult
 
 open SimpResult
 
@@ -74,6 +75,7 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
         for (_, c, mkProof) in transformedClauses do
           yieldClause c ruleName mkProof
         return BackwardSimpResult.Applied transformedClauses
+      | BackwardSimpResult.Unapplicable => return BackwardSimpResult.Unapplicable
   match res with
   | BackwardSimpResult.Removed removedClauses =>
     for c in removedClauses do
@@ -86,5 +88,6 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
       removeClause oldClause
     -- Add new simplified clauses
     for (c, proof) in cs do addNewToPassive c proof
+  | BackwardSimpResult.Unapplicable => return ()
 
 end Duper

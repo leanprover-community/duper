@@ -49,6 +49,8 @@ Known bugs/issues (bugs.lean):
     being bound does not appear in the resulting expression (e.g. (forall n : Nat, true)), the clause being produced will not reference the variable
     being bound. Consequently, the unification performed by Meta.isDefEq will not need to (or be able to) assign the introduced metavariable, yielding
     a final proof that contains metavariables (which the kernel will not accept).
+- super_test at the end of test.lean
+  - Exhibits a bug in the proof reconstruction of elimDupLit
 
 Other:
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests

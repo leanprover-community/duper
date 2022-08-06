@@ -378,3 +378,13 @@ tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
 
 tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
   by duper
+
+--###############################################################################################################################
+-- Example from super
+theorem super_test (p q : i → i → Prop) (a b c d : i) :
+  (∀x y z, p x y ∧ p y z → p x z) →
+  (∀x y z, q x y ∧ q y z → q x z) →
+  (∀x y, q x y → q y x) →
+  (∀x y, p x y ∨ q x y) →
+  p a b ∨ q c d :=
+by duper

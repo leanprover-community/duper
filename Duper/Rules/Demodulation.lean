@@ -62,8 +62,7 @@ def mkForwardDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : Clau
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
 -/
 def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) (mainPremisePos : ClausePos)
-  (sidePremise : MClause) (sidePremiseLhs : LitSide) (givenClauseIsMainPremise : Bool) :
-  RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   Core.checkMaxHeartbeats "forward demodulation"
   let sidePremiseLit := sidePremise.lits[0].makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit].sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
@@ -80,7 +79,7 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.Cl
   let potentialPartners ← sideIdx.getMatch e
   for (partnerClause, partnerPos) in potentialPartners do
     let (mclause, cToLoad) ← prepLoadClause partnerClause
-    match ← forwardDemodulationWithPartner givenMainClause e pos mclause partnerPos.side true with
+    match ← forwardDemodulationWithPartner givenMainClause e pos mclause partnerPos.side with
     | Unapplicable => continue
     | Applied res =>
       -- forwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
@@ -103,3 +102,94 @@ def forwardDemodulation (sideIdx : ProverM.ClauseDiscrTree ClausePos) : MSimpRul
     | Applied res => return Applied res -- If forwardDemodulationAtExpr ever succeeds, just return the first success
     | Removed => throwError "Invalid demodulation result"
   c.foldM fold_fn Unapplicable
+
+open BackwardSimpResult
+
+def mkBackwardDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos)
+  (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
+    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+
+    let mainParentLits := parentsLits[0]
+    let sideParentLits := parentsLits[1]
+    let appliedMainPremise := appliedPremises[0]
+    let appliedSidePremise := appliedPremises[1]
+
+    let eqLit := sideParentLits[0]
+
+    let proof ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
+      let mut caseProofs : Array Expr := #[]
+      let eq :=
+        if sidePremiseLhs == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
+        else heq
+      for i in [:mainParentLits.size] do
+        let lit := mainParentLits[i]
+        let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          if(i == mainPremisePos.lit) then
+            let litPos : LitPos := {side := mainPremisePos.side, pos := mainPremisePos.pos}
+            let abstrLit ← (lit.abstractAtPos! litPos)
+            let abstrExp := abstrLit.toExpr
+            let abstrLam := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstrExp
+            let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstrLam, eq], h]
+            Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i $ rwproof
+          else
+            Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i h
+        caseProofs := caseProofs.push $ pr
+      let r ← orCases (mainParentLits.map Lit.toExpr) caseProofs
+      Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
+    let proof ← Meta.mkLambdaFVars xs $ mkApp proof appliedSidePremise
+    return proof
+
+/- Note: I am implementing Schulz's side conditions for RP and RN, except for the condition that RP is allowed if p ≠ λ or σ
+   is a variable renaming. The reason for this is that I suspect I will just have to change the side conditions later to match
+   "Superposition for Full Higher-Order Logic", so there's little point in being super precise about implementing Schulz's more
+   annoying side conditions.
+
+   So the side conditions I'm implementing are:
+   - If mainPremise.lits[mainPremisePos.lit].sign is true (i.e. we are in the RP case), then all of the following must hold:
+      1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
+      2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
+      3. mainPremise.lits[mainPremisePos.lit] must not be eligible for paramodulation (in Schulz's paper, we could instead have
+         p ≠ λ or σ not be a variable renaming, but these are the conditions I'm not implementing right now)
+   - If mainPremise.lits[mainPremisePos.lit].sign is false (i.e. we are in the RN case), then all of the following must hold:
+      1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
+      2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
+-/
+def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) (mainPremisePos : ClausePos)
+  (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM BackwardSimpResult := do
+  Core.checkMaxHeartbeats "backward demodulation"
+  let sidePremiseLit := sidePremise.lits[0].makeLhs sidePremiseLhs
+  if (mainPremise.lits[mainPremisePos.lit].sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
+    return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
+  if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)]) then
+    return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
+  if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
+    return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
+  let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
+  return Applied [(mainPremise, (mainPremiseReplaced, (some $ mkBackwardDemodulationProof sidePremiseLhs mainPremisePos)))]
+
+/-- Performs rewriting of positive and negative literals (demodulation) with the given clause as the side clause. -/
+def backwardDemodulation (mainIdx : ProverM.ClauseDiscrTree ClausePos) : BackwardMSimpRule := fun givenSideClause => do
+  if givenSideClause.lits.size != 1 || not givenSideClause.lits[0].sign then return Unapplicable
+  let l := givenSideClause.lits[0]
+  let c ← compare l.lhs l.rhs
+  if (c == Incomparable || c == Equal) then return Unapplicable
+
+  let givenSideClauseLhs := -- givenSideClause.getSide givenSideClauseLhs is will function as the lhs of the side clause
+    if c == GreaterThan then LitSide.lhs
+    else LitSide.rhs
+  let l :=
+    if givenSideClauseLhs == LitSide.lhs then l
+    else l.symm
+  let potentialPartners ← DiscrTree.getMatch mainIdx l.lhs
+  for (partnerClause, partnerPos) in potentialPartners do
+    let (mclause, cToLoad) ← prepLoadClause partnerClause
+    match ← backwardDemodulationWithPartner mclause (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs with
+    | BackwardSimpResult.Unapplicable => continue
+    | BackwardSimpResult.Applied transformedClauses =>
+      -- backwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
+      setLoadedClauses ((← getLoadedClauses).push cToLoad)
+      return BackwardSimpResult.Applied transformedClauses
+    | BackwardSimpResult.Removed removedClauses => throwError "Invalid demodulation result"
+  return Unapplicable

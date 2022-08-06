@@ -52,7 +52,12 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     destructiveEqualityResolution.toSimpRule "destructive equality resolution",
     identPropFalseElim.toSimpRule "identity prop false elimination",
     identBoolFalseElim.toSimpRule "identity boolean false elimination",
-    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation (rewriting of positive/negative literals)"
+    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation"
+  ]
+
+def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
+  return #[
+    --(backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule "backward demodulation"
   ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
@@ -77,13 +82,14 @@ def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
   let c := forwardSimpLoop givenClause
   c
 
-/-- Uses the givenClause to attempt to simplify other clauses in the active set. For each clause that backwardSimpLoop is
-    able to produce a simplification for, backwardSimplify removes the clause from the active set (and all discrimination trees)
-    and adds the newly simplified clause to the passive set. Additionally, for each clause removed from the active set
-    in this way, all descendents of said clause should also be removed from the current state's allClauses and passiveSet -/
+/-- Uses the givenClause to attempt to simplify other clauses in the active set. For each clause that backwardSimplify is
+    able to produce a simplification for, backwardSimplify removes the clause adds any newly simplified clauses to the passive set.
+    Additionally, for each clause removed from the active set in this way, all descendents of said clause should also be removed from
+    the current state's allClauses and passiveSet -/
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
-  -- TODO: Add backward demodulation
-  return ()
+  Core.checkMaxHeartbeats "backwardSimplify"
+  for simpRule in ← backwardSimpRules do
+    simpRule givenClause
 
 def performInferences (givenClause : Clause) : ProverM Unit := do
   performEqualityResolution givenClause
