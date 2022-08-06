@@ -102,6 +102,8 @@ partial def saturate : ProverM Unit := do
       trace[Prover.saturate] "Given clause: {givenClause}"
       let some simplifiedGivenClause ← forwardSimplify givenClause
         | return LoopCtrl.next
+      if ((← getActiveSet).contains simplifiedGivenClause) then
+        return LoopCtrl.next -- Don't need to backwardSimplify or performInferences because this clause has already been added to the active set
       trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause}"
       backwardSimplify simplifiedGivenClause
       addToActive simplifiedGivenClause

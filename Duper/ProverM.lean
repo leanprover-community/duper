@@ -237,8 +237,7 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array (Expr × Expr)) (ctx : Con
   ProverM.setLCtx state.lctx
   return state.resultClauses
 
-@[inline] def runSimpRule (x : RuleM α) : 
-    ProverM.ProverM (α × Array (Clause × Proof)) := do
+@[inline] def runSimpRule (x : RuleM α) : ProverM.ProverM (α × Array (Clause × Proof)) := do
   let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return (res, state.resultClauses)
@@ -293,12 +292,30 @@ def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
   setSupSidePremiseIdx (← runRuleM $ supSideIdx.delete c)
   setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
 
-/-- Remove c from the active set and from all of the state's discrimination trees-/
-def removeFromActive (c : Clause) : ProverM Unit := do
-  let activeSet ← getActiveSet
+/-- Removes c and all its descendants from the active set, passive set, and all discrimination trees -/
+def removeClause (c : Clause) : ProverM Unit := do
+  let mut activeSet ← getActiveSet
+  let mut passiveSet ← getPassiveSet
   if activeSet.contains c then
     setActiveSet $ activeSet.erase c
     removeFromDiscriminationTrees c
+    activeSet ← getActiveSet
+  if passiveSet.contains c then
+    setPassiveSet $ passiveSet.erase c
+    passiveSet ← getPassiveSet
+  for potentialChild in activeSet.toArray do -- Remove descendants from active set
+    let potentialChildInfo ← getClauseInfo! potentialChild
+    let potentialChildParents := Array.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
+    if potentialChildParents.contains c then
+      setActiveSet $ activeSet.erase potentialChild
+      removeFromDiscriminationTrees potentialChild
+      activeSet ← getActiveSet
+  for potentialChild in passiveSet.toArray do -- Remove descendants from passive set
+    let potentialChildInfo ← getClauseInfo! potentialChild
+    let potentialChildParents := Array.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
+    if potentialChildParents.contains c then
+      setPassiveSet $ passiveSet.erase potentialChild
+      passiveSet ← getPassiveSet
 
 def mkFreshFVarId (ty : Expr): ProverM FVarId := do
   let lctx ← getLCtx
