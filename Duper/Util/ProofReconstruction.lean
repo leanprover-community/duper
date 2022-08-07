@@ -27,9 +27,7 @@ def orCases (lits : Array Expr) (caseProofs : Array Expr) : MetaM Expr := do
   for k in [2:caseProofs.size+1] do
     let newOne := caseProofs[caseProofs.size - k]
     r ← Meta.withLocalDeclD `h ors[k-1] fun h => do
-      let p ← Meta.mkAppM
-        ``Or.elim
-        #[h, newOne, r]
+      let p ← Meta.mkAppM ``Or.elim #[h, newOne, r]
       Meta.mkLambdaFVars #[h] p
   return r
 
