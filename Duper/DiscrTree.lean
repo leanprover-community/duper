@@ -9,6 +9,8 @@ namespace Duper
 open Lean
 open RuleM
 
+initialize Lean.registerTraceClass `DiscrTree.debug
+
 inductive Key where
   | const : Name → Nat → Key
   | fvar  : FVarId → Nat → Key
@@ -88,9 +90,22 @@ partial def Trie.format [ToMessageData α] : Trie α → MessageData
     "node" ++ (if vs.isEmpty then MessageData.nil else " " ++ toMessageData vs)
     ++ MessageData.joinSep (cs.toList.map $ fun ⟨k, c⟩ => MessageData.paren (toMessageData k ++ " => " ++ format c)) ","
 
+partial def Trie.formatClause : Trie (Clause × α) → MessageData
+  | Trie.node vs cs => MessageData.group $ MessageData.paren $
+    "node" ++ (if vs.isEmpty then MessageData.nil else " " ++ toMessageData (Array.map (fun x => x.1) vs))
+    ++ MessageData.joinSep (cs.toList.map $ fun ⟨k, c⟩ => MessageData.paren (toMessageData k ++ " => " ++ formatClause c)) ","
+
 instance [ToMessageData α] : ToMessageData (Trie α) := ⟨Trie.format⟩
+instance : ToMessageData (Trie (Clause × α)) := ⟨Trie.formatClause⟩
 
 partial def format [ToMessageData α] (d : DiscrTree α) : MessageData :=
+  let (_, r) := d.root.foldl
+    (fun (p : Bool × MessageData) k c =>
+      (false, p.2 ++ MessageData.paren (toMessageData k ++ " => " ++ toMessageData c)))
+    (true, Format.nil)
+  MessageData.group r
+
+partial def formatClauses (d : DiscrTree (Clause × α)) : MessageData :=
   let (_, r) := d.root.foldl
     (fun (p : Bool × MessageData) k c =>
       (false, p.2 ++ MessageData.paren (toMessageData k ++ " => " ++ toMessageData c)))
@@ -243,10 +258,10 @@ def insertCore [BEq α] (d : DiscrTree α) (keys : Array Key) (v : α) : DiscrTr
     match d.root.find? k with
     | none =>
       let c := createNodes keys v 1
-      { root := d.root.insert k c }
+      { d with root := d.root.insert k c }
     | some c =>
       let c := insertAux keys v 1 c
-      { root := d.root.insert k c }
+      { d with root := d.root.insert k c }
 
 /- Original, more general insert code for discrimination trees
 def insert [BEq α] (d : DiscrTree α) (e : Expr) (v : α) : RuleM (DiscrTree α) := do
@@ -401,8 +416,8 @@ partial def getUnify (d : DiscrTree (Clause × α)) (e : Expr) : RuleM (Array (C
 
 def delete (d : DiscrTree α) (c : Clause) : RuleM (DiscrTree α) := do
   let root := d.root
-  let filter_set := d.filterSet.insert c
-  return { root := root, filterSet := filter_set }
+  let filterSet := d.filterSet.insert c
+  return { root := root, filterSet := filterSet }
 
 end DiscrTree
 end Duper

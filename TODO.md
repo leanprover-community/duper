@@ -38,6 +38,7 @@ Known bugs/issues (bugs.lean):
 - Inconsistent behavior of PUZ012_1
   - In bugs.lean, if lines 6 and 7 are commented out (the definition of PUZ082_8), then PUZ012_1 will fail to find a contradiction due to 
     deterministic timeout. However, if lines 6 and 7 are not commented out, then PUZ012_1 quickly succeeds in finding a valid contradiction
+  - super_test (at the end of test.lean) also exhibits similarly inconsistent behavior
 - PUZ031_1_modified:
   - "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error
   - Error when reconstructing clausification
@@ -49,8 +50,6 @@ Known bugs/issues (bugs.lean):
     being bound does not appear in the resulting expression (e.g. (forall n : Nat, true)), the clause being produced will not reference the variable
     being bound. Consequently, the unification performed by Meta.isDefEq will not need to (or be able to) assign the introduced metavariable, yielding
     a final proof that contains metavariables (which the kernel will not accept).
-- super_test at the end of test.lean
-  - Exhibits a bug in the proof reconstruction of elimDupLit
 
 Other:
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests

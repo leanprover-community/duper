@@ -38,7 +38,7 @@ abbrev MSimpRule := MClause → RuleM (SimpResult (List (MClause × Option Proof
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 
 abbrev BackwardMSimpRule := MClause → RuleM BackwardSimpResult
-abbrev BackwardSimpRule := Clause → ProverM Unit
+abbrev BackwardSimpRule := Clause → ProverM Bool -- Returns true iff any backward simplification was done (meaning backwardSimpLoop needs to loop)
 
 def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fun givenClause => do
   -- Run the rule
@@ -81,6 +81,7 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
     for c in removedClauses do
       let c ← runRuleM $ neutralizeMClause c
       removeClause c
+    return true
   | BackwardSimpResult.Applied transformedClauses =>
     -- Remove clauses that have been simplified away
     for (oldClause, _, _) in transformedClauses do
@@ -88,6 +89,7 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
       removeClause oldClause
     -- Add new simplified clauses
     for (c, proof) in cs do addNewToPassive c proof
-  | BackwardSimpResult.Unapplicable => return ()
+    return true
+  | BackwardSimpResult.Unapplicable => return false
 
 end Duper

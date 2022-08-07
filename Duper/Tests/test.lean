@@ -381,6 +381,10 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
 
 --###############################################################################################################################
 -- Example from super
+/-
+super_test no longer exhibits the elimDupLit proof reconstruction bug, but now (as of the commit that added backward demodulation),
+it succeeds inconsistently (like PUZ012_1 from bugs.lean)
+
 theorem super_test (p q : i → i → Prop) (a b c d : i) :
   (∀x y z, p x y ∧ p y z → p x z) →
   (∀x y z, q x y ∧ q y z → q x z) →
@@ -388,3 +392,4 @@ theorem super_test (p q : i → i → Prop) (a b c d : i) :
   (∀x y, p x y ∨ q x y) →
   p a b ∨ q c d :=
 by duper
+-/

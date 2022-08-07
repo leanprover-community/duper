@@ -30,5 +30,3 @@ theorem escaped_mvar_test2_working {a : Type} [Inhabited a] (h : ¬ (false = tru
 
 theorem escaped_mvar_test2_broken {a : Type} [Inhabited a] (h : ¬ (false = true)) : ¬(∀ a' : a, false) :=
   by duper -- Fails because a' does not appear in the forall statement
-
--- See super_test at the end of test.lean file
