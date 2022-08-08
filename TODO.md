@@ -35,10 +35,6 @@ Known bugs/issues (bugs.lean):
   - Prior to changing superposition's side condition checks (commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a), COM003_1 failed due to deterministic
     timeout, but did not visibly have any issue of premature saturation. After changing superposition's side condition checks, COM003_1 now results
     in premature saturation. Need to look into why this is the case.
-- Inconsistent behavior of PUZ012_1
-  - In bugs.lean, if lines 6 and 7 are commented out (the definition of PUZ082_8), then PUZ012_1 will fail to find a contradiction due to 
-    deterministic timeout. However, if lines 6 and 7 are not commented out, then PUZ012_1 quickly succeeds in finding a valid contradiction
-  - super_test (at the end of test.lean) also exhibits similarly inconsistent behavior
 - PUZ031_1_modified:
   - "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error
   - Error when reconstructing clausification
@@ -52,6 +48,11 @@ Known bugs/issues (bugs.lean):
     a final proof that contains metavariables (which the kernel will not accept).
 
 Other:
+- Find a way to better handle fvars in DiscrTree.lean's Key.hash and Key.lt. Currently, these functions have been modified to not depend
+  on fvar names, which is good in that it makes behavior more consistent, but bad in that right now, fvar keys are almost always being viewed as equal
+  to each other. Ideally, we should find a function that still distinguishes different fVarIds but is less sensitive to specific names (and in particular,
+  does not cause duper's behavior to depend on anything but the current test)
+    - Potentially, it may also be important to find a better deterministic way to handle fvars in Order.lean's precCompare, but this may matter less
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests
   that have more consistent output (e.g. test succeeded, test saturated, test ran out of time, or test encountered error) so that it can quickly/easily be
   determined what effects any given commit had on the outputs for PUZ_tests, LCL_tests, and COM_tests (i.e. which tests' behavior changed from the previous commit).

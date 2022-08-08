@@ -117,10 +117,17 @@ def precCompare (f g : Expr) : Comparison := match f, g with
   else if m > n then GreaterThan
   else if m < n then LessThan
   else Incomparable
-| Expr.fvar m .., Expr.fvar n .. => 
+| Expr.fvar m .., Expr.fvar n .. =>
+  /-
+  Below is the original code, but the original code's behavior was too fickle (e.g. the performance of one test
+  could depend on whether a different test preceeded it in the file or not)
+
   if m == n then Equal
   else if m.name.hash > n.name.hash then GreaterThan
   else if m.name.hash < n.name.hash then LessThan
+  else Incomparable
+  -/
+  if m == n then Equal
   else Incomparable
 | Expr.const ``False _ _, Expr.const ``False _ _ => Equal
 | Expr.const ``True _ _, Expr.const ``True _ _ => Equal

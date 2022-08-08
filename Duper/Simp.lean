@@ -70,26 +70,19 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
       let mclause ← loadClause givenClause
       match ← rule mclause with
       | BackwardSimpResult.Removed removedClauses =>
-        return BackwardSimpResult.Removed removedClauses
+        let mut clausesToRemove : List Clause := []
+        for c in removedClauses do
+          clausesToRemove := (← neutralizeMClause c) :: clausesToRemove
+        return clausesToRemove
       | BackwardSimpResult.Applied transformedClauses =>
-        for (_, c, mkProof) in transformedClauses do
+        let mut clausesToRemove : List Clause := []
+        for (oldClause, c, mkProof) in transformedClauses do
           yieldClause c ruleName mkProof
-        return BackwardSimpResult.Applied transformedClauses
-      | BackwardSimpResult.Unapplicable => return BackwardSimpResult.Unapplicable
-  match res with
-  | BackwardSimpResult.Removed removedClauses =>
-    for c in removedClauses do
-      let c ← runRuleM $ neutralizeMClause c
-      removeClause c
-    return true
-  | BackwardSimpResult.Applied transformedClauses =>
-    -- Remove clauses that have been simplified away
-    for (oldClause, _, _) in transformedClauses do
-      let oldClause ← runRuleM $ neutralizeMClause oldClause
-      removeClause oldClause
-    -- Add new simplified clauses
-    for (c, proof) in cs do addNewToPassive c proof
-    return true
-  | BackwardSimpResult.Unapplicable => return false
+          clausesToRemove := (← neutralizeMClause oldClause) :: clausesToRemove
+        return clausesToRemove
+      | BackwardSimpResult.Unapplicable => return []
+  for c in res do removeClause c -- Remove every clause in BackwardSimpResult.Removed and every old clause in BackwardSimpResult.Applied
+  for (c, proof) in cs do addNewToPassive c proof -- Add each yielded clause to the passive set
+  return not res.isEmpty -- If res is nonempty, then some simplification was performed, so return true. Otherwise, return false
 
 end Duper

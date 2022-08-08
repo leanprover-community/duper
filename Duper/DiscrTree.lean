@@ -23,7 +23,7 @@ inductive Key where
 
 protected def Key.hash : Key → UInt64
   | Key.const n a => mixHash 5237 $ mixHash (hash n) (hash a)
-  | Key.fvar n a  => mixHash 3541 $ mixHash (hash n) (hash a)
+  | Key.fvar n a  => mixHash 3541 (hash a) --$ mixHash (hash n) (hash a)
   | Key.lit v     => mixHash 1879 $ hash v
   | Key.star      => 7883
   | Key.other     => 2411
@@ -52,7 +52,7 @@ def Key.ctorIdx : Key → Nat
 
 def Key.lt : Key → Key → Bool
   | Key.lit v₁,      Key.lit v₂      => v₁ < v₂
-  | Key.fvar n₁ a₁,  Key.fvar n₂ a₂  => Name.quickLt n₁.name n₂.name || (n₁ == n₂ && a₁ < a₂)
+  | Key.fvar n₁ a₁,  Key.fvar n₂ a₂  => a₁ < a₂ -- Name.quickLt n₁.name n₂.name || (n₁ == n₂ && a₁ < a₂)
   | Key.const n₁ a₁, Key.const n₂ a₂ => Name.quickLt n₁ n₂ || (n₁ == n₂ && a₁ < a₂)
   | Key.proj s₁ i₁,  Key.proj s₂ i₂  => Name.quickLt s₁ s₂ || (s₁ == s₂ && i₁ < i₂)
   | k₁,              k₂              => k₁.ctorIdx < k₂.ctorIdx
