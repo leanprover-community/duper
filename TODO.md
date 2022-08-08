@@ -17,7 +17,6 @@ Inference rules:
   - ExistsRw
 
 Simplification rules:
-- Backward demodulation (using given clause as side premise to simplify pre-existing clauses in the active set)
 - Semantic tautology deletion?
 - Positive/Negative simplify-reflect
 - Clause subsumption
@@ -52,7 +51,10 @@ Other:
   on fvar names, which is good in that it makes behavior more consistent, but bad in that right now, fvar keys are almost always being viewed as equal
   to each other. Ideally, we should find a function that still distinguishes different fVarIds but is less sensitive to specific names (and in particular,
   does not cause duper's behavior to depend on anything but the current test)
-    - Potentially, it may also be important to find a better deterministic way to handle fvars in Order.lean's precCompare, but this may matter less
+    - Additionally, it also seems to be important to find a better deterministic way to handle fvars in Order.lean's precCompare. Right now, making
+      precCompare fvar insensitive causes PUZ012_1 (at the end of test.lean) to go from a proof with 161 clauses to a proof with 1789 clauses. This might
+      just mean that duper happens to get more lucky when precCompare looks at fvars, but it would also make sense more generally that having some way of
+      ordering fvars would be beneficial so that the number of necessary superposition inferences can be cut down significantly.
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests
   that have more consistent output (e.g. test succeeded, test saturated, test ran out of time, or test encountered error) so that it can quickly/easily be
   determined what effects any given commit had on the outputs for PUZ_tests, LCL_tests, and COM_tests (i.e. which tests' behavior changed from the previous commit).
