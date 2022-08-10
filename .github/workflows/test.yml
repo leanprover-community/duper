@@ -28,6 +28,9 @@ jobs:
       - name: test my file
         run: |
           export LEAN_PATH=./build/lib
-          echo "import Duper.TPTP import Duper.Tactic tptp KRS003_1 \"../TPTP-v8.0.0/Problems/KRS/KRS003_1.p\" by duper"\
-            | ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin
-
+          while read p; do
+            echo "Problem: $p"
+            echo "import Duper.TPTP import Duper.Tactic tptp $p \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" by duper"\
+              | ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin
+          done <./.github/tptp_tests.txt
+          
