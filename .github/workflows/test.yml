@@ -13,12 +13,17 @@ jobs:
           curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- --default-toolchain none -y
           ~/.elan/bin/lean --version
           echo "$HOME/.elan/bin" >> $GITHUB_PATH
-          echo "short_lean_version=$(~/.elan/bin/lean --run scripts/lean_version.lean)" >> $GITHUB_ENV
 
       - name: Download TPTP
         run: |
-          wget https://www.tptp.org/TPTP/Distribution/TPTP-v8.1.0.tgz
+          wget https://www.tptp.org/TPTP/Distribution/TPTP-v8.0.0.tgz
           tar -zxvf TPTP-v8.0.0.tgz -C ..
 
       - name: lake build
         run: lake build
+
+      - name: test my file
+        run: |
+          echo "import Duper.TPTP \nimport Duper.Tactic\ntptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p" by duper"\
+            >> ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin
+
