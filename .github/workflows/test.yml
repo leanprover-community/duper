@@ -16,7 +16,7 @@ jobs:
 
       - name: Download TPTP
         run: |
-          wget https://www.tptp.org/TPTP/Distribution/TPTP-v8.0.0.tgz
+          wget https://www.tptp.org/TPTP/Archive/TPTP-v8.0.0.tgz
           tar -zxvf TPTP-v8.0.0.tgz -C ..
 
       - name: lake build
