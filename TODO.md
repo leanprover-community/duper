@@ -45,6 +45,9 @@ Known bugs/issues (bugs.lean):
     being bound does not appear in the resulting expression (e.g. (forall n : Nat, true)), the clause being produced will not reference the variable
     being bound. Consequently, the unification performed by Meta.isDefEq will not need to (or be able to) assign the introduced metavariable, yielding
     a final proof that contains metavariables (which the kernel will not accept).
+- COM032_5:
+  - Yields: "PANIC at Lean.Meta.whnfEasyCases Lean.Meta.WHNF:262:26: unreachable code has been reached"
+  - Also results in deterministic timeout, though that's not particularly surprising or necessarily indicative of a specific bug
 
 Other:
 - Find a way to better handle fvars in DiscrTree.lean's Key.hash and Key.lt. Currently, these functions have been modified to not depend

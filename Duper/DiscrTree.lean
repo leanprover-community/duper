@@ -151,6 +151,11 @@ instance : Inhabited (DiscrTree α) where
 
   Remark: if users have problems with the solution above, we may provide a `noIndexing` annotation,
   and `ignoreArg` would return true for any term of the form `noIndexing t`.
+
+  Duper modification remark: The check of isProof has been removed and replaced with return false under the
+  assumption that proofs won't be collected by the `collectAssumptions` function in Tactic.lean to begin with
+  (additionally, attempting to actually call isProof is problematic because duper can attempt to index
+  expressions that have escaped bound variables, which will cause isProof to panic)
 -/
 private def ignoreArg (a : Expr) (i : Nat) (infos : Array Meta.ParamInfo) : RuleM Bool := do
   if h : i < infos.size then
@@ -160,9 +165,9 @@ private def ignoreArg (a : Expr) (i : Nat) (infos : Array Meta.ParamInfo) : Rule
     else if info.isImplicit || info.isStrictImplicit then
       return not (← isType a)
     else
-      isProof a
+      return false -- Previously: isProof a
   else
-    isProof a
+    return false -- Previously: isProof a
 
 private partial def pushArgsAux (infos : Array Meta.ParamInfo) : Nat → Expr → Array Expr → RuleM (Array Expr)
   | i, Expr.app f a _, todo => do
