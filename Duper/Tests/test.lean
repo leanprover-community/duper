@@ -7,6 +7,7 @@ import Duper.TPTP
 -- set_option trace.Rule.debug true
 -- set_option pp.all true
 -- set_option pp.rawOnError true
+set_option trace.Rule.subsumption true
 
 constant a : Nat
 constant b : Nat
@@ -160,11 +161,8 @@ theorem test0011 (one : Nat) (div mul add : Nat → Nat → Nat)
 #print test0011
 #print axioms test0011
 
-set_option trace.Prover.saturate false
-
 --###############################################################################################################################
 --Clausifying prop inequality tests
-set_option trace.Simp.debug true
 theorem propInequalityTest1 {p : Prop} {q : Prop} (h : p ≠ q) : p ∨ q :=
   by duper
 
@@ -176,12 +174,8 @@ theorem propInequalityTest2 {p : Prop} {q : Prop} (h : p ≠ q) : ¬p ∨ ¬q :=
 #print propInequalityTest2 -- clause 3 uses clausify_prop_inequality1
 #print axioms propInequalityTest2
 
-set_option trace.Simp.debug false
 --###############################################################################################################################
 --Iff clausification tests
-set_option trace.Simp.debug true
-set_option trace.Prover.debug true
-
 theorem iffClausificationTest1 {p : Prop} {q : Prop} (h : p ↔ q) : (p → q) ∧ (q → p) :=
   by duper
 
@@ -192,9 +186,6 @@ theorem iffClausificationTest2 {p : Prop} {q : Prop} (h : ¬(p ↔ q)) : (p → 
 #print iffClausificationTest2
 #print axioms iffClausificationTest1
 #print axioms iffClausificationTest2
-
-set_option trace.Simp.debug false
-set_option trace.Prover.debug false
 --###############################################################################################################################
 --Aside from being an interesting thing to prove on its own, the barber_paradox tests rely on the first case of Iff clausification and
 --on the soundness of ClausifyPropEq's reconstructed proofs
@@ -251,10 +242,6 @@ theorem barber_paradox_inline2 {person : Type} {shaves : person → person → P
     have h'_b := h' b
     duper
 
-set_option trace.Prover.debug true
-set_option trace.Meta.debug true
-set_option trace.Prover.saturate true
-
 theorem barber_paradox_inline3 {person : Type} {shaves : person → person → Prop}
   (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := by
   cases h with
@@ -262,10 +249,6 @@ theorem barber_paradox_inline3 {person : Type} {shaves : person → person → P
     have h'_b := h' b
     clear h'
     duper
-
-set_option trace.Prover.debug false
-set_option trace.Meta.debug false
-set_option trace.Prover.saturate false
 
 #print barber_paradox_inline0
 #print axioms barber_paradox_inline0
@@ -308,8 +291,6 @@ theorem equalityFactoringTest2 {α : Type} (s t u v : α)
   (h1 : s = t ∨ u = s) : t ≠ u ∨ u = s :=
   by duper
 
-set_option trace.Prover.debug true
-
 theorem equalityFactoringTest3 {α : Type} (s t v : α)
   (h1 : s = t ∨ t = v) : s ≠ v ∨ t = v :=
   by duper
@@ -339,8 +320,6 @@ theorem equalityFactoringTest5 {α : Type} (s t u v : α)
 #print axioms equalityFactoringTest4
 #print axioms equalityFactoringTest5
 
-set_option trace.Prover.debug false
-
 --###############################################################################################################################
 theorem COM002_2_test (state : Type) (follows fails : state → state → Prop) (p3 p6 : state)
   (h0 : ∀ (Start_state Goal_state : state), ¬(fails Goal_state Start_state ∧ follows Goal_state Start_state))
@@ -369,8 +348,6 @@ theorem COM002_2_test3 (state label statement : Type) (p3 : state) (goto : label
 -/
 
 --###############################################################################################################################
-set_option trace.TPTP_Testing true
-
 tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
   by duper
 

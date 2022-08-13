@@ -112,6 +112,20 @@ def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
   finally
     setMCtx s
 
+/-- Runs x and only modifes the MCtx if the first argument returned by x is true (on failure, does not modify MCtx) -/
+def conditionallyModifyingMCtx (x : RuleM (Bool × α)) : RuleM α := do
+  let s ← getMCtx
+  try
+    let (shouldModifyMCtx, res) ← x
+    if shouldModifyMCtx then
+      return res
+    else
+      setMCtx s
+      return res
+  catch e =>
+    setMCtx s
+    throw e
+
 -- TODO: Reset `introducedSkolems`?
 def withoutModifyingLoadedClauses (x : RuleM α) : RuleM α := do
   let s ← getLoadedClauses

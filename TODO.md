@@ -20,6 +20,11 @@ Simplification rules:
 - Semantic tautology deletion?
 - Positive/Negative simplify-reflect
 - Clause subsumption
+  - Make clause subsumption more efficient by incorporating indexing structure described in
+    "Simple and Efficient Clause Subsumption with Feature Vector Indexing"
+  - NOTE: Current implementation of naiveClauseSubsumption is not fully correct. This can be seen in super_test by the fact that
+    "q #0 b = True ∨ p #0 a = True" and "p #0 a = True ∨ q #0 b = True" are both in the final active set of super_test. There may
+    also be other bugs that I have not yet discovered.
 - Equality subsumption?
 
 Refactoring to consider:
