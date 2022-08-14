@@ -17,14 +17,18 @@ Inference rules:
   - ExistsRw
 
 Simplification rules:
-- Semantic tautology deletion?
-- Positive/Negative simplify-reflect
 - Clause subsumption
   - Make clause subsumption more efficient by incorporating indexing structure described in
     "Simple and Efficient Clause Subsumption with Feature Vector Indexing"
-  - NOTE: Current implementation of naiveClauseSubsumption is not fully correct. This can be seen in super_test by the fact that
-    "q #0 b = True ∨ p #0 a = True" and "p #0 a = True ∨ q #0 b = True" are both in the final active set of super_test. There may
-    also be other bugs that I have not yet discovered.
+- Eliminate duplicate literals
+  - Right now, elimDupLit doesn't recognize symmetrical literals as duplicates. That should be an easy but useful thing to fix
+- Clausification
+  - Give clausification an internal loop to repeatedly clausify until no more clausification should be done. This should be useful
+    in general, but should also directly address the specific problem of duper struggling to decompose "a and b and c and ... and z"
+  - Modify clausification to support clausifying literals with "True" or "False" on the lhs (right now, clausification only supports
+    clausifying literals with "True" or "False" on the rhs)
+- Semantic tautology deletion?
+- Positive/Negative simplify-reflect
 - Equality subsumption?
 
 Refactoring to consider:
@@ -53,14 +57,16 @@ Known bugs/issues (bugs.lean):
 - COM032_5:
   - Yields: "PANIC at Lean.Meta.whnfEasyCases Lean.Meta.WHNF:262:26: unreachable code has been reached"
   - Also results in deterministic timeout, though that's not particularly surprising or necessarily indicative of a specific bug
+- Unknown metavariable error in many of github's tptp tests
 
 Other:
+- Update Lean version
 - Find a way to better handle fvars in DiscrTree.lean's Key.hash and Key.lt. Currently, these functions have been modified to not depend
   on fvar names, which is good in that it makes behavior more consistent, but bad in that right now, fvar keys are almost always being viewed as equal
   to each other. Ideally, we should find a function that still distinguishes different fVarIds but is less sensitive to specific names (and in particular,
   does not cause duper's behavior to depend on anything but the current test)
-    - Additionally, it also seems to be important to find a better deterministic way to handle fvars in Order.lean's precCompare. Right now, making
-      precCompare fvar insensitive causes PUZ012_1 (at the end of test.lean) to go from a proof with 161 clauses to a proof with 1789 clauses. This might
+    - Additionally, it also seems to be important to find a better deterministic way to handle fvars in Order.lean's precCompare. In an earlier commit, making
+      precCompare fvar insensitive caused PUZ012_1 (at the end of test.lean) to go from a proof with 161 clauses to a proof with 1789 clauses. This might
       just mean that duper happens to get more lucky when precCompare looks at fvars, but it would also make sense more generally that having some way of
       ordering fvars would be beneficial so that the number of necessary superposition inferences can be cut down significantly.
 - Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests

@@ -14,21 +14,13 @@ initialize Lean.registerTraceClass `Rule.subsumption
 
 /-- Determines whether there is any σ such that σ(l1.lhs) = l2.lhs and σ(l1.rhs) = l2.rhs. Returns true and applies σ if so,
     returns false (without applying any substitution) otherwise -/
-def checkDirectMatch (l1 : Lit) (l2 : Lit) : RuleM Bool := do
-  conditionallyModifyingMCtx do -- Only modify the MCtx if both lhsCheck and rhsCheck are successful
-    let lhsCheck ← performMatch #[(l2.lhs, l1.lhs)] -- Note: It is important that l2 is first argument since l2 is match_target
-    let rhsCheck ← performMatch #[(l2.rhs, l1.rhs)]
-    if lhsCheck && rhsCheck then return (true, true)
-    else return (false, false)
+def checkDirectMatch (l1 : Lit) (l2 : Lit) : RuleM Bool :=
+  performMatch #[(l2.lhs, l1.lhs), (l2.rhs, l1.rhs)] -- l2 is first argument in each pair so only l1's mvars can receive assignments
 
 /-- Determines whether there is any σ such that σ(l1.rhs) = l2.lhs and σ(l1.lhs) = l2.rhs. Returns true and applies σ if so,
     returns false (without applying any substitution) otherwise -/
-def checkCrossMatch (l1 : Lit) (l2 : Lit) : RuleM Bool := do
-  conditionallyModifyingMCtx do -- Only modify the MCtx if both lhsCheck and rhsCheck are successful
-    let lhsCheck ← performMatch #[(l2.lhs, l1.rhs)] -- Note: It is important that l2 is first argument since l2 is match_target
-    let rhsCheck ← performMatch #[(l2.rhs, l1.lhs)]
-    if lhsCheck && rhsCheck then return (true, true)
-    else return (false, false)
+def checkCrossMatch (l1 : Lit) (l2 : Lit) : RuleM Bool :=
+  performMatch #[(l2.lhs, l1.rhs), (l2.rhs, l1.lhs)] -- l2 is first argument in each pair so only l1's mvars can receive assignments
 
 /-- Determines whether σ(l1) = l2 for any substitution σ. Importantly, litsMatch can return true if l1.sign = l2.sign and either:
     - σ(l1.lhs) = l2.lhs and σ(l1.rhs) = l2.rhs
@@ -89,9 +81,10 @@ partial def subsumptionCheckHelper (subsumingClauseLits : List Lit) (subsumedCla
       else subsumptionCheckHelper subsumingClauseLits subsumedClauseLits exclude (idx + 1)
 
 def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) : RuleM Bool :=
-  withoutModifyingMCtx do -- Avoid modifying mctx so that mvar assignments from failed subsumption checks don't impact future subsumption checks
-    if subsumingClause.lits.size > subsumedClause.lits.size then return false
-    subsumptionCheckHelper (subsumingClause.lits).toList subsumedClause {}
+  conditionallyModifyingMCtx do -- Only modify the MCtx if the subsumption check succeeds (so failed checks don't impact future checks)
+    if subsumingClause.lits.size > subsumedClause.lits.size then return (false, false)
+    if ← subsumptionCheckHelper (subsumingClause.lits).toList subsumedClause {} then return (true, true)
+    else return (false, false)
 
 /-- naiveForwardClauseSubsumption implements forward clause subsumption without the feature vector indexing described
     in "Simple and Efficient Clause Subsumption with Feature Vector Indexing" -/
@@ -99,12 +92,12 @@ def naiveForwardClauseSubsumption (activeClauses : ClauseSet) : MSimpRule := fun
   let fold_fn := fun acc nextClause => do
     match acc with
     | Unapplicable =>
-      withoutModifyingLoadedClauses do
+      conditionallyModifyingLoadedClauses do
         let nextClause ← loadClause nextClause
         if ← subsumptionCheck nextClause c then 
           trace[Rule.subsumption] "Forward subsumption: removed {c.lits} because it was subsumed by {nextClause.lits}"
-          return Removed 
-        else return Unapplicable
+          return (true, Removed)
+        else return (false, Unapplicable)
     | Removed => return Removed
     | Applied _ => throwError "Invalid clause subsumption result"
   activeClauses.foldM fold_fn Unapplicable
@@ -113,10 +106,10 @@ open BackwardSimpResult
 
 def naiveBackwardClauseSubsumption (activeClauses : ClauseSet) : BackwardMSimpRule := fun givenSubsumingClause => do
   let fold_fn := fun acc nextClause =>
-    withoutModifyingLoadedClauses do
+    conditionallyModifyingLoadedClauses do
       let nextClause ← loadClause nextClause
       if ← subsumptionCheck givenSubsumingClause nextClause then
         trace[Rule.subsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
-        return (nextClause :: acc)
-      else return acc
+        return (true, (nextClause :: acc))
+      else return (false, acc)
   return Removed (← activeClauses.foldM fold_fn [])

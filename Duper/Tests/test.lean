@@ -356,7 +356,7 @@ tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
 tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
   by duper
 
-#print PUZ012_1 -- Goes up to clause 1789 (in 10458ms)
+#print PUZ012_1
 
 --###############################################################################################################################
 -- Example from super

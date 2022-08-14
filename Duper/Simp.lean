@@ -65,7 +65,7 @@ def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fu
 
 def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : String) : BackwardSimpRule :=
   fun givenClause => do
-  let (res, cs) ← runSimpRule do
+  let (clausesToRemove, cs) ← runSimpRule do
     withoutModifyingMCtx do
       let mclause ← loadClause givenClause
       match ← rule mclause with
@@ -81,8 +81,8 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
           clausesToRemove := (← neutralizeMClause oldClause) :: clausesToRemove
         return clausesToRemove
       | BackwardSimpResult.Unapplicable => return []
-  for c in res do removeClause c -- Remove every clause in BackwardSimpResult.Removed and every old clause in BackwardSimpResult.Applied
+  for c in clausesToRemove do removeClause c -- Remove every clause in BackwardSimpResult.Removed and every old clause in BackwardSimpResult.Applied
   for (c, proof) in cs do addNewToPassive c proof -- Add each yielded clause to the passive set
-  return not res.isEmpty -- If res is nonempty, then some simplification was performed, so return true. Otherwise, return false
+  return not clausesToRemove.isEmpty -- If clausesToRemove is nonempty, then some simplification was performed, so return true. Otherwise, return false
 
 end Duper

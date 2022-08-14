@@ -134,9 +134,22 @@ def withoutModifyingLoadedClauses (x : RuleM α) : RuleM α := do
   finally
     setLoadedClauses s
 
+/-- Runs x and only modifies loadedClauses if the first argument returned by x is true (on failure, does not modify loadedClauses) -/
+def conditionallyModifyingLoadedClauses (x : RuleM (Bool × α)) : RuleM α := do
+  let s ← getLoadedClauses
+  try
+    let (shouldModifyLoadedClauses, res) ← x
+    if shouldModifyLoadedClauses then
+      return res
+    else
+      setLoadedClauses s
+      return res
+  catch e =>
+    setLoadedClauses s
+    throw e
+
 instance : AddMessageContext RuleM where
   addMessageContext := addMessageContextFull
-
 
 -- TODO: MonadLift
 def runMetaAsRuleM (x : MetaM α) : RuleM α := do
