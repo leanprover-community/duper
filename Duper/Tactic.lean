@@ -85,7 +85,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   return proof
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
-  let l := (← collectClauses state Clause.empty Std.BinomialHeap.empty).toList.map Prod.snd
+  let l := (← collectClauses state Clause.empty Std.BinomialHeap.empty).toList.eraseDups.map Prod.snd
   trace[Meta.debug] "{l}"
   let proof ← mkProof state l
   trace[Print_Proof] "Proof: {proof}"
