@@ -22,11 +22,6 @@ Simplification rules:
     "Simple and Efficient Clause Subsumption with Feature Vector Indexing"
 - Eliminate duplicate literals
   - Right now, elimDupLit doesn't recognize symmetrical literals as duplicates. That should be an easy but useful thing to fix
-- Clausification
-  - Give clausification an internal loop to repeatedly clausify until no more clausification should be done. This should be useful
-    in general, but should also directly address the specific problem of duper struggling to decompose "a and b and c and ... and z"
-  - Modify clausification to support clausifying literals with "True" or "False" on the lhs (right now, clausification only supports
-    clausifying literals with "True" or "False" on the rhs)
 - Semantic tautology deletion?
 - Positive/Negative simplify-reflect
 - Equality subsumption?

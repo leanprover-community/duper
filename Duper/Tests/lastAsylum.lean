@@ -55,4 +55,7 @@ theorem asylum_nine
   (h4 : A ≠ B ∧ A ≠ C ∧ A ≠ D ∧ B ≠ C ∧ B ≠ D ∧ C ≠ D) :
   (∃ x : Inhab, Sane x ∧ ¬ Doctor x) ∨
   (∃ x : Inhab, ∃ y : Inhab, x ≠ y ∧ (¬ Sane x) ∧ Doctor x ∧ (¬ Sane y) ∧ Doctor y) :=
-  sorry --by duper -- timeout
+  by duper
+
+#print axioms asylum_nine
+#print asylum_nine

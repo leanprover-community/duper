@@ -8,6 +8,8 @@ open Lean
 open RuleM
 open SimpResult
 
+initialize Lean.registerTraceClass `Rule.clausification
+
 --TODO: move?
 theorem not_of_eq_false (h: p = False) : ¬ p := 
   fun hp => h ▸ hp
@@ -150,9 +152,7 @@ theorem clausify_prop_inequality2 {p : Prop} {q : Prop} (h : p ≠ q) : p = True
       rw [p_eq_false, q_eq_false] at h
       exact False.elim $ h rfl
 
--- TODO: Clausify ↔ as =
-def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) : 
-    RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
+def clausificationStepE (e : Expr) (sign : Bool) : RuleM (SimpResult (List (MClause × Option (Expr → MetaM Expr)))) := do
   match sign, e with
   | false, Expr.const ``True _ _ => do
     let pr : Expr → MetaM Expr := fun premise => do
@@ -175,7 +175,9 @@ def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) :
       return ← Meta.mkAppM ``clausify_and_left #[premise]
     let pr₂ : Expr → MetaM Expr := fun premise => do
       return ← Meta.mkAppM ``clausify_and_right #[premise]
-    return Applied [(MClause.mk #[Lit.fromExpr e₁], some pr₁), (MClause.mk #[Lit.fromExpr e₂], some pr₂)]
+    /- e₂ and pr₂ are placed first in the list because "∧" is right-associative. So if we decompose "a ∧ b ∧ c ∧ d... = True" we want
+       "b ∧ c ∧ d... = True" to be the first clause (which will return to Saturate's simpLoop to receive further clausification) -/
+    return Applied [(MClause.mk #[Lit.fromExpr e₂], some pr₂), (MClause.mk #[Lit.fromExpr e₁], some pr₁)]
   | true, Expr.app (Expr.app (Expr.const ``Or _ _) e₁ _) e₂ _ =>
     let pr : Expr → MetaM Expr := fun premise => do
       return ← Meta.mkAppM ``clausify_or #[premise]
@@ -209,8 +211,9 @@ def clausificationStepE (e : Expr) (sign : Bool) (c : MClause) (i : Nat) :
       return ← Meta.mkAppM ``clausify_or_false_left #[premise]
     let pr₂ : Expr → MetaM Expr := fun premise => do
       return ← Meta.mkAppM ``clausify_or_false_right #[premise]
-    return  Applied [(MClause.mk #[Lit.fromExpr e₁ false], some pr₁), 
-             (MClause.mk #[Lit.fromExpr e₂ false], some pr₂)]
+    /- e₂ and pr₂ are placed first in the list because "∨" is right-associative. So if we decompose "a ∨ b ∨ c ∨ d... = False" we want
+       "b ∨ c ∨ d... = False" to be the first clause (which will return to Saturate's simpLoop to receive further clausification) -/
+    return Applied [(MClause.mk #[Lit.fromExpr e₂ false], some pr₂), (MClause.mk #[Lit.fromExpr e₁ false], some pr₁)]
   | false, Expr.forallE _ ty b _ => do
     if (← inferType ty).isProp
     then 
@@ -289,9 +292,38 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MCl
   if l.sign then
     -- Clausify " = False" and "= True":
     match l.rhs with
-    | Expr.const ``True _ _ => clausificationStepE l.lhs true c i
-    | Expr.const ``False _ _ => clausificationStepE l.lhs false c i
-    | _ => return Unapplicable
+    | Expr.const ``True _ _ => clausificationStepE l.lhs true
+    | Expr.const ``False _ _ => clausificationStepE l.lhs false
+    | _ =>
+      -- Clausify "True = ..." and "False = ...":
+      match l.lhs with
+      | Expr.const ``True _ _ =>
+        match ← clausificationStepE l.rhs true with
+        | Applied clausifiedResList =>
+          let map_fn : MClause × Option (Expr → MetaM Expr) → MClause × Option (Expr → MetaM Expr) :=
+            fun clausifiedRes =>
+              match clausifiedRes with
+              | (c, none) => (c, none)
+              | (c, some pr) => -- If pr is a proof that "A = B" implies c, then we want to return a proof that "B = A" implies c
+                let symmProof : Expr → MetaM Expr := fun e => do pr (← Meta.mkAppM ``Eq.symm #[e])
+                (c, some symmProof)
+          return Applied (List.map map_fn clausifiedResList)
+        | Removed => throwError "Invalid clausification result"
+        | Unapplicable => return Unapplicable
+      | Expr.const ``False _ _ =>
+        match ← clausificationStepE l.rhs false with
+        | Applied clausifiedResList =>
+          let map_fn : MClause × Option (Expr → MetaM Expr) → MClause × Option (Expr → MetaM Expr) :=
+            fun clausifiedRes =>
+              match clausifiedRes with
+              | (c, none) => (c, none)
+              | (c, some pr) => -- If pr is a proof that "A = B" implies c, then we want to return a proof that "B = A" implies c
+                let symmProof : Expr → MetaM Expr := fun e => do pr (← Meta.mkAppM ``Eq.symm #[e])
+                (c, some symmProof)
+          return Applied (List.map map_fn clausifiedResList)
+        | Removed => throwError "Invalid clausification result"
+        | Unapplicable => return Unapplicable
+      | _ => return Unapplicable
   else
     -- Clausify inequalities of type Prop:
     let pr1 : Expr → MetaM Expr := fun premise => do
@@ -344,10 +376,8 @@ def clausificationStep : MSimpRule := fun c => do
               let r ← Meta.mkLambdaFVars xs $ mkApp r appliedPremise
               return r
         (⟨c.lits.eraseIdx i ++ d.lits⟩, mkProof)
-    | Removed => 
-      return Removed
-    | Unapplicable => 
-      continue
+    | Removed => throwError "Invalid result of clausification"
+    | Unapplicable => continue
   return Unapplicable
 
 end Duper
