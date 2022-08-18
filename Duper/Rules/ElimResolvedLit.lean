@@ -11,12 +11,12 @@ def mkElimResolvedLitProof (refs : Array (Option Nat)) (premises : Array Expr) (
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
-    let parentLits := parentsLits[0]
-    let appliedPremise := appliedPremises[0]
+    let parentLits := parentsLits[0]!
+    let appliedPremise := appliedPremises[0]!
 
     let mut proofCases : Array Expr := #[]
     for i in [:parentLits.size] do {
-      let lit := parentLits[i]
+      let lit := parentLits[i]!
       if ((not lit.sign) && lit.lhs == lit.rhs) then
         -- lit has the form t ≠ t
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
@@ -27,11 +27,11 @@ def mkElimResolvedLitProof (refs : Array (Option Nat)) (premises : Array Expr) (
         proofCases := proofCases.push proofCase
       else
         -- lit does not have the form t ≠ t, so refs[i] should have the value (some j) where parentLits[i] == c[j]
-        match refs[i] with
+        match refs[i]! with
         | none =>
           panic! "There is a bug in ElimResolvedLit.lean (The refs invariant is not satisfied)"
         | some j => 
-          let proofCase ← Meta.withLocalDeclD `h parentLits[i].toExpr fun h => do
+          let proofCase ← Meta.withLocalDeclD `h parentLits[i]!.toExpr fun h => do
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j h
           proofCases := proofCases.push proofCase
     }

@@ -11,12 +11,12 @@ def mkEqualityResolutionProof (i : Nat) (premises : Array Expr) (parents: Array 
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
-    let parentLits := parentsLits[0]
-    let appliedPremise := appliedPremises[0]
+    let parentLits := parentsLits[0]!
+    let appliedPremise := appliedPremises[0]!
 
     let mut caseProofs := #[]
     for j in [:parentLits.size] do
-      let lit := parentLits[j]
+      let lit := parentLits[j]!
       if j == i then
         -- lit has the form t ≠ t
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
@@ -38,7 +38,7 @@ def mkEqualityResolutionProof (i : Nat) (premises : Array Expr) (parents: Array 
 
 def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
   withoutModifyingMCtx $ do
-    let lit := c.lits[i]
+    let lit := c.lits[i]!
     let able_to_unify ← unify #[(lit.lhs, lit.rhs)]
     if able_to_unify && (← eligibleForResolution c i) then -- Need to check eligibility for resolution after unification
       let c := c.eraseLit i
@@ -47,7 +47,7 @@ def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
 
 def equalityResolution (c : MClause) : RuleM Unit := do
   for i in [:c.lits.size] do
-    if c.lits[i].sign = false then
+    if c.lits[i]!.sign = false then
       equalityResolutionAtLit c i
 
 open ProverM

@@ -23,7 +23,7 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
   let mut acc := init
   for i in [:c.lits.size] do
     let f' := fun acc e pos => f acc e ⟨i, pos.side, pos.pos⟩
-    acc ← c.lits[i].foldM f' acc
+    acc ← c.lits[i]!.foldM f' acc
   return acc
 
 def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
@@ -31,30 +31,30 @@ def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m]
   let mut acc := init
   for i in [:c.lits.size] do
     let f' := fun acc e pos => f acc e ⟨i, pos.side, pos.pos⟩
-    acc ← c.lits[i].foldGreenM f' acc
+    acc ← c.lits[i]!.foldGreenM f' acc
   return acc
 
 def getAtPos! (c : MClause) (pos : ClausePos) : Expr :=
-  c.lits[pos.lit].getAtPos! ⟨pos.side, pos.pos⟩
+  c.lits[pos.lit]!.getAtPos! ⟨pos.side, pos.pos⟩
 
 def replaceAtPos? (c : MClause) (pos : ClausePos) (replacement : Expr) : Option MClause :=
   if (pos.lit ≥ c.lits.size) then none
   else
     let litPos : LitPos := {side := pos.side, pos := pos.pos}
-    match c.lits[pos.lit].replaceAtPos? litPos replacement with
+    match c.lits[pos.lit]!.replaceAtPos? litPos replacement with
     | some newLit => some {lits := Array.set! c.lits pos.lit newLit}
     | none => none
 
 def replaceAtPos! (c : MClause) (pos : ClausePos) (replacement : Expr) [Monad m] [MonadError m] : m MClause :=
   let litPos : LitPos := {side := pos.side, pos := pos.pos}
-  return {lits := Array.set! c.lits pos.lit $ ← c.lits[pos.lit].replaceAtPos! litPos replacement}
+  return {lits := Array.set! c.lits pos.lit $ ← c.lits[pos.lit]!.replaceAtPos! litPos replacement}
 
 /-- This function acts as Meta.kabstract except that it takes a ClausePos rather than Occurrences and expects
     the given expression to consist only of applications up to the given ExprPos. Additionally, since the exact
     position is given, we don't need to pass in Meta.kabstract's second argument p -/
 def abstractAtPos! (c : MClause) (pos : ClausePos) : MetaM MClause := do
   let litPos : LitPos := {side := pos.side, pos := pos.pos}
-  return {lits := Array.set! c.lits pos.lit $ ← c.lits[pos.lit].abstractAtPos! litPos}
+  return {lits := Array.set! c.lits pos.lit $ ← c.lits[pos.lit]!.abstractAtPos! litPos}
 
 def append (c : MClause) (d : MClause) : MClause := ⟨c.lits.append d.lits⟩
 
@@ -71,7 +71,7 @@ open Comparison
 def isMaximalLit (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx : Nat) (strict := false) : MetaM Bool := do
   for j in [:c.lits.size] do
     if j == idx then continue
-    let c ← Lit.compare ord c.lits[idx] c.lits[j]
+    let c ← Lit.compare ord c.lits[idx]! c.lits[j]!
     if c == GreaterThan || (not strict && c == Equal) || c == Incomparable
       then continue
     else return false
@@ -83,7 +83,7 @@ def isMaximalInSubClause (ord : Expr → Expr → MetaM Comparison) (c : MClause
     return false -- idx cannot be a maximal literal in c among the list of indices given because idx is not among the list of indices given
   for j in subclause do
     if j == idx then continue
-    let c ← Lit.compare ord c.lits[idx] c.lits[j]
+    let c ← Lit.compare ord c.lits[idx]! c.lits[j]!
     if c == GreaterThan || (not strict && c == Equal) || c == Incomparable
       then continue
     else return false
@@ -97,7 +97,7 @@ def isMaximalInSubClause (ord : Expr → Expr → MetaM Comparison) (c : MClause
 -/
 def canNeverBeMaximal (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx : Nat) : MetaM Bool := do
   for j in [:c.lits.size] do
-    if j != idx && (← Lit.compare ord c.lits[idx] c.lits[j]) == LessThan then
+    if j != idx && (← Lit.compare ord c.lits[idx]! c.lits[j]!) == LessThan then
       return true
     else continue
   return false

@@ -2,5 +2,11 @@ import Lake
 
 open Lake DSL
 
-package Duper where
-  defaultFacet := PackageFacet.oleans
+package Duper
+
+lean_lib Duper
+
+@[defaultTarget]
+lean_exe defaultExe {
+  root := `Main
+}

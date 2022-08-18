@@ -91,7 +91,7 @@ def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
 def applyBackwardSimpRules (givenClause : Clause) (startIdx : Nat) : ProverM (Option Nat) := do
   let backwardSimpRules ← backwardSimpRules
   for i in [startIdx : backwardSimpRules.size] do
-    let simpRule := backwardSimpRules[i]
+    let simpRule := backwardSimpRules[i]!
     if ← simpRule givenClause then return some i
     else continue
   return none
@@ -135,7 +135,7 @@ partial def saturate : ProverM Unit := do
       return LoopCtrl.next
     catch
     | Exception.internal emptyClauseExceptionId _  =>
-      setResult contradiction
+      setResult ProverM.Result.contradiction
       return LoopCtrl.abort
     | e =>
       trace[Timeout.debug] "Active set at timeout: {(← getActiveSet).toArray}"

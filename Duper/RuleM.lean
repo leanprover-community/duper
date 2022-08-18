@@ -164,7 +164,7 @@ def mkFreshExprMVar (type? : Option Expr) (kind := MetavarKind.natural) (userNam
   runMetaAsRuleM $ Meta.mkFreshExprMVar type? kind userName
 
 def getMVarType (mvarId : MVarId) : RuleM Expr := do
-  runMetaAsRuleM $ Meta.getMVarType mvarId
+  runMetaAsRuleM $ Lean.MVarId.getType mvarId
 
 def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescope e kind
@@ -185,7 +185,7 @@ def inferType (e : Expr) : RuleM Expr :=
   runMetaAsRuleM $ Meta.inferType e
 
 def instantiateMVars (e : Expr) : RuleM Expr :=
-  runMetaAsRuleM $ Meta.instantiateMVars e
+  runMetaAsRuleM $ Lean.instantiateMVars e
 
 def unify (l : Array (Expr × Expr)) : RuleM Bool := do
   runMetaAsRuleM $ Meta.unify l

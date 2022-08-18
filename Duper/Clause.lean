@@ -205,18 +205,18 @@ def weight (c : Clause) : Nat :=
   c.lits.foldl (fun acc lit => acc + weightExpr lit.lhs + weightExpr lit.rhs) 0
 where 
   weightExpr : Expr → Nat
-  | Expr.bvar _ _        => 1
-  | Expr.fvar _ _        => 1
-  | Expr.mvar _ _        => 1
-  | Expr.sort _ _        => 1
-  | Expr.const _ _ _     => 1
-  | Expr.app a b _       => weightExpr a + weightExpr b
+  | Expr.bvar _          => 1
+  | Expr.fvar _          => 1
+  | Expr.mvar _          => 1
+  | Expr.sort _          => 1
+  | Expr.const _ _       => 1
+  | Expr.app a b         => weightExpr a + weightExpr b
   | Expr.lam _ _ b _     => 1 + weightExpr b
   | Expr.forallE _ _ b _ => 1 + weightExpr b
   | Expr.letE _ _ v b _  => 1 + weightExpr v + weightExpr b
-  | Expr.lit _ _         => 1
-  | Expr.mdata _ b _     => 1 + weightExpr b
-  | Expr.proj _ _ b _    => 1 + weightExpr b
+  | Expr.lit _           => 1
+  | Expr.mdata _ b       => 1 + weightExpr b
+  | Expr.proj _ _ b      => 1 + weightExpr b
 
 end Clause
 

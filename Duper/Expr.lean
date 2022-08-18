@@ -8,8 +8,7 @@ instance [Hashable α] : Hashable (Array α) where
 
 /-- Positions in an expression: Counting argument numbers form the right
   e.g. `a` is at #[1] and `b` is at #[0] in `f a b` -/
-def ExprPos := Array Nat
-deriving Inhabited, BEq, Hashable, Lean.ToMessageData
+abbrev ExprPos := Array Nat
 
 namespace ExprPos
 
@@ -28,12 +27,12 @@ partial def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Mon
   let mut acc ← f init e pos
   let args := e.getAppRevArgs
   for i in [:args.size] do
-    acc ← foldGreenM f acc args[i] (pos := pos.push i)
+    acc ← foldGreenM f acc args[i]! (pos := pos.push i)
   return acc
 
 partial def getAtPos! (e : Expr) (pos : ExprPos) (startIndex := 0) : Expr :=
   if pos.size ≤ startIndex then e
-  else getAtPos! (e.getRevArg! pos[startIndex]) pos (startIndex := startIndex + 1)
+  else getAtPos! (e.getRevArg! pos[startIndex]!) pos (startIndex := startIndex + 1)
 
 /-- Attempts to put replacement at pos in e. Returns some res if successful, and returns none otherwise -/
 private partial def replaceAtPosHelper (e : Expr) (pos : List Nat) (replacement : Expr) : Option Expr :=
@@ -41,16 +40,16 @@ private partial def replaceAtPosHelper (e : Expr) (pos : List Nat) (replacement 
   | List.nil => replacement
   | List.cons 0 restPos =>
     match consumeMData e with
-    | Expr.app e1 e2 d =>
+    | Expr.app e1 e2 =>
       match replaceAtPosHelper e2 restPos replacement with
-      | some e2' => some (Expr.app e1 e2' d)
+      | some e2' => some (Expr.app e1 e2')
       | none => none
     | _ => replaceAtPosHelper e restPos replacement
   | List.cons (i + 1) restPos =>
     match consumeMData e with
-    | Expr.app e1 e2 d =>
+    | Expr.app e1 e2 =>
       match replaceAtPosHelper e1 (i :: restPos) replacement with
-      | some e1' => some (Expr.app e1' e2 d)
+      | some e1' => some (Expr.app e1' e2)
       | none => none
     | _ => none
 
@@ -73,13 +72,13 @@ private partial def abstractAtPosHelper! (e : Expr) (pos : List Nat) : MetaM Exp
   | List.nil => pure (mkBVar 0)
   | List.cons 0 restPos =>
     match e with
-    | Expr.app f a _ => return e.updateApp! f (← abstractAtPosHelper! a restPos)
-    | Expr.mdata _ b _ => return e.updateMData! (← abstractAtPosHelper! b pos)
+    | Expr.app f a => return e.updateApp! f (← abstractAtPosHelper! a restPos)
+    | Expr.mdata _ b => return e.updateMData! (← abstractAtPosHelper! b pos)
     | e => pure (mkBVar 0)
   | List.cons (i + 1) restPos =>
     match e with
-    | Expr.app f a _ => return e.updateApp! (← abstractAtPosHelper! f (i :: restPos)) a
-    | Expr.mdata _ b _ => return e.updateMData! (← abstractAtPosHelper! b pos)
+    | Expr.app f a => return e.updateApp! (← abstractAtPosHelper! f (i :: restPos)) a
+    | Expr.mdata _ b => return e.updateMData! (← abstractAtPosHelper! b pos)
     | _ => throwError "Invalid position {pos} for expression {e} given to abstractAtPos"
 
 /-- This function acts as Meta.kabstract except that it takes an ExprPos rather than Occurrences and expects

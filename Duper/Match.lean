@@ -56,9 +56,8 @@ where
       | some exp => match1 match_target (mkAppN exp e_tl) protected_mvars
       | none => do
         if e_tl.isEmpty then
-          -- Note: Despite the misleading message, occursCheck returns true iff match_target does not contain e_hd.mvarId!
           if (← occursCheck e_hd.mvarId! match_target) && not (protected_mvars.contains (e_hd.mvarId!)) then
-            assignExprMVar e_hd.mvarId! match_target
+            Lean.MVarId.assign e_hd.mvarId! match_target
             return true
           else return false
         else return false
@@ -69,7 +68,7 @@ where
           return true
         else
           if not (protected_mvars.contains (e_hd.mvarId!)) then
-            assignExprMVar e_hd.mvarId! match_target
+            Lean.MVarId.assign e_hd.mvarId! match_target
             return true
           else return false
       else return false

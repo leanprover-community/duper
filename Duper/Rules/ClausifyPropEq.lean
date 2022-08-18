@@ -19,11 +19,11 @@ def mkC1Proof (i : Nat) (premises : Array Expr) (parents: Array ProofParent) (c 
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
-    let parentLits := parentsLits[0]
-    let appliedPremise := appliedPremises[0]
+    let parentLits := parentsLits[0]!
+    let appliedPremise := appliedPremises[0]!
     let mut proofCases : Array Expr := #[]
     for j in [:parentLits.size] do
-      let lit := parentLits[j]
+      let lit := parentLits[j]!
       if j == i then
         --lit has the form p = q and is the propositional equality that is currently being clausified
         --We want to derive `p = q -> L_1 ∨ ... ∨ L_{n-1} ∨ L_n` by showing p = q -> L_{n-1} ∨ L_n where L_{n-1} is p = True and L_n = q = False
@@ -54,11 +54,11 @@ def mkC2Proof (i : Nat) (premises : Array Expr) (parents: Array ProofParent) (c 
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
-    let parentLits := parentsLits[0]
-    let appliedPremise := appliedPremises[0]
+    let parentLits := parentsLits[0]!
+    let appliedPremise := appliedPremises[0]!
     let mut proofCases : Array Expr := #[]
     for j in [:parentLits.size] do
-      let lit := parentLits[j]
+      let lit := parentLits[j]!
       if j == i then
         --lit has the form p = q and is the propositional equality that is currently being clausified
         --We want to derive `p = q -> L_1 ∨ ... ∨ L_{n-1} ∨ L_n` by showing p = q -> L_{n-1} ∨ L_n where L_{n-1} is p = False and L_n = q = True
@@ -77,7 +77,7 @@ def mkC2Proof (i : Nat) (premises : Array Expr) (parents: Array ProofParent) (c 
 
 def clausifyPropEq (c : MClause) : RuleM Unit := do
   for i in [:c.lits.size] do
-    let lit := c.lits[i]
+    let lit := c.lits[i]!
     if lit.sign = true ∧ lit.ty.isProp ∧ litSelectedOrNothingSelected c i then
       -- TODO: check both sides?
       if ¬ lit.rhs.isConstOf ``True ∧ ¬ lit.rhs.isConstOf ``False then

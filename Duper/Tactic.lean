@@ -99,7 +99,7 @@ def collectAssumptions : TacticM (Array (Expr × Expr)) := do
       formulas := formulas.push (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId])
   return formulas
 
-syntax (name := duper) "duper" ident ? : tactic
+syntax (name := duper) "duper" (colGt ident) ? : tactic
 
 @[tactic duper]
 def evalDuper : Tactic
@@ -149,14 +149,28 @@ def evalDuper : Tactic
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
-syntax (name := try_duper) "try_duper" ident ? : tactic
+syntax (name := try_duper) "try_duper" (colGt ident) ? : tactic
 
 @[tactic try_duper]
 def evalTryDuper : Tactic
 | `(tactic| try_duper) => do
-  Lean.Elab.Tactic.evalTactic (← `(tactic| (first | duper | sorry )))
+  try
+    Lean.Elab.Tactic.evalTactic (← `(tactic| (first | duper | sorry )))
+  catch e =>
+  if e.isMaxHeartbeat then
+    trace[Timeout.debug] "Caught isMaxHeartbeat"
+    assignExprMVar (← getMainGoal) (← Lean.Meta.mkSorry (← getMainTarget) (synthetic := true))
+  else
+    throw e
 | `(tactic| try_duper $ident:ident) => do
-  Lean.Elab.Tactic.evalTactic (← `(tactic| (first | duper $ident | sorry )))
+  try
+    Lean.Elab.Tactic.evalTactic (← `(tactic| (first | duper $ident | sorry )))
+  catch e =>
+  if e.isMaxHeartbeat then
+    trace[Timeout.debug] "Caught isMaxHeartbeat"
+    assignExprMVar (← getMainGoal) (← Lean.Meta.mkSorry (← getMainTarget) (synthetic := true))
+  else
+    throw e
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic

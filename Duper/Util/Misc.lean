@@ -14,9 +14,9 @@ def Lean.Expr.abstractMVars (e : Expr) (mVars : Array Expr) : Expr :=
       match mVars.indexOf? e with
       | some i => mkBVar (mVars.size - 1 - i + offset)
       | none => e
-    | Expr.app f a _       => e.updateApp! (visit f offset) (visit a offset)
-    | Expr.mdata _ b _     => e.updateMData! (visit b offset)
-    | Expr.proj _ _ b _    => e.updateProj! (visit b offset)
+    | Expr.app f a       => e.updateApp! (visit f offset) (visit a offset)
+    | Expr.mdata _ b    => e.updateMData! (visit b offset)
+    | Expr.proj _ _ b    => e.updateProj! (visit b offset)
     | Expr.letE _ t v b _  => e.updateLet! (visit t offset) (visit v offset) (visit b (offset+1))
     | Expr.lam _ d b _     => e.updateLambdaE! (visit d offset) (visit b (offset+1))
     | Expr.forallE _ d b _ => e.updateForallE! (visit d offset) (visit b (offset+1))

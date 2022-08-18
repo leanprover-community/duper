@@ -40,13 +40,13 @@ def headWeight (f : Expr) : Int := match f with
 | Expr.fvar .. => 1
 | Expr.bvar .. => 1
 | Expr.sort .. => 1
-| Expr.mdata _ e _ => headWeight e
+| Expr.mdata _ e => headWeight e
 | _ => panic! s!"head_weight: not implemented {f}"
 
 -- The orderings treat lambda-expressions like a "LAM" symbol applied to the
 -- type and body of the lambda-expression
-constant LAM : Prop
-constant FORALL : Prop
+axiom LAM : Prop
+axiom FORALL : Prop
 def getHead (t : Expr) := match t with
 | Expr.lam .. => mkConst ``LAM
 | Expr.forallE .. => mkConst ``FORALL
@@ -74,44 +74,44 @@ def VarBalance.noPositives (vb : VarBalance) : Bool := Id.run do
 def precCompare (f g : Expr) : Comparison := match f, g with
 
 -- Sort > lam > db > quantifier > symbols > False > True 
-| Expr.sort .., Expr.const ``LAM _ _ => GreaterThan
+| Expr.sort .., Expr.const ``LAM _ => GreaterThan
 | Expr.sort .., Expr.bvar .. => GreaterThan
 | Expr.sort .., Expr.fvar .. => GreaterThan
-| Expr.sort .., Expr.const ``False _ _ => GreaterThan
-| Expr.sort .., Expr.const ``True _ _ => GreaterThan
+| Expr.sort .., Expr.const ``False _ => GreaterThan
+| Expr.sort .., Expr.const ``True _ => GreaterThan
 
-| Expr.const ``LAM _ _, Expr.sort .. => LessThan
-| Expr.const ``LAM _ _, Expr.bvar .. => GreaterThan
-| Expr.const ``LAM _ _, Expr.fvar .. => GreaterThan
-| Expr.const ``LAM _ _, Expr.const ``False _ _ => GreaterThan
-| Expr.const ``LAM _ _, Expr.const ``True _ _ => GreaterThan
+| Expr.const ``LAM _, Expr.sort .. => LessThan
+| Expr.const ``LAM _, Expr.bvar .. => GreaterThan
+| Expr.const ``LAM _, Expr.fvar .. => GreaterThan
+| Expr.const ``LAM _, Expr.const ``False _ => GreaterThan
+| Expr.const ``LAM _, Expr.const ``True _ => GreaterThan
 
 | Expr.bvar .., Expr.sort .. => LessThan
-| Expr.bvar .., Expr.const ``LAM _ _ => LessThan
+| Expr.bvar .., Expr.const ``LAM _ => LessThan
 | Expr.bvar .., Expr.fvar .. => GreaterThan
-| Expr.bvar .., Expr.const ``False _ _ => GreaterThan
-| Expr.bvar .., Expr.const ``True _ _ => GreaterThan
+| Expr.bvar .., Expr.const ``False _ => GreaterThan
+| Expr.bvar .., Expr.const ``True _ => GreaterThan
 
 | Expr.fvar .., Expr.sort .. => LessThan
-| Expr.fvar .., Expr.const ``LAM _ _ => LessThan
+| Expr.fvar .., Expr.const ``LAM _ => LessThan
 | Expr.fvar .., Expr.bvar .. => LessThan
-| Expr.fvar .., Expr.const ``False _ _ => GreaterThan
-| Expr.fvar .., Expr.const ``True _ _ => GreaterThan
+| Expr.fvar .., Expr.const ``False _ => GreaterThan
+| Expr.fvar .., Expr.const ``True _ => GreaterThan
 
-| Expr.const ``False _ _, Expr.sort .. => LessThan
-| Expr.const ``False _ _, Expr.const ``LAM _ _ => LessThan
-| Expr.const ``False _ _, Expr.bvar .. => LessThan
-| Expr.const ``False _ _, Expr.fvar .. => LessThan
-| Expr.const ``False _ _, Expr.const ``True _ _ => GreaterThan
+| Expr.const ``False _, Expr.sort .. => LessThan
+| Expr.const ``False _, Expr.const ``LAM _ => LessThan
+| Expr.const ``False _, Expr.bvar .. => LessThan
+| Expr.const ``False _, Expr.fvar .. => LessThan
+| Expr.const ``False _, Expr.const ``True _ => GreaterThan
 
-| Expr.const ``True _ _, Expr.sort .. => LessThan
-| Expr.const ``True _ _, Expr.const ``LAM _ _ => LessThan
-| Expr.const ``True _ _, Expr.bvar .. => LessThan
-| Expr.const ``True _ _, Expr.fvar .. => LessThan
-| Expr.const ``True _ _, Expr.const ``False _ _ => LessThan
+| Expr.const ``True _, Expr.sort .. => LessThan
+| Expr.const ``True _, Expr.const ``LAM _ => LessThan
+| Expr.const ``True _, Expr.bvar .. => LessThan
+| Expr.const ``True _, Expr.fvar .. => LessThan
+| Expr.const ``True _, Expr.const ``False _ => LessThan
 
 | Expr.sort l .., Expr.sort m .. => if l == m then Equal else Incomparable -- TODO?
-| Expr.const ``LAM _ _, Expr.const ``LAM _ _ => Equal
+| Expr.const ``LAM _, Expr.const ``LAM _ => Equal
 | Expr.bvar m .., Expr.bvar n .. => 
   if m == n then Equal
   else if m > n then GreaterThan
@@ -129,21 +129,21 @@ def precCompare (f g : Expr) : Comparison := match f, g with
   -/
   if m == n then Equal
   else Incomparable
-| Expr.const ``False _ _, Expr.const ``False _ _ => Equal
-| Expr.const ``True _ _, Expr.const ``True _ _ => Equal
+| Expr.const ``False _, Expr.const ``False _ => Equal
+| Expr.const ``True _, Expr.const ``True _ => Equal
 
 
-| Expr.const ``LAM _ _, Expr.const .. => GreaterThan
+| Expr.const ``LAM _, Expr.const .. => GreaterThan
 | Expr.bvar .., Expr.const .. => GreaterThan
 | Expr.fvar .., Expr.const .. => GreaterThan
-| Expr.const ``True _ _, Expr.const .. => LessThan
-| Expr.const ``False _ _, Expr.const .. => LessThan
+| Expr.const ``True _, Expr.const .. => LessThan
+| Expr.const ``False _, Expr.const .. => LessThan
 
-| Expr.const .., Expr.const ``LAM _ _ => LessThan
+| Expr.const .., Expr.const ``LAM _ => LessThan
 | Expr.const .., Expr.bvar .. => LessThan
 | Expr.const .., Expr.fvar .. => LessThan
-| Expr.const .., Expr.const ``False _ _ => GreaterThan
-| Expr.const .., Expr.const ``True _ _ => GreaterThan
+| Expr.const .., Expr.const ``False _ => GreaterThan
+| Expr.const .., Expr.const ``True _ => GreaterThan
 
 | Expr.const m .., Expr.const n .. =>
   if m == n then Equal
@@ -151,10 +151,10 @@ def precCompare (f g : Expr) : Comparison := match f, g with
   else if m.hash < n.hash then LessThan
   else Incomparable
 
-| Expr.mvar v _, Expr.mvar w _ => 
+| Expr.mvar v, Expr.mvar w => 
   if v == w then Equal else Incomparable
-| _, Expr.mvar _ _ => Incomparable
-| Expr.mvar _ _, _ => Incomparable
+| _, Expr.mvar _ => Incomparable
+| Expr.mvar _, _ => Incomparable
 | _, _ => panic! s!"precCompare: not implemented {f} <> {g}"
 
 -- Inspired by Zipperposition
@@ -171,7 +171,7 @@ where
       return ← balance_weight_var wb vb t s pos
     else
       match getHead t, getArgs t with
-      | h@(Expr.mvar v _), args =>
+      | h@(Expr.mvar v), args =>
         let (wb, vb, res) := ← balance_weight_var wb vb h s pos
         balance_weight_rec wb vb args s pos res
       | h, args =>
@@ -234,15 +234,15 @@ where
     then return (wb, vb, Equal) -- do not update weight or var balance
     else
       match getHead t1, getHead t2 with
-      | Expr.mvar _ _, Expr.mvar _ _ =>
+      | Expr.mvar _, Expr.mvar _ =>
         let vb := vb.addPosVar t1;
         let vb := vb.addNegVar t2;
         return (wb, vb, Incomparable)
-      | Expr.mvar _ _,  _ =>
+      | Expr.mvar _,  _ =>
         let vb := vb.addPosVar t1;
         let (wb, vb, contains) ← balance_weight wb vb t2 (some t1) (pos := false)
         return ((wb + weightVarHeaded), vb, if contains then LessThan else Incomparable)
-      |  _, Expr.mvar _ _ =>
+      |  _, Expr.mvar _ =>
         let vb := vb.addNegVar t2;
         let (wb, vb, contains) ← balance_weight wb vb t1 (some t2) (pos := true)
         return ((wb - weightVarHeaded), vb, if contains then GreaterThan else Incomparable)

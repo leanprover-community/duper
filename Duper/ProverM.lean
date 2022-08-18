@@ -233,7 +233,7 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array (Expr × Expr)) (ctx : Con
   return res
 
 @[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (Array (Clause × Proof)) := do
-  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
+  let (_, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return state.resultClauses
 
@@ -250,29 +250,29 @@ def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit
     addNewToPassive c proof
 
 def addToActive (c : Clause) : ProverM Unit := do
-  let ci ← getClauseInfo! c
+  let _ ← getClauseInfo! c -- getClauseInfo! throws and error if c can't be found
   -- Add to superposition's side premise index:
   let idx ← getSupSidePremiseIdx
   let idx ← runRuleM do
-    let (mvars, mclause) ← loadClauseCore c
+    let (_, mclause) ← loadClauseCore c
     mclause.foldM
       fun idx e pos => do
-        if mclause.lits[pos.lit].sign ∧ litSelectedOrNothingSelected mclause pos.lit
+        if mclause.lits[pos.lit]!.sign ∧ litSelectedOrNothingSelected mclause pos.lit
         then return ← idx.insert e (c, pos)
         else return idx
       idx
   setSupSidePremiseIdx idx
   -- Add to demodulation's side premise index iff c consists of exactly one positive literal:
-  if(c.lits.size = 1 && c.lits[0].sign) then
+  if(c.lits.size = 1 && c.lits[0]!.sign) then
     let idx ← getDemodSidePremiseIdx
     let idx ← runRuleM do
-      let (mvars, mclause) ← loadClauseCore c
+      let (_, mclause) ← loadClauseCore c
       mclause.foldM (fun idx e pos => idx.insert e (c, pos)) idx
     setDemodSidePremiseIdx idx
   -- Add to main premise index:
   let idx ← getMainPremiseIdx
   let idx ← runRuleM do
-    let (mvars, mclause) ← loadClauseCore c
+    let (_, mclause) ← loadClauseCore c
     mclause.foldGreenM
       fun idx e pos => do
         if e.isMVar

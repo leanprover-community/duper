@@ -52,19 +52,19 @@ def mkEqualityFactoringProof (i : Nat) (j : Nat) (litside_i : LitSide) (litside_
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
-    let parentLits := parentsLits[0]
-    let appliedPremise := appliedPremises[0]
+    let parentLits := parentsLits[0]!
+    let appliedPremise := appliedPremises[0]!
     let mut proofCases : Array Expr := #[]
     for k in [:parentLits.size] do
-      let lit := parentLits[k]
+      let lit := parentLits[k]!
       if k == i then
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let proofCase ←
             match (litside_i, litside_j) with
-            | (LitSide.lhs, LitSide.lhs) => Meta.mkAppM ``equality_factoring_soundness1 #[Lit.getOtherSide parentLits[j] litside_j, h]
-            | (LitSide.lhs, LitSide.rhs) => Meta.mkAppM ``equality_factoring_soundness2 #[Lit.getOtherSide parentLits[j] litside_j, h]
-            | (LitSide.rhs, LitSide.lhs) => Meta.mkAppM ``equality_factoring_soundness3 #[Lit.getOtherSide parentLits[j] litside_j, h]
-            | (LitSide.rhs, LitSide.rhs) => Meta.mkAppM ``equality_factoring_soundness4 #[Lit.getOtherSide parentLits[j] litside_j, h]
+            | (LitSide.lhs, LitSide.lhs) => Meta.mkAppM ``equality_factoring_soundness1 #[Lit.getOtherSide parentLits[j]! litside_j, h]
+            | (LitSide.lhs, LitSide.rhs) => Meta.mkAppM ``equality_factoring_soundness2 #[Lit.getOtherSide parentLits[j]! litside_j, h]
+            | (LitSide.rhs, LitSide.lhs) => Meta.mkAppM ``equality_factoring_soundness3 #[Lit.getOtherSide parentLits[j]! litside_j, h]
+            | (LitSide.rhs, LitSide.rhs) => Meta.mkAppM ``equality_factoring_soundness4 #[Lit.getOtherSide parentLits[j]! litside_j, h]
           Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 proofCase
         proofCases := proofCases.push proofCase
       else if k == j then
@@ -93,8 +93,8 @@ def mkEqualityFactoringProof (i : Nat) (j : Nat) (litside_i : LitSide) (litside_
 -/
 def equalityFactoringWithAllConstraints (c : MClause) (i : Nat) (j : Nat) (litside_i : LitSide) (litside_j : LitSide) : RuleM Unit :=
   withoutModifyingMCtx $ do
-    let lit_i := c.lits[i]
-    let lit_j := c.lits[j]
+    let lit_i := c.lits[i]!
+    let lit_j := c.lits[j]!
     if ← unify #[(Lit.getSide lit_i litside_i, Lit.getSide lit_j litside_j)] then
       match ← compare (Lit.getSide lit_i litside_i) (Lit.getOtherSide lit_i litside_i) with
       | Comparison.LessThan => return ()
@@ -114,9 +114,9 @@ def equalityFactoringWithAllConstraints (c : MClause) (i : Nat) (j : Nat) (litsi
             }
           let modified_clause := 
             if (j < i) then -- erase i first so that c.lits[j] is still at the same index after the erasure
-              ((c.eraseLit i).eraseLit j).appendLits #[new_lit, c.lits[j]]
+              ((c.eraseLit i).eraseLit j).appendLits #[new_lit, c.lits[j]!]
             else -- i < j because i cannot equal j
-              ((c.eraseLit j).eraseLit i).appendLits #[new_lit, c.lits[j]]
+              ((c.eraseLit j).eraseLit i).appendLits #[new_lit, c.lits[j]!]
           trace[Prover.debug] "Successfully calling equality factoring on {c.lits} to yield {modified_clause.lits}"
           yieldClause modified_clause "equality factoring" (mkProof := some (mkEqualityFactoringProof i j litside_i litside_j))
 
@@ -144,31 +144,29 @@ def equalityFactoringAtLit (c : MClause) (i : Nat) (j : Nat) : RuleM Unit := do
   All this to say, though its counterintuitive, it is intentional that c.lits[i].lhs and c.lits[i].rhs are compared before unification in this function
   and after unification in equalityFactoringWithAllConstraints
   -/
-  match ← compare c.lits[i].lhs c.lits[i].rhs with
+  match ← compare c.lits[i]!.lhs c.lits[i]!.rhs with
   | Comparison.LessThan =>
-    trace[Prover.debug] "{c.lits[i].lhs} < {c.lits[i].rhs} by the ground reduction ordering"
+    trace[Prover.debug] "{c.lits[i]!.lhs} < {c.lits[i]!.rhs} by the ground reduction ordering"
     equalityFactoringWithAllConstraints c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs
     equalityFactoringWithAllConstraints c i j LitSide.rhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].rhs
   | Comparison.GreaterThan =>
-    trace[Prover.debug] "{c.lits[i].lhs} > {c.lits[i].rhs} by the ground reduction ordering"
+    trace[Prover.debug] "{c.lits[i]!.lhs} > {c.lits[i]!.rhs} by the ground reduction ordering"
     equalityFactoringWithAllConstraints c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
     equalityFactoringWithAllConstraints c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
   | _ => -- If the Comparison is Equal or Incomparable, we unfortunately have to just try all possibilities
-    trace[Prover.debug] "{c.lits[i].lhs} equal to or incomparable to {c.lits[i].rhs} by the ground reduction ordering"
+    trace[Prover.debug] "{c.lits[i]!.lhs} equal to or incomparable to {c.lits[i]!.rhs} by the ground reduction ordering"
     equalityFactoringWithAllConstraints c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs
     equalityFactoringWithAllConstraints c i j LitSide.rhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].rhs
     equalityFactoringWithAllConstraints c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
     equalityFactoringWithAllConstraints c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
 
 def equalityFactoring (c : MClause) : RuleM Unit := do
-  let lctx ← getLCtx
-  let mctx ← RuleM.getMCtx -- Adding RuleM prefix to disambiguate from Lean.getMCtx. I'm not sure whether Lean.getMCtx and RuleM.getMCtx actually differ though
   for i in [:c.lits.size] do
-    if(c.lits[i].sign) then
+    if(c.lits[i]!.sign) then
       for j in [i+1:c.lits.size] do -- Since we call equalityFactoringAtLit c i j and equalityFactoringAtLit c j i, we can always have j > i
-        if(c.lits[j].sign) then
+        if(c.lits[j]!.sign) then
           -- Attempt to perform equalityFactoring with c.lits[i] as the literal to be transformed
-          trace[Prover.debug] "Attempting to call equalityFactoring on {c.lits} using {c.lits[i]} and {c.lits[j]}"
+          trace[Prover.debug] "Attempting to call equalityFactoring on {c.lits} using {c.lits[i]!} and {c.lits[j]!}"
           equalityFactoringAtLit c i j
           -- Attempt to perform equalityFactoring with c.lits[j] as the literal to be transformed
           equalityFactoringAtLit c j i

@@ -22,12 +22,12 @@ def mkIdentBoolFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
-    let parentLits := parentsLits[0]
-    let appliedPremise := appliedPremises[0]
+    let parentLits := parentsLits[0]!
+    let appliedPremise := appliedPremises[0]!
 
     let mut proofCases : Array Expr := #[]
     for i in [:parentLits.size] do
-      let lit := parentLits[i]
+      let lit := parentLits[i]!
       if (← isFalseLiteral lit) then -- lit has the form `false = true` or `true = false`
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           if (lit.lhs == mkConst ``false) then
@@ -42,10 +42,10 @@ def mkIdentBoolFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
             throwError "mkIdentBoolFalseElimProof failed to match {lit.lhs} to an expected expression"
         proofCases := proofCases.push proofCase
       else -- refs[i] should have the value (some j) where parentLits[i] == c[j]
-        match refs[i] with
+        match refs[i]! with
         | none => throwError "Refs invariant is not satisfied in identBoolFalseElim"
         | some j =>
-          let proofCase ← Meta.withLocalDeclD `h parentLits[i].toExpr fun h => do
+          let proofCase ← Meta.withLocalDeclD `h parentLits[i]!.toExpr fun h => do
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j h
           proofCases := proofCases.push proofCase
     let proof ← orCases (parentLits.map Lit.toExpr) proofCases

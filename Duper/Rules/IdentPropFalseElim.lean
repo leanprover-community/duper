@@ -10,8 +10,8 @@ open Lean
 /-- Determines whether a literal has exactly the form `False = True` or `True = False`-/
 def isFalsePropLiteral (lit : Lit) : MetaM Bool := do
   match lit.ty with
-  | Expr.sort lvl _ =>
-    if Level.isEquiv (← Meta.instantiateLevelMVars lvl) levelZero then
+  | Expr.sort lvl =>
+    if Level.isEquiv (← Lean.instantiateLevelMVars lvl) levelZero then
       return lit.sign &&
         ((lit.lhs == mkConst ``True && lit.rhs == mkConst ``False) ||
         (lit.lhs == mkConst ``False && lit.rhs == mkConst ``True))
@@ -26,12 +26,12 @@ def mkIdentPropFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
-    let parentLits := parentsLits[0]
-    let appliedPremise := appliedPremises[0]
+    let parentLits := parentsLits[0]!
+    let appliedPremise := appliedPremises[0]!
 
     let mut proofCases : Array Expr := #[]
     for i in [:parentLits.size] do
-      let lit := parentLits[i]
+      let lit := parentLits[i]!
       if (← isFalsePropLiteral lit) then -- lit has the form `False = True` or `True = False`
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           if (lit.lhs == mkConst ``False) then
@@ -46,10 +46,10 @@ def mkIdentPropFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
             throwError "mkIdentPropFalseElimProof failed to match {lit.lhs} to an expected expression"
         proofCases := proofCases.push proofCase
       else -- refs[i] should have the value (some j) where parentLits[i] == c[j]
-        match refs[i] with
+        match refs[i]! with
         | none => throwError "Refs invariant is not satisfied in identPropFalseElim"
         | some j =>
-          let proofCase ← Meta.withLocalDeclD `h parentLits[i].toExpr fun h => do
+          let proofCase ← Meta.withLocalDeclD `h parentLits[i]!.toExpr fun h => do
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j h
           proofCases := proofCases.push proofCase
     let proof ← orCases (parentLits.map Lit.toExpr) proofCases

@@ -56,12 +56,12 @@ def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fu
   | SimpResult.Applied _ => do
     -- Return first clause, add others to passive set
     for i in [:cs.size] do
-      let (c, proof) := cs[i]
+      let (c, proof) := cs[i]!
       if i == 0 then
         let _ ← addNewClause c proof
       else
         addNewToPassive c proof
-    return Applied cs[0].1
+    return Applied cs[0]!.1
 
 def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : String) : BackwardSimpRule :=
   fun givenClause => do

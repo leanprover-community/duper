@@ -42,7 +42,7 @@ def litInClause (l : Lit) (c : MClause) (exclude : HashSet Nat) (startIdx : Nat)
     if exclude.contains i then
       continue
     else
-      let cLit := c.lits[i]
+      let cLit := c.lits[i]!
       if ← litsMatch l cLit then return some i
       else continue
   return none

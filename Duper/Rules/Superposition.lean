@@ -19,22 +19,22 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
     
-    let mainParentLits := if givenIsMain then parentsLits[0] else parentsLits[1]
-    let sideParentLits := if givenIsMain then parentsLits[1] else parentsLits[0]
-    let appliedMainPremise := if givenIsMain then appliedPremises[0] else appliedPremises[1]
-    let appliedSidePremise := if givenIsMain then appliedPremises[1] else appliedPremises[0]
+    let mainParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
+    let sideParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
+    let appliedMainPremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
+    let appliedSidePremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
 
     let mut caseProofsSide := #[]
     for j in [:sideParentLits.size] do
       if j == sidePremiseLitIdx then
-        let eqLit := sideParentLits[j]
+        let eqLit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
           let eq :=
             if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
             else heq
           let mut caseProofsMain : Array Expr := #[]
           for i in [:mainParentLits.size] do
-            let lit := mainParentLits[i]
+            let lit := mainParentLits[i]!
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
               if(i == mainPremisePos.lit) then
@@ -51,7 +51,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
           Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
         caseProofsSide := caseProofsSide.push $ pr
       else
-        let lit := sideParentLits[j]
+        let lit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let idx := if j ≥ sidePremiseLitIdx then j - 1 else j
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
@@ -67,22 +67,22 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
 
-    let mainParentLits := if givenIsMain then parentsLits[0] else parentsLits[1]
-    let sideParentLits := if givenIsMain then parentsLits[1] else parentsLits[0]
-    let appliedMainPremise := if givenIsMain then appliedPremises[0] else appliedPremises[1]
-    let appliedSidePremise := if givenIsMain then appliedPremises[1] else appliedPremises[0]
+    let mainParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
+    let sideParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
+    let appliedMainPremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
+    let appliedSidePremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
 
     let mut caseProofsSide := #[]
     for j in [:sideParentLits.size] do
       if j == sidePremiseLitIdx then
-        let eqLit := sideParentLits[j]
+        let eqLit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
           let eq := if sidePremiseLitSide == LitSide.rhs
                       then ← Meta.mkAppM ``Eq.symm #[heq]
                       else heq
           let mut caseProofsMain : Array Expr := #[]
           for i in [:mainParentLits.size] do
-            let lit := mainParentLits[i]
+            let lit := mainParentLits[i]!
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
               let abstr ← Meta.kabstract lit.toExpr $ eqLit.getSide sidePremiseLitSide
@@ -94,7 +94,7 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
           Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
         caseProofsSide := caseProofsSide.push $ pr
       else
-        let lit := sideParentLits[j]
+        let lit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let idx := if j ≥ sidePremiseLitIdx then j - 1 else j
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
@@ -166,7 +166,7 @@ def mainPremiseEligiblePreUnificationCheck (mainPremise : MClause) (mainPremiseP
     If either of the above two cases hold, then mainPremisePos.lit is eligible for superposition. Otherwise, it is not.
 -/
 def mainPremiseEligiblePostUnificationCheck (mainPremise : MClause) (mainPremisePos : ClausePos) : RuleM Bool := do
-  let strictness := mainPremise.lits[mainPremisePos.lit].sign -- strictness is true iff mainPremisePos.lit is positive
+  let strictness := mainPremise.lits[mainPremisePos.lit]!.sign -- strictness is true iff mainPremisePos.lit is positive
   runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit strictness
 
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) (mainPremisePos : ClausePos)
@@ -174,7 +174,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
   (simultaneousSuperposition : Bool) : RuleM Unit := do
   Core.checkMaxHeartbeats "superposition"
   withoutModifyingMCtx $ do
-    let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx].makeLhs sidePremiseSide
+    let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
     if mainPremiseSubterm.isMVar then
       return () 
@@ -195,8 +195,8 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
       let mainPremiseFinalEligibility ← mainPremiseEligiblePostUnificationCheck mainPremise mainPremisePos
       if not mainPremiseFinalEligibility then return ()
 
-    let lhs ← instantiateMVars sidePremiseLit.lhs
-    let rhs ← instantiateMVars sidePremiseLit.rhs
+    let lhs ← RuleM.instantiateMVars sidePremiseLit.lhs
+    let rhs ← RuleM.instantiateMVars sidePremiseLit.rhs
     if (← compare lhs rhs) == Comparison.LessThan then
       return ()
 
@@ -208,7 +208,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
       trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
       return ()
       
-    let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
+    let restOfSidePremise ← restOfSidePremise.mapM fun e => RuleM.instantiateMVars e
     let res := MClause.append restOfSidePremise mainPremiseReplaced
     let mkProof :=
       if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain
@@ -217,7 +217,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
 
 def superpositionAtLit (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) (sidePremise : MClause) (sidePremiseLitIdx : Nat) 
   (sidePremiseSide : LitSide) (simultaneousSuperposition : Bool) : RuleM Unit := do
-  let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx].makeLhs sidePremiseSide
+  let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   trace[Rule.debug] "Superposition inferences at literal {sidePremiseLit}"
   let potentialPartners ← mainPremiseIdx.getUnify sidePremiseLit.lhs
   for (partnerClause, partnerPos) in potentialPartners do
@@ -243,10 +243,10 @@ def superposition (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) (sidePrem
   let simultaneousSuperposition := true -- TODO: Make this an option that can be passed into duper
   -- With given clause as side premise:
   for i in [:givenMClause.lits.size] do
-    if givenMClause.lits[i].sign = true && litSelectedOrNothingSelected givenMClause i
+    if givenMClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenMClause i
     then
       for side in #[LitSide.lhs, LitSide.rhs] do
-        let flippedLit := givenMClause.lits[i].makeLhs side
+        let flippedLit := givenMClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then
           continue
         let cs ← superpositionAtLit mainPremiseIdx givenMClause i side simultaneousSuperposition

@@ -28,7 +28,11 @@ Simplification rules:
 
 Refactoring to consider:
 - Use mvars in Clause to avoid cost of conversion?
-- Use an inductive type to store information about proof steps for reconstruction instead of using closures?
+- Use an inductive type to store information about proof steps for reconstruction instead of using closures
+  - I imagine that this wouldn't hurt, but at least right now, this isn't a priority. After commit 807a153d2d319b68e70c2dec86aeaa4da676a9ae,
+    I tested to see what would happen if I disabled all proof reconstruction, and there wasn't very much sppedup. For example, asylum_nine
+    became about 200 ms quicker, but took around 10000 ms in total. So it's impossible that any marginal inefficiencies in proof reconstruction
+    are acting as a bottleneck.
 
 Known bugs/issues (bugs.lean):
 - Premature saturation instances:
@@ -55,7 +59,7 @@ Known bugs/issues (bugs.lean):
 - Unknown metavariable error in many of github's tptp tests
 
 Other:
-- Update Lean version
+- Fix TPTP.lean to work in the new Lean version
 - Find a way to better handle fvars in DiscrTree.lean's Key.hash and Key.lt. Currently, these functions have been modified to not depend
   on fvar names, which is good in that it makes behavior more consistent, but bad in that right now, fvar keys are almost always being viewed as equal
   to each other. Ideally, we should find a function that still distinguishes different fVarIds but is less sensitive to specific names (and in particular,
@@ -64,9 +68,6 @@ Other:
       precCompare fvar insensitive caused PUZ012_1 (at the end of test.lean) to go from a proof with 161 clauses to a proof with 1789 clauses. This might
       just mean that duper happens to get more lucky when precCompare looks at fvars, but it would also make sense more generally that having some way of
       ordering fvars would be beneficial so that the number of necessary superposition inferences can be cut down significantly.
-- Although the current setup of using 'lake build' to run PUZ_tests, LCL_tests, and COM_tests is better than nothing, at some point, I'd like to make tests
-  that have more consistent output (e.g. test succeeded, test saturated, test ran out of time, or test encountered error) so that it can quickly/easily be
-  determined what effects any given commit had on the outputs for PUZ_tests, LCL_tests, and COM_tests (i.e. which tests' behavior changed from the previous commit).
 - Unit tests, e.g. for the ordering. (How do unit tests work in Lean 4?)
 - Command line version of duper?
 - Look into whether it would be useful/more efficient to have a lhs/rhs convention so that clauses aren't duplicated up to symmetries (e.g. a = b and b = a)
