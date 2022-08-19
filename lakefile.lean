@@ -2,7 +2,9 @@ import Lake
 
 open Lake DSL
 
-package Duper
+package Duper {
+  precompileModules := true
+}
 
 lean_lib Duper
 
