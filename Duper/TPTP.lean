@@ -3,6 +3,7 @@ import Lean
 namespace TPTP
 open Lean
 open Lean.Parser
+open TSyntax.Compat
 
 declare_syntax_cat TPTP_file
 
@@ -52,25 +53,31 @@ syntax TPTP_input* : TPTP_file
 
 def explicitBinder : Parser := Term.explicitBinder false
 
-constant iota : Type
+axiom iota : Type
 
-partial def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
-  match stx with
-  | `(tff_atomic_type| $ty:ident) => pure ty
-  | `(tff_atomic_type| $ty:defined_type) =>
-    match ty[1].getId with
+def processTffDefinedType (ty : Syntax) : MacroM Syntax := do
+  if ty.isAntiquot then
+    match ty.getAntiquotTerm.getId with
     | `i => return ← `(TPTP.iota)
     | `o => return ← `(Prop)
     | `tType => return ← `(Type)
-    | _ => Macro.throwError s!"Unsupported tff_atomic_type: {ty}"
-  | `(tff_atomic_type| $f:ident $args:tff_type_arguments) => do
-    let ts ←
-      pure $ ← ((@Syntax.SepArray.mk "," args[1].getArgs) : Array Syntax).mapM 
-                fun arg => processTffAtomicType arg
-    let ts := mkNode ``many ts
-    let ts := mkNode ``Term.app #[f, ts]
-    return ← `($ts)
-  | _ => Macro.throwError s!"Unsupported tff_atomic_type: {stx}"
+    | _ => Macro.throwError s!"Unsupported tff_defined_type: {ty}"
+  else Macro.throwError s!"{ty} is not a defined type"
+
+partial def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
+  if stx.isAntiquot then processTffDefinedType stx
+  else
+    match stx with
+    | `(tff_atomic_type| $ty:ident) => pure ty
+    | `(tff_atomic_type| $ty:defined_type) => processTffDefinedType ty
+    | `(tff_atomic_type| $f:ident $args:tff_type_arguments) => do
+      let ts ←
+        pure $ ← ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
+                  fun arg => processTffAtomicType arg
+      let ts := mkNode ``many ts
+      let ts := mkNode ``Term.app #[f, ts]
+      return ← `($ts)
+    | _ => Macro.throwError s!"Unsupported tff_atomic_type: {stx}"
 
 partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
   match stx with
@@ -81,18 +88,18 @@ partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
   | `(tff_term| $t₁:tff_term $conn:binary_connective $t₂:tff_term ) => do
     let t₁ ← processTffTerm t₁
     let t₂ ← processTffTerm t₂
-    match conn[0].getKind with
+    match conn.raw[0].getKind with
     | `«&» => `($t₁ ∧ $t₂)
     | `«=>» => `($t₁ → $t₂)
     | `«|» => `($t₁ ∨ $t₂)
     | `«=» => `($t₁ = $t₂)
     | `«!=» => `($t₁ ≠ $t₂)
     | `«<=>» => `($t₁ ↔ $t₂)
-    | _ => Macro.throwError s!"Unsupported binary_connective: {conn[0].getKind}"
+    | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
   | `(tff_term| $f:ident $args:tff_arguments ?) => do
     let ts : Array Syntax ← match args with
     | some args =>
-      pure $ ← ((@Syntax.SepArray.mk "," args[1].getArgs) : Array Syntax).mapM 
+      pure $ ← ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
                 fun arg => processTffTerm arg
     | none => pure #[]
     let ts := mkNode ``many ts
@@ -105,52 +112,54 @@ partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
       fun v acc => do
         let (v, ty) ← match v with
         | `(tff_variable| $v:ident) => 
-          pure (v, ← `(_))
-        | `(tff_variable| $v:ident : $ty:tff_atomic_type) => 
+          pure (v, (← `(_) : Syntax))
+        | `(tff_variable| $v:ident : $ty:tff_atomic_type) =>
           pure (v, ← processTffAtomicType ty)
         | _ => Macro.throwError s!"Unsupported tff_variable: {v}"
-        match q[0].getKind with
+        match q.raw[0].getKind with
         | `«!» => `(∀ ($v : $ty), $acc)
         | `«?» => `(Exists fun ($v : $ty) => $acc)
-        | _ => Macro.throwError s!"Unsupported fof_quantifier: {q.getKind}"
+        | _ => Macro.throwError s!"Unsupported fof_quantifier: {q.raw[0].getKind}"
       body
   | _ => Macro.throwError s!"Unsupported tff_term: {stx}"
 
 partial def processTffType (stx : Syntax) : MacroM Syntax := do
-  match stx with
-  | `(tff_type| ( $t:tff_type ) ) => processTffType t
-  | `(tff_type| $ty:tff_atomic_type) =>
-    processTffAtomicType ty
-  | `(tff_type| $arg:tff_atomic_type > $ret:tff_atomic_type) =>
-    let ret ← processTffAtomicType ret
-    let arg ← processTffAtomicType arg
-    return ← `($arg → $ret)
-  | `(tff_type| ( $args:tff_xprod_args ) > $ret:tff_atomic_type) =>
-    let ret ← processTffAtomicType ret
-    let args : Array Syntax := @Syntax.SepArray.mk "*" args[0].getArgs
-    let stx ← args.foldrM (fun (a acc : Syntax) => do
-      let a ← processTffAtomicType a
-      `($a → $acc)) ret
-    return stx
-  | `(tff_type| $q:tf1_quantifier [ $vs,* ] : $ty) =>
-    let ty ← processTffType ty
-    let vs : Array Syntax := vs
-    return ← vs.foldrM
-      fun v acc => do
-        let (v, v_ty) ← match v with
-        | `(tff_variable| $v:ident) =>
-          pure (v, ← `(_))
-        | `(tff_variable| $v:ident : $v_ty:tff_atomic_type) =>
-          pure (v, ← processTffAtomicType v_ty)
-        | _ => Macro.throwError s!"Unsupported tff_variable: {v} when trying to process a tf1_quantified_type"
-        match q[0].getKind with
-        | `«!>» => `(∀ ($v : $v_ty), $acc)
-        | _ => Macro.throwError s!"Unsupported tf1_quantifier: {q.getKind}"
-      ty
-  | _ => Macro.throwError s!"Unsupported tff_type: {stx}"
+  if stx.isAntiquot then processTffAtomicType stx
+  else
+    match stx with
+    | `(tff_type| ( $t:tff_type ) ) => processTffType t
+    | `(tff_type| $ty:tff_atomic_type) =>
+      processTffAtomicType ty
+    | `(tff_type| $arg:tff_atomic_type > $ret:tff_atomic_type) =>
+      let ret ← processTffAtomicType ret
+      let arg ← processTffAtomicType arg
+      return ← `($arg → $ret)
+    | `(tff_type| ( $args:tff_xprod_args ) > $ret:tff_atomic_type) =>
+      let ret ← processTffAtomicType ret
+      let args : Array Syntax := @Syntax.SepArray.mk "*" args.raw[0].getArgs
+      let stx ← args.foldrM (fun (a acc : Syntax) => do
+        let a ← processTffAtomicType a
+        `($a → $acc)) ret
+      return stx
+    | `(tff_type| $q:tf1_quantifier [ $vs,* ] : $ty) =>
+      let ty ← processTffType ty
+      let vs : Array Syntax := vs
+      return ← vs.foldrM
+        fun v acc => do
+          let (v, v_ty) ← match v with
+          | `(tff_variable| $v:ident) =>
+            pure (v, (← `(_) : Syntax))
+          | `(tff_variable| $v:ident : $v_ty:tff_atomic_type) =>
+            pure (v, ← processTffAtomicType v_ty)
+          | _ => Macro.throwError s!"Unsupported tff_variable: {v} when trying to process a tf1_quantified_type"
+          match q.raw[0].getKind with
+          | `«!>» => `(∀ ($v : $v_ty), $acc)
+          | _ => Macro.throwError s!"Unsupported tf1_quantifier: {q.raw[0].getKind}"
+        ty
+    | _ => Macro.throwError s!"Unsupported tff_type: {stx}"
 
 macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
-  let hyps ← s[0].getArgs.mapM fun input => do
+  let hyps ← s.raw[0].getArgs.mapM fun input => do
     match input with
     | `(TPTP_input| tff($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
       let term ← processTffTerm term

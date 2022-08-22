@@ -1,5 +1,5 @@
 import Duper.Tactic
--- import Duper.TPTP
+import Duper.TPTP
 
 -- set_option trace.Meta.debug true
 -- set_option trace.Prover.saturate true
@@ -347,7 +347,6 @@ theorem COM002_2_test3 (state label statement : Type) (p3 : state) (goto : label
 -/
 
 --###############################################################################################################################
-/- Temporarily commenting out tptp tests because TPTP.lean hasn't been updated to work with the newer lean version
 tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
   by duper
 
@@ -357,7 +356,6 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
   by duper
 
 #print PUZ012_1
--/
 
 --###############################################################################################################################
 -- Example from super
