@@ -57,9 +57,11 @@ Known bugs/issues (bugs.lean):
   - Yields: "PANIC at Lean.Meta.whnfEasyCases Lean.Meta.WHNF:262:26: unreachable code has been reached"
   - Also results in deterministic timeout, though that's not particularly surprising or necessarily indicative of a specific bug
 - Unknown metavariable error in many of github's tptp tests
+  - When testing on NUM931_5, the error arises due to the type of sk.145 in the expression "sk.145 ?m.187882 ?m.187884".
+    The issue is NOT the arguments passed into sk.145 but rather, the type of sk.145 itself. The type is:
+    "forall (_ : Type), ?_uniq.187828 -> _" which contains the unknown metavariable '?_uniq.187828'
 
 Other:
-- Fix TPTP.lean to work in the new Lean version
 - Find a way to better handle fvars in DiscrTree.lean's Key.hash and Key.lt. Currently, these functions have been modified to not depend
   on fvar names, which is good in that it makes behavior more consistent, but bad in that right now, fvar keys are almost always being viewed as equal
   to each other. Ideally, we should find a function that still distinguishes different fVarIds but is less sensitive to specific names (and in particular,
