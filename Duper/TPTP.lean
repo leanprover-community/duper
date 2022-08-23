@@ -31,7 +31,13 @@ def tffXProdArgsParser := sepBy1 (categoryParser `tff_atomic_type 0) "*"
 syntax tff_xprod_args := tffXProdArgsParser
 
 --tff_mapping_type
-syntax tff_atomic_type ">" tff_atomic_type : tff_type
+/-
+  Note: In real TPTP syntax, the below line should be: tff_atomic_type > tff_atomic_type : tff_type.
+  However, this is infeasible because Lean's parser can't reliably identify tff_atomic_types due
+  to an issue with how Lean's built-in antiquotations and our defined_type category conflict with each
+  other. So writing the below syntax is a workaround.
+-/
+syntax tff_type ">" tff_type : tff_type
 syntax "(" tff_xprod_args ")" ">" tff_atomic_type : tff_type
 
 --tff_type_arguments are needed because <type_functor>(<tff_type_arguments>) is a tff_atomic_type
@@ -68,6 +74,7 @@ partial def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
   if stx.isAntiquot then processTffDefinedType stx
   else
     match stx with
+    | `(tff_type| $ty:tff_atomic_type) => processTffAtomicType ty
     | `(tff_atomic_type| $ty:ident) => pure ty
     | `(tff_atomic_type| $ty:defined_type) => processTffDefinedType ty
     | `(tff_atomic_type| $f:ident $args:tff_type_arguments) => do
@@ -130,7 +137,9 @@ partial def processTffType (stx : Syntax) : MacroM Syntax := do
     | `(tff_type| ( $t:tff_type ) ) => processTffType t
     | `(tff_type| $ty:tff_atomic_type) =>
       processTffAtomicType ty
-    | `(tff_type| $arg:tff_atomic_type > $ret:tff_atomic_type) =>
+    | `(tff_type| $arg:tff_type > $ret:tff_type) =>
+      -- Although the current parser syntax has tff_type > tff_type, this pattern should
+      -- only appear in TPTP files when both arg and ret are of the category tff_atomic_type
       let ret ← processTffAtomicType ret
       let arg ← processTffAtomicType arg
       return ← `($arg → $ret)
