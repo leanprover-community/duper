@@ -34,18 +34,17 @@ inductive BackwardSimpResult
 
 open SimpResult
 
-abbrev MSimpRule := MClause → RuleM (SimpResult (List (MClause × Option ProofReconstructor)))
+abbrev MSimpRule := Clause → RuleM (SimpResult (List (MClause × Option ProofReconstructor)))
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 
-abbrev BackwardMSimpRule := MClause → RuleM BackwardSimpResult
+abbrev BackwardMSimpRule := Clause → RuleM BackwardSimpResult
 abbrev BackwardSimpRule := Clause → ProverM Bool -- Returns true iff any backward simplification was done (meaning backwardSimpLoop needs to loop)
 
 def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fun givenClause => do
   -- Run the rule
   let (res, cs) ← runSimpRule do
     withoutModifyingMCtx do
-      let mclause ← loadClause givenClause
-      let cs? ← rule mclause
+      let cs? ← rule givenClause
       cs?.forM fun cs => do
         for (c, mkProof) in cs do yieldClause c ruleName mkProof
       return cs?
@@ -67,8 +66,7 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
   fun givenClause => do
   let (clausesToRemove, cs) ← runSimpRule do
     withoutModifyingMCtx do
-      let mclause ← loadClause givenClause
-      match ← rule mclause with
+      match ← rule givenClause with
       | BackwardSimpResult.Removed removedClauses =>
         let mut clausesToRemove : List Clause := []
         for c in removedClauses do

@@ -62,6 +62,13 @@ Known bugs/issues (bugs.lean):
     "forall (_ : Type), ?_uniq.187828 -> _" which contains the unknown metavariable '?_uniq.187828'
 
 Other:
+- Modify Match.lean to use Lean's built-in unifier
+- Because the types of SimpRule and BackwardSimpRule were changed to take Clauses rather than MClauses as input, calling loadClause has
+  been moved from Simp.lean to the beginning of each simplification rule. This isn't a problem, but there are some places where it may not
+  be necessary to call loadClause. Going through the simplification rules and changing them to only call loadClause if it is actually required
+  may make some of the simplification rules more efficient
+    - Prior to profiling, it is unclear to me whether this improvement would be significant, because it is has the potential to remove many
+      calls to loadClause, or negligible because loadClause is implemented efficiently
 - Find a way to better handle fvars in DiscrTree.lean's Key.hash and Key.lt. Currently, these functions have been modified to not depend
   on fvar names, which is good in that it makes behavior more consistent, but bad in that right now, fvar keys are almost always being viewed as equal
   to each other. Ideally, we should find a function that still distinguishes different fVarIds but is less sensitive to specific names (and in particular,
@@ -72,7 +79,6 @@ Other:
       ordering fvars would be beneficial so that the number of necessary superposition inferences can be cut down significantly.
 - Unit tests, e.g. for the ordering. (How do unit tests work in Lean 4?)
 - Command line version of duper?
-- Look into whether it would be useful/more efficient to have a lhs/rhs convention so that clauses aren't duplicated up to symmetries (e.g. a = b and b = a)
 - Currently, we have a hacky implementation of removing clauses from indices (tacking on a filter before retrieving). If this turns out to be too inefficient,
   implement removal from discrimination trees properly.
 

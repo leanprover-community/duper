@@ -5,6 +5,7 @@ import Duper.Util.ProofReconstruction
 namespace Duper
 
 open Lean
+open Lean.Meta
 open RuleM
 open SimpResult
 open Comparison
@@ -67,7 +68,7 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm :
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
     return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
-  if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)]) then
+  if not (← RuleM.performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)]) then
     return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
     return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
@@ -96,6 +97,7 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.Cl
     would remove the wrong clause from the active set (we would remove c rather than the main clause that c is paired with). c will 
     considered as a side clause in the backward simplificaiton loop (i.e. in backwardDemodulation) -/
 def forwardDemodulation (sideIdx : ProverM.ClauseDiscrTree ClausePos) : MSimpRule := fun c => do
+  let c ← loadClause c
   let fold_fn := fun acc e pos => do
     match acc with
     | Unapplicable => forwardDemodulationAtExpr e pos sideIdx c
@@ -135,6 +137,7 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm 
 
 /-- Performs rewriting of positive and negative literals (demodulation) with the given clause as the side clause. -/
 def backwardDemodulation (mainIdx : ProverM.ClauseDiscrTree ClausePos) : BackwardMSimpRule := fun givenSideClause => do
+  let givenSideClause ← loadClause givenSideClause
   if givenSideClause.lits.size != 1 || not givenSideClause.lits[0]!.sign then return Unapplicable
   let l := givenSideClause.lits[0]!
   let c ← compare l.lhs l.rhs

@@ -7,8 +7,6 @@ open SimpResult
 open Lean
 
 def mkElimDupLitProof (refs : Array Nat) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
-  let premise := premises[0]!
-  let parent := parents[0]!
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -26,6 +24,7 @@ def mkElimDupLitProof (refs : Array Nat) (premises : Array Expr) (parents: Array
 
 /-- Remove duplicate literals -/
 def elimDupLit : MSimpRule := fun c => do
+  let c ← loadClause c
   let mut newLits := #[]
   let mut refs := #[]
   for i in [:c.lits.size] do

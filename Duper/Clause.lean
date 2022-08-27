@@ -192,6 +192,14 @@ where litsToExpr : List Lit → Expr
 | [l] => l.toExpr
 | l :: ls => mkApp2 (mkConst ``Or) l.toExpr (litsToExpr ls)
 
+def foldM {β : Type v} {m : Type v → Type w} [Monad m] 
+    (f : β → Expr → ClausePos → m β) (init : β) (c : Clause) : m β := do
+  let mut acc := init
+  for i in [:c.lits.size] do
+    let f' := fun acc e pos => f acc e ⟨i, pos.side, pos.pos⟩
+    acc ← c.lits[i]!.foldM f' acc
+  return acc
+
 def toForallExpr (c : Clause) : Expr :=
   c.bVarTypes.foldr (fun ty b => mkForall Name.anonymous BinderInfo.default ty b) c.toExpr
 

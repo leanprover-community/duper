@@ -40,6 +40,7 @@ def mkElimResolvedLitProof (refs : Array (Option Nat)) (premises : Array Expr) (
 
 /-- Eliminate resolved literals (i.e. literals of the form t ≠ t) (Deletion of Resolved Literals: (DR)) -/
 def elimResolvedLit : MSimpRule := fun c => do
+  let c ← loadClause c
   let mut newLits : Array Lit := #[]
   -- If c.lits[i] is resolved (i.e. of the form t ≠ t), then refs[i] = none
   -- If c.lits[i] isn't resolved, then refs[i] = some j where newLits[j] = c.lits[i]

@@ -3,6 +3,36 @@ import Lean
 open Lean
 open Lean.Meta
 
+#check isDefEq
+#check Lean.Meta.Simp.tryTheoremWithExtraArgs?
+
+/- Working on implementing a version of performMatch that uses Lean's built-in unifier
+
+partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) : MetaM Bool := do
+  Core.checkMaxHeartbeats "match"
+  let state ← saveState
+  try
+    withNewMCtxDepth do
+      for (match_target, e) in l do
+        --Need to remake e so that the metavariables in e have the new depth, allowing e's metavariables
+        --to be assigned by isDefEq without interfering with match_target's metavariables
+
+        let match_target_type := (← instantiateMVars (← inferType match_target))
+        let e_type := (← instantiateMVars (← inferType e))
+        if (match_target_type != e_type) then
+          state.restore
+          return false
+        else if ← isDefEq match_target e then
+          continue
+        else
+          state.restore
+          return false
+      return true
+  catch ex =>
+    state.restore
+    throw ex
+-/
+
 /-- Given an array of expression pairs (match_target, e), attempts to assign mvars in e to make e equal to match_target (without
     making any assignments to mvars that appear in match_target).
     Returns true and performs mvar assignments if successful, returns false and does not perform any mvar assignments otherwise -/

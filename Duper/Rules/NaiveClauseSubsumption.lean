@@ -89,6 +89,7 @@ def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) : Ru
 /-- naiveForwardClauseSubsumption implements forward clause subsumption without the feature vector indexing described
     in "Simple and Efficient Clause Subsumption with Feature Vector Indexing" -/
 def naiveForwardClauseSubsumption (activeClauses : ClauseSet) : MSimpRule := fun c => do
+  let c ← loadClause c
   let fold_fn := fun acc nextClause => do
     match acc with
     | Unapplicable =>
@@ -105,6 +106,7 @@ def naiveForwardClauseSubsumption (activeClauses : ClauseSet) : MSimpRule := fun
 open BackwardSimpResult
 
 def naiveBackwardClauseSubsumption (activeClauses : ClauseSet) : BackwardMSimpRule := fun givenSubsumingClause => do
+  let givenSubsumingClause ← loadClause givenSubsumingClause
   let fold_fn := fun acc nextClause =>
     conditionallyModifyingLoadedClauses do
       let nextClause ← loadClause nextClause

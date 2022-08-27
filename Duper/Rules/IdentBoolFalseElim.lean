@@ -55,6 +55,7 @@ def mkIdentBoolFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
     This is a special case of the boolFalseElim inference rule in which σ is the identity. 
     This rule is included as a means of giving Bools special attention. -/
 def identBoolFalseElim : MSimpRule := fun c => do
+  let c ← loadClause c
   let mut newLits : Array Lit := #[]
   -- If c.lits[i] is `false = true` or `true = false`, then refs[i] = none
   -- If c.lits[i] isn't `false = true` or `true = false`,then refs[i] = some j where newLits[j] = c.lits[i]

@@ -57,6 +57,7 @@ def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM (SimpResu
                           -- but it may still be possible to apply it to a different literal in the clause
 
 def destructiveEqualityResolution : MSimpRule := fun c => do
+  let c ← loadClause c
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = false ∧ (is_var c.lits[i]!.lhs ∨ is_var c.lits[i]!.rhs) then
       match ← destructiveEqualityResolutionAtLit c i with

@@ -336,6 +336,7 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MCl
 
 -- TODO: generalize combination of `orCases` and `orIntro`?
 def clausificationStep : MSimpRule := fun c => do
+  let c ← loadClause c
   for i in [:c.lits.size] do
     match ← clausificationStepLit c i with
     | Applied ds =>

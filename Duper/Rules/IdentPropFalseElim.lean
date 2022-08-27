@@ -58,6 +58,7 @@ def mkIdentPropFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
 /-- Eliminate literals that are exactly of the form `False = True` or `True = False`. 
     This is a special case of the propFalseElim inference rule in which σ is the identity. -/
 def identPropFalseElim : MSimpRule := fun c => do
+  let c ← loadClause c
   let mut newLits : Array Lit := #[]
   -- If c.lits[i] is `False = True` or `True = False`, then refs[i] = none
   -- If c.lits[i] isn't `False = True` or `True = False`,then refs[i] = some j where newLits[j] = c.lits[i]
