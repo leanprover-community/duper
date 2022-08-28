@@ -62,7 +62,18 @@ Known bugs/issues (bugs.lean):
     "forall (_ : Type), ?_uniq.187828 -> _" which contains the unknown metavariable '?_uniq.187828'
 
 Other:
-- Modify Match.lean to use Lean's built-in unifier
+- Modify Unif.lean and Match.lean to use Lean's built-in unifier
+  - Earlier attempt to do this was (temporarily) pulled back for two reasons.
+  - First: modifying Unif.lean to use isDefEq resulted in many github tests (such as COM035_5) that previously passed to fail due to unknown
+    metavariable errors.
+  - Second: modifying Match.lean to use Lean's built-in unifier is nontrivial. This is because in order to do matching with Lean's built-in unifier,
+    we have to withNewMCtxDepth, which is a MetaM function. However, the results of the unification need to persist even after returning from
+    Match.lean (and we exit the withNewMCtxDepth) scope. If we try to call withNewMCtxDepth much earlier (e.g. as part of the simplification rules
+    that call performMatch), then we run into difficulties in which withNewMCtxDepth expects a MetaM function but we want to write a RuleM function.
+    It may be possible to get this to work, but some significant refactoring may be required, so I'm putting this on the backburner until profiling
+    determines whether this would be helpful or necessary.
+  - In addition to the above two reasons, it should be noted that, at least for some of the larger tests in test.lean, duper does WORSE when Unif.lean
+    calls Lean's built-in unifier (not in the sense of failing tests it would otherwise pass, but in the sense of consistently taking longer)
 - Because the types of SimpRule and BackwardSimpRule were changed to take Clauses rather than MClauses as input, calling loadClause has
   been moved from Simp.lean to the beginning of each simplification rule. This isn't a problem, but there are some places where it may not
   be necessary to call loadClause. Going through the simplification rules and changing them to only call loadClause if it is actually required
