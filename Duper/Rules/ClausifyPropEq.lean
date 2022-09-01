@@ -21,7 +21,7 @@ def mkC1Proof (i : Nat) (premises : Array Expr) (parents: Array ProofParent) (c 
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
-    let mut proofCases : Array Expr := #[]
+    let mut proofCases : Array Expr := Array.mkEmpty parentLits.size
     for j in [:parentLits.size] do
       let lit := parentLits[j]!
       if j == i then
@@ -56,7 +56,7 @@ def mkC2Proof (i : Nat) (premises : Array Expr) (parents: Array ProofParent) (c 
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
-    let mut proofCases : Array Expr := #[]
+    let mut proofCases : Array Expr := Array.mkEmpty parentLits.size
     for j in [:parentLits.size] do
       let lit := parentLits[j]!
       if j == i then

@@ -13,7 +13,7 @@ def mkElimDupLitProof (refs : Array Nat) (premises : Array Expr) (parents: Array
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 
-    let mut proofCases := #[]
+    let mut proofCases := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
       let proofCase ← Meta.withLocalDeclD `h parentLits[i]!.toExpr fun h => do
         Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) refs[i]! h
@@ -25,8 +25,8 @@ def mkElimDupLitProof (refs : Array Nat) (premises : Array Expr) (parents: Array
 /-- Remove duplicate literals -/
 def elimDupLit : MSimpRule := fun c => do
   let c ← loadClause c
-  let mut newLits := #[]
-  let mut refs := #[]
+  let mut newLits := Array.mkEmpty c.lits.size
+  let mut refs := Array.mkEmpty c.lits.size
   for i in [:c.lits.size] do
     match newLits.getIdx? c.lits[i]! with
     | some j => do

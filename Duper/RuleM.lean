@@ -26,7 +26,7 @@ deriving Inhabited
 abbrev ProofReconstructor := Array Expr → Array ProofParent → Clause → MetaM Expr
 
 structure Proof where
-  parents : Array ProofParent := #[]
+  parents : Array ProofParent := Array.mkEmpty 2 -- Initializing with capacity 2 because most rules have at most two parents
   ruleName : String := "unknown"
   introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
   mkProof : ProofReconstructor
@@ -35,8 +35,8 @@ deriving Inhabited
 structure State where
   mctx : MetavarContext := {}
   lctx : LocalContext := {}
-  loadedClauses : Array (Clause × Array MVarId) := #[]
-  resultClauses : Array (Clause × Proof) := #[]
+  loadedClauses : Array (Clause × Array MVarId) := Array.mkEmpty 2 -- Initializing with capacity 2 because many rules load two clauses
+  resultClauses : Array (Clause × Proof) := Array.mkEmpty 1 -- Initializing with capacity 1 because many rules have one result
   introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
 deriving Inhabited
 
@@ -245,7 +245,7 @@ def neutralizeMClause (c : MClause) : RuleM Clause := do
 
 def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
   let (c, cVars) ← neutralizeMClauseCore c
-  let mut proofParents := #[]
+  let mut proofParents := Array.mkEmpty (← getLoadedClauses).size
   for (loadedClause, instantiations) in ← getLoadedClauses do
     let instantiations ← instantiations.mapM fun m => do instantiateMVars $ mkMVar m
     let additionalVars := instantiations.foldl (fun acc e => e.collectMVars acc) 

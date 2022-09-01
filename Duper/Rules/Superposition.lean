@@ -24,7 +24,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
     let appliedMainPremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
     let appliedSidePremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
 
-    let mut caseProofsSide := #[]
+    let mut caseProofsSide := Array.mkEmpty sideParentLits.size
     for j in [:sideParentLits.size] do
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]!
@@ -32,7 +32,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
           let eq :=
             if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
             else heq
-          let mut caseProofsMain : Array Expr := #[]
+          let mut caseProofsMain : Array Expr := Array.mkEmpty mainParentLits.size
           for i in [:mainParentLits.size] do
             let lit := mainParentLits[i]!
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
@@ -72,7 +72,7 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
     let appliedMainPremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
     let appliedSidePremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
 
-    let mut caseProofsSide := #[]
+    let mut caseProofsSide := Array.mkEmpty sideParentLits.size
     for j in [:sideParentLits.size] do
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]!
@@ -80,7 +80,7 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
           let eq := if sidePremiseLitSide == LitSide.rhs
                       then ← Meta.mkAppM ``Eq.symm #[heq]
                       else heq
-          let mut caseProofsMain : Array Expr := #[]
+          let mut caseProofsMain : Array Expr := Array.mkEmpty mainParentLits.size
           for i in [:mainParentLits.size] do
             let lit := mainParentLits[i]!
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do

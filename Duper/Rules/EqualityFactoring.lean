@@ -54,7 +54,7 @@ def mkEqualityFactoringProof (i : Nat) (j : Nat) (litside_i : LitSide) (litside_
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
-    let mut proofCases : Array Expr := #[]
+    let mut proofCases : Array Expr := Array.mkEmpty parentLits.size
     for k in [:parentLits.size] do
       let lit := parentLits[k]!
       if k == i then

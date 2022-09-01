@@ -20,7 +20,7 @@ def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : Array Expr) (pare
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 
-    let mut caseProofs := #[]
+    let mut caseProofs := Array.mkEmpty parentLits.size
     for j in [:parentLits.size] do
       let lit := parentLits[j]!
       if j == i then

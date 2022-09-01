@@ -8,8 +8,8 @@ open Lean
 
 def instantiatePremises (parents : Array ProofParent) (premises : Array Expr) (xs : Array Expr) : 
     MetaM (Array (Array Lit) × Array Expr) := do
-  let mut parentsLits := #[]
-  let mut appliedPremises := #[]
+  let mut parentsLits := Array.mkEmpty 2 -- Initializing with capacity 2 because most inference and simplification rules have at most two parents
+  let mut appliedPremises := Array.mkEmpty 2
   for k in [:parents.size] do
     let vanishingVarSkolems ← parents[k]!.vanishingVarTypes.mapM fun ty =>
       Meta.mkAppOptM ``default #[some ty, none]

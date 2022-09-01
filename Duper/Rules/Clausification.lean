@@ -349,7 +349,7 @@ def clausificationStep : MSimpRule := fun c => do
               let parentLits := parentLits[0]!
               let appliedPremise := appliedPremise[0]!
               
-              let mut caseProofs := #[]
+              let mut caseProofs := Array.mkEmpty parentLits.size
               for j in [:parentLits.size] do
                 let lit := parentLits[j]!
                 let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do

@@ -14,7 +14,7 @@ def mkElimResolvedLitProof (refs : Array (Option Nat)) (premises : Array Expr) (
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 
-    let mut proofCases : Array Expr := #[]
+    let mut proofCases : Array Expr := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do {
       let lit := parentLits[i]!
       if ((not lit.sign) && lit.lhs == lit.rhs) then
@@ -41,10 +41,10 @@ def mkElimResolvedLitProof (refs : Array (Option Nat)) (premises : Array Expr) (
 /-- Eliminate resolved literals (i.e. literals of the form t ≠ t) (Deletion of Resolved Literals: (DR)) -/
 def elimResolvedLit : MSimpRule := fun c => do
   let c ← loadClause c
-  let mut newLits : Array Lit := #[]
+  let mut newLits : Array Lit := Array.mkEmpty c.lits.size
   -- If c.lits[i] is resolved (i.e. of the form t ≠ t), then refs[i] = none
   -- If c.lits[i] isn't resolved, then refs[i] = some j where newLits[j] = c.lits[i]
-  let mut refs : Array (Option Nat) := #[]
+  let mut refs : Array (Option Nat) := Array.mkEmpty c.lits.size
   for lit in c.lits do {
     if ((not lit.sign) && lit.lhs == lit.rhs) then
       refs := refs.push none -- c.lits[i] is a resolved literal

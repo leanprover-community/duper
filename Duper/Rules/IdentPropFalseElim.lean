@@ -29,7 +29,7 @@ def mkIdentPropFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 
-    let mut proofCases : Array Expr := #[]
+    let mut proofCases : Array Expr := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
       let lit := parentLits[i]!
       if (← isFalsePropLiteral lit) then -- lit has the form `False = True` or `True = False`
@@ -59,10 +59,10 @@ def mkIdentPropFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
     This is a special case of the propFalseElim inference rule in which σ is the identity. -/
 def identPropFalseElim : MSimpRule := fun c => do
   let c ← loadClause c
-  let mut newLits : Array Lit := #[]
+  let mut newLits : Array Lit := Array.mkEmpty c.lits.size
   -- If c.lits[i] is `False = True` or `True = False`, then refs[i] = none
   -- If c.lits[i] isn't `False = True` or `True = False`,then refs[i] = some j where newLits[j] = c.lits[i]
-  let mut refs : Array (Option Nat) := #[]
+  let mut refs : Array (Option Nat) := Array.mkEmpty c.lits.size
   for lit in c.lits do
     if (← runMetaAsRuleM (isFalsePropLiteral lit)) then
       refs := refs.push none

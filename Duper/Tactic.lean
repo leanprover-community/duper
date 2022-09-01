@@ -54,7 +54,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   Core.checkMaxHeartbeats "mkProof"
   let info ← getClauseInfo! state c
   let newTarget := c.toForallExpr
-  let mut parents := #[]
+  let mut parents := Array.mkEmpty info.proof.parents.size
   for parent in info.proof.parents do
     let number := (← getClauseInfo! state parent.clause).number
     parents := parents.push ((← getLCtx).findFromUserName? (Name.mkNum `clause number)).get!.toExpr
@@ -89,12 +89,12 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
   trace[Meta.debug] "{l}"
   let proof ← mkProof state l
   trace[Print_Proof] "Proof: {proof}"
-  assignExprMVar (← getMainGoal) proof -- TODO: List.last?
+  Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
 def collectAssumptions : TacticM (Array (Expr × Expr)) := do
-  let mut formulas := #[]
+  let mut formulas := Array.mkEmpty (← getLCtx).getFVarIds.size
   for fVarId in (← getLCtx).getFVarIds do
-    let ldecl ← getLocalDecl fVarId
+    let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.binderInfo.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       formulas := formulas.push (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId])
   return formulas
@@ -105,11 +105,11 @@ syntax (name := duper) "duper" (colGt ident) ? : tactic
 def evalDuper : Tactic
 | `(tactic| duper) => withMainContext do
   let startTime ← IO.monoMsNow
-  replaceMainGoal [(← intros (← getMainGoal)).2]
+  replaceMainGoal [(← Lean.MVarId.intros (← getMainGoal)).2]
   let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
-  assignExprMVar (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
+  Lean.MVarId.assign (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
   replaceMainGoal [mvar.mvarId!]
-  replaceMainGoal [(← intro (← getMainGoal) `h).2]
+  replaceMainGoal [(← Lean.MVarId.intro (← getMainGoal) `h).2]
   withMainContext do
     let formulas ← collectAssumptions
     trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
@@ -127,11 +127,11 @@ def evalDuper : Tactic
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident) => withMainContext do
-  replaceMainGoal [(← intros (← getMainGoal)).2]
+  replaceMainGoal [(← Lean.MVarId.intros (← getMainGoal)).2]
   let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
-  assignExprMVar (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
+  Lean.MVarId.assign (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
   replaceMainGoal [mvar.mvarId!]
-  replaceMainGoal [(← intro (← getMainGoal) `h).2]
+  replaceMainGoal [(← Lean.MVarId.intro (← getMainGoal) `h).2]
   withMainContext do
     let formulas ← collectAssumptions
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
@@ -159,7 +159,7 @@ def evalTryDuper : Tactic
   catch e =>
   if e.isMaxHeartbeat then
     trace[Timeout.debug] "Caught isMaxHeartbeat"
-    assignExprMVar (← getMainGoal) (← Lean.Meta.mkSorry (← getMainTarget) (synthetic := true))
+    Lean.MVarId.assign (← getMainGoal) (← Lean.Meta.mkSorry (← getMainTarget) (synthetic := true))
   else
     throw e
 | `(tactic| try_duper $ident:ident) => do
@@ -168,7 +168,7 @@ def evalTryDuper : Tactic
   catch e =>
   if e.isMaxHeartbeat then
     trace[Timeout.debug] "Caught isMaxHeartbeat"
-    assignExprMVar (← getMainGoal) (← Lean.Meta.mkSorry (← getMainTarget) (synthetic := true))
+    Lean.MVarId.assign (← getMainGoal) (← Lean.Meta.mkSorry (← getMainTarget) (synthetic := true))
   else
     throw e
 | _ => throwUnsupportedSyntax
