@@ -6,16 +6,16 @@ namespace Duper
 open RuleM
 open Lean
 
-def instantiatePremises (parents : Array ProofParent) (premises : Array Expr) (xs : Array Expr) : 
-    MetaM (Array (Array Lit) × Array Expr) := do
-  let mut parentsLits := Array.mkEmpty 2 -- Initializing with capacity 2 because most inference and simplification rules have at most two parents
-  let mut appliedPremises := Array.mkEmpty 2
-  for k in [:parents.size] do
-    let vanishingVarSkolems ← parents[k]!.vanishingVarTypes.mapM fun ty =>
+def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) : 
+    MetaM (List (Array Lit) × List Expr) := do
+  let mut parentsLits := [] -- Initializing with capacity 2 because most inference and simplification rules have at most two parents
+  let mut appliedPremises := []
+  for (parent, premise) in List.zip parents premises do
+    let vanishingVarSkolems ← parent.vanishingVarTypes.mapM fun ty =>
       Meta.mkAppOptM ``default #[some ty, none]
-    let parentInstantiations := parents[k]!.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
-    parentsLits := parentsLits.push $ parents[k]!.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations))
-    appliedPremises := appliedPremises.push $ mkAppN premises[k]! parentInstantiations
+    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
+    parentsLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations)) :: parentsLits
+    appliedPremises := mkAppN premise parentInstantiations :: appliedPremises
   return (parentsLits, appliedPremises)
 
 /-- Construct a proof of `lits[0] ∨ ... ∨ lits[n] → target`, given proofs (`casesProofs`) of `lits[i] → target` -/

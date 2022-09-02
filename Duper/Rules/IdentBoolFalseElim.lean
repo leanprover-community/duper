@@ -18,7 +18,7 @@ theorem bool_false_ne_true (h : false = true) : False := ne_false_of_eq_true h (
 
 theorem bool_true_ne_false (h : true = false) : False := ne_true_of_eq_false h (by rfl)
 
-def mkIdentBoolFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr :=
+def mkIdentBoolFalseElimProof (refs : List (Option Nat)) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -56,19 +56,25 @@ def mkIdentBoolFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
     This rule is included as a means of giving Bools special attention. -/
 def identBoolFalseElim : MSimpRule := fun c => do
   let c ← loadClause c
-  let mut newLits : Array Lit := Array.mkEmpty c.lits.size
-  -- If c.lits[i] is `false = true` or `true = false`, then refs[i] = none
-  -- If c.lits[i] isn't `false = true` or `true = false`,then refs[i] = some j where newLits[j] = c.lits[i]
-  let mut refs : Array (Option Nat) := Array.mkEmpty c.lits.size
+  /-
+    Spec for newLits and refs
+    If c.lits[i] is `false = true` or `true = false`, then refs[i] = none
+    If c.lits[i] isn't `false = true` or `true = false`,then refs[i] = some j where newLits[j] = c.lits[i]
+  -/
+  let mut newLits : List Lit := []
+  let mut refs : List (Option Nat) := []
   for lit in c.lits do
     if (← runMetaAsRuleM (isFalseLiteral lit)) then
-      refs := refs.push none
+      refs := none :: refs
     else
-      refs := refs.push (some newLits.size)
-      newLits := newLits.push lit
-  if (newLits.size = c.lits.size) then
+      refs := (some newLits.length) :: refs
+      newLits := lit :: newLits
+  -- To achieve the desired spec for newLits and refs, I must reverse them
+  newLits := newLits.reverse
+  refs := refs.reverse
+  if (newLits.length = c.lits.size) then
     return Unapplicable
   else
-    return Applied [(MClause.mk newLits, some (mkIdentBoolFalseElimProof refs))]
+    return Applied [(MClause.mk newLits.toArray, some (mkIdentBoolFalseElimProof refs))]
 
 end Duper

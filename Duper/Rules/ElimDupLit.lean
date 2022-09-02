@@ -6,7 +6,7 @@ open RuleM
 open SimpResult
 open Lean
 
-def mkElimDupLitProof (refs : Array Nat) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
+def mkElimDupLitProof (refs : Array Nat) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs

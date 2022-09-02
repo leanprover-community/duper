@@ -7,7 +7,7 @@ open RuleM
 open SimpResult
 open Lean
 
-def mkElimResolvedLitProof (refs : Array (Option Nat)) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
+def mkElimResolvedLitProof (refs : List (Option Nat)) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -41,21 +41,27 @@ def mkElimResolvedLitProof (refs : Array (Option Nat)) (premises : Array Expr) (
 /-- Eliminate resolved literals (i.e. literals of the form t ≠ t) (Deletion of Resolved Literals: (DR)) -/
 def elimResolvedLit : MSimpRule := fun c => do
   let c ← loadClause c
-  let mut newLits : Array Lit := Array.mkEmpty c.lits.size
-  -- If c.lits[i] is resolved (i.e. of the form t ≠ t), then refs[i] = none
-  -- If c.lits[i] isn't resolved, then refs[i] = some j where newLits[j] = c.lits[i]
-  let mut refs : Array (Option Nat) := Array.mkEmpty c.lits.size
+  /-
+    Spec for newLits and refs:
+    If c.lits[i] is resolved (i.e. of the form t ≠ t), then refs[i] = none
+    If c.lits[i] isn't resolved, then refs[i] = some j where newLits[j] = c.lits[i]
+  -/
+  let mut newLits : List Lit := []
+  let mut refs : List (Option Nat) := []
   for lit in c.lits do {
     if ((not lit.sign) && lit.lhs == lit.rhs) then
-      refs := refs.push none -- c.lits[i] is a resolved literal
+      refs := none :: refs -- c.lits[i] is a resolved literal
     else
-      refs := refs.push (some newLits.size)
-      newLits := newLits.push lit -- Only add the literal if it does not have the form t ≠ t
+      refs := (some newLits.length) :: refs
+      newLits := lit :: newLits -- Only add the literal if it does not have the form t ≠ t
   }
-  if (newLits.size = c.lits.size) then
+  -- To achieve the desired spec for newLits and refs, I must reverse them
+  newLits := newLits.reverse
+  refs := refs.reverse
+  if (newLits.length = c.lits.size) then
     return Unapplicable
   else
     trace[Simp.debug] "elimResolvedLit returning Applied with the newLits: {newLits}"
-    return Applied [(MClause.mk newLits, some (mkElimResolvedLitProof refs))]
+    return Applied [(MClause.mk newLits.toArray, some (mkElimResolvedLitProof refs))]
 
 end Duper

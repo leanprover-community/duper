@@ -22,7 +22,7 @@ theorem prop_false_ne_true (h : False = True) : False := by rw [h]; exact ⟨⟩
 
 theorem prop_true_ne_false (h : True = False) : False := by rw [← h]; exact ⟨⟩
 
-def mkIdentPropFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr :=
+def mkIdentPropFalseElimProof (refs : List (Option Nat)) (premises : List Expr) (parents : List ProofParent) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -59,6 +59,31 @@ def mkIdentPropFalseElimProof (refs : Array (Option Nat)) (premises : Array Expr
     This is a special case of the propFalseElim inference rule in which σ is the identity. -/
 def identPropFalseElim : MSimpRule := fun c => do
   let c ← loadClause c
+  /-
+    Spec for newLits and refs:
+    If c.lits[i] is `False = True` or `True = False`, then refs[i] = none
+    If c.lits[i] isn't `False = True` or `True = False`,then refs[i] = some j where newLits[j] = c.lits[i]
+  -/
+  let mut newLits : List Lit := []
+  let mut refs : List (Option Nat) := []
+  for lit in c.lits do
+    if (← runMetaAsRuleM (isFalsePropLiteral lit)) then
+      refs := none :: refs
+    else
+      refs := (some newLits.length) :: refs
+      newLits := lit :: newLits
+  -- To achieve the desired spec for newLits and refs, I must reverse them
+  newLits := newLits.reverse
+  refs := refs.reverse
+  if (newLits.length = c.lits.size) then
+    trace[Simp.identPropFalseElim] "Returning Unapplicable on {c.lits}"
+    return Unapplicable
+  else
+    trace[Simp.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
+    return Applied [(MClause.mk newLits.toArray, some (mkIdentPropFalseElimProof refs))]
+
+
+  /-
   let mut newLits : Array Lit := Array.mkEmpty c.lits.size
   -- If c.lits[i] is `False = True` or `True = False`, then refs[i] = none
   -- If c.lits[i] isn't `False = True` or `True = False`,then refs[i] = some j where newLits[j] = c.lits[i]
@@ -75,5 +100,6 @@ def identPropFalseElim : MSimpRule := fun c => do
   else
     trace[Simp.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
     return Applied [(MClause.mk newLits, some (mkIdentPropFalseElimProof refs))]
+  -/
 
 end Duper

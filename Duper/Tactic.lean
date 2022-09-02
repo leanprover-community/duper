@@ -54,10 +54,11 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   Core.checkMaxHeartbeats "mkProof"
   let info ← getClauseInfo! state c
   let newTarget := c.toForallExpr
-  let mut parents := Array.mkEmpty info.proof.parents.size
+  let mut parents := []
   for parent in info.proof.parents do
     let number := (← getClauseInfo! state parent.clause).number
-    parents := parents.push ((← getLCtx).findFromUserName? (Name.mkNum `clause number)).get!.toExpr
+    parents := ((← getLCtx).findFromUserName? (Name.mkNum `clause number)).get!.toExpr :: parents
+  parents := parents.reverse -- Note: Not sure if this is correct or not, just trying to see if it works
   let mut lctx ← getLCtx
   let mut skdefs : List Expr := []
   for (fvarId, mkSkProof) in info.proof.introducedSkolems do
@@ -66,7 +67,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
     trace[Meta.debug] "Reconstructing skolems {toString ty}"
     let userName := (state.lctx.get! fvarId).userName
     trace[Print_Proof] "Reconstructed skloem userName: {userName}"
-    let skdef ← mkSkProof parents
+    let skdef ← mkSkProof parents.toArray
     skdefs := skdef :: skdefs
     lctx := lctx.mkLetDecl fvarId userName ty skdef
   let proof ← withLCtx lctx (← getLocalInstances) do
@@ -91,12 +92,12 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
-def collectAssumptions : TacticM (Array (Expr × Expr)) := do
-  let mut formulas := Array.mkEmpty (← getLCtx).getFVarIds.size
+def collectAssumptions : TacticM (List (Expr × Expr)) := do
+  let mut formulas := []
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.binderInfo.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
-      formulas := formulas.push (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId])
+      formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
   return formulas
 
 syntax (name := duper) "duper" (colGt ident) ? : tactic

@@ -342,7 +342,7 @@ def clausificationStep : MSimpRule := fun c => do
     | Applied ds =>
       return Applied $ ds.map fun (d, dproof) => 
         let mkProof : ProofReconstructor := 
-          fun (premises : Array Expr) (parents: Array ProofParent) (res : Clause) => do
+          fun (premises : List Expr) (parents : List ProofParent) (res : Clause) => do
             Meta.forallTelescope res.toForallExpr fun xs body => do
               let resLits := res.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
               let (parentLits, appliedPremise) ← instantiatePremises parents premises xs

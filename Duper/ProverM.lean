@@ -219,7 +219,7 @@ def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
   let mkProof := fun _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof}
   
-def ProverM.runWithExprs (x : ProverM α) (es : Array (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 
+def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 
     CoreM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
     for (e, proof) in es do
@@ -232,12 +232,12 @@ def ProverM.runWithExprs (x : ProverM α) (es : Array (Expr × Expr)) (ctx : Con
   ProverM.setMCtx state.mctx
   return res
 
-@[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (Array (Clause × Proof)) := do
+@[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (List (Clause × Proof)) := do
   let (_, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return state.resultClauses
 
-@[inline] def runSimpRule (x : RuleM α) : ProverM.ProverM (α × Array (Clause × Proof)) := do
+@[inline] def runSimpRule (x : RuleM α) : ProverM.ProverM (α × List (Clause × Proof)) := do
   let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return (res, state.resultClauses)
@@ -305,14 +305,14 @@ def removeClause (c : Clause) : ProverM Unit := do
     passiveSet ← getPassiveSet
   for potentialChild in activeSet.toArray do -- Remove descendants from active set
     let potentialChildInfo ← getClauseInfo! potentialChild
-    let potentialChildParents := Array.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
+    let potentialChildParents := List.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
     if potentialChildParents.contains c then
       setActiveSet $ activeSet.erase potentialChild
       removeFromDiscriminationTrees potentialChild
       activeSet ← getActiveSet
   for potentialChild in passiveSet.toArray do -- Remove descendants from passive set
     let potentialChildInfo ← getClauseInfo! potentialChild
-    let potentialChildParents := Array.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
+    let potentialChildParents := List.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
     if potentialChildParents.contains c then
       setPassiveSet $ passiveSet.erase potentialChild
       passiveSet ← getPassiveSet

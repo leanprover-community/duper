@@ -23,21 +23,21 @@ structure ProofParent where
 deriving Inhabited
 
 /-- Takes: Proofs of the parent clauses, ProofParent information, the target clause -/
-abbrev ProofReconstructor := Array Expr → Array ProofParent → Clause → MetaM Expr
+abbrev ProofReconstructor := List Expr → List ProofParent → Clause → MetaM Expr
 
 structure Proof where
-  parents : Array ProofParent := Array.mkEmpty 2 -- Initializing with capacity 2 because most rules have at most two parents
+  parents : List ProofParent := []
   ruleName : String := "unknown"
-  introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
+  introducedSkolems : List (FVarId × (Array Expr → MetaM Expr)) := []
   mkProof : ProofReconstructor
 deriving Inhabited
 
 structure State where
   mctx : MetavarContext := {}
   lctx : LocalContext := {}
-  loadedClauses : Array (Clause × Array MVarId) := Array.mkEmpty 2 -- Initializing with capacity 2 because many rules load two clauses
-  resultClauses : Array (Clause × Proof) := Array.mkEmpty 1 -- Initializing with capacity 1 because many rules have one result
-  introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
+  loadedClauses : List (Clause × Array MVarId) := []
+  resultClauses : List (Clause × Proof) := []
+  introducedSkolems : List (FVarId × (Array Expr → MetaM Expr)) := []
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -75,13 +75,13 @@ def getContext : RuleM Context :=
 def getMCtx : RuleM MetavarContext :=
   return (← get).mctx
 
-def getLoadedClauses : RuleM (Array (Clause × Array MVarId)) :=
+def getLoadedClauses : RuleM (List (Clause × Array MVarId)) :=
   return (← get).loadedClauses
 
-def getResultClauses : RuleM (Array (Clause × Proof)) :=
+def getResultClauses : RuleM (List (Clause × Proof)) :=
   return (← get).resultClauses
 
-def getIntroducedSkolems : RuleM (Array (FVarId × (Array Expr → MetaM Expr))) :=
+def getIntroducedSkolems : RuleM (List (FVarId × (Array Expr → MetaM Expr))) :=
   return (← get).introducedSkolems
 
 def getState : RuleM State :=
@@ -93,13 +93,13 @@ def setMCtx (mctx : MetavarContext) : RuleM Unit :=
 def setLCtx (lctx : LocalContext) : RuleM Unit :=
   modify fun s => { s with lctx := lctx }
 
-def setLoadedClauses (loadedClauses : Array (Clause × Array MVarId)) : RuleM Unit :=
+def setLoadedClauses (loadedClauses : List (Clause × Array MVarId)) : RuleM Unit :=
   modify fun s => { s with loadedClauses := loadedClauses }
 
-def setResultClauses (resultClauses : Array (Clause × Proof)) : RuleM Unit :=
+def setResultClauses (resultClauses : List (Clause × Proof)) : RuleM Unit :=
   modify fun s => { s with resultClauses := resultClauses }
 
-def setIntroducedSkolems (introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr))) : RuleM Unit :=
+def setIntroducedSkolems (introducedSkolems : List (FVarId × (Array Expr → MetaM Expr))) : RuleM Unit :=
   modify fun s => { s with introducedSkolems := introducedSkolems }
 
 def setState (s : State) : RuleM Unit :=
@@ -175,7 +175,7 @@ def mkFreshSkolem (name : Name) (type : Expr) (mkProof : Array Expr → MetaM Ex
     Meta.withLocalDeclD name type fun x => do
       return (← getLCtx, x)
   setLCtx lctx
-  setIntroducedSkolems $ (← getIntroducedSkolems).push (res.fvarId!, mkProof)
+  setIntroducedSkolems ((res.fvarId!, mkProof) :: (← getIntroducedSkolems))
   return res
 
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
@@ -214,7 +214,7 @@ def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
   let lits := c.lits.map fun l =>
     l.map fun e => e.instantiateRev mVars
-  setLoadedClauses ((← getLoadedClauses).push (c, mVars.map Expr.mvarId!))
+  setLoadedClauses ((c, mVars.map Expr.mvarId!) :: (← getLoadedClauses))
   return (mVars, MClause.mk lits)
 
 def loadClause (c : Clause) : RuleM MClause := do
@@ -222,7 +222,7 @@ def loadClause (c : Clause) : RuleM MClause := do
   return mclause
 
 /-- Returns the MClause that would be returned by calling `loadClause c` and the Clause × Array MVarId pair that
-    would be pushed to loadedClauses if `loadClause c` were called, but does not actually change the set of
+    would be added to loadedClauses if `loadClause c` were called, but does not actually change the set of
     loaded clauses. The purpose of this function is to process a clause and turn it into an MClause while delaying
     the decision of whether to actually load it -/
 def prepLoadClause (c : Clause) : RuleM (MClause × (Clause × Array MVarId)) := do
@@ -245,18 +245,19 @@ def neutralizeMClause (c : MClause) : RuleM Clause := do
 
 def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
   let (c, cVars) ← neutralizeMClauseCore c
-  let mut proofParents := Array.mkEmpty (← getLoadedClauses).size
+  let mut proofParents := []
   for (loadedClause, instantiations) in ← getLoadedClauses do
     let instantiations ← instantiations.mapM fun m => do instantiateMVars $ mkMVar m
     let additionalVars := instantiations.foldl (fun acc e => e.collectMVars acc) 
       {visitedExpr := cVars.visitedExpr, result := #[]} -- ignore vars in `cVars`
     let instantiations := instantiations.map 
       (fun e => e.abstractMVars ((cVars.result ++ additionalVars.result).map mkMVar))
-    proofParents := proofParents.push {
+    let newProofParent := {
       clause := loadedClause
       instantiations := instantiations
       vanishingVarTypes := ← additionalVars.result.mapM getMVarType
     }
+    proofParents := newProofParent :: proofParents
   let mkProof := match mkProof with
   | some mkProof => mkProof
   | none => fun _ _ _ => 
@@ -268,7 +269,7 @@ def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option ProofRec
     introducedSkolems := ← getIntroducedSkolems --TODO: neutralize MVars?
     mkProof := mkProof
   }
-  setResultClauses ((← getResultClauses).push (c, proof))
+  setResultClauses ((c, proof) :: (← getResultClauses))
 
 def yieldClause (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor := none) : RuleM Unit := do
   let _ ← yieldClauseCore c ruleName mkProof

@@ -12,15 +12,15 @@ open Comparison
 initialize Lean.registerTraceClass `Rule.demodulation
 
 def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) (isForward : Bool)
-  (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr :=
+  (premises : List Expr) (parents : List ProofParent) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
 
-    let mainParentLits := if isForward then parentsLits[0]! else parentsLits[1]!
-    let sideParentLits := if isForward then parentsLits[1]! else parentsLits[0]!
-    let appliedMainPremise := if isForward then appliedPremises[0]! else appliedPremises[1]!
-    let appliedSidePremise := if isForward then appliedPremises[1]! else appliedPremises[0]!
+    let mainParentLits := if isForward then parentsLits[1]! else parentsLits[0]!
+    let sideParentLits := if isForward then parentsLits[0]! else parentsLits[1]!
+    let appliedMainPremise := if isForward then appliedPremises[1]! else appliedPremises[0]!
+    let appliedSidePremise := if isForward then appliedPremises[0]! else appliedPremises[1]!
 
     let eqLit := sideParentLits[0]!
 
@@ -84,7 +84,7 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.Cl
     | Unapplicable => continue
     | Applied res =>
       -- forwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
-      setLoadedClauses ((← getLoadedClauses).push cToLoad)
+      setLoadedClauses (cToLoad :: (← getLoadedClauses))
       trace[Rule.demodulation] "Main clause: {givenMainClause.lits} at lit: {pos.lit} at expression: {e}"
       trace[Rule.demodulation] "Side clause: {partnerClause} at lit: {partnerPos.lit}"
       trace[Rule.demodulation] "Result: {(List.get! res 0).1.lits}"
@@ -154,7 +154,7 @@ def backwardDemodulation (mainIdx : ProverM.ClauseDiscrTree ClausePos) : Backwar
     | BackwardSimpResult.Unapplicable => continue
     | BackwardSimpResult.Applied transformedClauses =>
       -- backwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
-      setLoadedClauses ((← getLoadedClauses).push cToLoad)
+      setLoadedClauses (cToLoad :: (← getLoadedClauses))
       trace[Rule.demodulation] "Applying backward demodulation with givenSideClause: {givenSideClause.lits} and main mclause: {mclause.lits}"
       trace[Rule.demodulation] "transformedClauses.1: {(transformedClauses.get! 0).1.lits}"
       trace[Rule.demodulation] "transformedClauses.2: {(transformedClauses.get! 0).2.1.lits}"

@@ -53,14 +53,14 @@ def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fu
   | Unapplicable => return Unapplicable
   | SimpResult.Applied [] => return Removed
   | SimpResult.Applied _ => do
-    -- Return first clause, add others to passive set
-    for i in [:cs.size] do
-      let (c, proof) := cs[i]!
-      if i == 0 then
-        let _ ← addNewClause c proof
-      else
+    match cs with
+    | List.nil => throwError "Invalid list of resultClauses returned by {ruleName}"
+    | (c, proof) :: restCs =>
+      -- Register and return first result clause without adding it to the active or passive set. Add other result clauses to passive set
+      let _ ← addNewClause c proof
+      for (c, proof) in restCs do
         addNewToPassive c proof
-    return Applied cs[0]!.1
+      return Applied c
 
 def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : String) : BackwardSimpRule :=
   fun givenClause => do

@@ -14,15 +14,15 @@ inductive Eligibility
 deriving Inhabited, BEq, Repr
 
 def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
-  (givenIsMain : Bool) (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
+  (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
     
-    let mainParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
-    let sideParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
-    let appliedMainPremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
-    let appliedSidePremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
+    let mainParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
+    let sideParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
+    let appliedMainPremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
+    let appliedSidePremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
 
     let mut caseProofsSide := Array.mkEmpty sideParentLits.size
     for j in [:sideParentLits.size] do
@@ -62,15 +62,15 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
     return proof
 
 def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool)
-  (premises : Array Expr) (parents: Array ProofParent) (c : Clause) : MetaM Expr := do
+  (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
 
-    let mainParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
-    let sideParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
-    let appliedMainPremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
-    let appliedSidePremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
+    let mainParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
+    let sideParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
+    let appliedMainPremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
+    let appliedSidePremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
 
     let mut caseProofsSide := Array.mkEmpty sideParentLits.size
     for j in [:sideParentLits.size] do
