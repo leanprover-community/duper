@@ -13,7 +13,7 @@ import Duper.Rules.EqualityResolution
 import Duper.Rules.IdentBoolFalseElim
 import Duper.Rules.IdentPropFalseElim
 import Duper.Rules.NaiveClauseSubsumption
-import Duper.Rules.Superposition
+import Duper.Rules.Superposition_Old
 import Duper.Rules.SyntacticTautologyDeletion1
 import Duper.Rules.SyntacticTautologyDeletion2
 import Duper.Rules.SyntacticTautologyDeletion3
