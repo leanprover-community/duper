@@ -6,12 +6,17 @@ namespace Duper
 open RuleM
 open Lean
 
+/- Selection function that always just selects the first negative literal
 def getSelections (c : MClause) : List Nat := Id.run do
   -- simply select first negative literal:
   for i in [:c.lits.size] do
     if c.lits[i]!.sign == false || c.lits[i]!.rhs == mkConst ``False || c.lits[i]!.lhs == mkConst ``False then
       return [i]
   return []
+-/
+
+-- Selection function that never actually selects anything
+def getSelections (_ : MClause) : List Nat := []
 
 def litSelectedOrNothingSelected (c : MClause) (i : Nat) :=
   let sel := getSelections c
