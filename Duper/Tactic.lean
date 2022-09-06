@@ -102,6 +102,7 @@ def collectAssumptions : TacticM (List (Expr × Expr)) := do
 
 syntax (name := duper) "duper" (colGt ident) ? : tactic
 
+
 @[tactic duper]
 def evalDuper : Tactic
 | `(tactic| duper) => withMainContext do
@@ -119,9 +120,9 @@ def evalDuper : Tactic
     | Result.contradiction => do
         logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
         trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-        printProof state
-        applyProof state
-        logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+        -- printProof state
+        -- applyProof state
+        -- logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated => 
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
@@ -135,6 +136,7 @@ def evalDuper : Tactic
   replaceMainGoal [(← Lean.MVarId.intro (← getMainGoal) `h).2]
   withMainContext do
     let formulas ← collectAssumptions
+    -- let formulas := formulas.reverse
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
     | Result.contradiction => do 

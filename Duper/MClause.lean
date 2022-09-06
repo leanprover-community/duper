@@ -26,6 +26,7 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     acc ← c.lits[i]!.foldM f' acc
   return acc
 
+@[specialize] 
 def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
     (f : β → Expr → ClausePos → m β) (init : β) (c : MClause) : m β := do
   let mut acc := init

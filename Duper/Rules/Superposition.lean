@@ -242,14 +242,14 @@ def superposition (mainPremiseIdx : ProverM.ClauseDiscrTree ClausePos) (sidePrem
   (givenMClause : MClause) : RuleM Unit := do
   let simultaneousSuperposition := true -- TODO: Make this an option that can be passed into duper
   -- With given clause as side premise:
-  for i in [:givenMClause.lits.size] do
-    if givenMClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenMClause i
-    then
-      for side in #[LitSide.lhs, LitSide.rhs] do
-        let flippedLit := givenMClause.lits[i]!.makeLhs side
-        if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then
-          continue
-        let cs ← superpositionAtLit mainPremiseIdx givenMClause i side simultaneousSuperposition
+  -- for i in [:givenMClause.lits.size] do
+  --   if givenMClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenMClause i
+  --   then
+  --     for side in #[LitSide.lhs, LitSide.rhs] do
+  --       let flippedLit := givenMClause.lits[i]!.makeLhs side
+  --       if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then
+  --         continue
+  --       let cs ← superpositionAtLit mainPremiseIdx givenMClause i side simultaneousSuperposition
   -- With given clause as main premise
   givenMClause.foldGreenM fun acc e pos => do
       superpositionAtExpr e pos sidePremiseIdx givenMClause simultaneousSuperposition

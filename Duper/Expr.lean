@@ -21,6 +21,7 @@ end Duper
 namespace Lean.Expr
 open Duper
 
+@[specialize]
 partial def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
     (f : β → Expr → ExprPos → m β) (init : β) (e : Expr)
     (pos : ExprPos := ExprPos.empty) : m β  := do

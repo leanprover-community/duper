@@ -166,26 +166,10 @@ def throwEmptyClauseException : ProverM α :=
 partial def chooseGivenClause : ProverM (Option Clause) := do
   Core.checkMaxHeartbeats "chooseGivenClause"
   -- Decide which heap to choose from
-  let fc ← getFairnessCounter
-  let (getHeap, setHeap) ←
-    if fc ≥ 5 then
-      setFairnessCounter 0
-      trace[Prover.debug] "Clause selected by age ({fc})"
-      pure (getPassiveSetAgeHeap, setPassiveSetAgeHeap)
-    else
-      trace[Prover.debug] "Clause selected by weight ({fc})"
-      pure (getPassiveSetWeightHeap, setPassiveSetWeightHeap)
   -- Extract clause from heap
-  let some (c, h) := (← getHeap).deleteMin
+  let some (c, h) := (← getPassiveSetAgeHeap).deleteMin
     | return none
-  setHeap h
-  -- If selected clause is no longer in passive set, restart.
-  if not $ (← getPassiveSet).contains c.2 then
-    return (← chooseGivenClause)
-  -- Remove clause from passive
-  setPassiveSet $ (← getPassiveSet).erase c.2
-  -- Increase fairness counter
-  setFairnessCounter (fc + 1)
+  setPassiveSetAgeHeap h
   return c.2
 
 /-- Registers a new clause, but does not add it to active or passive set.
@@ -209,12 +193,19 @@ def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
   else
     trace[Prover.saturate] "New passive clause: {c}"
     let ci ← addNewClause c proof
-    setPassiveSet $ (← getPassiveSet).insert c
     setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
-    setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
+
+def ClausefromExpr (f : Expr) : ProverM Clause := do
+  let c ← match f with
+  | Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl]) ty) e₁) e₂ =>
+    return Clause.mk #[] #[Lit.mk true lvl ty e₁ e₂]
+  | Expr.app (Expr.const ``Not _) (Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl]) ty) e₁) e₂) =>
+    return Clause.mk #[] #[Lit.mk false lvl ty e₁ e₂]
+  | _ => pure $ Clause.fromExpr f
+  return c
 
 def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
-  let c := Clause.fromExpr e
+  let c ← ClausefromExpr e
   -- TODO: remove sorry
   let mkProof := fun _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof}
@@ -222,7 +213,7 @@ def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
 def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 
     CoreM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
-    for (e, proof) in es do
+    for (e, proof) in es.reverse do
       addExprAssumptionToPassive e proof
     x
 
@@ -269,17 +260,23 @@ def addToActive (c : Clause) : ProverM Unit := do
       let (_, mclause) ← loadClauseCore c
       mclause.foldM (fun idx e pos => idx.insert e (c, pos)) idx
     setDemodSidePremiseIdx idx
+
+
   -- Add to main premise index:
-  let idx ← getMainPremiseIdx
-  let idx ← runRuleM do
+  -- This is a major bottle neck.
+  let list ← runRuleM do
     let (_, mclause) ← loadClauseCore c
     mclause.foldGreenM
-      fun idx e pos => do
+      fun l e pos => do
+        -- return idx
         if e.isMVar
-        then return idx
-        else return ← idx.insert e (c, pos)
-      idx
-  setMainPremiseIdx idx
+        then return l
+        else return (← DiscrTree.mkPath e, c, pos) :: l
+      []
+  for (path, c, pos) in list do
+    setMainPremiseIdx $ (← getMainPremiseIdx).insertCore path (c, pos)
+  
+
   -- add to active set:
   setActiveSet $ (← getActiveSet).insert c
 

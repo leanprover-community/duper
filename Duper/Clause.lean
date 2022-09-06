@@ -63,6 +63,7 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
   f (← f init l.lhs ⟨LitSide.lhs, ExprPos.empty⟩) l.rhs ⟨LitSide.rhs, ExprPos.empty⟩
 
+@[specialize]
 def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
   let fLhs := fun acc e p => f acc e ⟨LitSide.lhs, p⟩
