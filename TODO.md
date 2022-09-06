@@ -42,6 +42,12 @@ Known bugs/issues (bugs.lean):
   - Prior to changing superposition's side condition checks (commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a), COM003_1 failed due to deterministic
     timeout, but did not visibly have any issue of premature saturation. After changing superposition's side condition checks, COM003_1 now results
     in premature saturation. Need to look into why this is the case.
+  - Under a very specific set of conditions, super_test can achieve premature saturation. Notably, this instance of premature saturation is one in which
+    it is easy to see that both superposition and demodulation are failing to make an inference that they ought to be able to. To replicate, go to commit
+    7c268109f7b53063fdd68d174a44a154f4f8cd94 and make the following changes:
+      - DiscrTree.lean's keys consider fvars (revert Key.hash and Key.lt functions to original values)
+      - Order.lean considers fvar names for ordering (revert original Order.lean code)
+      - getSelection returns the first negative literal in the clause
 - PUZ031_1_modified:
   - "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error
   - Error when reconstructing clausification
@@ -62,6 +68,7 @@ Known bugs/issues (bugs.lean):
     "forall (_ : Type), ?_uniq.187828 -> _" which contains the unknown metavariable '?_uniq.187828'
 
 Other:
+- Replace discrimination trees with fingerprint indexing
 - Modify Unif.lean and Match.lean to use Lean's built-in unifier
   - Earlier attempt to do this was (temporarily) pulled back for two reasons.
   - First: modifying Unif.lean to use isDefEq resulted in many github tests (such as COM035_5) that previously passed to fail due to unknown
