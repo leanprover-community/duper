@@ -75,18 +75,27 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm :
   let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← RuleM.instantiateMVars sidePremiseLit.rhs
   return Applied [(mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))]
 
-def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.ClauseDiscrTree ClausePos) (givenMainClause : MClause) :
+def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (activeSet : ProverM.ClauseSet) (givenMainClause : MClause) :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
-  let potentialPartners ← sideIdx.getMatch e
-  for (partnerClause, partnerPos) in potentialPartners do
-    let (mclause, cToLoad) ← prepLoadClause partnerClause
-    match ← forwardDemodulationWithPartner givenMainClause e pos mclause partnerPos.side with
+  for sideClause in activeSet.toList do
+    -- Since I'm not using indices, I need to check eligibility here
+    if (sideClause.lits.size != 1 || not sideClause.lits[0]!.sign) then continue
+    let (mclause, cToLoad) ← prepLoadClause sideClause
+    -- Using foldM rather than foldGreenM because the only valid position for demodulation's side premise is the whole lhs or the whole rhs
+    let sideClauseDemodulationRes ← mclause.foldM fun acc sideE sidePos =>
+      do
+        match acc with
+        | Unapplicable => forwardDemodulationWithPartner givenMainClause e pos mclause sidePos.side
+        | Applied transformedClauses => return Applied transformedClauses
+        | Removed => throwError "Invalid demodulation result"
+      Unapplicable
+    match sideClauseDemodulationRes with
     | Unapplicable => continue
     | Applied res =>
       -- forwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
       setLoadedClauses (cToLoad :: (← getLoadedClauses))
       trace[Rule.demodulation] "Main clause: {givenMainClause.lits} at lit: {pos.lit} at expression: {e}"
-      trace[Rule.demodulation] "Side clause: {partnerClause} at lit: {partnerPos.lit}"
+      trace[Rule.demodulation] "Side clause: {sideClause}"
       trace[Rule.demodulation] "Result: {(List.get! res 0).1.lits}"
       return Applied res
     | Removed => throwError "Invalid demodulation result"
@@ -96,14 +105,16 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : ProverM.Cl
     to use c as the main clause (rather than attempt to use it as a side clause as well) because if we used c as a side clause, we
     would remove the wrong clause from the active set (we would remove c rather than the main clause that c is paired with). c will 
     considered as a side clause in the backward simplificaiton loop (i.e. in backwardDemodulation) -/
-def forwardDemodulation (sideIdx : ProverM.ClauseDiscrTree ClausePos) : MSimpRule := fun c => do
+def forwardDemodulation (activeSet : ProverM.ClauseSet) : MSimpRule := fun c => do
   let c ← loadClause c
   let fold_fn := fun acc e pos => do
     match acc with
-    | Unapplicable => forwardDemodulationAtExpr e pos sideIdx c
+    | Unapplicable => forwardDemodulationAtExpr e pos activeSet c
     | Applied res => return Applied res -- If forwardDemodulationAtExpr ever succeeds, just return the first success
     | Removed => throwError "Invalid demodulation result"
-  c.foldM fold_fn Unapplicable
+  -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
+  -- rather than just green ones
+  c.foldGreenM fold_fn Unapplicable
 
 open BackwardSimpResult
 
@@ -136,7 +147,7 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm 
   return Applied [(mainPremise, (mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos false)))]
 
 /-- Performs rewriting of positive and negative literals (demodulation) with the given clause as the side clause. -/
-def backwardDemodulation (mainIdx : ProverM.ClauseDiscrTree ClausePos) : BackwardMSimpRule := fun givenSideClause => do
+def backwardDemodulation (activeSet : ProverM.ClauseSet) : BackwardMSimpRule := fun givenSideClause => do
   let givenSideClause ← loadClause givenSideClause
   if givenSideClause.lits.size != 1 || not givenSideClause.lits[0]!.sign then return Unapplicable
   let l := givenSideClause.lits[0]!
@@ -146,11 +157,19 @@ def backwardDemodulation (mainIdx : ProverM.ClauseDiscrTree ClausePos) : Backwar
   let givenSideClauseLhs := -- givenSideClause.getSide givenSideClauseLhs is will function as the lhs of the side clause
     if c == GreaterThan then LitSide.lhs
     else LitSide.rhs
-  let potentialPartners ← DiscrTree.getMatch mainIdx (Lit.getSide l givenSideClauseLhs)
 
-  for (partnerClause, partnerPos) in potentialPartners do
-    let (mclause, cToLoad) ← prepLoadClause partnerClause
-    match ← backwardDemodulationWithPartner mclause (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs with
+  for mainClause in activeSet.toList do
+    let (mclause, cToLoad) ← prepLoadClause mainClause
+    -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
+    -- rather than just green ones
+    let mainClauseDemodulationRes ← mclause.foldGreenM fun acc mainE mainPos =>
+      do
+        match acc with
+        | BackwardSimpResult.Unapplicable => backwardDemodulationWithPartner mclause mainE mainPos givenSideClause givenSideClauseLhs
+        | BackwardSimpResult.Applied transformedClauses => return BackwardSimpResult.Applied transformedClauses
+        | BackwardSimpResult.Removed removedClauses => throwError "Invalid demodulation result"
+      BackwardSimpResult.Unapplicable
+    match mainClauseDemodulationRes with
     | BackwardSimpResult.Unapplicable => continue
     | BackwardSimpResult.Applied transformedClauses =>
       -- backwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state

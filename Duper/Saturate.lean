@@ -54,13 +54,13 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     identPropFalseElim.toSimpRule "identity prop false elimination",
     identBoolFalseElim.toSimpRule "identity boolean false elimination",
     (naiveForwardClauseSubsumption (← getActiveSet)).toSimpRule "forward clause subsumption (naive)",
-    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation"
+    (forwardDemodulation (← getActiveSet)).toSimpRule "forward demodulation"
   ]
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
   return #[
     (naiveBackwardClauseSubsumption (← getActiveSet)).toBackwardSimpRule "backward clause subsumption (naive)",
-    (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule "backward demodulation"
+    (backwardDemodulation (← getActiveSet)).toBackwardSimpRule "backward demodulation"
   ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
@@ -111,7 +111,7 @@ def backwardSimplify (givenClause : Clause) : ProverM Unit := backwardSimpLoop g
 def performInferences (givenClause : Clause) : ProverM Unit := do
   performEqualityResolution givenClause
   performClausifyPropEq givenClause
-  performSuperposition givenClause
+  performSuperposition givenClause (← getActiveSet)
   performEqualityFactoring givenClause
 
 partial def saturate : ProverM Unit := do

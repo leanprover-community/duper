@@ -11,6 +11,7 @@ inductive SimpResult (α : Type)
 | Applied (c : α) : SimpResult α
 | Unapplicable : SimpResult α
 | Removed : SimpResult α
+deriving Inhabited
 
 namespace SimpResult
 
@@ -31,6 +32,7 @@ inductive BackwardSimpResult
 | Removed (removedClauses : List MClause) : BackwardSimpResult
 | Applied (transformedClauses : List (MClause × (MClause × Option ProofReconstructor))) : BackwardSimpResult
 | Unapplicable : BackwardSimpResult
+deriving Inhabited
 
 open SimpResult
 
