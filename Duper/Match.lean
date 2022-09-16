@@ -3,23 +3,16 @@ import Lean
 open Lean
 open Lean.Meta
 
-#check isDefEq
-#check Lean.Meta.Simp.tryTheoremWithExtraArgs?
-#check withNewMCtxDepth
-#check MonadControlT
-#check MonadControl
-#check Lean.Expr.abstractM
+initialize Lean.registerTraceClass `Match.debug
 
 /-- Given an array of expression pairs (match_target, e), attempts to assign mvars in e to make e equal to match_target (without
-    making any assignments to mvars that appear in match_target).
+    making any assignments to mvars that appear in protected_mvars).
     Returns true and performs mvar assignments if successful, returns false and does not perform any mvar assignments otherwise -/
-partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) : MetaM Bool := do
+partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) (protected_mvars : Array MVarId) : MetaM Bool := do
   Core.checkMaxHeartbeats "match"
   let state ← saveState
   try
-    -- Collect all mvars from each match_target and store them in an array to ensure that performMatch never assigns to any of them
-    let protected_mvars := l.foldl (fun acc (match_target, _) => match_target.collectMVars acc) {}
-    let protected_mvars := protected_mvars.result
+    trace[Match.debug] "About to attempt to match {l}"
 
     for (match_target, e) in l do
       let match_target_type := (← instantiateMVars (← inferType match_target))
@@ -32,6 +25,8 @@ partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) : MetaM Bool := do
       else
         state.restore
         return false
+
+    trace[Match.debug] "Successfully matched {l}"
     return true
   catch ex =>
     state.restore
@@ -54,7 +49,7 @@ where
   matchRigidRigid (match_target e : Expr) : MetaM Bool := do
     match_target.withApp fun match_target_hd match_target_tl => e.withApp fun e_hd e_tl =>
       if match_target_hd == e_hd then 
-        if match_target_tl.size == e_tl.size then performMatch (match_target_tl.zip e_tl)
+        if match_target_tl.size == e_tl.size then performMatch (match_target_tl.zip e_tl) protected_mvars
         else return false
       else return false
   matchRigidFlex (match_target e : Expr) (protected_mvars : Array MVarId) : MetaM Bool := do

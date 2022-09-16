@@ -358,7 +358,9 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
 #print PUZ012_1
 
 --###############################################################################################################################
--- Example from super
+-- Example from super (can currently solve, but it takes quite a bit of time) (I'm hoping this will be improved by fingerprint indexing)
+set_option maxHeartbeats 1000000
+
 theorem super_test (p q : i → i → Prop) (a b c d : i) :
   (∀x y z, p x y ∧ p y z → p x z) →
   (∀x y z, q x y ∧ q y z → q x z) →

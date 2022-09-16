@@ -131,7 +131,19 @@ tptp COM002_2 "../TPTP-v8.0.0/Problems/COM/COM002_2.p"
 #print axioms COM002_2
 
 tptp COM003_1 "../TPTP-v8.0.0/Problems/COM/COM003_1.p"
-  by duper -- Prover saturated!? (since commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a)
+  by duper -- Either deterministic timeout or premature saturation depending on duper's configurations
+
+/- Configurations that lead to COM003_1 achieving premature saturation include:
+    - Having Order.lean consider variable names
+    - Having a selection function that always returns the first negative literal
+
+Note: It's noteworthy that in the final active set when COM003_1 achieves premature saturation, a large
+number of clauses in the final active set include unknown free variables of the form '_uniq.XXXX'. Perhaps
+these unknown free variables have something to do with the issue?
+
+This is made even more plausible by the fact that, when COM003_1 DOESN'T achieve premature saturation, those free
+variables are instead known variables of the form 'sk.XX'
+-/
 
 tptp HWV039_3 "../TPTP-v8.0.0/Problems/HWV/HWV039_3.p"
   by duper -- Deterministic timeout (duper previously could solve this, but only because a parsing bug in tptp resulted in the wrong problem being made)

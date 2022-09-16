@@ -73,8 +73,11 @@ def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) :
 
 partial def forwardSimpLoop (givenClause : Clause) : ProverM (Option Clause) := do
   Core.checkMaxHeartbeats "forwardSimpLoop"
+  let activeSet ← getActiveSet
   match ← applyForwardSimpRules givenClause with
-  | Applied c => forwardSimpLoop c
+  | Applied c =>
+    if activeSet.contains c then return none
+    else forwardSimpLoop c
   | Unapplicable => return some givenClause 
   | Removed => return none
 
@@ -125,8 +128,6 @@ partial def saturate : ProverM Unit := do
       trace[Prover.saturate] "Given clause: {givenClause}"
       let some simplifiedGivenClause ← forwardSimplify givenClause
         | return LoopCtrl.next
-      if ((← getActiveSet).contains simplifiedGivenClause) then
-        return LoopCtrl.next -- Don't need to backwardSimplify or performInferences because this clause has already been added to the active set
       trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause}"
       backwardSimplify simplifiedGivenClause
       addToActive simplifiedGivenClause

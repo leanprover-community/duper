@@ -41,13 +41,11 @@ Known bugs/issues (bugs.lean):
     - Though at present, I don't know that fully interpreting $o/$oType as Bool would necessarily work either
   - Prior to changing superposition's side condition checks (commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a), COM003_1 failed due to deterministic
     timeout, but did not visibly have any issue of premature saturation. After changing superposition's side condition checks, COM003_1 now results
-    in premature saturation. Need to look into why this is the case.
-  - Under a very specific set of conditions, super_test can achieve premature saturation. Notably, this instance of premature saturation is one in which
-    it is easy to see that both superposition and demodulation are failing to make an inference that they ought to be able to. To replicate, go to commit
-    7c268109f7b53063fdd68d174a44a154f4f8cd94 and make the following changes:
-      - DiscrTree.lean's keys consider fvars (revert Key.hash and Key.lt functions to original values)
-      - Order.lean considers fvar names for ordering (revert original Order.lean code)
-      - getSelection returns the first negative literal in the clause
+    in premature saturation. Need to look into why this is the case (see TPTP_test.lean for conditions in which saturation occurs).
+    - This bug appears to be qualitatively different from the clause subsumption bug because when COM003_1 achieves premature saturation, free variables
+      that should be known in the final active set with the form 'sk.XX' instead are unknown in the final active set and have the form 'uniq.XXXXX'. So
+      there may be some bug with how skolem variables are being handled (though it's weird that such a bug would present only under certain duper
+      configurations. Why would Order.lean and Selection.lean impact whether the skolem variable code works?)
 - PUZ031_1_modified:
   - "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error
   - Error when reconstructing clausification
@@ -69,6 +67,7 @@ Known bugs/issues (bugs.lean):
 
 Other:
 - Replace discrimination trees with fingerprint indexing
+  - Note: In general, the current approach of not even using discrimination trees is even slower than discrimination trees. But fingerprint indexing should be faster than both
 - Modify Unif.lean and Match.lean to use Lean's built-in unifier
   - Earlier attempt to do this was (temporarily) pulled back for two reasons.
   - First: modifying Unif.lean to use isDefEq resulted in many github tests (such as COM035_5) that previously passed to fail due to unknown

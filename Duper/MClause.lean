@@ -18,6 +18,13 @@ def eraseLit (c : MClause) (idx : Nat) : MClause :=
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (c : MClause) : m MClause := do
   return ⟨← c.lits.mapM (fun l => l.mapM f)⟩
 
+def fold {β : Type v} (f : β → Expr → β) (init : β) (c : MClause) : β := Id.run $ do
+  let mut acc := init
+  for i in [:c.lits.size] do
+    let f' := fun acc e => f acc e
+    acc := c.lits[i]!.fold f' acc
+  return acc
+
 def foldM {β : Type v} {m : Type v → Type w} [Monad m] 
     (f : β → Expr → ClausePos → m β) (init : β) (c : MClause) : m β := do
   let mut acc := init

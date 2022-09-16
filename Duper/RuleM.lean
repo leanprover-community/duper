@@ -192,8 +192,8 @@ def unify (l : Array (Expr × Expr)) : RuleM Bool := do
 
 /-- Given an array of expression pairs (match_target, e), attempts to assign mvars in e to make e equal to match_target.
     Returns true and performs mvar assignments if successful, returns false and does not perform any mvar assignments otherwise -/
-def performMatch (l : Array (Expr × Expr)) : RuleM Bool := do
-  runMetaAsRuleM $ Meta.performMatch l
+def performMatch (l : Array (Expr × Expr)) (protected_mvars : Array MVarId) : RuleM Bool := do
+  runMetaAsRuleM $ Meta.performMatch l protected_mvars
 
 def isProof (e : Expr) : RuleM Bool := do
   runMetaAsRuleM $ Meta.isProof e

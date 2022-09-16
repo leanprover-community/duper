@@ -14,21 +14,21 @@ initialize Lean.registerTraceClass `Rule.subsumption
 
 /-- Determines whether there is any σ such that σ(l1.lhs) = l2.lhs and σ(l1.rhs) = l2.rhs. Returns true and applies σ if so,
     returns false (without applying any substitution) otherwise -/
-def checkDirectMatch (l1 : Lit) (l2 : Lit) : RuleM Bool :=
-  performMatch #[(l2.lhs, l1.lhs), (l2.rhs, l1.rhs)] -- l2 is first argument in each pair so only l1's mvars can receive assignments
+def checkDirectMatch (l1 : Lit) (l2 : Lit) (protectedMVarIds : Array MVarId) : RuleM Bool :=
+  performMatch #[(l2.lhs, l1.lhs), (l2.rhs, l1.rhs)] protectedMVarIds -- l2 is first argument in each pair so only l1's mvars can receive assignments
 
 /-- Determines whether there is any σ such that σ(l1.rhs) = l2.lhs and σ(l1.lhs) = l2.rhs. Returns true and applies σ if so,
     returns false (without applying any substitution) otherwise -/
-def checkCrossMatch (l1 : Lit) (l2 : Lit) : RuleM Bool :=
-  performMatch #[(l2.lhs, l1.rhs), (l2.rhs, l1.lhs)] -- l2 is first argument in each pair so only l1's mvars can receive assignments
+def checkCrossMatch (l1 : Lit) (l2 : Lit) (protectedMVarIds : Array MVarId) : RuleM Bool :=
+  performMatch #[(l2.lhs, l1.rhs), (l2.rhs, l1.lhs)] protectedMVarIds -- l2 is first argument in each pair so only l1's mvars can receive assignments
 
 /-- Determines whether σ(l1) = l2 for any substitution σ. Importantly, litsMatch can return true if l1.sign = l2.sign and either:
     - σ(l1.lhs) = l2.lhs and σ(l1.rhs) = l2.rhs
     - σ(l1.rhs) = l2.lhs and σ(l1.lhs) = l2.rhs -/
-def litsMatch (l1 : Lit) (l2 : Lit) : RuleM Bool := do
+def litsMatch (l1 : Lit) (l2 : Lit) (protectedMVarIds : Array MVarId) : RuleM Bool := do
   if l1.sign != l2.sign then return false
-  else if ← checkDirectMatch l1 l2 then return true
-  else if ← checkCrossMatch l1 l2 then return true
+  else if ← checkDirectMatch l1 l2 protectedMVarIds then return true
+  else if ← checkCrossMatch l1 l2 protectedMVarIds then return true
   else return false
 
 /-- Determines whether, for any substitution σ, σ(l) is in c at startIdx or after startIdx. If it is, then metavariables are assigned so that σ is
@@ -37,13 +37,13 @@ def litsMatch (l1 : Lit) (l2 : Lit) : RuleM Bool := do
 
     Additionally, litInClause is not allowed to return any Nat that is part of the exclude set. This is to prevent instances in which multiple
     literals in the subsumingClause all map onto the same literal in the subsumedClause. -/
-def litInClause (l : Lit) (c : MClause) (exclude : HashSet Nat) (startIdx : Nat) : RuleM (Option Nat) := do
+def litInClause (l : Lit) (c : MClause) (cMVarIds : Array MVarId) (exclude : HashSet Nat) (startIdx : Nat) : RuleM (Option Nat) := do
   for i in [startIdx:c.lits.size] do
     if exclude.contains i then
       continue
     else
       let cLit := c.lits[i]!
-      if ← litsMatch l cLit then return some i
+      if ← litsMatch l cLit cMVarIds then return some i
       else continue
   return none
 
@@ -59,18 +59,18 @@ def litInClause (l : Lit) (c : MClause) (exclude : HashSet Nat) (startIdx : Nat)
     
     subsumptionCheckHelper is defined as a partialDef, but should always terminate because every recursive call either makes subsumingClauseLits
     smaller or makes fstStart bigger (and once fstStart exceeds the size of subsumedClauseLits.lits, litInClause is certain to fail) -/
-partial def subsumptionCheckHelper (subsumingClauseLits : List Lit) (subsumedClauseLits : MClause) (exclude : HashSet Nat) (fstStart := 0) :
-  RuleM Bool := do
+partial def subsumptionCheckHelper (subsumingClauseLits : List Lit) (subsumedClauseLits : MClause) (subsumedClauseMVarIds : Array MVarId)
+  (exclude : HashSet Nat) (fstStart := 0) : RuleM Bool := do
   match subsumingClauseLits with
   | List.nil => return true
   | l :: restSubsumingClauseLits =>
-    match ← litInClause l subsumedClauseLits exclude fstStart with
+    match ← litInClause l subsumedClauseLits subsumedClauseMVarIds exclude fstStart with
     | none => return false
     | some idx =>
       let tryWithIdx ←
         conditionallyModifyingMCtx do -- Only modify the MCtx if the recursive call succeeds
           let exclude := exclude.insert idx
-          if ← subsumptionCheckHelper restSubsumingClauseLits subsumedClauseLits exclude then return (true, true)
+          if ← subsumptionCheckHelper restSubsumingClauseLits subsumedClauseLits subsumedClauseMVarIds exclude then return (true, true)
           else return (false, false)
       /- tryWithIdx indicates whether it is possible to find an injective mapping from subsumingClauseLits to subsumedClauseLits that satisfies
          the constraints of subsumption where the first literal in subsumingClauseLits is mapped to the first possible literal in subsumingClauseLits
@@ -78,24 +78,25 @@ partial def subsumptionCheckHelper (subsumingClauseLits : List Lit) (subsumedCla
          then matching l with the first lit possible after fstStart in subsumedClauseLits doesn't work. Therefore, we should simulate backtracking
          to that decision by recursing with fstStart one above idx -/
       if tryWithIdx then return true
-      else subsumptionCheckHelper subsumingClauseLits subsumedClauseLits exclude (idx + 1)
+      else subsumptionCheckHelper subsumingClauseLits subsumedClauseLits subsumedClauseMVarIds exclude (idx + 1)
 
-def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) : RuleM Bool :=
+def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) (subsumedClauseMVarIds : Array MVarId) : RuleM Bool :=
   conditionallyModifyingMCtx do -- Only modify the MCtx if the subsumption check succeeds (so failed checks don't impact future checks)
     if subsumingClause.lits.size > subsumedClause.lits.size then return (false, false)
-    if ← subsumptionCheckHelper (subsumingClause.lits).toList subsumedClause {} then return (true, true)
+    if ← subsumptionCheckHelper (subsumingClause.lits).toList subsumedClause subsumedClauseMVarIds {} then return (true, true)
     else return (false, false)
 
 /-- naiveForwardClauseSubsumption implements forward clause subsumption without the feature vector indexing described
     in "Simple and Efficient Clause Subsumption with Feature Vector Indexing" -/
 def naiveForwardClauseSubsumption (activeClauses : ClauseSet) : MSimpRule := fun c => do
-  let c ← loadClause c
+  let (cMVars, c) ← loadClauseCore c
+  let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc nextClause => do
     match acc with
     | Unapplicable =>
       conditionallyModifyingLoadedClauses do
         let nextClause ← loadClause nextClause
-        if ← subsumptionCheck nextClause c then 
+        if ← subsumptionCheck nextClause c cMVarIds then
           trace[Rule.subsumption] "Forward subsumption: removed {c.lits} because it was subsumed by {nextClause.lits}"
           return (true, Removed)
         else return (false, Unapplicable)
@@ -109,8 +110,9 @@ def naiveBackwardClauseSubsumption (activeClauses : ClauseSet) : BackwardMSimpRu
   let givenSubsumingClause ← loadClause givenSubsumingClause
   let fold_fn := fun acc nextClause =>
     conditionallyModifyingLoadedClauses do
-      let nextClause ← loadClause nextClause
-      if ← subsumptionCheck givenSubsumingClause nextClause then
+      let (nextClauseMVars, nextClause) ← loadClauseCore nextClause
+      let nextClauseMVarIds := nextClauseMVars.map Expr.mvarId!
+      if ← subsumptionCheck givenSubsumingClause nextClause nextClauseMVarIds then
         trace[Rule.subsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
         return (true, (nextClause :: acc))
       else return (false, acc)

@@ -62,21 +62,22 @@ def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) 
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
 -/
-def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) (mainPremisePos : ClausePos)
-  (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId) (mainPremiseSubterm : Expr)
+  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) :
+  RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   Core.checkMaxHeartbeats "forward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
     return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
-  if not (← RuleM.performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)]) then
+  if not (← RuleM.performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
     return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
   let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← RuleM.instantiateMVars sidePremiseLit.rhs
   return Applied [(mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))]
 
-def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (activeSet : ProverM.ClauseSet) (givenMainClause : MClause) :
-  RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (activeSet : ProverM.ClauseSet) (givenMainClause : MClause)
+  (mainClauseMVarIds : Array MVarId) : RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   for sideClause in activeSet.toList do
     -- Since I'm not using indices, I need to check eligibility here
     if (sideClause.lits.size != 1 || not sideClause.lits[0]!.sign) then continue
@@ -85,7 +86,7 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (activeSet : ProverM.
     let sideClauseDemodulationRes ← mclause.foldM fun acc sideE sidePos =>
       do
         match acc with
-        | Unapplicable => forwardDemodulationWithPartner givenMainClause e pos mclause sidePos.side
+        | Unapplicable => forwardDemodulationWithPartner givenMainClause mainClauseMVarIds e pos mclause sidePos.side
         | Applied transformedClauses => return Applied transformedClauses
         | Removed => throwError "Invalid demodulation result"
       Unapplicable
@@ -106,10 +107,11 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (activeSet : ProverM.
     would remove the wrong clause from the active set (we would remove c rather than the main clause that c is paired with). c will 
     considered as a side clause in the backward simplificaiton loop (i.e. in backwardDemodulation) -/
 def forwardDemodulation (activeSet : ProverM.ClauseSet) : MSimpRule := fun c => do
-  let c ← loadClause c
+  let (cMVars, c) ← loadClauseCore c
+  let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc e pos => do
     match acc with
-    | Unapplicable => forwardDemodulationAtExpr e pos activeSet c
+    | Unapplicable => forwardDemodulationAtExpr e pos activeSet c cMVarIds
     | Applied res => return Applied res -- If forwardDemodulationAtExpr ever succeeds, just return the first success
     | Removed => throwError "Invalid demodulation result"
   -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
@@ -133,13 +135,13 @@ open BackwardSimpResult
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
 -/
-def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) (mainPremisePos : ClausePos)
-  (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM BackwardSimpResult := do
+def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId) (mainPremiseSubterm : Expr)
+  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM BackwardSimpResult := do
   Core.checkMaxHeartbeats "backward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
     return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
-  if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)]) then
+  if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
     return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
@@ -159,13 +161,14 @@ def backwardDemodulation (activeSet : ProverM.ClauseSet) : BackwardMSimpRule := 
     else LitSide.rhs
 
   for mainClause in activeSet.toList do
-    let (mclause, cToLoad) ← prepLoadClause mainClause
+    let (mclause, (originalMainClause, mclauseMVarIds)) ← prepLoadClause mainClause
+    let cToLoad := (originalMainClause, mclauseMVarIds)
     -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
     -- rather than just green ones
     let mainClauseDemodulationRes ← mclause.foldGreenM fun acc mainE mainPos =>
       do
         match acc with
-        | BackwardSimpResult.Unapplicable => backwardDemodulationWithPartner mclause mainE mainPos givenSideClause givenSideClauseLhs
+        | BackwardSimpResult.Unapplicable => backwardDemodulationWithPartner mclause mclauseMVarIds mainE mainPos givenSideClause givenSideClauseLhs
         | BackwardSimpResult.Applied transformedClauses => return BackwardSimpResult.Applied transformedClauses
         | BackwardSimpResult.Removed removedClauses => throwError "Invalid demodulation result"
       BackwardSimpResult.Unapplicable
