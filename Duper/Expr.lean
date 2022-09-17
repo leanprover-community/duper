@@ -34,6 +34,35 @@ partial def getAtPos! (e : Expr) (pos : ExprPos) (startIndex := 0) : Expr :=
   if pos.size ≤ startIndex then e
   else getAtPos! (e.getRevArg! pos[startIndex]!) pos (startIndex := startIndex + 1)
 
+/-- Returns the expression in e indicated by pos if it exists, and returns none if pos does not point to a valid
+    subexpression in e -/
+partial def getAtPos? (e : Expr) (pos : ExprPos) (startIndex := 0) : Option Expr :=
+  if pos.size ≤ startIndex then some e
+  else
+    let e'_opt := (e.getAppRevArgs)[pos[startIndex]!]?
+    match e'_opt with
+    | none => none
+    | some e' => getAtPos? e' pos (startIndex := startIndex + 1)
+
+/-- Returns true if either the subexpression indicated by pos exists in e, or if it may be possible to instantiate metavariables in
+    e in such a way that the subexpression indicated by pos would exist.
+
+    For example, if e = "f 2 ?m.0", then canInstantiateToGetAtPos would return true for pos #[0, 1] (becuase "?m.0" could be instantiated
+    as an application) but would return false for pos #[1, 1] (because 2 does not and can not have any arguments) -/
+partial def canInstantiateToGetAtPos (e : Expr) (pos : ExprPos) (startIndex := 0) : Bool :=
+  if e.isMVar then true
+  else if pos.size ≤ startIndex then true
+  else
+    let e'_opt := (e.getAppRevArgs)[pos[startIndex]!]?
+    match e'_opt with
+    | none => false
+    | some e' => canInstantiateToGetAtPos e' pos (startIndex := startIndex + 1)
+
+def getTopSymbol (e : Expr) : Expr :=
+  match e.consumeMData with
+  | app f _ => f
+  | _ => e
+
 /-- Attempts to put replacement at pos in e. Returns some res if successful, and returns none otherwise -/
 private partial def replaceAtPosHelper (e : Expr) (pos : List Nat) (replacement : Expr) : Option Expr :=
   match pos with
