@@ -28,11 +28,6 @@ Simplification rules:
 
 Refactoring to consider:
 - Use mvars in Clause to avoid cost of conversion?
-- Use an inductive type to store information about proof steps for reconstruction instead of using closures
-  - I imagine that this wouldn't hurt, but at least right now, this isn't a priority. After commit 807a153d2d319b68e70c2dec86aeaa4da676a9ae,
-    I tested to see what would happen if I disabled all proof reconstruction, and there wasn't very much sppedup. For example, asylum_nine
-    became about 200 ms quicker, but took around 10000 ms in total. So it's impossible that any marginal inefficiencies in proof reconstruction
-    are acting as a bottleneck.
 
 Known bugs/issues (bugs.lean):
 - Premature saturation instances:
@@ -68,6 +63,7 @@ Known bugs/issues (bugs.lean):
 Other:
 - Replace discrimination trees with fingerprint indexing
   - Note: In general, the current approach of not even using discrimination trees is even slower than discrimination trees. But fingerprint indexing should be faster than both
+  - TODO: Find a good fingerprint function (by deciding fingerprintFeatures)
 - Modify Unif.lean and Match.lean to use Lean's built-in unifier
   - Earlier attempt to do this was (temporarily) pulled back for two reasons.
   - First: modifying Unif.lean to use isDefEq resulted in many github tests (such as COM035_5) that previously passed to fail due to unknown
