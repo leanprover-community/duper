@@ -48,6 +48,8 @@ theorem asylum_seven
 
 #print axioms asylum_seven
 
+set_option trace.Timeout.debug true
+
 theorem asylum_nine
   (h1 : Sane A ↔ (Sane B ↔ Sane C))
   (h2 : Sane B ↔ (Sane A ↔ Sane D))

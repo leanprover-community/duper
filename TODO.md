@@ -61,9 +61,21 @@ Known bugs/issues (bugs.lean):
     "forall (_ : Type), ?_uniq.187828 -> _" which contains the unknown metavariable '?_uniq.187828'
 
 Other:
-- Replace discrimination trees with fingerprint indexing
-  - Note: In general, the current approach of not even using discrimination trees is even slower than discrimination trees. But fingerprint indexing should be faster than both
-  - TODO: Find a good fingerprint function (by deciding fingerprintFeatures)
+- Find a better way to handle free variables in Order.lean
+  - Currently, we compare the hashes of free variables, but this has the unfortunate consequence that duper's behavior can depend on things declared
+    previously in the file. A better heuristic might be something like ordering by which free variable is seen first by duper.
+- Find a good fingerprint function (by deciding fingerprintFeatures)
+- Look into whether superposition and demodulation are taking an excessive amount of time eliminating bad potential partners. If so, we might be
+  able to save some time by checking the type of potential partners sooner (currently, we don't check until Unif.lean/Match.lean). The reason this
+  might be helpful is that whenever I look for potential unification targets for a metavariable, I'm finding *everything* in the index. This is
+  appropriate and necessary in FOL, but for our setting, the types should be able to rule most of these bad potential partners out.
+  - Even better than checking the types earlier in superposition/demodulation would be to check them in the indexing structures. If we indexed
+    expressions not just to their Clause X ClausePos pair, but to a Clause X ClausePos X Expr type (with the final Expr being the type of the
+    indexed subexpression), then when we search for e's unification partners, we can easily return only those whose type is compatible with e's.
+  - Alternatively, we could add a top-level component to RootCFPTrie so that rather than just having one root ClauseFingerprintTrie, we have a
+    HashMap from types to ClauseFingerprintTries (where, if type tau maps to ClauseFingerprintTrie t, then t only indexes expressions of type tau).
+    I don't think this would significantly increase memory, and depending on how much time is being wasted eliminating bad potential partners in
+    superposition.lean and demodulation.lean, it might save a lot of time.
 - Modify Unif.lean and Match.lean to use Lean's built-in unifier
   - Earlier attempt to do this was (temporarily) pulled back for two reasons.
   - First: modifying Unif.lean to use isDefEq resulted in many github tests (such as COM035_5) that previously passed to fail due to unknown
@@ -80,16 +92,8 @@ Other:
   been moved from Simp.lean to the beginning of each simplification rule. This isn't a problem, but there are some places where it may not
   be necessary to call loadClause. Going through the simplification rules and changing them to only call loadClause if it is actually required
   may make some of the simplification rules more efficient
-    - Prior to profiling, it is unclear to me whether this improvement would be significant, because it is has the potential to remove many
-      calls to loadClause, or negligible because loadClause is implemented efficiently
-- Find a way to better handle fvars in DiscrTree.lean's Key.hash and Key.lt. Currently, these functions have been modified to not depend
-  on fvar names, which is good in that it makes behavior more consistent, but bad in that right now, fvar keys are almost always being viewed as equal
-  to each other. Ideally, we should find a function that still distinguishes different fVarIds but is less sensitive to specific names (and in particular,
-  does not cause duper's behavior to depend on anything but the current test)
-    - Additionally, it also seems to be important to find a better deterministic way to handle fvars in Order.lean's precCompare. In an earlier commit, making
-      precCompare fvar insensitive caused PUZ012_1 (at the end of test.lean) to go from a proof with 161 clauses to a proof with 1789 clauses. This might
-      just mean that duper happens to get more lucky when precCompare looks at fvars, but it would also make sense more generally that having some way of
-      ordering fvars would be beneficial so that the number of necessary superposition inferences can be cut down significantly.
+  - Prior to profiling, it is unclear to me whether this improvement would be significant, because it is has the potential to remove many
+    calls to loadClause, or negligible because loadClause is implemented efficiently
 - Unit tests, e.g. for the ordering. (How do unit tests work in Lean 4?)
 - Command line version of duper?
 - Currently, we have a hacky implementation of removing clauses from indices (tacking on a filter before retrieving). If this turns out to be too inefficient,
