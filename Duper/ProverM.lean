@@ -1,6 +1,6 @@
 import Duper.Clause
 import Std.Data.BinomialHeap
-import Duper.DiscrTree
+import Duper.Fingerprint
 import Duper.Selection
 
 namespace Duper
@@ -24,7 +24,6 @@ structure ClauseInfo where
 
 abbrev ClauseSet := HashSet Clause 
 abbrev ClauseHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
-abbrev ClauseDiscrTree α := Duper.DiscrTree (Clause × α)
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -44,9 +43,9 @@ structure State where
   passiveSetAgeHeap : ClauseHeap := BinomialHeap.empty
   passiveSetWeightHeap : ClauseHeap := BinomialHeap.empty
   fairnessCounter : Nat := 0
-  -- mainPremiseIdx : ClauseDiscrTree ClausePos := {}
-  -- supSidePremiseIdx : ClauseDiscrTree ClausePos := {}
-  -- demodSidePremiseIdx : ClauseDiscrTree ClausePos := {}
+  mainPremiseIdx : RootCFPTrie := {}
+  supSidePremiseIdx : RootCFPTrie := {}
+  demodSidePremiseIdx : RootCFPTrie := {}
   lctx : LocalContext := {}
   mctx : MetavarContext := {}
 
@@ -108,16 +107,14 @@ def getPassiveSetWeightHeap : ProverM ClauseHeap :=
 def getFairnessCounter : ProverM Nat :=
   return (← get).fairnessCounter
 
-/-
-def getMainPremiseIdx : ProverM (ClauseDiscrTree ClausePos) :=
+def getMainPremiseIdx : ProverM RootCFPTrie :=
   return (← get).mainPremiseIdx
 
-def getSupSidePremiseIdx : ProverM (ClauseDiscrTree ClausePos) :=
+def getSupSidePremiseIdx : ProverM RootCFPTrie :=
   return (← get).supSidePremiseIdx
 
-def getDemodSidePremiseIdx : ProverM (ClauseDiscrTree ClausePos) :=
+def getDemodSidePremiseIdx : ProverM RootCFPTrie :=
   return (← get).demodSidePremiseIdx
--/
 
 def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
   let some ci := (← getAllClauses).find? c
@@ -145,16 +142,14 @@ def setPassiveSetWeightHeap (passiveSetWeightHeap : ClauseHeap) : ProverM Unit :
 def setFairnessCounter (fairnessCounter : Nat) : ProverM Unit :=
   modify fun s => { s with fairnessCounter := fairnessCounter }
 
-/-
-def setSupSidePremiseIdx (supSidePremiseIdx : (ClauseDiscrTree ClausePos)) : ProverM Unit :=
+def setSupSidePremiseIdx (supSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with supSidePremiseIdx := supSidePremiseIdx }
 
-def setDemodSidePremiseIdx (demodSidePremiseIdx : (ClauseDiscrTree ClausePos)) : ProverM Unit :=
+def setDemodSidePremiseIdx (demodSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with demodSidePremiseIdx := demodSidePremiseIdx }
 
-def setMainPremiseIdx (mainPremiseIdx : (ClauseDiscrTree ClausePos)) : ProverM Unit :=
+def setMainPremiseIdx (mainPremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with mainPremiseIdx := mainPremiseIdx }
--/
 
 def setLCtx (lctx : LocalContext) : ProverM Unit :=
   modify fun s => { s with lctx := lctx }
@@ -254,13 +249,47 @@ def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit
     addNewToPassive c proof
 
 def addToActive (c : Clause) : ProverM Unit := do
-  let _ ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
-  -- Add c to all indices in the state (which, right now, is none)
-  -- Add c to the active set:
+  let _ ← getClauseInfo! c -- getClauseInfo! throws and error if c can't be found
+  -- Add to superposition's side premise index:
+  let idx ← getSupSidePremiseIdx
+  let idx ← runRuleM do
+    let (_, mclause) ← loadClauseCore c
+    mclause.foldM
+      fun idx e pos => do
+        if mclause.lits[pos.lit]!.sign ∧ litSelectedOrNothingSelected mclause pos.lit
+        then return ← idx.insert e (c, pos)
+        else return idx
+      idx
+  setSupSidePremiseIdx idx
+  -- Add to demodulation's side premise index iff c consists of exactly one positive literal:
+  if(c.lits.size = 1 && c.lits[0]!.sign) then
+    let idx ← getDemodSidePremiseIdx
+    let idx ← runRuleM do
+      let (_, mclause) ← loadClauseCore c
+      mclause.foldM (fun idx e pos => idx.insert e (c, pos)) idx
+    setDemodSidePremiseIdx idx
+  -- Add to main premise index:
+  let idx ← getMainPremiseIdx
+  let idx ← runRuleM do
+    let (_, mclause) ← loadClauseCore c
+    mclause.foldGreenM
+      fun idx e pos => do
+        if e.isMVar
+        then return idx
+        else return ← idx.insert e (c, pos)
+      idx
+  setMainPremiseIdx idx
+  -- add to active set:
   setActiveSet $ (← getActiveSet).insert c
 
-/-- Remove c from all discrimination trees being used (which, right now, is none) -/
-def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := return ()
+/-- Remove c from mainPremiseIdx, supSidePremiseIdx, and demodSidePremiseIdx -/
+def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
+  let mainIdx ← getMainPremiseIdx
+  let supSideIdx ← getSupSidePremiseIdx
+  let demodSideIdx ← getDemodSidePremiseIdx
+  setMainPremiseIdx (← runRuleM $ mainIdx.delete c)
+  setSupSidePremiseIdx (← runRuleM $ supSideIdx.delete c)
+  setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
 
 /-- Removes c and all its descendants from the active set, passive set, and all discrimination trees -/
 def removeClause (c : Clause) : ProverM Unit := do

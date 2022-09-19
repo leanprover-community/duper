@@ -18,6 +18,13 @@ deriving Inhabited, BEq, Hashable
 inductive LitSide | lhs | rhs
 deriving Inhabited, BEq, Hashable
 
+def LitSide.format (ls : LitSide) : MessageData :=
+  match ls with
+  | lhs => m!"lhs"
+  | rhs => m!"rhs"
+
+instance : ToMessageData LitSide := ⟨LitSide.format⟩
+
 namespace LitSide
 
 def toggleSide (side : LitSide) : LitSide := match side with
@@ -178,6 +185,11 @@ structure ClausePos where
   pos : ExprPos
 deriving Inhabited, BEq, Hashable
 
+def ClausePos.format (pos : ClausePos) : MessageData :=
+  m!"(lit: {pos.lit}, side: {pos.side}, ExprPos: {pos.pos}"
+
+instance : ToMessageData ClausePos := ⟨ClausePos.format⟩
+
 namespace Clause
 
 def empty : Clause := ⟨#[], #[]⟩
@@ -225,6 +237,11 @@ where
   | Expr.lit _           => 1
   | Expr.mdata _ b       => 1 + weightExpr b
   | Expr.proj _ _ b      => 1 + weightExpr b
+
+def ClauseAndClausePos.format (c : Clause × ClausePos) : MessageData :=
+  m!"({c.1}, {c.2})"
+
+instance : ToMessageData (Clause × ClausePos) := ⟨ClauseAndClausePos.format⟩
 
 end Clause
 

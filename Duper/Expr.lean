@@ -58,9 +58,9 @@ partial def canInstantiateToGetAtPos (e : Expr) (pos : ExprPos) (startIndex := 0
     | none => false
     | some e' => canInstantiateToGetAtPos e' pos (startIndex := startIndex + 1)
 
-def getTopSymbol (e : Expr) : Expr :=
+partial def getTopSymbol (e : Expr) : Expr :=
   match e.consumeMData with
-  | app f _ => f
+  | app f _ => getTopSymbol f
   | _ => e
 
 /-- Attempts to put replacement at pos in e. Returns some res if successful, and returns none otherwise -/

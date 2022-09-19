@@ -215,46 +215,36 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     let mkProof :=
       if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain
       else mkSuperpositionProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain
+    trace[Superposition.debug]
+      "Superposition successfully yielded {res.lits} from mainPremise: {mainPremise.lits} and sidePremise: {sidePremise.lits}"
     yieldClause res "superposition" mkProof
 
-def superpositionWithGivenAsSide (activeSet : ProverM.ClauseSet) (sidePremise : MClause) (sidePremiseLitIdx : Nat) 
+def superpositionWithGivenAsSide (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseLitIdx : Nat)
   (sidePremiseSide : LitSide) (simultaneousSuperposition : Bool) : RuleM Unit := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   trace[Superposition.debug] "Superposition inferences at with side premise literal {sidePremiseLit} in side premise: {sidePremise.lits}"
-  for mainClause in activeSet.toList do
+  let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
+  trace[Superposition.debug] "Potential main clauses to {sidePremiseLit.lhs} in {sidePremiseLit} are: {potentialPartners}"
+  for (mainClause, mainPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       trace[Superposition.debug] "Superposition with partner main clause: {mainClause}"
       let c ← loadClause mainClause
-      -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
-      -- rather than just green ones
-      c.foldGreenM fun acc mainE mainPos =>
-        do
-          -- Since I'm not using indices, I need to check eligibility here
-          if mainE.isMVar then
-            return ()
-          else
-            superpositionAtLitWithPartner c mainE mainPos sidePremise sidePremiseLitIdx sidePremiseSide
-              (givenIsMain := false) simultaneousSuperposition
-        ()
+      superpositionAtLitWithPartner c (c.getAtPos! mainPos) mainPos sidePremise sidePremiseLitIdx sidePremiseSide
+        (givenIsMain := false) simultaneousSuperposition
 
-def superpositionWithGivenAsMain (e : Expr) (pos : ClausePos) (activeSet : ProverM.ClauseSet)
+def superpositionWithGivenAsMain (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
   (mainPremise : MClause) (simultaneousSuperposition : Bool) : RuleM Unit := do
   trace[Superposition.debug] "Superposition inferences at expression {e} in main premise: {mainPremise.lits}"
-  for sideClause in activeSet.toList do
+  let potentialPartners ← sidePremiseIdx.getUnificationPartners e
+  trace[Superposition.debug] "Potential side clauses to {e} in {mainPremise.lits} are: {potentialPartners}"
+  for (sideClause, sidePos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       trace[Superposition.debug] "Superposition with partner side clause: {sideClause}"
       let c ← loadClause sideClause
-      -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
-      -- rather than just green ones
-      c.foldGreenM fun acc sideE sidePos =>
-        do 
-          -- Since I'm not using indices, I need to check eligibility here
-          if c.lits[sidePos.lit]!.sign && litSelectedOrNothingSelected c sidePos.lit then
-            superpositionAtLitWithPartner mainPremise e pos c sidePos.lit sidePos.side 
-              (givenIsMain := true) simultaneousSuperposition
-        ()
+      superpositionAtLitWithPartner mainPremise e pos c sidePos.lit sidePos.side
+        (givenIsMain := true) simultaneousSuperposition
 
-def superposition (activeSet : ProverM.ClauseSet) (givenMClause : MClause) : RuleM Unit := do
+def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (givenMClause : MClause) : RuleM Unit := do
   let simultaneousSuperposition := true -- TODO: Make this an option that can be passed into duper
   -- With given clause as side premise:
   for i in [:givenMClause.lits.size] do
@@ -264,17 +254,18 @@ def superposition (activeSet : ProverM.ClauseSet) (givenMClause : MClause) : Rul
         let flippedLit := givenMClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then
           continue
-        let cs ← superpositionWithGivenAsSide activeSet givenMClause i side simultaneousSuperposition
+        let cs ← superpositionWithGivenAsSide mainPremiseIdx givenMClause i side simultaneousSuperposition
   -- With given clause as main premise
   givenMClause.foldGreenM fun acc e pos => do
-      superpositionWithGivenAsMain e pos activeSet givenMClause simultaneousSuperposition
+      superpositionWithGivenAsMain e pos sidePremiseIdx givenMClause simultaneousSuperposition
     ()
       
 open ProverM
 
-def performSuperposition (givenClause : Clause) (activeSet : ClauseSet) : ProverM Unit := do
+def performSuperposition (givenClause : Clause) : ProverM Unit := do
   trace[Prover.debug] "Superposition inferences with {givenClause}"
-  performInference (superposition activeSet) givenClause
-
+  let mainPremiseIdx ← getMainPremiseIdx
+  let sidePremiseIdx ← getSupSidePremiseIdx
+  performInference (superposition mainPremiseIdx sidePremiseIdx) givenClause
 
 end Duper
