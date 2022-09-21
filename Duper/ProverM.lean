@@ -254,10 +254,16 @@ def addToActive (c : Clause) : ProverM Unit := do
   let idx ← getSupSidePremiseIdx
   let idx ← runRuleM do
     let (_, mclause) ← loadClauseCore c
+    let sel := getSelections mclause
     mclause.foldM
       fun idx e pos => do
-        if mclause.lits[pos.lit]!.sign ∧ litSelectedOrNothingSelected mclause pos.lit
-        then return ← idx.insert e (c, pos)
+        let canNeverBeMaximal ← runMetaAsRuleM $ mclause.canNeverBeMaximal (← getOrder) pos.lit
+        let eligible :=
+          if not mclause.lits[pos.lit]!.sign then false
+          else if(sel.contains pos.lit) then true
+          else if(sel == []) then not canNeverBeMaximal
+          else false
+        if eligible then idx.insert e (c, pos)
         else return idx
       idx
   setSupSidePremiseIdx idx
@@ -272,11 +278,17 @@ def addToActive (c : Clause) : ProverM Unit := do
   let idx ← getMainPremiseIdx
   let idx ← runRuleM do
     let (_, mclause) ← loadClauseCore c
+    let sel := getSelections mclause
     mclause.foldGreenM
       fun idx e pos => do
-        if e.isMVar
-        then return idx
-        else return ← idx.insert e (c, pos)
+        let canNeverBeMaximal ← runMetaAsRuleM $ mclause.canNeverBeMaximal (← getOrder) pos.lit
+        let eligible :=
+          if e.isMVar then false
+          else if(sel.contains pos.lit) then true
+          else if(sel == []) then not canNeverBeMaximal
+          else false
+        if eligible then idx.insert e (c, pos)
+        else return idx
       idx
   setMainPremiseIdx idx
   -- add to active set:

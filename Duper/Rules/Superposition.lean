@@ -15,6 +15,13 @@ inductive Eligibility
   | not_eligible
 deriving Inhabited, BEq, Repr
 
+def Eligibility.format : Eligibility → MessageData
+  | eligible => m!"eligibile"
+  | not_eligible => m!"not_eligibile"
+  | potentially_eligible => m!"potentially_eligibile"
+
+instance : ToMessageData (Eligibility) := ⟨Eligibility.format⟩
+
 def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
   (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
@@ -216,7 +223,8 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
       if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain
       else mkSuperpositionProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain
     trace[Superposition.debug]
-      "Superposition successfully yielded {res.lits} from mainPremise: {mainPremise.lits} and sidePremise: {sidePremise.lits}"
+      m!"Superposition successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
+      m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
     yieldClause res "superposition" mkProof
 
 def superpositionWithGivenAsSide (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseLitIdx : Nat)
