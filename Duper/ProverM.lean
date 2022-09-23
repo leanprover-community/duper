@@ -2,6 +2,7 @@ import Duper.Clause
 import Std.Data.BinomialHeap
 import Duper.Fingerprint
 import Duper.Selection
+import Duper.SubsumptionTrie
 
 namespace Duper
 namespace ProverM
@@ -9,6 +10,7 @@ open Lean
 open Lean.Core
 open Std
 open RuleM
+open Expr
 
 inductive Result :=
 | unknown
@@ -46,6 +48,8 @@ structure State where
   mainPremiseIdx : RootCFPTrie := {}
   supSidePremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
+  subsumptionSymbols : List Expr := []
+  subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
   lctx : LocalContext := {}
   mctx : MetavarContext := {}
 
@@ -116,6 +120,12 @@ def getSupSidePremiseIdx : ProverM RootCFPTrie :=
 def getDemodSidePremiseIdx : ProverM RootCFPTrie :=
   return (← get).demodSidePremiseIdx
 
+def getSubsumptionSymbols : ProverM (List Expr) :=
+  return (← get).subsumptionSymbols
+
+def getSubsumptionTrie : ProverM SubsumptionTrie :=
+  return (← get).subsumptionTrie
+
 def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
   let some ci := (← getAllClauses).find? c
     | throwError "Clause not found: {c}"
@@ -150,6 +160,12 @@ def setDemodSidePremiseIdx (demodSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
 
 def setMainPremiseIdx (mainPremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with mainPremiseIdx := mainPremiseIdx }
+
+def setSubsumptionSymbols (subsumptionSymbols : List Expr) : ProverM Unit :=
+  modify fun s => { s with subsumptionSymbols := subsumptionSymbols }
+
+def setSubsumptionTrie (subsumptionTrie : SubsumptionTrie) : ProverM Unit :=
+  modify fun s => { s with subsumptionTrie := subsumptionTrie }
 
 def setLCtx (lctx : LocalContext) : ProverM Unit :=
   modify fun s => { s with lctx := lctx }
@@ -217,12 +233,41 @@ def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
   -- TODO: remove sorry
   let mkProof := fun _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof}
-  
+
+/-- Given an expression e, extracts the list of symbols that appear in e -/
+partial def collectSymbolsInExpr (e : Expr) : HashSet Expr :=
+  match e.consumeMData with
+  | fvar _ => HashSet.empty.insert e.consumeMData
+  | const _ _ => HashSet.empty.insert e.consumeMData
+  | app e1 e2 => Id.run $ do
+    let mut symbols := collectSymbolsInExpr e1
+    for s in (collectSymbolsInExpr e2).toList do
+      symbols := symbols.insert s
+    return symbols
+  | lam _ _ body _ => collectSymbolsInExpr body
+  | forallE _ _ body _ => collectSymbolsInExpr body
+  | letE _ _ val body _ => Id.run $ do
+    let mut symbols := collectSymbolsInExpr val
+    for s in (collectSymbolsInExpr body).toList do
+      symbols := symbols.insert s
+    return symbols
+  | proj _ _ struct => collectSymbolsInExpr struct
+  | _ => HashSet.empty
+
+/-- Given the list of starting assumptions es, extracts the list of symbols that appear in es -/
+def collectSymbols (es : List Expr) : List Expr := Id.run $ do
+  let mut symbols : HashSet Expr := {}
+  for e in es do
+    for s in (collectSymbolsInExpr e).toList do
+      symbols := symbols.insert s
+  return symbols.toList
+
 def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 
     CoreM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
     for (e, proof) in es do
       addExprAssumptionToPassive e proof
+    setSubsumptionSymbols $ collectSymbols (List.map (fun ePair => ePair.1) es)
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
