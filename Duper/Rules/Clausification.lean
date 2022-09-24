@@ -127,10 +127,44 @@ theorem clausify_iff (h : (p ↔ q) = True) : p = q := by
   rw [h]
   exact True.intro
 
+theorem clausify_iff1 (h : (p ↔ q) = True) : p = True ∨ q = False := by
+  cases Classical.propComplete p with
+  | inl p_eq_true => exact Or.inl p_eq_true
+  | inr p_eq_false =>
+    rw [← clausify_iff h]
+    exact Or.inr p_eq_false
+
+theorem clausify_iff2 (h : (p ↔ q) = True) : p = False ∨ q = True := by
+  cases Classical.propComplete p with
+  | inl p_eq_true =>
+    rw [← clausify_iff h]
+    exact Or.inr p_eq_true
+  | inr p_eq_false => exact Or.inl p_eq_false
+
 theorem clausify_not_iff (h : (p ↔ q) = False) : p ≠ q := by
   intro p_eq_q
   rw [← h, p_eq_q]
   exact Iff.rfl
+
+theorem clausify_not_iff1 (h : (p ↔ q) = False) : p = False ∨ q = False := by
+  cases Classical.propComplete p with
+  | inl p_eq_true =>
+    cases Classical.propComplete q with
+    | inl q_eq_true =>
+      rw [p_eq_true, q_eq_true] at h
+      exact False.elim $ (clausify_not_iff h) rfl
+    | inr q_eq_false => exact Or.intro_right _ q_eq_false
+  | inr p_eq_false => exact Or.intro_left _ p_eq_false
+
+theorem clausify_not_iff2 (h : (p ↔ q) = False) : p = True ∨ q = True := by
+  cases Classical.propComplete p with
+  | inl p_eq_true => exact Or.intro_left _ p_eq_true
+  | inr p_eq_false =>
+    cases Classical.propComplete q with
+    | inl q_eq_true => exact Or.intro_right _ q_eq_true
+    | inr q_eq_false =>
+      rw [p_eq_false, q_eq_false] at h
+      exact False.elim $ (clausify_not_iff h) rfl
 
 theorem clausify_prop_inequality1 {p : Prop} {q : Prop} (h : p ≠ q) : p = False ∨ q = False := by
   cases Classical.propComplete p with
@@ -255,19 +289,21 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (SimpResult (List (MCla
       Meta.mkAppM ``of_not_eq_false #[premise]
     return Applied [(MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], some pr)]
   | true, Expr.app (Expr.app (Expr.const ``Iff _) e₁) e₂ =>
-    --This case is saying if the clause is (e_1 ↔ e_2) = True, then we can turn that into e_1 = e_2
-    trace[Simp.debug] "### clausificationStepE first new case called"
-    let pr : Expr → MetaM Expr := fun premise => do
-      Meta.mkAppM ``clausify_iff #[premise]
-    -- I believe lvl should be levelOne and ty should be mkSort levelZero because Iff produces an expression of type Prop
-    return Applied [(MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := levelOne, ty := mkSort levelZero}], some pr)]
-  | false, Expr.app (Expr.app (Expr.const ``Iff _) e₁) e₂  =>
-    --This case is saying if the clause is (e_1 ↔ e_2) = False, then we can turn that into e_1 ≠ e_2
-    trace[Simp.debug] "### clausificationStepE second new case called"
-    let pr : Expr → MetaM Expr := fun premise => do
-      Meta.mkAppM ``clausify_not_iff #[premise]
-    -- I believe lvl should be levelOne and ty should be mkSort levelZero because Iff produces an expression of type Prop
-    return Applied [(MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := levelOne, ty := mkSort levelZero}], some pr)]
+    let pr1 : Expr → MetaM Expr := fun premise => do
+      Meta.mkAppM ``clausify_iff1 #[premise]
+    let pr2 : Expr → MetaM Expr := fun premise => do
+      Meta.mkAppM ``clausify_iff2 #[premise]
+    return Applied
+      [(MClause.mk #[Lit.fromExpr e₁ true, Lit.fromExpr e₂ false], some pr1),
+      (MClause.mk #[Lit.fromExpr e₁ false, Lit.fromExpr e₂ true], some pr2)]
+  | false, Expr.app (Expr.app (Expr.const ``Iff _) e₁) e₂ =>
+    let pr1 : Expr → MetaM Expr := fun premise => do
+      Meta.mkAppM ``clausify_not_iff1 #[premise]
+    let pr2 : Expr → MetaM Expr := fun premise => do
+      Meta.mkAppM ``clausify_not_iff2 #[premise]
+    return Applied
+      [(MClause.mk #[Lit.fromExpr e₁ false, Lit.fromExpr e₂ false], some pr1),
+      (MClause.mk #[Lit.fromExpr e₁ true, Lit.fromExpr e₂ true], some pr2)]
   | _, _ => 
     trace[Simp.debug] "### clausificationStepE returned Unapplicable with e = {e} and sign = {sign}"
     return Unapplicable
