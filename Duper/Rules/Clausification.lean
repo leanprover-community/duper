@@ -69,10 +69,17 @@ theorem clausify_not_false (h : (¬ p) = False) : p = True :=
 eq_true (Classical.byContradiction fun hp => not_of_eq_false h hp)
 
 --TODO: move?
-theorem clausify_imp (h : (p → q) = True) : (¬ p) = True ∨ q = True := 
-  (Classical.em q).elim 
-    (fun hq => Or.intro_right _ (eq_true hq)) 
-    (fun hq => Or.intro_left _ (eq_true (fun hp => hq ((of_eq_true h) hp))))
+theorem clausify_imp (h : (p → q) = True) : p = False ∨ q = True := by
+  cases Classical.propComplete q with
+  | inl q_eq_true => exact Or.intro_right _ q_eq_true
+  | inr q_eq_false =>
+    cases Classical.propComplete p with
+    | inl p_eq_true =>
+      rw [p_eq_true, q_eq_false] at h
+      have t : True := ⟨⟩
+      rw [← h] at t
+      exact False.elim (t ⟨⟩)
+    | inr p_eq_false => exact Or.intro_left _ p_eq_false
 
 --TODO: move?
 theorem clausify_imp_false_left (h : (p → q) = False) : p = True := 
@@ -223,7 +230,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (SimpResult (List (MCla
         throwError "Types depending on props are not supported" 
       let pr : Expr → MetaM Expr := fun premise => do
         return ← Meta.mkAppM ``clausify_imp #[premise]
-      return Applied [(MClause.mk #[Lit.fromExpr (mkNot ty), Lit.fromExpr b], some pr)]
+      return Applied [(MClause.mk #[Lit.fromExpr ty false, Lit.fromExpr b], some pr)]
     else 
       let mvar ← mkFreshExprMVar ty
       let pr : Expr → MetaM Expr := fun premise => do
