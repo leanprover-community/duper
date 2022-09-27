@@ -86,9 +86,10 @@ def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) (sub
     if ← subsumptionCheckHelper (subsumingClause.lits).toList subsumedClause subsumedClauseMVarIds {} then return (true, true)
     else return (false, false)
 
-/-- naiveForwardClauseSubsumption implements forward clause subsumption without the feature vector indexing described
-    in "Simple and Efficient Clause Subsumption with Feature Vector Indexing" -/
-def naiveForwardClauseSubsumption (activeClauses : ClauseSet) : MSimpRule := fun c => do
+/-- Returns removed if there exists a clause that subsumes c, and returns Unapplicable otherwise -/
+def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
+  let potentialSubsumingClauses ← subsumptionTrie.getPotentialSubsumingClauses c
+  trace[Rule.subsumption] "number of potentialSubsumingClauses for {c}: {potentialSubsumingClauses.size}"
   let (cMVars, c) ← loadClauseCore c
   let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc nextClause => do
@@ -102,11 +103,14 @@ def naiveForwardClauseSubsumption (activeClauses : ClauseSet) : MSimpRule := fun
         else return (false, Unapplicable)
     | Removed => return Removed
     | Applied _ => throwError "Invalid clause subsumption result"
-  activeClauses.foldM fold_fn Unapplicable
+  potentialSubsumingClauses.foldlM fold_fn Unapplicable
 
 open BackwardSimpResult
 
-def naiveBackwardClauseSubsumption (activeClauses : ClauseSet) : BackwardMSimpRule := fun givenSubsumingClause => do
+/-- Returns Removed l where l is a list of clauses that givenSubsumingClause subsumes -/
+def backwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSubsumingClause => do
+  let potentialSubsumedClauses ← subsumptionTrie.getPotentialSubsumedClauses givenSubsumingClause
+  trace[Rule.subsumption] "number potentialSubsumedClauses for {givenSubsumingClause}: {potentialSubsumedClauses.size}"
   let givenSubsumingClause ← loadClause givenSubsumingClause
   let fold_fn := fun acc nextClause =>
     conditionallyModifyingLoadedClauses do
@@ -116,4 +120,4 @@ def naiveBackwardClauseSubsumption (activeClauses : ClauseSet) : BackwardMSimpRu
         trace[Rule.subsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
         return (true, (nextClause :: acc))
       else return (false, acc)
-  return Removed (← activeClauses.foldM fold_fn [])
+  return Removed (← potentialSubsumedClauses.foldlM fold_fn [])

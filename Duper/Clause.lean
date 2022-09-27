@@ -222,21 +222,7 @@ instance : ToMessageData Clause :=
 ⟨ fun c => c.toExpr ⟩
 
 def weight (c : Clause) : Nat :=
-  c.lits.foldl (fun acc lit => acc + weightExpr lit.lhs + weightExpr lit.rhs) 0
-where 
-  weightExpr : Expr → Nat
-  | Expr.bvar _          => 1
-  | Expr.fvar _          => 1
-  | Expr.mvar _          => 1
-  | Expr.sort _          => 1
-  | Expr.const _ _       => 1
-  | Expr.app a b         => weightExpr a + weightExpr b
-  | Expr.lam _ _ b _     => 1 + weightExpr b
-  | Expr.forallE _ _ b _ => 1 + weightExpr b
-  | Expr.letE _ _ v b _  => 1 + weightExpr v + weightExpr b
-  | Expr.lit _           => 1
-  | Expr.mdata _ b       => 1 + weightExpr b
-  | Expr.proj _ _ b      => 1 + weightExpr b
+  c.lits.foldl (fun acc lit => acc + lit.lhs.weight + lit.rhs.weight) 0
 
 def ClauseAndClausePos.format (c : Clause × ClausePos) : MessageData :=
   m!"({c.1}, {c.2})"

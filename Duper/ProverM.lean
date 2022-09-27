@@ -48,7 +48,6 @@ structure State where
   mainPremiseIdx : RootCFPTrie := {}
   supSidePremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
-  subsumptionSymbols : List Expr := []
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
   lctx : LocalContext := {}
   mctx : MetavarContext := {}
@@ -120,9 +119,6 @@ def getSupSidePremiseIdx : ProverM RootCFPTrie :=
 def getDemodSidePremiseIdx : ProverM RootCFPTrie :=
   return (← get).demodSidePremiseIdx
 
-def getSubsumptionSymbols : ProverM (List Expr) :=
-  return (← get).subsumptionSymbols
-
 def getSubsumptionTrie : ProverM SubsumptionTrie :=
   return (← get).subsumptionTrie
 
@@ -160,9 +156,6 @@ def setDemodSidePremiseIdx (demodSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
 
 def setMainPremiseIdx (mainPremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with mainPremiseIdx := mainPremiseIdx }
-
-def setSubsumptionSymbols (subsumptionSymbols : List Expr) : ProverM Unit :=
-  modify fun s => { s with subsumptionSymbols := subsumptionSymbols }
 
 def setSubsumptionTrie (subsumptionTrie : SubsumptionTrie) : ProverM Unit :=
   modify fun s => { s with subsumptionTrie := subsumptionTrie }
@@ -234,40 +227,11 @@ def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
   let mkProof := fun _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof}
 
-/-- Given an expression e, extracts the list of symbols that appear in e -/
-partial def collectSymbolsInExpr (e : Expr) : HashSet Expr :=
-  match e.consumeMData with
-  | fvar _ => HashSet.empty.insert e.consumeMData
-  | const _ _ => HashSet.empty.insert e.consumeMData
-  | app e1 e2 => Id.run $ do
-    let mut symbols := collectSymbolsInExpr e1
-    for s in (collectSymbolsInExpr e2).toList do
-      symbols := symbols.insert s
-    return symbols
-  | lam _ _ body _ => collectSymbolsInExpr body
-  | forallE _ _ body _ => collectSymbolsInExpr body
-  | letE _ _ val body _ => Id.run $ do
-    let mut symbols := collectSymbolsInExpr val
-    for s in (collectSymbolsInExpr body).toList do
-      symbols := symbols.insert s
-    return symbols
-  | proj _ _ struct => collectSymbolsInExpr struct
-  | _ => HashSet.empty
-
-/-- Given the list of starting assumptions es, extracts the list of symbols that appear in es -/
-def collectSymbols (es : List Expr) : List Expr := Id.run $ do
-  let mut symbols : HashSet Expr := {}
-  for e in es do
-    for s in (collectSymbolsInExpr e).toList do
-      symbols := symbols.insert s
-  return symbols.toList
-
 def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 
     CoreM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
     for (e, proof) in es do
       addExprAssumptionToPassive e proof
-    setSubsumptionSymbols $ collectSymbols (List.map (fun ePair => ePair.1) es)
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
@@ -336,17 +300,23 @@ def addToActive (c : Clause) : ProverM Unit := do
         else return idx
       idx
   setMainPremiseIdx idx
+  -- Add to subsumption trie
+  let idx ← getSubsumptionTrie
+  let idx ← runRuleM $ idx.insert c
+  setSubsumptionTrie idx
   -- add to active set:
   setActiveSet $ (← getActiveSet).insert c
 
-/-- Remove c from mainPremiseIdx, supSidePremiseIdx, and demodSidePremiseIdx -/
+/-- Remove c from mainPremiseIdx, supSidePremiseIdx, demodSidePremiseIdx, and subsumptionTrie -/
 def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
   let mainIdx ← getMainPremiseIdx
   let supSideIdx ← getSupSidePremiseIdx
   let demodSideIdx ← getDemodSidePremiseIdx
+  let subsumptionTrie ← getSubsumptionTrie
   setMainPremiseIdx (← runRuleM $ mainIdx.delete c)
   setSupSidePremiseIdx (← runRuleM $ supSideIdx.delete c)
   setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
+  setSubsumptionTrie (← runRuleM $ subsumptionTrie.delete c)
 
 /-- Removes c and all its descendants from the active set, passive set, and all discrimination trees -/
 def removeClause (c : Clause) : ProverM Unit := do

@@ -41,6 +41,8 @@ Known bugs/issues (bugs.lean):
       that should be known in the final active set with the form 'sk.XX' instead are unknown in the final active set and have the form 'uniq.XXXXX'. So
       there may be some bug with how skolem variables are being handled (though it's weird that such a bug would present only under certain duper
       configurations. Why would Order.lean and Selection.lean impact whether the skolem variable code works?)
+    - Note: Upon re-examination, I am less certain that COM003_1's premature saturation is a bug. It may simply be the case that this test requires
+      BoolHoist (or another currently unimplemented hoist rule)
 - PUZ031_1_modified:
   - "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error
   - Error when reconstructing clausification
@@ -64,7 +66,11 @@ Other:
 - Find a better way to handle free variables in Order.lean
   - Currently, we compare the hashes of free variables, but this has the unfortunate consequence that duper's behavior can depend on things declared
     previously in the file. A better heuristic might be something like ordering by which free variable is seen first by duper.
-- Find a good fingerprint function (by deciding fingerprintFeatures)
+- Improve indexing functions (for both fingerprint indices and subsumption tries)
+  - Current fingerprint function was arbitrarily copied from http://www.eprover.eu/EXPDATA/FP_INDEX/schulz_fp-index_ext.pdf. Explore whether other
+    fingerprint functions would be better (in particular, functions that include more features)
+  - Improve the subsumption trie's feature vector. Currently, we only use the first four features that zipperposition uses, but we could implement
+    all of them to obtain a better indexing structure
 - Look into whether superposition and demodulation are taking an excessive amount of time eliminating bad potential partners. If so, we might be
   able to save some time by checking the type of potential partners sooner (currently, we don't check until Unif.lean/Match.lean). The reason this
   might be helpful is that whenever I look for potential unification targets for a metavariable, I'm finding *everything* in the index. This is
@@ -82,6 +88,7 @@ Other:
   may make some of the simplification rules more efficient
   - Prior to profiling, it is unclear to me whether this improvement would be significant, because it is has the potential to remove many
     calls to loadClause, or negligible because loadClause is implemented efficiently
+- Update Expr.weight function to be more similar to Zipperposition's ho_weight function
 - Unit tests, e.g. for the ordering. (How do unit tests work in Lean 4?)
 - Command line version of duper?
 - Currently, we have a hacky implementation of removing clauses from fingerprint indexes (tacking on a filter before retrieving). If this turns out to be

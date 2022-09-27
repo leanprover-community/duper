@@ -173,7 +173,7 @@ tptp PUZ131_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ131_1.p"
 #print axioms PUZ131_1
 
 tptp PUZ134_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p"
-  by duper -- Deterministic timeout (previously made an erroneous proof due to bug in destructiveEqualityResolution)
+  by duper -- Contradiction found but failed to synthesize type "Inhabited ?α"
 
 tptp PUZ135_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_1.p"
   by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)

@@ -116,4 +116,22 @@ private partial def abstractAtPosHelper! (e : Expr) (pos : List Nat) : MetaM Exp
 partial def abstractAtPos! (e : Expr) (pos : ExprPos) : MetaM Expr := do
   abstractAtPosHelper! e pos.data
 
+/-
+  Note: this function may require revision to be more similar to Zipperposition's ho_weight function once we actually
+  start working on higher order things (https://github.com/sneeuwballen/zipperposition/blob/master/src/core/InnerTerm.ml#L240)
+-/
+def weight : Expr → Nat
+  | Expr.bvar _          => 1
+  | Expr.fvar _          => 1
+  | Expr.mvar _          => 1
+  | Expr.sort _          => 1
+  | Expr.const _ _       => 1
+  | Expr.app a b         => weight a + weight b
+  | Expr.lam _ _ b _     => 1 + weight b
+  | Expr.forallE _ _ b _ => 1 + weight b
+  | Expr.letE _ _ v b _  => 1 + weight v + weight b
+  | Expr.lit _           => 1
+  | Expr.mdata _ b       => 1 + weight b
+  | Expr.proj _ _ b      => 1 + weight b
+
 end Lean.Expr

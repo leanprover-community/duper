@@ -8,10 +8,14 @@ open Lean
 open RuleM
 open Std
 open List
+open Expr
 
 initialize Lean.registerTraceClass `SubsumptionTrie.debug
 
 abbrev Feature := Nat
+
+def featureLt (f1 : Feature) (f2 : Feature) : Bool := f1 < f2
+def featureEq (f1 : Feature) (f2 : Feature) : Bool := f1 = f2
 
 /-
   Data structure for feature vector indexing:
@@ -37,12 +41,33 @@ instance : ToMessageData SubsumptionTrie := ⟨format⟩
 ------------------------------------------------------------------------------------------------------------------------------------
 
 /-
-  TODO: Need to figure out how to define a subsumption feature (fn). It can't just be a symbol/expr because some features might be more
-  complicated than just |C|_f for some f. For instance, one feature might be Σ_f |C|_f which is the total number of function symbols.
-  The paper says that in practice, this feature decides ~half of all subsumption attempts, so we definitely want to be able to support it
--/
+  Features Zipperposition has (in order) (https://github.com/sneeuwballen/zipperposition/blob/master/src/core/FV_tree.ml#L311):
+  1. Number of positive literals
+  2. Number of negative literals
+  3. Number of symbols and variables in positive literals (ho_weight of positive literals)
+  4. Number of symbols and variables in negative literals (ho_weight of negative literals)
+  5. The set of symbols occurring in positive literals
+  6. The set of symbols occurring in negative literals
+  7. Maximal depth of each symbol in positive literals (map from symbol name to number, -1 if symbol does not occur)
+  8. Maximal depth of each symbol in negative literals (map from symbol name to number, -1 if symbol does not occur)
+  9. Number of occurrences of each symbol in positive literals (map from symbol name to number)
+  10. Number of occurrences of each symbol in negative literals (map from symbol name to number)
 
-def getFeatureVector (c : Clause) : List Feature := sorry
+  For now, I intend to just implement the first four, but it may be worthwhile to implement the rest later
+-/
+def getFeatureVector (c : Clause) : List Feature := Id.run $ do
+  let mut posLits := 0
+  let mut negLits := 0
+  let mut posWeight := 0
+  let mut negWeight := 0
+  for l in c.lits do
+    if l.sign then
+      posLits := posLits + 1
+      posWeight := posWeight + l.lhs.weight + l.rhs.weight
+    else
+      negLits := negLits + 1
+      negWeight := negWeight + l.lhs.weight + l.rhs.weight
+  return [posLits, negLits, posWeight, negWeight]
 
 def emptyLeaf : SubsumptionTrie := leaf {}
 def emptyNode : SubsumptionTrie := node #[]
@@ -57,7 +82,7 @@ private def insertHelper (t : SubsumptionTrie) (c : Clause) (features : List Fea
   | node children, (fstFeature :: restFeatures) => do
     let children ←
       children.binInsertM
-        (fun a b => a.1 < b.1)
+        (fun a b => featureLt a.1 b.1)
         (fun (_, t) => do let t' ← insertHelper t c restFeatures; return (fstFeature, t'))
         (fun _ => return (fstFeature, singleton c restFeatures))
         (fstFeature, default)
@@ -84,3 +109,31 @@ private def deleteHelper (t : SubsumptionTrie) (c : Clause) (features : List Fea
 
 def delete (t : SubsumptionTrie) (c : Clause) : RuleM SubsumptionTrie :=
   deleteHelper t c (getFeatureVector c)
+
+private def getPotentialSubsumingClausesHelper (t : SubsumptionTrie) (features : List Feature) : RuleM (Array Clause) :=
+  match t, features with
+  | node children, (fstFeature :: restFeatures) => do
+    let mut potentialSubsumingClauses := #[]
+    for (childFeature, childTrie) in children do
+      if featureLt childFeature fstFeature || featureEq childFeature fstFeature then
+        potentialSubsumingClauses := potentialSubsumingClauses.append (← getPotentialSubsumingClausesHelper childTrie restFeatures)
+    return potentialSubsumingClauses
+  | leaf vals, nil => return vals.toArray
+  | _, _ => throwError "Features: {features} length does not match depth of trie {t}"
+
+def getPotentialSubsumingClauses (t : SubsumptionTrie) (c : Clause) : RuleM (Array Clause) :=
+  getPotentialSubsumingClausesHelper t (getFeatureVector c)
+
+private def getPotentialSubsumedClausesHelper (t : SubsumptionTrie) (features : List Feature) : RuleM (Array Clause) :=
+  match t, features with
+  | node children, (fstFeature :: restFeatures) => do
+    let mut potentialSubsumingClauses := #[]
+    for (childFeature, childTrie) in children do
+      if featureLt fstFeature childFeature || featureEq fstFeature childFeature then
+        potentialSubsumingClauses := potentialSubsumingClauses.append (← getPotentialSubsumedClausesHelper childTrie restFeatures)
+    return potentialSubsumingClauses
+  | leaf vals, nil => return vals.toArray
+  | _, _ => throwError "Features: {features} length does not match depth of trie {t}"
+
+def getPotentialSubsumedClauses (t : SubsumptionTrie) (c : Clause) : RuleM (Array Clause) :=
+  getPotentialSubsumedClausesHelper t (getFeatureVector c)
