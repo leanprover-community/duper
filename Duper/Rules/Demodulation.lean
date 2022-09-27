@@ -47,17 +47,18 @@ def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) 
     let proof ← Meta.mkLambdaFVars xs $ mkApp proof appliedSidePremise
     return proof
 
-/- Note: I am implementing Schulz's side conditions for RP and RN, except for the condition that RP is allowed if p ≠ λ or σ 
-   is a variable renaming. The reason for this is that I suspect I will just have to change the side conditions later to match
-   "Superposition for Full Higher-Order Logic", so there's little point in being super precise about implementing Schulz's more
-   annoying side conditions.
-
-   So the side conditions I'm implementing are:
+/- Note: I am implementing Schulz's side conditions for RP and RN, but only approximately.
+   The side conditions are:
    - If mainPremise.lits[mainPremisePos.lit].sign is true (i.e. we are in the RP case), then all of the following must hold:
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
-      3. mainPremise.lits[mainPremisePos.lit] must not be eligible for paramodulation (in Schulz's paper, we could instead have
-         p ≠ λ or σ not be a variable renaming, but these are the conditions I'm not implementing right now)
+      3. At least one of the following must be false:
+        - mainPremise.lits[mainPremisePos.lit] is eligible for paramodulation
+        - mainPremise.lits[mainPremisePos.lit].side > mainPremise.lits[mainPremisePos.lit].otherside
+        - mainPremiseSubterm = λ (note, we do not check this, so we may miss some opportunities for demodulation, but I don't believe
+          we ever perform demodulation when it should not be allowed)
+        - σ is a variable renaming (note, we do not check this, so we may miss some opportunities for demodulation, but I don't
+          believe we ever perform demodulation when it should not be allowed)
    - If mainPremise.lits[mainPremisePos.lit].sign is false (i.e. we are in the RN case), then all of the following must hold:
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
@@ -67,8 +68,13 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   Core.checkMaxHeartbeats "forward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
-  if (mainPremise.lits[mainPremisePos.lit]!.sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
-    return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
+  if (mainPremise.lits[mainPremisePos.lit]!.sign) then
+    let eligibleForParamodulation ← eligibleForParamodulation mainPremise mainPremisePos.lit
+    let mainPremiseSideComparison ← compare
+      (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
+      (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
+    if eligibleForParamodulation && (mainPremiseSideComparison == Comparison.GreaterThan) then
+      return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← RuleM.performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
@@ -111,17 +117,18 @@ def forwardDemodulation (sideIdx : RootCFPTrie) : MSimpRule := fun c => do
 
 open BackwardSimpResult
 
-/- Note: I am implementing Schulz's side conditions for RP and RN, except for the condition that RP is allowed if p ≠ λ or σ
-   is a variable renaming. The reason for this is that I suspect I will just have to change the side conditions later to match
-   "Superposition for Full Higher-Order Logic", so there's little point in being super precise about implementing Schulz's more
-   annoying side conditions.
-
-   So the side conditions I'm implementing are:
+/- Note: I am implementing Schulz's side conditions for RP and RN, but only approximately.
+   The side conditions are:
    - If mainPremise.lits[mainPremisePos.lit].sign is true (i.e. we are in the RP case), then all of the following must hold:
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
-      3. mainPremise.lits[mainPremisePos.lit] must not be eligible for paramodulation (in Schulz's paper, we could instead have
-         p ≠ λ or σ not be a variable renaming, but these are the conditions I'm not implementing right now)
+      3. At least one of the following must be false:
+        - mainPremise.lits[mainPremisePos.lit] is eligible for paramodulation
+        - mainPremise.lits[mainPremisePos.lit].side > mainPremise.lits[mainPremisePos.lit].otherside
+        - mainPremiseSubterm = λ (note, we do not check this, so we may miss some opportunities for demodulation, but I don't believe
+          we ever perform demodulation when it should not be allowed)
+        - σ is a variable renaming (note, we do not check this, so we may miss some opportunities for demodulation, but I don't
+          believe we ever perform demodulation when it should not be allowed)
    - If mainPremise.lits[mainPremisePos.lit].sign is false (i.e. we are in the RN case), then all of the following must hold:
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
@@ -130,8 +137,13 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
   (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM BackwardSimpResult := do
   Core.checkMaxHeartbeats "backward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
-  if (mainPremise.lits[mainPremisePos.lit]!.sign && (← eligibleForParamodulation mainPremise mainPremisePos.lit)) then
-    return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
+  if (mainPremise.lits[mainPremisePos.lit]!.sign) then
+    let eligibleForParamodulation ← eligibleForParamodulation mainPremise mainPremisePos.lit
+    let mainPremiseSideComparison ← compare
+      (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
+      (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
+    if eligibleForParamodulation && (mainPremiseSideComparison == Comparison.GreaterThan) then
+      return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
