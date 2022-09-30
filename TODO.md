@@ -63,9 +63,6 @@ Known bugs/issues (bugs.lean):
     "forall (_ : Type), ?_uniq.187828 -> _" which contains the unknown metavariable '?_uniq.187828'
 
 Other:
-- Find a better way to handle free variables in Order.lean
-  - Currently, we compare the hashes of free variables, but this has the unfortunate consequence that duper's behavior can depend on things declared
-    previously in the file. A better heuristic might be something like ordering by which free variable is seen first by duper.
 - Improve indexing functions for fingerprint indices
   - Current fingerprint function was arbitrarily copied from http://www.eprover.eu/EXPDATA/FP_INDEX/schulz_fp-index_ext.pdf. Explore whether other
     fingerprint functions would be better (in particular, functions that include more features)

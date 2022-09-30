@@ -2,7 +2,7 @@ import Duper.TPTP
 import Duper.Tactic
 
 tptp PUZ018_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ018_1.p"
-  by duper PUZ018_1 -- Det timeout
+  by duper PUZ018_1 -- Success
 
 tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
   by duper PUZ031_1 -- Failed to synthesize inhabited_plant
@@ -23,7 +23,7 @@ tptp PUZ083_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ083_8.p"
   by duper PUZ083_8 -- Succeeds
 
 tptp PUZ134_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p"
-  by duper PUZ134_2 -- Det timeout
+  by duper PUZ134_2 -- Failed to synthesize inhabited ?α
 
 tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"
   by duper PUZ135_2 -- Det timeout

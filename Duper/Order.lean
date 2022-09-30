@@ -71,6 +71,27 @@ def VarBalance.noPositives (vb : VarBalance) : Bool := Id.run do
       return False
   return True
 
+/-- A comparison function for comparing names that should be less sensitive to arbitrary changes
+    than the previous approach of simply comparing hashes. When comparing different types of names,
+    we use the convention: Anonymous < Num < Str -/
+def nameCompare (n1 : Name) (n2 : Name) : Comparison :=
+  match n1, n2 with
+  | Name.anonymous, Name.anonymous => Equal
+  | Name.num pre1 n1, Name.num pre2 n2 =>
+    if n1 < n2 then LessThan
+    else if n1 > n2 then GreaterThan
+    else nameCompare pre1 pre2
+  | Name.str pre1 s1, Name.str pre2 s2 =>
+    if s1 < s2 then LessThan
+    else if s1 > s2 then GreaterThan
+    else nameCompare pre1 pre2
+  | Name.anonymous, Name.num _ _ => LessThan
+  | Name.anonymous, Name.str _ _ => LessThan
+  | Name.num _ _, Name.anonymous => GreaterThan
+  | Name.num _ _, Name.str _ _ => LessThan
+  | Name.str _ _, Name.anonymous => GreaterThan
+  | Name.str _ _, Name.num _ _ => GreaterThan
+
 def precCompare (f g : Expr) : Comparison := match f, g with
 
 -- Sort > lam > db > quantifier > symbols > False > True 
@@ -117,11 +138,7 @@ def precCompare (f g : Expr) : Comparison := match f, g with
   else if m > n then GreaterThan
   else if m < n then LessThan
   else Incomparable
-| Expr.fvar m .., Expr.fvar n .. =>
-  if m == n then Equal
-  else if m.name.hash > n.name.hash then GreaterThan
-  else if m.name.hash < n.name.hash then LessThan
-  else Incomparable
+| Expr.fvar m .., Expr.fvar n .. => nameCompare m.name n.name
 | Expr.const ``False _, Expr.const ``False _ => Equal
 | Expr.const ``True _, Expr.const ``True _ => Equal
 

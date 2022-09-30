@@ -343,13 +343,5 @@ def removeClause (c : Clause) : ProverM Unit := do
       setPassiveSet $ passiveSet.erase potentialChild
       passiveSet ← getPassiveSet
 
-def mkFreshFVarId (ty : Expr): ProverM FVarId := do
-  let lctx ← getLCtx
-  let n := lctx.decls.size
-  let name := Name.mkNum `c n
-  let fVarId := ⟨name⟩
-  setLCtx $ LocalContext.mkLocalDecl lctx fVarId name ty
-  return fVarId
-
 end ProverM
 end Duper
