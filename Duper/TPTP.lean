@@ -46,7 +46,7 @@ syntax rawIdent tff_type_arguments : tff_atomic_type
 
 syntax fof_quantifier := "!" <|> "?"
 syntax tff_variable := rawIdent (":" tff_atomic_type) ?
-syntax:70 fof_quantifier "[" tff_variable,* "]" ":" tff_term : tff_term
+syntax:70 fof_quantifier "[" tff_variable,* "]" ":" tff_term:70 : tff_term
 
 syntax tf1_quantifier := "!>"
 syntax tf1_quantifier "[" tff_variable,* "]" ":" tff_type : tff_type --tf1_quantified_type
