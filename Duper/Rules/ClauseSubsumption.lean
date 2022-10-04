@@ -87,8 +87,8 @@ def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) (sub
     else return (false, false)
 
 /-- Returns removed if there exists a clause that subsumes c, and returns Unapplicable otherwise -/
-def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
-  let potentialSubsumingClauses ← subsumptionTrie.getPotentialSubsumingClauses c
+def forwardClauseSubsumption (activeSet : ProverM.ClauseSet) : MSimpRule := fun c => do
+  let potentialSubsumingClauses := activeSet.toArray
   trace[Rule.subsumption] "number of potentialSubsumingClauses for {c}: {potentialSubsumingClauses.size}"
   let (cMVars, c) ← loadClauseCore c
   let cMVarIds := cMVars.map Expr.mvarId!
@@ -108,8 +108,8 @@ def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := 
 open BackwardSimpResult
 
 /-- Returns Removed l where l is a list of clauses that givenSubsumingClause subsumes -/
-def backwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSubsumingClause => do
-  let potentialSubsumedClauses ← subsumptionTrie.getPotentialSubsumedClauses givenSubsumingClause
+def backwardClauseSubsumption (activeSet : ProverM.ClauseSet) : BackwardMSimpRule := fun givenSubsumingClause => do
+  let potentialSubsumedClauses := activeSet.toArray
   trace[Rule.subsumption] "number potentialSubsumedClauses for {givenSubsumingClause}: {potentialSubsumedClauses.size}"
   let givenSubsumingClause ← loadClause givenSubsumingClause
   let fold_fn := fun acc nextClause =>
