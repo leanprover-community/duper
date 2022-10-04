@@ -117,11 +117,13 @@ def evalDuper : Tactic
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
     | Result.contradiction => do
-        logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
+        -- logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
+        logInfo s!"Contradiction found"
         trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
         printProof state
         applyProof state
-        logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+        -- logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+        logInfo s!"Constructed proof"
     | Result.saturated => 
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
