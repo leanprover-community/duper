@@ -117,13 +117,11 @@ def evalDuper : Tactic
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
     | Result.contradiction => do
-        -- logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
-        logInfo s!"Contradiction found"
+        logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
         trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
         printProof state
         applyProof state
-        -- logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
-        logInfo s!"Constructed proof"
+        logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated => 
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
@@ -152,28 +150,32 @@ def evalDuper : Tactic
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
-syntax (name := try_duper) "try_duper" (colGt ident) ? : tactic
+syntax (name := duper_no_timing) "duper_no_timing" : tactic
 
-@[tactic try_duper]
-def evalTryDuper : Tactic
-| `(tactic| try_duper) => do
-  try
-    Lean.Elab.Tactic.evalTactic (← `(tactic| (first | duper | sorry )))
-  catch e =>
-  if e.isMaxHeartbeat then
-    trace[Timeout.debug] "Caught isMaxHeartbeat"
-    Lean.MVarId.assign (← getMainGoal) (← Lean.Meta.mkSorry (← getMainTarget) (synthetic := true))
-  else
-    throw e
-| `(tactic| try_duper $ident:ident) => do
-  try
-    Lean.Elab.Tactic.evalTactic (← `(tactic| (first | duper $ident | sorry )))
-  catch e =>
-  if e.isMaxHeartbeat then
-    trace[Timeout.debug] "Caught isMaxHeartbeat"
-    Lean.MVarId.assign (← getMainGoal) (← Lean.Meta.mkSorry (← getMainTarget) (synthetic := true))
-  else
-    throw e
+@[tactic duper_no_timing]
+def evalDuperNoTiming : Tactic
+| `(tactic| duper_no_timing) => withMainContext do
+  replaceMainGoal [(← Lean.MVarId.intros (← getMainGoal)).2]
+  let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
+  Lean.MVarId.assign (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
+  replaceMainGoal [mvar.mvarId!]
+  replaceMainGoal [(← Lean.MVarId.intro (← getMainGoal) `h).2]
+  withMainContext do
+    let formulas ← collectAssumptions
+    trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
+    let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
+    match state.result with
+    | Result.contradiction => do
+        logInfo s!"Contradiction found"
+        trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
+        printProof state
+        applyProof state
+        logInfo s!"Constructed proof"
+    | Result.saturated =>
+      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+      trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
+      throwError "Prover saturated."
+    | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic

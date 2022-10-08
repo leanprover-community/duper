@@ -17,11 +17,6 @@ Inference rules:
   - ExistsRw
 
 Simplification rules:
-- Clause subsumption
-  - Make clause subsumption more efficient by incorporating indexing structure described in
-    "Simple and Efficient Clause Subsumption with Feature Vector Indexing"
-- Eliminate duplicate literals
-  - Right now, elimDupLit doesn't recognize symmetrical literals as duplicates. That should be an easy but useful thing to fix
 - Semantic tautology deletion?
 - Positive/Negative simplify-reflect
 - Equality subsumption?
@@ -34,15 +29,6 @@ Known bugs/issues (bugs.lean):
   - PUZ137_8 achieves premature saturation because our current interpretation of $o/$oType in tff isn't correct. Currently, we interpreting $o/$oType
     as Prop, but there is an important sense in which we should at least sometimes be interpreting it as Bool. PUZ137_8 is one such instance.
     - Though at present, I don't know that fully interpreting $o/$oType as Bool would necessarily work either
-  - Prior to changing superposition's side condition checks (commit 87a238ff1b76b041ef9df88557f3ceb9c4b6c89a), COM003_1 failed due to deterministic
-    timeout, but did not visibly have any issue of premature saturation. After changing superposition's side condition checks, COM003_1 now results
-    in premature saturation. Need to look into why this is the case (see TPTP_test.lean for conditions in which saturation occurs).
-    - This bug appears to be qualitatively different from the clause subsumption bug because when COM003_1 achieves premature saturation, free variables
-      that should be known in the final active set with the form 'sk.XX' instead are unknown in the final active set and have the form 'uniq.XXXXX'. So
-      there may be some bug with how skolem variables are being handled (though it's weird that such a bug would present only under certain duper
-      configurations. Why would Order.lean and Selection.lean impact whether the skolem variable code works?)
-    - Note: Upon re-examination, I am less certain that COM003_1's premature saturation is a bug. It may simply be the case that this test requires
-      BoolHoist (or another currently unimplemented hoist rule)
 - PUZ031_1_modified:
   - "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error
   - Error when reconstructing clausification
