@@ -55,6 +55,9 @@ declare_syntax_cat TPTP_input
 syntax "tff" "(" rawIdent "," rawIdent "," tff_term tff_annotation ? ")" "." : TPTP_input
 syntax "tff" "(" rawIdent "," &"type" "," rawIdent ":" tff_type tff_annotation ? ")" "." : TPTP_input
 
+syntax "cnf" "(" rawIdent "," rawIdent "," tff_term tff_annotation ? ")" "." : TPTP_input
+syntax "fof" "(" rawIdent "," rawIdent "," tff_term tff_annotation ? ")" "." : TPTP_input
+
 syntax TPTP_input* : TPTP_file
 
 def explicitBinder : Parser := Term.explicitBinder false
@@ -167,7 +170,56 @@ partial def processTffType (stx : Syntax) : MacroM Syntax := do
         ty
     | _ => Macro.throwError s!"Unsupported tff_type: {stx}"
 
+/-- Note: This function is only meant to be used for fof/cnf formats.
+
+    Returns a list in which each element is `(explicitBinder| ($name : $ty)) where $name is a symbol that
+    appears in stx and $ty is the type of said symbol.
+
+    In fof/cnf formats, the only base types are Prop and `iota. All symbols therefore must be of type Prop, type
+    `iota, or functions that output Prop or iota. Which of these is the case can be determined by the position
+    of the symbol in the overall formula.
+
+    The topType argument is used to keep track of what the overall type of stx is supposed to be. The exclude
+    argument is used to keep track of which symbols have been introduced as bound variables. These symbols are
+    not to be added to acc because they do not have global scope -/
+partial def getSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `tff_type)
+  (exclude : List (TSyntax `ident)) (stx : Syntax) : MacroM (List (TSyntax `TPTP.explicitBinder)) := do
+  match stx with
+  | `(tff_term| ( $t:tff_term )) => getSymbols acc topType exclude t
+  | `(tff_term| ~ $t:tff_term ) =>
+    if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
+    else getSymbols acc (← `(Prop)) exclude t
+  | `(tff_term| $t1:tff_term $conn:binary_connective $t2:tff_term ) =>
+    if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
+    else
+      match conn.raw[0].getKind with
+      | `«&» => getSymbols (← getSymbols acc (← `(Prop)) exclude t1) (← `(Prop)) exclude t2
+      | `«=>» => getSymbols (← getSymbols acc (← `(Prop)) exclude t1) (← `(Prop)) exclude t2
+      | `«|» => getSymbols (← getSymbols acc (← `(Prop)) exclude t1) (← `(Prop)) exclude t2
+      | `«<=>» => getSymbols (← getSymbols acc (← `(Prop)) exclude t1) (← `(Prop)) exclude t2
+      | `«=» => getSymbols (← getSymbols acc (← `(TPTP.iota)) exclude t1) (← `(TPTP.iota)) exclude t2
+      | `«!=» => getSymbols (← getSymbols acc (← `(TPTP.iota)) exclude t1) (← `(TPTP.iota)) exclude t2
+      | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
+  | `(tff_term| $f:ident $args:tff_arguments ?) =>
+    Macro.throwError "Not implemented yet" -- TODO
+  | `(tff_term| $q:fof_quantifier [ $vs,* ] : $body) =>
+    Macro.throwError "Not implemented yet" -- TODO
+  | _ => Macro.throwError s!"Unsupported cnf/fof term: {stx}"
+
 macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
+  let symbols : List (TSyntax `TPTP.explicitBinder) ← s.raw[0].getArgs.foldlM
+    fun acc input => do
+      match input with
+      | `(TPTP_input| tff($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+        return acc -- Only need to retrieve symbols from cnf and fof files
+      | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:tff_type $annotation:tff_annotation ?).) =>
+        return acc -- Only need to retrieve symbols from cnf and fof files
+      | `(TPTP_input| cnf($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+        getSymbols acc (← `(Prop)) [] term
+      | `(TPTP_input| fof($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+        getSymbols acc (← `(Prop)) [] term
+      | _ => Macro.throwError s!"Unsupported TPTP_input: {input}"
+    []
   let hyps ← s.raw[0].getArgs.mapM fun input => do
     match input with
     | `(TPTP_input| tff($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
@@ -180,7 +232,22 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
     | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:tff_type $annotation:tff_annotation ?).) =>
       let ty ← processTffType ty
       return ← `(explicitBinder| ($name : $ty))
+    | `(TPTP_input| cnf($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+      let term ← processTffTerm term
+      let name := (mkIdent $ name.getId.appendBefore "h")
+      if role.getId == `conjecture then
+        return ← `(explicitBinder| ($name : ¬ $term))
+      else
+        return ← `(explicitBinder| ($name : $term))
+    | `(TPTP_input| fof($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+      let term ← processTffTerm term
+      let name := (mkIdent $ name.getId.appendBefore "h")
+      if role.getId == `conjecture then
+        return ← `(explicitBinder| ($name : ¬ $term))
+      else
+        return ← `(explicitBinder| ($name : $term))
     | _ => Macro.throwError s!"Unsupported TPTP_input: {input}"
+  -- TODO: Add symbols to the beginning of hyps
   let hyps := mkNode ``many hyps
   let spec ← `(Term.typeSpec| : False)
   let sig := mkNode ``Command.declSig #[hyps,spec]
