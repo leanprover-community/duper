@@ -25,12 +25,29 @@ jobs:
           set -o pipefail
           lake build
 
-      - name: Test TPTP
+      - name: Test TFF
         run: |
           export LEAN_PATH=./build/lib
           while read p; do
             echo "Problem: $p"
             echo "import Duper.TPTP import Duper.Tactic tptp $p \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" by duper_no_timing"\
               | ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin || true
-          done <./.github/tptp_tests.txt
-          
+          done <./.github/tff_tests.txt
+
+      - name: Test CNF
+        run: |
+          export LEAN_PATH=./build/lib
+          while read p; do
+            echo "CNF Problem: ${p:0:6}"
+            echo "import Duper.TPTP import Duper.Tactic tptp $p \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" by duper_no_timing"\
+              | ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin || true
+          done <./.github/cnf_tests.txt
+
+      - name: Test FOF
+        run: |
+          export LEAN_PATH=./build/lib
+          while read p; do
+            echo "FOF Problem: ${p:0:6}"
+            echo "import Duper.TPTP import Duper.Tactic tptp $p \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" by duper_no_timing"\
+              | ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin || true
+          done <./.github/fof_tests.txt

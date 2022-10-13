@@ -170,44 +170,100 @@ partial def processTffType (stx : Syntax) : MacroM Syntax := do
         ty
     | _ => Macro.throwError s!"Unsupported tff_type: {stx}"
 
-/-- Note: This function is only meant to be used for fof/cnf formats.
+/-- Determines whether an identifier is a variable by checking whether the first character is capital -/
+def isVar (stx : TSyntax `ident) : MacroM Bool := do
+  match stx with
+  | Syntax.ident _ rawVal _ _ => return (rawVal.get 0).isUpper
+  | _ => Macro.throwError "Non-ident passed into isVar"
+
+/-- Given a piece of syntax, returns the list of variables that appear in said syntax. This function
+    may return lists in which the same variable appears multiple times. -/
+partial def getVarsHelper (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
+  match stx with
+  | `(tff_term| ( $t:tff_term )) => getVarsHelper t
+  | `(tff_term| ~ $t:tff_term ) => getVarsHelper t
+  | `(tff_term| $t1:tff_term $conn:binary_connective $t2:tff_term ) =>
+    return (← getVarsHelper t1).append (← getVarsHelper t2)
+  | `(tff_term| $f:ident $args:tff_arguments ?) =>
+    match args with
+    | none =>
+      if (← isVar f) then return [f]
+      else return []
+    | some args =>
+      let args := ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax)
+      let argsVars ← args.mapM (fun arg => return ← getVarsHelper arg)
+      let argsVars := argsVars.foldl
+        (fun acc varList => varList.append acc) []
+      if (← isVar f) then return f :: argsVars
+      else return argsVars
+  | _ => Macro.throwError s!"Unsupported cnf term: {stx}"
+
+/-- Given a piece of syntax, returns the list of variables that appear in said syntax. This function is needed
+    because cnf clauses are implicitly universally quantified (but Lean requires that we explicitly universally
+    quantify the variables). This function is only intended to be called on cnf clauses. -/
+def getVars (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
+  let varsWithDuplicates ← getVarsHelper stx
+  let vars := varsWithDuplicates.foldl
+    (fun acc var => if acc.contains var then acc else var :: acc) []
+  return vars
+
+partial def processCnfTerm (stx : Syntax) : MacroM Syntax := do
+  let vars ← getVars stx
+  let iotaTypeSyntax ← `(TPTP.iota)
+  let unquantifiedRes ← processTffTerm stx
+  let quantifiedRes ← vars.foldlM
+    (fun acc (var : TSyntax `ident) => return ← `(∀ ($var : $iotaTypeSyntax), $acc)) unquantifiedRes
+  return quantifiedRes
+
+/-- Note: This function is only meant to be used for fof/cnf formats (tff files declare their own symbols).
 
     Returns a list in which each element is `(explicitBinder| ($name : $ty)) where $name is a symbol that
-    appears in stx and $ty is the type of said symbol.
+    appears in stx (and isn't a variable) and $ty is the type of said symbol.
 
     In fof/cnf formats, the only base types are Prop and `iota. All symbols therefore must be of type Prop, type
     `iota, or functions that output Prop or iota. Which of these is the case can be determined by the position
     of the symbol in the overall formula.
 
-    The topType argument is used to keep track of what the overall type of stx is supposed to be. The exclude
-    argument is used to keep track of which symbols have been introduced as bound variables. These symbols are
-    not to be added to acc because they do not have global scope -/
-partial def getSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `tff_type)
-  (exclude : List (TSyntax `ident)) (stx : Syntax) : MacroM (List (TSyntax `TPTP.explicitBinder)) := do
+    The topType argument is used to keep track of what the overall type of stx is supposed to be. -/
+partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `tff_type)
+  (stx : Syntax) : MacroM (List (TSyntax `TPTP.explicitBinder)) := do
   match stx with
-  | `(tff_term| ( $t:tff_term )) => getSymbols acc topType exclude t
+  | `(tff_term| ( $t:tff_term )) => getNonVarSymbols acc topType t
   | `(tff_term| ~ $t:tff_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
-    else getSymbols acc (← `(Prop)) exclude t
+    else getNonVarSymbols acc (← `(Prop)) t
   | `(tff_term| $t1:tff_term $conn:binary_connective $t2:tff_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else
       match conn.raw[0].getKind with
-      | `«&» => getSymbols (← getSymbols acc (← `(Prop)) exclude t1) (← `(Prop)) exclude t2
-      | `«=>» => getSymbols (← getSymbols acc (← `(Prop)) exclude t1) (← `(Prop)) exclude t2
-      | `«|» => getSymbols (← getSymbols acc (← `(Prop)) exclude t1) (← `(Prop)) exclude t2
-      | `«<=>» => getSymbols (← getSymbols acc (← `(Prop)) exclude t1) (← `(Prop)) exclude t2
-      | `«=» => getSymbols (← getSymbols acc (← `(TPTP.iota)) exclude t1) (← `(TPTP.iota)) exclude t2
-      | `«!=» => getSymbols (← getSymbols acc (← `(TPTP.iota)) exclude t1) (← `(TPTP.iota)) exclude t2
+      | `«&» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | `«=>» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | `«|» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | `«<=>» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | `«=» => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
+      | `«!=» => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
       | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
   | `(tff_term| $f:ident $args:tff_arguments ?) =>
-    Macro.throwError "Not implemented yet" -- TODO
+    match args with
+    | none =>
+      if (← isVar f) then return acc
+      else return (← `(explicitBinder| ($f : $topType))) :: acc
+    | some args =>
+      let args := ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax)
+      let iotaTypeSyntax ← `(TPTP.iota)
+      let fType ← args.foldlM (fun (acc _ : Syntax) => do
+        `($iotaTypeSyntax → $acc)) topType
+      let acc ← args.foldlM (fun acc arg => do
+        getNonVarSymbols acc (← `(TPTP.iota)) arg) acc
+      if (← isVar f) then return acc
+      else return (← `(explicitBinder| ($f : $fType))) :: acc
   | `(tff_term| $q:fof_quantifier [ $vs,* ] : $body) =>
-    Macro.throwError "Not implemented yet" -- TODO
+    if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
+    else getNonVarSymbols acc (← `(Prop)) body
   | _ => Macro.throwError s!"Unsupported cnf/fof term: {stx}"
 
 macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
-  let symbols : List (TSyntax `TPTP.explicitBinder) ← s.raw[0].getArgs.foldlM
+  let nonVarSymbols : List (TSyntax `TPTP.explicitBinder) ← s.raw[0].getArgs.foldlM
     fun acc input => do
       match input with
       | `(TPTP_input| tff($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
@@ -215,11 +271,16 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
       | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:tff_type $annotation:tff_annotation ?).) =>
         return acc -- Only need to retrieve symbols from cnf and fof files
       | `(TPTP_input| cnf($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
-        getSymbols acc (← `(Prop)) [] term
+        getNonVarSymbols acc (← `(Prop)) term
       | `(TPTP_input| fof($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
-        getSymbols acc (← `(Prop)) [] term
+        getNonVarSymbols acc (← `(Prop)) term
       | _ => Macro.throwError s!"Unsupported TPTP_input: {input}"
     []
+  -- Perform a foldl so that we only have one binder for each symbol
+  let nonVarSymbols := nonVarSymbols.foldl
+    (fun acc binder =>
+      if List.contains acc binder then acc
+      else binder :: acc) []
   let hyps ← s.raw[0].getArgs.mapM fun input => do
     match input with
     | `(TPTP_input| tff($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
@@ -233,13 +294,14 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
       let ty ← processTffType ty
       return ← `(explicitBinder| ($name : $ty))
     | `(TPTP_input| cnf($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
-      let term ← processTffTerm term
+      let term ← processCnfTerm term
       let name := (mkIdent $ name.getId.appendBefore "h")
       if role.getId == `conjecture then
         return ← `(explicitBinder| ($name : ¬ $term))
       else
         return ← `(explicitBinder| ($name : $term))
     | `(TPTP_input| fof($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+      -- Although tff differs from fof, I think that processTffTerm will do what we want for fof terms
       let term ← processTffTerm term
       let name := (mkIdent $ name.getId.appendBefore "h")
       if role.getId == `conjecture then
@@ -247,8 +309,7 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
       else
         return ← `(explicitBinder| ($name : $term))
     | _ => Macro.throwError s!"Unsupported TPTP_input: {input}"
-  -- TODO: Add symbols to the beginning of hyps
-  let hyps := mkNode ``many hyps
+  let hyps := mkNode ``many (nonVarSymbols.toArray.append hyps)
   let spec ← `(Term.typeSpec| : False)
   let sig := mkNode ``Command.declSig #[hyps,spec]
   return ← `(theorem $name $sig := $proof)
