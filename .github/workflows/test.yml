@@ -24,9 +24,13 @@ jobs:
         run: |
           set -o pipefail
           lake build
+          pwd
+          ls
+          ls ./build/lib
 
       - name: Test TFF
         run: |
+          pwd
           export LEAN_PATH=./build/lib
           while read p; do
             echo "Problem: $p"
