@@ -15,8 +15,10 @@ syntax tff_arguments := "(" tff_term,* ")"
 syntax rawIdent tff_arguments ? : tff_term
 syntax:max "(" tff_term ")" : tff_term
 
-syntax binary_connective := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<=" <|> "=" <|> "!="
-syntax:60 tff_term binary_connective tff_term : tff_term
+syntax prop_binary_connective := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<="
+syntax:60 tff_term:60 prop_binary_connective tff_term:60 : tff_term
+syntax non_prop_binary_connective := "=" <|> "!="
+syntax:65 tff_term:65 non_prop_binary_connective tff_term:65 : tff_term
 syntax:70 "~" tff_term:70 : tff_term
 
 syntax tff_annotation := "," rawIdent
@@ -95,16 +97,21 @@ partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
   | `(tff_term| ~ $t:tff_term ) =>
     let t ← processTffTerm t
     `(¬ $t)
-  | `(tff_term| $t₁:tff_term $conn:binary_connective $t₂:tff_term ) => do
+  | `(tff_term| $t₁:tff_term $conn:prop_binary_connective $t₂:tff_term ) => do
     let t₁ ← processTffTerm t₁
     let t₂ ← processTffTerm t₂
     match conn.raw[0].getKind with
     | `«&» => `($t₁ ∧ $t₂)
     | `«=>» => `($t₁ → $t₂)
     | `«|» => `($t₁ ∨ $t₂)
+    | `«<=>» => `($t₁ ↔ $t₂)
+    | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
+  | `(tff_term| $t₁:tff_term $conn:non_prop_binary_connective $t₂:tff_term ) => do
+    let t₁ ← processTffTerm t₁
+    let t₂ ← processTffTerm t₂
+    match conn.raw[0].getKind with
     | `«=» => `($t₁ = $t₂)
     | `«!=» => `($t₁ ≠ $t₂)
-    | `«<=>» => `($t₁ ↔ $t₂)
     | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
   | `(tff_term| $f:ident $args:tff_arguments ?) => do
     let ts : Array Syntax ← match args with
@@ -182,7 +189,9 @@ partial def getVarsHelper (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
   match stx with
   | `(tff_term| ( $t:tff_term )) => getVarsHelper t
   | `(tff_term| ~ $t:tff_term ) => getVarsHelper t
-  | `(tff_term| $t1:tff_term $conn:binary_connective $t2:tff_term ) =>
+  | `(tff_term| $t1:tff_term $conn:prop_binary_connective $t2:tff_term ) =>
+    return (← getVarsHelper t1).append (← getVarsHelper t2)
+  | `(tff_term| $t1:tff_term $conn:non_prop_binary_connective $t2:tff_term ) =>
     return (← getVarsHelper t1).append (← getVarsHelper t2)
   | `(tff_term| $f:ident $args:tff_arguments ?) =>
     match args with
@@ -232,7 +241,7 @@ partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topTyp
   | `(tff_term| ~ $t:tff_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else getNonVarSymbols acc (← `(Prop)) t
-  | `(tff_term| $t1:tff_term $conn:binary_connective $t2:tff_term ) =>
+  | `(tff_term| $t1:tff_term $conn:prop_binary_connective $t2:tff_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else
       match conn.raw[0].getKind with
@@ -240,6 +249,11 @@ partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topTyp
       | `«=>» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
       | `«|» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
       | `«<=>» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
+  | `(tff_term| $t1:tff_term $conn:non_prop_binary_connective $t2:tff_term ) =>
+    if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
+    else
+      match conn.raw[0].getKind with
       | `«=» => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
       | `«!=» => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
       | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
