@@ -24,18 +24,13 @@ jobs:
         run: |
           set -o pipefail
           lake build
-          pwd
-          ls
-          ls ./build/lib
-
       - name: Test TFF
         run: |
-          pwd
           export LEAN_PATH=./build/lib
           while read p; do
             echo "Problem: $p"
             echo "import Duper.TPTP import Duper.Tactic tptp $p \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" by duper_no_timing"\
-              | ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic.so || true
+              | lake env ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic.so || true
           done <./.github/tff_tests.txt
 
       - name: Test FOF
@@ -44,5 +39,5 @@ jobs:
           while read p; do
             echo "FOF Problem: ${p:0:6}"
             echo "import Duper.TPTP import Duper.Tactic tptp ${p:0:6} \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" by duper_no_timing"\
-              | ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic.so || true
+              | lake env ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic.so || true
           done <./.github/fof_tests.txt
