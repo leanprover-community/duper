@@ -41,20 +41,13 @@ def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : List Expr) (paren
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MClause × Option ProofReconstructor))) :=
-  withoutModifyingMCtx $ do
-    let lit := c.lits[i]!
-    if ← unify #[(lit.lhs, lit.rhs)] then
-      /-
-        Need to instantiate MVars so that the unification remains even after we exit the current MCtx
-        destructiveEqualityResolution requires this line even though equalityResolution doesn't because 
-        equalityResolution calls yieldClause which does this
-      -/
-      let c ← c |>.mapM RuleM.instantiateMVars 
-      return Applied [(c.eraseLit i, some (mkDestructiveEqualtiyResolutionProof i))]
-    else
-      return Unapplicable -- Cannot apply destructive equality resolution to this literal, 
-                          -- but it may still be possible to apply it to a different literal in the clause
+def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  let lit := c.lits[i]!
+  if ← unify #[(lit.lhs, lit.rhs)] then
+    return Applied [(c.eraseLit i, some (mkDestructiveEqualtiyResolutionProof i))]
+  else
+    return Unapplicable -- Cannot apply destructive equality resolution to this literal,
+                        -- but it may still be possible to apply it to a different literal in the clause
 
 def destructiveEqualityResolution : MSimpRule := fun c => do
   let c ← loadClause c

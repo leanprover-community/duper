@@ -68,10 +68,11 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
     let userName := (state.lctx.get! fvarId).userName
     trace[Print_Proof] "Reconstructed skloem userName: {userName}"
     let skdef ← mkSkProof parents.toArray
+    trace[Meta.debug] "Reconstructed skolem definition {toString skdef}"
     skdefs := skdef :: skdefs
     lctx := lctx.mkLetDecl fvarId userName ty skdef
   let proof ← withLCtx lctx (← getLocalInstances) do
-    trace[Meta.debug] "Reconstructing proof for #{info.number}: {c}"
+    trace[Meta.debug] "Reconstructing proof for #{info.number}: {c}, Rule Name: {info.proof.ruleName}"
     let newProof ← info.proof.mkProof parents info.proof.parents c
     trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
     if cs == [] then return newProof
@@ -106,11 +107,8 @@ syntax (name := duper) "duper" (colGt ident) ? : tactic
 def evalDuper : Tactic
 | `(tactic| duper) => withMainContext do
   let startTime ← IO.monoMsNow
-  replaceMainGoal [(← Lean.MVarId.intros (← getMainGoal)).2]
-  let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
-  Lean.MVarId.assign (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
-  replaceMainGoal [mvar.mvarId!]
-  replaceMainGoal [(← Lean.MVarId.intro (← getMainGoal) `h).2]
+  Elab.Tactic.evalTactic
+    (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
     let formulas ← collectAssumptions
     trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
@@ -128,11 +126,8 @@ def evalDuper : Tactic
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident) => withMainContext do
-  replaceMainGoal [(← Lean.MVarId.intros (← getMainGoal)).2]
-  let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
-  Lean.MVarId.assign (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
-  replaceMainGoal [mvar.mvarId!]
-  replaceMainGoal [(← Lean.MVarId.intro (← getMainGoal) `h).2]
+  Elab.Tactic.evalTactic
+    (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
     let formulas ← collectAssumptions
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
@@ -155,11 +150,8 @@ syntax (name := duper_no_timing) "duper_no_timing" : tactic
 @[tactic duper_no_timing]
 def evalDuperNoTiming : Tactic
 | `(tactic| duper_no_timing) => withMainContext do
-  replaceMainGoal [(← Lean.MVarId.intros (← getMainGoal)).2]
-  let mvar ← withMainContext do mkFreshExprMVar (← mkArrow (← mkAppM ``Not #[← getMainTarget]) (mkConst ``False))
-  Lean.MVarId.assign (← getMainGoal) (mkApp2 (mkConst ``Classical.byContradiction) (← getMainTarget) mvar)
-  replaceMainGoal [mvar.mvarId!]
-  replaceMainGoal [(← Lean.MVarId.intro (← getMainGoal) `h).2]
+  Elab.Tactic.evalTactic
+    (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
     let formulas ← collectAssumptions
     trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"

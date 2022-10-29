@@ -231,7 +231,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (SimpResult (List (MCla
       let pr : Expr → MetaM Expr := fun premise => do
         return ← Meta.mkAppM ``clausify_imp #[premise]
       return Applied [(MClause.mk #[Lit.fromExpr ty false, Lit.fromExpr b], some pr)]
-    else 
+    else
       let mvar ← mkFreshExprMVar ty
       let pr : Expr → MetaM Expr := fun premise => do
         let mvar ← Meta.mkFreshExprMVar ty
@@ -325,6 +325,10 @@ where
       skTy
     let mkProof := fun parents => do
       let d ← Meta.mkAppM ``Inhabited.some #[mkLambda `x BinderInfo.default ty b]
+      let d := d.abstractMVars (mVarIds.map mkMVar)
+      let d := mVarIdTys.foldr
+        (fun mVarIdTy skTy => mkLambda `_ BinderInfo.default mVarIdTy skTy)
+        d
       return d
     let fvar ← mkFreshSkolem `sk skTy mkProof
     return mkAppN fvar (mVarIds.map mkMVar)

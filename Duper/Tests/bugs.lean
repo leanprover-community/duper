@@ -24,3 +24,36 @@ theorem escaped_mvar_test2_working {a : Type} [Inhabited a] (h : ¬ (false = tru
 
 theorem escaped_mvar_test2_broken {a : Type} [Inhabited a] (h : ¬ (false = true)) : ¬(∀ a' : a, false) :=
   by duper -- Fails because a' does not appear in the forall statement
+
+
+
+
+
+-- By Indprinciple
+-- Not sure whether these are known bugs
+
+axiom f : Nat → Nat
+axiom g : Nat → Nat
+axiom i : Int → Nat
+axiom a : Nat
+
+set_option trace.Meta.debug true in
+example (h : ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d) :
+  ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d := by duper
+
+set_option trace.Meta.debug true in
+set_option trace.Print_Proof true in
+def qk : ∀ x : Nat, x = x := by duper
+
+set_option trace.Meta.debug true in
+theorem escaped_mvar_test_broken {a : Type} [Inhabited a] : (∃ a' : a, true) :=
+  by duper
+
+#check 2
+
+set_option trace.Meta.debug true in
+tptp NUM931_5 "../TPTP-v8.0.0/Problems/NUM/NUM931_5.p" by duper
+
+set_option trace.Meta.debug true in
+tptp PUZ135_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_1.p"
+  by duper -- Det timeout

@@ -9,7 +9,13 @@ tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
 
 tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by 
   have inhabited_plant : Inhabited plant := sorry
-  duper -- Error when reconstructing clausification
+  have inhabited_snail : Inhabited snail := sorry
+  have inhabited_grain : Inhabited grain := sorry
+  have inhabited_bird : Inhabited bird := sorry
+  have inhabited_fox : Inhabited fox := sorry
+  have Inhabited_wolf : Inhabited wolf := sorry
+  duper -- If these instances are not provided, duper will fail
+  -- Previously: Error when reconstructing clausification
 
 tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
   by duper -- Prover saturated (noted in TODO.md)

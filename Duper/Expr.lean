@@ -30,19 +30,19 @@ partial def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Mon
     acc ← foldGreenM f acc args[i]! (pos := pos.push i)
   return acc
 
-partial def getAtPos! (e : Expr) (pos : ExprPos) (startIndex := 0) : Expr :=
-  if pos.size ≤ startIndex then e
-  else getAtPos! (e.getRevArg! pos[startIndex]!) pos (startIndex := startIndex + 1)
+partial def getAtPos! (e : Expr) (pos : ExprPos) : Expr := Id.run <| do
+  let mut cur := e
+  for i in pos do
+    cur := cur.getRevArg! i
+  return cur
 
 /-- Returns the expression in e indicated by pos if it exists, and returns none if pos does not point to a valid
     subexpression in e -/
-partial def getAtPos? (e : Expr) (pos : ExprPos) (startIndex := 0) : Option Expr :=
-  if pos.size ≤ startIndex then some e
-  else
-    let e'_opt := (e.getAppRevArgs)[pos[startIndex]!]?
-    match e'_opt with
-    | none => none
-    | some e' => getAtPos? e' pos (startIndex := startIndex + 1)
+partial def getAtPos? (e : Expr) (pos : ExprPos) : Option Expr := do
+  let mut cur := e
+  for i in pos do
+    cur ← cur.getAppRevArgs[i]?
+  return cur
 
 /-- Returns true if either the subexpression indicated by pos exists in e, or if it may be possible to instantiate metavariables in
     e in such a way that the subexpression indicated by pos would exist.

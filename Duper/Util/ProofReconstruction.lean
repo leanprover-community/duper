@@ -12,8 +12,7 @@ def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs 
   let mut appliedPremises := []
   for (parent, premise) in List.zip parents premises do
     let vanishingVarSkolems ← parent.vanishingVarTypes.mapM fun ty =>
-      Meta.mkAppOptM ``default #[some ty, none]
-    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
+      Meta.mkAppOptM ``default #[some ty, none]    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
     parentsLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations)) :: parentsLits
     appliedPremises := mkAppN premise parentInstantiations :: appliedPremises
   return (parentsLits, appliedPremises)
