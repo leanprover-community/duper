@@ -48,6 +48,7 @@ structure State where
   mainPremiseIdx : RootCFPTrie := {}
   supSidePremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
+  simplifyReflectNegSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
   lctx : LocalContext := {}
   mctx : MetavarContext := {}
@@ -74,7 +75,8 @@ instance : AddMessageContext ProverM where
 @[inline] def ProverM.run' (x : ProverM α) (ctx : Context := {}) (s : State := {}) : CoreM α :=
   Prod.fst <$> x.run ctx s
 
-@[inline] def ProverM.toIO (x : ProverM α) (ctxCore : Core.Context) (sCore : Core.State) (ctx : Context := {}) (s : State := {}) : IO (α × Core.State × State) := do
+@[inline] def ProverM.toIO (x : ProverM α) (ctxCore : Core.Context) (sCore : Core.State) (ctx : Context := {}) (s : State := {}) :
+  IO (α × Core.State × State) := do
   let ((a, s), sCore) ← (x.run ctx s).toIO ctxCore sCore
   pure (a, sCore, s)
 
@@ -119,6 +121,9 @@ def getSupSidePremiseIdx : ProverM RootCFPTrie :=
 def getDemodSidePremiseIdx : ProverM RootCFPTrie :=
   return (← get).demodSidePremiseIdx
 
+def getSimplifyReflectNegSidePremiseIdx : ProverM RootCFPTrie :=
+  return (← get).simplifyReflectNegSidePremiseIdx
+
 def getSubsumptionTrie : ProverM SubsumptionTrie :=
   return (← get).subsumptionTrie
 
@@ -156,6 +161,9 @@ def setDemodSidePremiseIdx (demodSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
 
 def setMainPremiseIdx (mainPremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with mainPremiseIdx := mainPremiseIdx }
+
+def setSimplifyReflectNegSidePremiseIdx (simplifyReflectNegSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
+  modify fun s => { s with simplifyReflectNegSidePremiseIdx := simplifyReflectNegSidePremiseIdx }
 
 def setSubsumptionTrie (subsumptionTrie : SubsumptionTrie) : ProverM Unit :=
   modify fun s => { s with subsumptionTrie := subsumptionTrie }
@@ -283,6 +291,13 @@ def addToActive (c : Clause) : ProverM Unit := do
       let (_, mclause) ← loadClauseCore c
       mclause.foldM (fun idx e pos => idx.insert e (c, pos)) idx
     setDemodSidePremiseIdx idx
+  -- Add to simplifyReflectNegSidePremiseIdx iff c consists of exactly one negative literal:
+  if(c.lits.size = 1 && !(c.lits[0]!.sign)) then
+    let idx ← getSimplifyReflectNegSidePremiseIdx
+    let idx ← runRuleM do
+      let (_, mclause) ← loadClauseCore c
+      mclause.foldM (fun idx e pos => idx.insert e (c, pos)) idx
+    setSimplifyReflectNegSidePremiseIdx idx
   -- Add to main premise index:
   let idx ← getMainPremiseIdx
   let idx ← runRuleM do
@@ -307,15 +322,18 @@ def addToActive (c : Clause) : ProverM Unit := do
   -- add to active set:
   setActiveSet $ (← getActiveSet).insert c
 
-/-- Remove c from mainPremiseIdx, supSidePremiseIdx, demodSidePremiseIdx, and subsumptionTrie -/
+/-- Remove c from mainPremiseIdx, supSidePremiseIdx, demodSidePremiseIdx, simplifyReflectNegSidePremiseIdx,
+    and subsumptionTrie -/
 def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
   let mainIdx ← getMainPremiseIdx
   let supSideIdx ← getSupSidePremiseIdx
   let demodSideIdx ← getDemodSidePremiseIdx
+  let simplifyReflectNegSidePremiseIdx ← getSimplifyReflectNegSidePremiseIdx
   let subsumptionTrie ← getSubsumptionTrie
   setMainPremiseIdx (← runRuleM $ mainIdx.delete c)
   setSupSidePremiseIdx (← runRuleM $ supSideIdx.delete c)
   setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
+  setSimplifyReflectNegSidePremiseIdx (← runRuleM $ simplifyReflectNegSidePremiseIdx.delete c)
   setSubsumptionTrie (← runRuleM $ subsumptionTrie.delete c)
 
 /-- Removes c and all its descendants from the active set, passive set, and all discrimination trees -/

@@ -204,6 +204,8 @@ def isType (e : Expr) : RuleM Bool := do
 def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
   runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
 
+-- Note for when I update Lean version: TransformStep.visit has been renamed TransformStep.continue,
+-- so when I update Lean, I need to replace TransformStep.visit with TransformStep.continue below
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
   Core.transform e (pre := fun s => do
     if (← instantiateMVars s) == (← instantiateMVars target) then
