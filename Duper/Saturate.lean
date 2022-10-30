@@ -11,6 +11,7 @@ import Duper.Rules.ElimDupLit
 import Duper.Rules.ElimResolvedLit
 import Duper.Rules.EqualityFactoring
 import Duper.Rules.EqualityResolution
+import Duper.Rules.EqualitySubsumption
 import Duper.Rules.IdentBoolFalseElim
 import Duper.Rules.IdentPropFalseElim
 import Duper.Rules.Superposition
@@ -54,13 +55,15 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     identPropFalseElim.toSimpRule "identity prop false elimination",
     identBoolFalseElim.toSimpRule "identity boolean false elimination",
     (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation",
-    (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule "forward clause subsumption (naive)"
+    (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule "forward clause subsumption",
+    (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule "forward equality subsumption"
   ]
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
   return #[
     (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule "backward demodulation",
-    (backwardClauseSubsumption (← getSubsumptionTrie)).toBackwardSimpRule "backward clause subsumption (naive)"
+    (backwardClauseSubsumption (← getSubsumptionTrie)).toBackwardSimpRule "backward clause subsumption",
+    (backwardEqualitySubsumption (← getSubsumptionTrie)).toBackwardSimpRule "backward equality subsumption"
   ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do

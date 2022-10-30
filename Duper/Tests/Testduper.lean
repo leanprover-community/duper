@@ -25,6 +25,8 @@ def cnf (formulas : List (Expr × Expr)) : TacticM (List (Bool × Expr × Expr))
 
 open Std
 
+-- Note for when I update Lean version: TransformStep.visit has been renamed TransformStep.continue,
+-- so when I update Lean, I need to replace TransformStep.visit with TransformStep.continue below
 def replace (e : Expr) (target : Expr) (replacement : Expr) : MetaM Expr := do
   Core.transform e (pre := fun s => do
     if (← instantiateMVars s) == (← instantiateMVars target) then

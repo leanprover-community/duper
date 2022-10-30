@@ -10,7 +10,7 @@ open RuleM
 open SimpResult
 open ProverM
 open Std
-initialize Lean.registerTraceClass `Rule.subsumption
+initialize Lean.registerTraceClass `Rule.clauseSubsumption
 
 /-- Determines whether there is any σ such that σ(l1.lhs) = l2.lhs and σ(l1.rhs) = l2.rhs. Returns true and applies σ if so,
     returns false (without applying any substitution) otherwise -/
@@ -89,7 +89,7 @@ def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) (sub
 /-- Returns removed if there exists a clause that subsumes c, and returns Unapplicable otherwise -/
 def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
   let potentialSubsumingClauses ← subsumptionTrie.getPotentialSubsumingClauses c
-  trace[Rule.subsumption] "number of potentialSubsumingClauses for {c}: {potentialSubsumingClauses.size}"
+  trace[Rule.clauseSubsumption] "number of potentialSubsumingClauses for {c}: {potentialSubsumingClauses.size}"
   let (cMVars, c) ← loadClauseCore c
   let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc nextClause => do
@@ -98,7 +98,7 @@ def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := 
       conditionallyModifyingLoadedClauses do
         let nextClause ← loadClause nextClause
         if ← subsumptionCheck nextClause c cMVarIds then
-          trace[Rule.subsumption] "Forward subsumption: removed {c.lits} because it was subsumed by {nextClause.lits}"
+          trace[Rule.clauseSubsumption] "Forward subsumption: removed {c.lits} because it was subsumed by {nextClause.lits}"
           return (true, Removed)
         else return (false, Unapplicable)
     | Removed => return Removed
@@ -110,14 +110,14 @@ open BackwardSimpResult
 /-- Returns Removed l where l is a list of clauses that givenSubsumingClause subsumes -/
 def backwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSubsumingClause => do
   let potentialSubsumedClauses ← subsumptionTrie.getPotentialSubsumedClauses givenSubsumingClause
-  trace[Rule.subsumption] "number potentialSubsumedClauses for {givenSubsumingClause}: {potentialSubsumedClauses.size}"
+  trace[Rule.clauseSubsumption] "number potentialSubsumedClauses for {givenSubsumingClause}: {potentialSubsumedClauses.size}"
   let givenSubsumingClause ← loadClause givenSubsumingClause
   let fold_fn := fun acc nextClause =>
     conditionallyModifyingLoadedClauses do
       let (nextClauseMVars, nextClause) ← loadClauseCore nextClause
       let nextClauseMVarIds := nextClauseMVars.map Expr.mvarId!
       if ← subsumptionCheck givenSubsumingClause nextClause nextClauseMVarIds then
-        trace[Rule.subsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
+        trace[Rule.clauseSubsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
         return (true, (nextClause :: acc))
       else return (false, acc)
   return Removed (← potentialSubsumedClauses.foldlM fold_fn [])
