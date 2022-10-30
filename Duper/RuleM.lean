@@ -163,6 +163,12 @@ def runMetaAsRuleM (x : MetaM α) : RuleM α := do
 def mkFreshExprMVar (type? : Option Expr) (kind := MetavarKind.natural) (userName := Name.anonymous) : RuleM Expr := do
   runMetaAsRuleM $ Meta.mkFreshExprMVar type? kind userName
 
+def mkAppM (constName : Name) (xs : Array Expr) :=
+  runMetaAsRuleM $ Meta.mkAppM constName xs
+
+def mkAppOptM (constName : Name) (xs : Array (Option Expr)) :=
+  runMetaAsRuleM $ Meta.mkAppOptM constName xs
+
 def getMVarType (mvarId : MVarId) : RuleM Expr := do
   runMetaAsRuleM $ Lean.MVarId.getType mvarId
 

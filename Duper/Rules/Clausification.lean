@@ -232,11 +232,42 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (SimpResult (List (MCla
         return ← Meta.mkAppM ``clausify_imp #[premise]
       return Applied [(MClause.mk #[Lit.fromExpr ty false, Lit.fromExpr b], some pr)]
     else
-      let mvar ← mkFreshExprMVar ty
+      -- Indprinciple:
+      -- Hack. Add literal ((mvar ≠ mvar) = True) to the conclusion.
+      --
+      -- Here, we create a metavariable ```mvar``` to instantiate the
+      -- quantifier. This metavariable is present in the result of this function
+      -- and will escape into ```clausificationStep```, and be assigned
+      -- by ```Meta.isDefEq (← Meta.inferType dproof) resRight'```
+      -- in ```clausificationStep```. Normally the unification procedure will
+      -- eliminate this metavariable. However, when the bound variable does not
+      -- occur in the body ```b```, the unification will assign this metavariable
+      -- with an expression which contains other metavariables, and these
+      -- metavariables will escape from ```mkProof```, which causes the bug.
+      --
+      -- For example,
+      -- ```example {a : Type} [Inhabited a] (h : ¬ (false = true)) :```
+      -- ```  ¬(∀ a' : a, false) := by duper```
+      -- will fail.
+      --
+      -- To solve this problem, we can add the literal ```((mvar ≠ mvar) = True)```
+      -- to the conclusion.
+      --
+      -- This seems hacky, but I haven't thought of any other way
+      -- which requires less code modification. Note that if the bound
+      -- variable does not occur in the body and we don't add this
+      -- dummy literal to the conclusion, then this metavariable
+      -- will occur neither in the premise nor the conclusion, so
+      -- there will be no way for ```yieldClause``` and ```mkProof```
+      -- to discocver it.
       let pr : Expr → MetaM Expr := fun premise => do
         let mvar ← Meta.mkFreshExprMVar ty
-        return ← Meta.mkAppM ``clausify_forall #[mvar, premise]
-      return Applied [(MClause.mk #[Lit.fromExpr $ b.instantiate1 mvar], some pr)]
+        let mvarNE ← Meta.mkAppM ``Ne #[mvar, mvar]
+        let left_part_of_or ← Meta.mkAppM ``clausify_forall #[mvar, premise]
+        return ← Meta.mkAppOptM ``Or.inl #[none, ← Meta.mkAppM ``Eq #[mvarNE, mkConst ``True], left_part_of_or]
+      let mvar ← mkFreshExprMVar ty
+      let mvarNE ← mkAppM ``Ne #[mvar, mvar]
+      return Applied [(MClause.mk #[Lit.fromExpr $ b.instantiate1 mvar, Lit.fromExpr $ mvarNE], some pr)]
   | true, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     let skTerm ← makeSkTerm ty b
     let pr : Expr → MetaM Expr := fun premise => do
@@ -273,11 +304,15 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (SimpResult (List (MCla
           #[← Meta.mkAppM ``Inhabited.some_spec #[← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
       return Applied [(MClause.mk #[Lit.fromExpr $ (mkNot b).instantiate1 skTerm], some pr)]
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
-    let mvar ← mkFreshExprMVar ty
+    -- Indprinciple : Hack. Add literal ((mvar ≠ mvar) = True). Similar to ```true, Expr.forallE```
     let pr : Expr → MetaM Expr := fun premise => do
       let mvar ← Meta.mkFreshExprMVar ty
-      Meta.mkAppM ``clausify_exists_false #[mvar, premise]
-    return Applied [(MClause.mk #[Lit.fromExpr (b.instantiate1 mvar) false], some pr)]
+      let mvarNE ← Meta.mkAppM ``Ne #[mvar, mvar]
+      let left_part_of_or ← Meta.mkAppM ``clausify_exists_false #[mvar, premise]
+      return ← Meta.mkAppOptM ``Or.inl #[none, ← Meta.mkAppM ``Eq #[mvarNE, mkConst ``True], left_part_of_or]
+    let mvar ← mkFreshExprMVar ty
+    let mvarNE ← mkAppM ``Ne #[mvar, mvar]
+    return Applied [(MClause.mk #[Lit.fromExpr (b.instantiate1 mvar) false, Lit.fromExpr $ mvarNE], some pr)]
   | true, Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl]) ty) e₁) e₂  =>
     let pr : Expr → MetaM Expr := fun premise => do
       Meta.mkAppM ``of_eq_true #[premise]
