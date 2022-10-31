@@ -429,7 +429,7 @@ def clausificationStep : MSimpRule := fun c => do
   for i in [:c.lits.size] do
     match ← clausificationStepLit c i with
     | Applied ds =>
-      return Applied $ ds.map fun (d, dproof) => 
+      let _ ← ds.map fun (d, dproof) => 
         let mkProof : ProofReconstructor := 
           fun (premises : List Expr) (parents : List ProofParent) (res : Clause) => do
             Meta.forallTelescope res.toForallExpr fun xs body => do
@@ -468,6 +468,6 @@ def clausificationStep : MSimpRule := fun c => do
         (⟨c.lits.eraseIdx i ++ d.lits⟩, mkProof)
     | Removed => throwError "Invalid result of clausification"
     | Unapplicable => continue
-  return Unapplicable
+  return false
 
 end Duper

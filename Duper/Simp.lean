@@ -36,27 +36,19 @@ deriving Inhabited
 
 open SimpResult
 
-abbrev MSimpRule := Clause → RuleM (SimpResult (List (MClause × Option ProofReconstructor)))
+abbrev MSimpRule := Clause → RuleM Bool -- Returns true iff simplification rule was applied (if `yieldClause` was not called, the clause will be removed)
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 
 abbrev BackwardMSimpRule := Clause → RuleM BackwardSimpResult
 abbrev BackwardSimpRule := Clause → ProverM Bool -- Returns true iff any backward simplification was done (meaning backwardSimpLoop needs to loop)
 
-def MSimpRule.toSimpRule (rule : MSimpRule) (ruleName : String) : SimpRule := fun givenClause => do
-  -- Run the rule
-  let (res, cs) ← runSimpRule do
-    withoutModifyingMCtx do
-      let cs? ← rule givenClause
-      cs?.forM fun cs => do
-        for (c, mkProof) in cs do yieldClause c ruleName mkProof
-      return cs?
+def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
+  let (res, cs) ← runSimpRule (rule givenClause)
   match res with
-  | SimpResult.Removed => return Removed
-  | Unapplicable => return Unapplicable
-  | SimpResult.Applied [] => return Removed
-  | SimpResult.Applied _ => do
+  | false => return Unapplicable
+  | true => do
     match cs with
-    | List.nil => throwError "Invalid list of resultClauses returned by {ruleName}"
+    | List.nil => return Removed
     | (c, proof) :: restCs =>
       -- Register and return first result clause without adding it to the active or passive set. Add other result clauses to passive set
       let _ ← addNewClause c proof

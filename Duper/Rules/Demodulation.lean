@@ -65,7 +65,7 @@ def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) 
 -/
 def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId) (mainPremiseSubterm : Expr)
   (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) :
-  RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  RuleM (Option (MClause × Option ProofReconstructor)) := do
   Core.checkMaxHeartbeats "forward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
@@ -74,30 +74,30 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
       (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
     if eligibleForParamodulation && (mainPremiseSideComparison == Comparison.GreaterThan) then
-      return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
+      return none -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← RuleM.performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
-    return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
+    return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
-    return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
+    return none -- Cannot perform demodulation because side condition 2 listed above is not met
   let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← RuleM.instantiateMVars sidePremiseLit.rhs
-  return Applied [(mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))]
+  return some (mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))
 
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTrie) (givenMainClause : MClause)
-  (mainClauseMVarIds : Array MVarId) : RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  (mainClauseMVarIds : Array MVarId) : RuleM Bool := do
   let potentialPartners ← sideIdx.getMatchFromPartners e
   for (partnerClause, partnerPos) in potentialPartners do
     let (mclause, cToLoad) ← prepLoadClause partnerClause
     match ← forwardDemodulationWithPartner givenMainClause mainClauseMVarIds e pos mclause partnerPos.side with
-    | Unapplicable => continue
-    | Applied res =>
+    | none => continue
+    | some res =>
       -- forwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
       setLoadedClauses (cToLoad :: (← getLoadedClauses))
+      yieldClause res.1 "forward demodulation" res.2
       trace[Rule.demodulation] "Main clause: {givenMainClause.lits} at lit: {pos.lit} at expression: {e}"
       trace[Rule.demodulation] "Side clause: {partnerClause} at lit: {partnerPos.lit}"
-      trace[Rule.demodulation] "Result: {(List.get! res 0).1.lits}"
-      return Applied res
-    | Removed => throwError "Invalid demodulation result"
-  return Unapplicable
+      trace[Rule.demodulation] "Result: {res.1.lits}"
+      return true
+  return false
 
 /-- Performs rewriting of positive and negative literals (demodulation) with the given clause c as the main clause. We only attempt
     to use c as the main clause (rather than attempt to use it as a side clause as well) because if we used c as a side clause, we
@@ -108,12 +108,11 @@ def forwardDemodulation (sideIdx : RootCFPTrie) : MSimpRule := fun c => do
   let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc e pos => do
     match acc with
-    | Unapplicable => forwardDemodulationAtExpr e pos sideIdx c cMVarIds
-    | Applied res => return Applied res -- If forwardDemodulationAtExpr ever succeeds, just return the first success
-    | Removed => throwError "Invalid demodulation result"
+    | false => forwardDemodulationAtExpr e pos sideIdx c cMVarIds
+    | true => return true -- If forwardDemodulationAtExpr ever succeeds, just return on first success
   -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
   -- rather than just green ones
-  c.foldGreenM fold_fn Unapplicable
+  c.foldGreenM fold_fn false
 
 open BackwardSimpResult
 
