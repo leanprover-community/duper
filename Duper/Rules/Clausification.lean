@@ -358,9 +358,16 @@ where
     let skTy := mVarIdTys.foldr
       (fun mVarIdTy skTy => mkForall `_ BinderInfo.default mVarIdTy skTy)
       skTy
-    let mkProof := fun parents => do
-      let d ← Meta.mkAppM ``Inhabited.some #[mkLambda `x BinderInfo.default ty b]
-      let d := d.abstractMVars (mVarIds.map mkMVar)
+    let mkProof := fun parents => do      
+      let p := mkLambda `x BinderInfo.default ty b
+      let p := p.abstractMVars (mVarIds.map mkMVar)
+      -- Indprinciple:
+      -- The above lines must be before the following line, otherwise
+      -- an "unknown metavariable" error might be thrown
+      -- Note that we can't abstract metavariables of ```ty``` and
+      -- ```b``` respectively, otherwise the de-brunjin indices
+      -- would go wrong.
+      let d ← Meta.mkAppM ``Inhabited.some #[p]
       let d := mVarIdTys.foldr
         (fun mVarIdTy skTy => mkLambda `_ BinderInfo.default mVarIdTy skTy)
         d

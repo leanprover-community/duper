@@ -21,14 +21,15 @@ end Duper
 namespace Lean.Expr
 open Duper
 
-partial def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
+partial def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
     (f : β → Expr → ExprPos → m β) (init : β) (e : Expr)
-    (pos : ExprPos := ExprPos.empty) : m β  := do
-  let mut acc ← f init e pos
-  let args := e.getAppRevArgs
-  for i in [:args.size] do
-    acc ← foldGreenM f acc args[i]! (pos := pos.push i)
-  return acc
+    (pos : ExprPos := ExprPos.empty) (_ : Inhabited β := ⟨init⟩) : m β :=
+  do
+    let mut acc ← f init e pos
+    let args := e.getAppRevArgs
+    for i in [:args.size] do
+      acc ← foldGreenM f acc args[i]! (pos := pos.push i)
+    return acc
 
 partial def getAtPos! (e : Expr) (pos : ExprPos) : Expr := Id.run <| do
   let mut cur := e
@@ -36,7 +37,7 @@ partial def getAtPos! (e : Expr) (pos : ExprPos) : Expr := Id.run <| do
     cur := cur.getRevArg! i
   return cur
 
-/-- Returns the expression in e indicated by pos if it exists, and returns none if pos does not point to a valid
+/-- Returns the expression in e indiced by pos if it exists, and returns none if pos does not point to a valid
     subexpression in e -/
 partial def getAtPos? (e : Expr) (pos : ExprPos) : Option Expr := do
   let mut cur := e
@@ -44,8 +45,8 @@ partial def getAtPos? (e : Expr) (pos : ExprPos) : Option Expr := do
     cur ← cur.getAppRevArgs[i]?
   return cur
 
-/-- Returns true if either the subexpression indicated by pos exists in e, or if it may be possible to instantiate metavariables in
-    e in such a way that the subexpression indicated by pos would exist.
+/-- Returns true if either the subexpression indiced by pos exists in e, or if it may be possible to instantiate metavariables in
+    e in such a way that the subexpression indiced by pos would exist.
 
     For example, if e = "f 2 ?m.0", then canInstantiateToGetAtPos would return true for pos #[0, 1] (becuase "?m.0" could be instantiated
     as an application) but would return false for pos #[1, 1] (because 2 does not and can not have any arguments) -/

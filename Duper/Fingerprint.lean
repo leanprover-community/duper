@@ -119,7 +119,7 @@ def getFingerprint (e : Expr) : Fingerprint :=
   fingerprintFeatures.map (fun pos => gfpf e pos)
 
 /-- Given a fingerprint f, yields a ClauseFingerprintTrie whose depth equals the length of f and whose
-    only value is v (located at the position indicated by f) -/
+    only value is v (located at the position indiced by f) -/
 def mkSingleton (f : Fingerprint) (v : (Clause × ClausePos)) : ClauseFingerprintTrie :=
   let childDepth := f.length - 1
   let emptyChild := mkEmptyWithDepth childDepth
@@ -130,7 +130,7 @@ def mkSingleton (f : Fingerprint) (v : (Clause × ClausePos)) : ClauseFingerprin
   | N :: restFeatures => node emptyChild emptyChild (mkSingleton restFeatures v) #[]
   | F e :: restFeatures => node emptyChild emptyChild emptyChild #[(e, mkSingleton restFeatures v)]
 
-/-- Inserts v into t at the position indicated by fingerprint f.
+/-- Inserts v into t at the position indiced by fingerprint f.
     Throws an error if the length of f does not equal the depth of t -/
 def insertHelper (t : ClauseFingerprintTrie) (f : Fingerprint)
   (v : (Clause × ClausePos)) : RuleM ClauseFingerprintTrie := do
@@ -157,7 +157,7 @@ def insertHelper (t : ClauseFingerprintTrie) (f : Fingerprint)
       return node childA childB childN childF'
   | _, _ => throwError "Depth of {t} incompatible with length of {f}"
 
-/-- Adds v to t.root at the location indicated by e and removes v.1 from t.filterSet so that previously
+/-- Adds v to t.root at the location indiced by e and removes v.1 from t.filterSet so that previously
     deleted clauses can be readded -/
 def insert (t : RootCFPTrie) (e : Expr) (v : (Clause × ClausePos)) : RuleM RootCFPTrie :=
   return ⟨← insertHelper t.root (getFingerprint e) v, t.filterSet.erase v.1⟩

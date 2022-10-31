@@ -18,6 +18,9 @@ deriving Inhabited, BEq, Hashable
 inductive LitSide | lhs | rhs
 deriving Inhabited, BEq, Hashable
 
+def Lit.toString (l : Lit) :=
+  ToString.toString l.lhs ++ if l.sign then " = " else " ≠ " ++ ToString.toString l.rhs
+
 def LitSide.format (ls : LitSide) : MessageData :=
   match ls with
   | lhs => m!"lhs"
@@ -70,7 +73,7 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
   f (← f init l.lhs ⟨LitSide.lhs, ExprPos.empty⟩) l.rhs ⟨LitSide.rhs, ExprPos.empty⟩
 
-def foldGreenM {β : Type v} [Inhabited β] {m : Type v → Type w} [Monad m] 
+def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
   let fLhs := fun acc e p => f acc e ⟨LitSide.lhs, p⟩
   let fRhs := fun acc e p => f acc e ⟨LitSide.rhs, p⟩
