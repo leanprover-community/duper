@@ -14,6 +14,7 @@ import Duper.Rules.EqualityResolution
 import Duper.Rules.EqualitySubsumption
 import Duper.Rules.IdentBoolFalseElim
 import Duper.Rules.IdentPropFalseElim
+import Duper.Rules.SimplifyReflect
 import Duper.Rules.Superposition
 import Duper.Rules.SyntacticTautologyDeletion1
 import Duper.Rules.SyntacticTautologyDeletion2
@@ -37,10 +38,6 @@ initialize
   registerTraceClass `Simp.debug
   registerTraceClass `Timeout.debug
 
-set_option trace.Prover.debug true
-
-set_option maxHeartbeats 10000
-
 open SimpResult
 
 def forwardSimpRules : ProverM (Array SimpRule) := do
@@ -57,6 +54,8 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation",
     (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule "forward clause subsumption",
     (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule "forward equality subsumption"
+    -- (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule "forward positive simplify reflect"
+    -- TODO: Forward negative simplify reflect
   ]
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
@@ -64,6 +63,8 @@ def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
     (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule "backward demodulation",
     (backwardClauseSubsumption (← getSubsumptionTrie)).toBackwardSimpRule "backward clause subsumption",
     (backwardEqualitySubsumption (← getSubsumptionTrie)).toBackwardSimpRule "backward equality subsumption"
+    -- TODO: Backward positive simplify reflect
+    -- TODO: Backward negative simplify reflect
   ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do

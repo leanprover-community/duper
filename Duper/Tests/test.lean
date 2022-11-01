@@ -320,6 +320,11 @@ theorem equalityFactoringTest5 {α : Type} (s t u v : α)
 #print axioms equalityFactoringTest5
 
 --###############################################################################################################################
+-- This test previously failed due to a bug in how we removed clauses
+theorem removeClausesTest {α : Type} [Inhabited α] (x y : α) (c : α → Prop)
+  (h1 : ∀ a b : α, a = b) : c x = c y := by duper
+
+--###############################################################################################################################
 theorem COM002_2_test (state : Type) (follows fails : state → state → Prop) (p3 p6 : state)
   (h0 : ∀ (Start_state Goal_state : state), ¬(fails Goal_state Start_state ∧ follows Goal_state Start_state))
   (h1 : follows p6 p3) : ¬fails p6 p3 := by duper

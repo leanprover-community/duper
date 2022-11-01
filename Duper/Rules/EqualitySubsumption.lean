@@ -32,29 +32,16 @@ def forwardEqualitySubsumptionAtExpr (mainPremise : MClause) (pos : ClausePos)
   (potentialSubsumingClauses : Array Clause) (mainMVarIds : Array MVarId) :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   withoutModifyingMCtx do
-    let clausePosLhs : ClausePos := ⟨0, LitSide.lhs, ExprPos.empty⟩
-    let clausePosRhs : ClausePos := ⟨0, LitSide.rhs, ExprPos.empty⟩
-    let potentialSubsumingClauses := potentialSubsumingClauses.zip #[clausePosLhs, clausePosRhs]
-    for (potentialSubsumingClause, subsumingPos) in potentialSubsumingClauses do
+    let potentialSubsumingClauses := potentialSubsumingClauses.zip #[LitSide.lhs, LitSide.rhs]
+    for (potentialSubsumingClause, subsumingClauseLhs) in potentialSubsumingClauses do
       let (sideMClause, cToLoad) ← prepLoadClause potentialSubsumingClause
-      match ← equalitySubsumptionWithPartner mainPremise mainMVarIds pos sideMClause subsumingPos.side with
+      match ← equalitySubsumptionWithPartner mainPremise mainMVarIds pos sideMClause subsumingClauseLhs with
       | Unapplicable => continue
       | Removed =>
         trace[Rule.equalitySubsumption] "Main clause: {mainPremise.lits} removed by side clause {potentialSubsumingClause.lits}"
         return Removed
       | Applied _ => throwError "Invalid equality subsumption result"
     return Unapplicable
-
-/-- Returns true iff e1 and e2 are identical except potentially at position p. Returns false if p is not a valid position
-    for either e1 or e2. -/
-def sidesAgreeExceptAtPos (e1 : Expr) (e2 : Expr) (p : ExprPos) : Bool :=
-  -- e1 and e2 are identical except potentially at p iff e1 is identical with (replaceAtPos e2 pos (getAtPos e1 pos))
-  match e1.getAtPos? p with
-  | none => false
-  | some e1Subterm =>
-    match e2.replaceAtPos? p e1Subterm with
-    | none => false
-    | some e2Replaced => e1 == e2Replaced
 
 /-- Returns Removed if there exists a clause that subsumes c, and returns Unapplicable otherwise -/
 def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
@@ -78,7 +65,7 @@ def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule :
         Additionally, we enforce that pos.side is LitSide.lhs since forwardEqualitySubsumptionAtExpr will check both
         conditions 3 and 4 (so it would be redundant to perform the same call with the only difference being pos.side)
       -/
-      let sidesAgree := sidesAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
+      let sidesAgree := Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
       if(pos.side == LitSide.lhs && c.lits[pos.lit]!.sign && sidesAgree) then
         forwardEqualitySubsumptionAtExpr c pos potentialSubsumingClauses cMVarIds
       else return Unapplicable
@@ -105,7 +92,7 @@ def backwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMS
       let inner_fold_fn := fun acc _ pos => do
         match acc with
         | false =>
-          let sidesAgree := sidesAgreeExceptAtPos nextClause.lits[pos.lit]!.lhs nextClause.lits[pos.lit]!.rhs pos.pos
+          let sidesAgree := Expr.expressionsAgreeExceptAtPos nextClause.lits[pos.lit]!.lhs nextClause.lits[pos.lit]!.rhs pos.pos
           if(nextClause.lits[pos.lit]!.sign && sidesAgree) then
             -- Note that we can let sidePremiseLhs be LitSide.lhs because we do not require that pos.side == lhs
             match ← equalitySubsumptionWithPartner nextClause nextClauseMVarIds pos givenSubsumingClause LitSide.lhs with

@@ -135,4 +135,15 @@ def weight : Expr → Nat
   | Expr.mdata _ b       => 1 + weight b
   | Expr.proj _ _ b      => 1 + weight b
 
+/-- Returns true iff e1 and e2 are identical except potentially at position p. Returns false if p is not a valid position
+    for either e1 or e2. -/
+def expressionsAgreeExceptAtPos (e1 : Expr) (e2 : Expr) (p : ExprPos) : Bool :=
+  -- e1 and e2 are identical except potentially at p iff e1 is identical with (replaceAtPos e2 pos (getAtPos e1 pos))
+  match e1.getAtPos? p with
+  | none => false
+  | some e1Subterm =>
+    match e2.replaceAtPos? p e1Subterm with
+    | none => false
+    | some e2Replaced => e1 == e2Replaced
+
 end Lean.Expr

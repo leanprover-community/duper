@@ -23,6 +23,7 @@ open Result
 structure ClauseInfo where
 (number : Nat)
 (proof : Proof)
+(isRemoved : Bool)
 
 abbrev ClauseSet := HashSet Clause 
 abbrev ClauseHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
@@ -48,7 +49,6 @@ structure State where
   mainPremiseIdx : RootCFPTrie := {}
   supSidePremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
-  simplifyReflectNegSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
   lctx : LocalContext := {}
   mctx : MetavarContext := {}
@@ -121,9 +121,6 @@ def getSupSidePremiseIdx : ProverM RootCFPTrie :=
 def getDemodSidePremiseIdx : ProverM RootCFPTrie :=
   return (← get).demodSidePremiseIdx
 
-def getSimplifyReflectNegSidePremiseIdx : ProverM RootCFPTrie :=
-  return (← get).simplifyReflectNegSidePremiseIdx
-
 def getSubsumptionTrie : ProverM SubsumptionTrie :=
   return (← get).subsumptionTrie
 
@@ -162,9 +159,6 @@ def setDemodSidePremiseIdx (demodSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
 def setMainPremiseIdx (mainPremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with mainPremiseIdx := mainPremiseIdx }
 
-def setSimplifyReflectNegSidePremiseIdx (simplifyReflectNegSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
-  modify fun s => { s with simplifyReflectNegSidePremiseIdx := simplifyReflectNegSidePremiseIdx }
-
 def setSubsumptionTrie (subsumptionTrie : SubsumptionTrie) : ProverM Unit :=
   modify fun s => { s with subsumptionTrie := subsumptionTrie }
 
@@ -197,6 +191,7 @@ partial def chooseGivenClause : ProverM (Option Clause) := do
   setHeap h
   -- If selected clause is no longer in passive set, restart.
   if not $ (← getPassiveSet).contains c.2 then
+    trace[Prover.debug] "Clause {c.2} no longer in passive set, choosing new clause"
     return (← chooseGivenClause)
   -- Remove clause from passive
   setPassiveSet $ (← getPassiveSet).erase c.2
@@ -214,15 +209,24 @@ def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
     let ci : ClauseInfo := {
       number := allClauses.size
       proof := proof
+      isRemoved := false
     }
     setAllClauses (allClauses.insert c ci)
     if c.lits.size == 0 then throwEmptyClauseException
     return ci
 
 def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
-  if (← getAllClauses).contains c
-  then pure () -- clause is not new, ignore.
-  else
+  match (← getAllClauses).find? c with
+  | some ci =>
+    if (!ci.isRemoved) then pure () -- clause is not new, ignore.
+    else -- Even though c appears in all clauses, c has been "removed" due to having a removed ancestor. So we can readd it
+      trace[Prover.saturate] "New passive clause: {c}"
+      let ci := {ci with proof := proof, isRemoved := false}
+      setAllClauses ((← getAllClauses).insert c ci)
+      setPassiveSet $ (← getPassiveSet).insert c
+      setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
+      setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
+  | none =>
     trace[Prover.saturate] "New passive clause: {c}"
     let ci ← addNewClause c proof
     setPassiveSet $ (← getPassiveSet).insert c
@@ -266,7 +270,7 @@ def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit
     addNewToPassive c proof
 
 def addToActive (c : Clause) : ProverM Unit := do
-  let _ ← getClauseInfo! c -- getClauseInfo! throws and error if c can't be found
+  let _ ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
   -- Add to superposition's side premise index:
   let idx ← getSupSidePremiseIdx
   let idx ← runRuleM do
@@ -291,13 +295,6 @@ def addToActive (c : Clause) : ProverM Unit := do
       let (_, mclause) ← loadClauseCore c
       mclause.foldM (fun idx e pos => idx.insert e (c, pos)) idx
     setDemodSidePremiseIdx idx
-  -- Add to simplifyReflectNegSidePremiseIdx iff c consists of exactly one negative literal:
-  if(c.lits.size = 1 && !(c.lits[0]!.sign)) then
-    let idx ← getSimplifyReflectNegSidePremiseIdx
-    let idx ← runRuleM do
-      let (_, mclause) ← loadClauseCore c
-      mclause.foldM (fun idx e pos => idx.insert e (c, pos)) idx
-    setSimplifyReflectNegSidePremiseIdx idx
   -- Add to main premise index:
   let idx ← getMainPremiseIdx
   let idx ← runRuleM do
@@ -322,44 +319,73 @@ def addToActive (c : Clause) : ProverM Unit := do
   -- add to active set:
   setActiveSet $ (← getActiveSet).insert c
 
-/-- Remove c from mainPremiseIdx, supSidePremiseIdx, demodSidePremiseIdx, simplifyReflectNegSidePremiseIdx,
-    and subsumptionTrie -/
+/-- Remove c from mainPremiseIdx, supSidePremiseIdx, demodSidePremiseIdx, and subsumptionTrie -/
 def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
   let mainIdx ← getMainPremiseIdx
   let supSideIdx ← getSupSidePremiseIdx
   let demodSideIdx ← getDemodSidePremiseIdx
-  let simplifyReflectNegSidePremiseIdx ← getSimplifyReflectNegSidePremiseIdx
   let subsumptionTrie ← getSubsumptionTrie
   setMainPremiseIdx (← runRuleM $ mainIdx.delete c)
   setSupSidePremiseIdx (← runRuleM $ supSideIdx.delete c)
   setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
-  setSimplifyReflectNegSidePremiseIdx (← runRuleM $ simplifyReflectNegSidePremiseIdx.delete c)
   setSubsumptionTrie (← runRuleM $ subsumptionTrie.delete c)
 
-/-- Removes c and all its descendants from the active set, passive set, and all discrimination trees -/
-def removeClause (c : Clause) : ProverM Unit := do
+/-- Removes c and all its descendants from the active set, passive set, and all discrimination trees. Additionally, we tag c
+    and all of its descendants as "removed" from allClauses. -/
+partial def removeClause (c : Clause) : ProverM Unit := do
   let mut activeSet ← getActiveSet
   let mut passiveSet ← getPassiveSet
-  if activeSet.contains c then
-    setActiveSet $ activeSet.erase c
-    removeFromDiscriminationTrees c
-    activeSet ← getActiveSet
-  if passiveSet.contains c then
-    setPassiveSet $ passiveSet.erase c
-    passiveSet ← getPassiveSet
-  for potentialChild in activeSet.toArray do -- Remove descendants from active set
-    let potentialChildInfo ← getClauseInfo! potentialChild
-    let potentialChildParents := List.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
-    if potentialChildParents.contains c then
-      setActiveSet $ activeSet.erase potentialChild
-      removeFromDiscriminationTrees potentialChild
+  let mut allClauses ← getAllClauses
+
+  match allClauses.find? c with
+  | none => return () -- Don't need to do anything else because c was never added to anything
+  | some ci =>
+    -- Tag c as "removed" from allClauses
+    let ci := {ci with isRemoved := true}
+    setAllClauses $ allClauses.insert c ci
+    allClauses ← getAllClauses
+
+    -- Remove c from active set
+    if activeSet.contains c then
+      setActiveSet $ activeSet.erase c
+      removeFromDiscriminationTrees c
       activeSet ← getActiveSet
-  for potentialChild in passiveSet.toArray do -- Remove descendants from passive set
-    let potentialChildInfo ← getClauseInfo! potentialChild
-    let potentialChildParents := List.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
-    if potentialChildParents.contains c then
-      setPassiveSet $ passiveSet.erase potentialChild
+
+    -- Remove c from passive set
+    if passiveSet.contains c then
+      setPassiveSet $ passiveSet.erase c
       passiveSet ← getPassiveSet
+
+    -- Remove descendants from active set
+    for potentialChild in activeSet.toArray do
+      let potentialChildInfo ← getClauseInfo! potentialChild
+      let potentialChildParents := List.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
+      if potentialChildParents.contains c then
+        setActiveSet $ activeSet.erase potentialChild
+        removeFromDiscriminationTrees potentialChild
+        activeSet ← getActiveSet
+        -- Remove descendant from allClauses
+        let potentialChildInfo ← getClauseInfo! potentialChild
+        let potentialChildInfo := {potentialChildInfo with isRemoved := true}
+        setAllClauses $ allClauses.insert potentialChild potentialChildInfo
+        allClauses ← getAllClauses
+        -- Remove descendants of the child
+        removeClause potentialChild
+
+    -- Remove descendants from passive set
+    for potentialChild in passiveSet.toArray do
+      let potentialChildInfo ← getClauseInfo! potentialChild
+      let potentialChildParents := List.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
+      if potentialChildParents.contains c then
+        setPassiveSet $ passiveSet.erase potentialChild
+        passiveSet ← getPassiveSet
+        -- Remove descendant from allClauses
+        let potentialChildInfo ← getClauseInfo! potentialChild
+        let potentialChildInfo := {potentialChildInfo with isRemoved := true}
+        setAllClauses $ allClauses.insert potentialChild potentialChildInfo
+        allClauses ← getAllClauses
+        -- Remove descendants of the child
+        removeClause potentialChild
 
 end ProverM
 end Duper
