@@ -29,24 +29,6 @@ Known bugs/issues (bugs.lean):
   - PUZ137_8 achieves premature saturation because our current interpretation of $o/$oType in tff isn't correct. Currently, we interpreting $o/$oType
     as Prop, but there is an important sense in which we should at least sometimes be interpreting it as Bool. PUZ137_8 is one such instance.
     - Though at present, I don't know that fully interpreting $o/$oType as Bool would necessarily work either
-- PUZ031_1_modified:
-  - "PANIC at Lean.MetavarContext.getDecl Lean.MetavarContext:343:17: unknown metavariable" error
-  - Error when reconstructing clausification
-    - Determine why resRight' and the type of dproof cannot be unified
-- Escaped mvar tests
-  - In clausificationStepE, there are two cases that involve introducing fresh metavariables. (the (true, Expr.forallE ..) case and the case that
-    calls "clausify_exists_false"). In both of these cases, fresh metavariables are introduced with the assumption that they will be assigned
-    by the Meta.isDefEq call in clausificationStep. Usually, this works, however, when we have a forall or there exists statement where the variable
-    being bound does not appear in the resulting expression (e.g. (forall n : Nat, true)), the clause being produced will not reference the variable
-    being bound. Consequently, the unification performed by Meta.isDefEq will not need to (or be able to) assign the introduced metavariable, yielding
-    a final proof that contains metavariables (which the kernel will not accept).
-- COM032_5:
-  - Yields: "PANIC at Lean.Meta.whnfEasyCases Lean.Meta.WHNF:262:26: unreachable code has been reached"
-  - Also results in deterministic timeout, though that's not particularly surprising or necessarily indicative of a specific bug
-- Unknown metavariable error in many of github's tptp tests
-  - When testing on NUM931_5, the error arises due to the type of sk.145 in the expression "sk.145 ?m.187882 ?m.187884".
-    The issue is NOT the arguments passed into sk.145 but rather, the type of sk.145 itself. The type is:
-    "forall (_ : Type), ?_uniq.187828 -> _" which contains the unknown metavariable '?_uniq.187828'
 
 Other:
 - Improve indexing functions for fingerprint indices
@@ -74,6 +56,7 @@ Other:
 - Command line version of duper?
 - Currently, we have a hacky implementation of removing clauses from fingerprint indexes (tacking on a filter before retrieving). If this turns out to be
   too inefficient, implement removal from fingerprint indexes properly.
+- Add a way to efficiently find the children/descendents of a clause so that when we remove a clause, we can efficiently remove its children/descendents as well
 
 ## For later:
 

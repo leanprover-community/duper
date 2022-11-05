@@ -330,8 +330,8 @@ def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
   setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
   setSubsumptionTrie (← runRuleM $ subsumptionTrie.delete c)
 
-/-- Removes c and all its descendants from the active set, passive set, and all discrimination trees. Additionally, we tag c
-    and all of its descendants as "removed" from allClauses. -/
+/-- Removes c from the active set, passive set, and all discrimination trees. Additionally, we tag c as "removed" from allClauses.
+    Note that although it would be valid to additionally remove c's descendents, we do not currently do this. -/
 partial def removeClause (c : Clause) : ProverM Unit := do
   let mut activeSet ← getActiveSet
   let mut passiveSet ← getPassiveSet
@@ -355,6 +355,12 @@ partial def removeClause (c : Clause) : ProverM Unit := do
     if passiveSet.contains c then
       setPassiveSet $ passiveSet.erase c
       passiveSet ← getPassiveSet
+
+    /-
+    Note: Although it would be valid to remove descendents of c from the active set and passive set, some preliminary
+    testing suggests that the time it would take to find c's descendents outweighs the time gained by actually removing them.
+    This tradeoff might change if I added datastructures to more efficiently find c's descendents (e.g., add a ClauseSet of
+    children to the ClauseInfo structure), but for now, I'm simply going to leave descendents untouched.
 
     -- Remove descendants from active set
     for potentialChild in activeSet.toArray do
@@ -386,6 +392,7 @@ partial def removeClause (c : Clause) : ProverM Unit := do
         allClauses ← getAllClauses
         -- Remove descendants of the child
         removeClause potentialChild
+    -/
 
 end ProverM
 end Duper

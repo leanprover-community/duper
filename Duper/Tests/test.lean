@@ -372,3 +372,8 @@ theorem super_test (p q : i → i → Prop) (a b c d : i) :
   (∀x y, p x y ∨ q x y) →
   p a b ∨ q c d :=
 by duper
+
+--###############################################################################################################################
+-- Miscellaneous tests
+example (h : ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d) :
+  ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d := by duper
