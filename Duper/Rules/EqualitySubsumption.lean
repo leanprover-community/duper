@@ -15,12 +15,12 @@ initialize Lean.registerTraceClass `Rule.equalitySubsumption
     (getAtPos mainPremise[pos.lit].rhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseRhs. Importantly, this function
     does NOT check mainPremise[pos.lit].sign or that mainPremise[pos.lit].lhs and mainPremise[pos.lit].rhs agree outside of the given pos. -/
 def equalitySubsumptionWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId)
-  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) :
+  (mainPremisePos : ClausePos) (sidePremise : MClause) :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   withoutModifyingMCtx do
     -- Try to match sidePremise side to mainPremiseSubterm. If it succeeds, check if other side of side premise
     -- can match with main premise lit's other side at the same ExprPos
-    let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
+    let sidePremiseLit := sidePremise.lits[0]!
     let mainPremiseLit := mainPremise.lits[mainPremisePos.lit]!.makeLhs mainPremisePos.side
     if (← RuleM.performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs)] mainPremiseMVarIds) then
       if (← RuleM.performMatch #[(mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds) then
@@ -32,10 +32,9 @@ def forwardEqualitySubsumptionAtExpr (mainPremise : MClause) (pos : ClausePos)
   (potentialSubsumingClauses : Array Clause) (mainMVarIds : Array MVarId) :
   RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
   withoutModifyingMCtx do
-    let potentialSubsumingClauses := potentialSubsumingClauses.zip #[LitSide.lhs, LitSide.rhs]
-    for (potentialSubsumingClause, subsumingClauseLhs) in potentialSubsumingClauses do
+    for potentialSubsumingClause in potentialSubsumingClauses do
       let (sideMClause, cToLoad) ← prepLoadClause potentialSubsumingClause
-      match ← equalitySubsumptionWithPartner mainPremise mainMVarIds pos sideMClause subsumingClauseLhs with
+      match ← equalitySubsumptionWithPartner mainPremise mainMVarIds pos sideMClause with
       | Unapplicable => continue
       | Removed =>
         trace[Rule.equalitySubsumption] "Main clause: {mainPremise.lits} removed by side clause {potentialSubsumingClause.lits}"
@@ -58,15 +57,13 @@ def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule :
         The lit c[pos.lit] can be expressed as u[p ← σ(s)] = u[p ← σ(t)] if and only if the following holds:
         1. c[pos.lit].sign is true
         2. c[pos.lit].lhs and c[pos.lit].rhs are identical everywhere except at p
-        3. s can be matched onto position p of c[pos.lit].lhs
-        4. t can be matched onto position p of c[pos.lit].rhs
+        3. s (the lhs of the potential subsuming clause) can be matched onto position p of c[pos.lit].lhs
+        4. t (the rhs of the potential subsuming clause) can be matched onto position p of c[pos.lit].rhs
 
         Conditions 1 and 2 are checked here, conditions 3 and 4 are checked in forwardEqualitySubsumptionAtExpr.
-        Additionally, we enforce that pos.side is LitSide.lhs since forwardEqualitySubsumptionAtExpr will check both
-        conditions 3 and 4 (so it would be redundant to perform the same call with the only difference being pos.side)
       -/
       let sidesAgree := Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
-      if(pos.side == LitSide.lhs && c.lits[pos.lit]!.sign && sidesAgree) then
+      if(c.lits[pos.lit]!.sign && sidesAgree) then
         forwardEqualitySubsumptionAtExpr c pos potentialSubsumingClauses cMVarIds
       else return Unapplicable
     | Removed => return Removed -- If forwardEqualitySubsumptionAtExpr ever succeeds, then we need not check further
@@ -94,8 +91,7 @@ def backwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMS
         | false =>
           let sidesAgree := Expr.expressionsAgreeExceptAtPos nextClause.lits[pos.lit]!.lhs nextClause.lits[pos.lit]!.rhs pos.pos
           if(nextClause.lits[pos.lit]!.sign && sidesAgree) then
-            -- Note that we can let sidePremiseLhs be LitSide.lhs because we do not require that pos.side == lhs
-            match ← equalitySubsumptionWithPartner nextClause nextClauseMVarIds pos givenSubsumingClause LitSide.lhs with
+            match ← equalitySubsumptionWithPartner nextClause nextClauseMVarIds pos givenSubsumingClause with
             | SimpResult.Removed => return true
             | _ => return false
           else return false

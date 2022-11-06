@@ -53,8 +53,8 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     identBoolFalseElim.toSimpRule "identity boolean false elimination",
     (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation",
     (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule "forward clause subsumption",
-    (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule "forward equality subsumption"
-    -- (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule "forward positive simplify reflect"
+    (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule "forward equality subsumption",
+    (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule "forward positive simplify reflect"
     -- TODO: Forward negative simplify reflect
   ]
 
@@ -62,8 +62,8 @@ def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
   return #[
     (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule "backward demodulation",
     (backwardClauseSubsumption (← getSubsumptionTrie)).toBackwardSimpRule "backward clause subsumption",
-    (backwardEqualitySubsumption (← getSubsumptionTrie)).toBackwardSimpRule "backward equality subsumption"
-    -- TODO: Backward positive simplify reflect
+    (backwardEqualitySubsumption (← getSubsumptionTrie)).toBackwardSimpRule "backward equality subsumption",
+    (backwardPositiveSimplifyReflect (← getSubsumptionTrie)).toBackwardSimpRule "backward positive simplify reflect"
     -- TODO: Backward negative simplify reflect
   ]
 
