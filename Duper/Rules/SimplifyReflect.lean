@@ -61,7 +61,6 @@ def forwardPositiveSimplifyReflectWithPartner (mainPremise : MClause) (mainPremi
       for i in [:mainPremise.lits.size] do
         if i = mainPremisePos.lit then continue
         else mainPremiseLitsExceptSimplifiedLit := mainPremise.lits[i]! :: mainPremiseLitsExceptSimplifiedLit
-      -- forwardPositiveSimplifyReflectWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
       let res := MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray
       yieldClause res
         "forward positive simplify reflect"
