@@ -16,17 +16,17 @@ def syntacticTautologyDeletion2 : MSimpRule := fun c => do
     if lit.sign then {
       if(ne_pairs.contains (lhs, rhs) || ne_pairs.contains (rhs, lhs)) then
         trace[Simp.debug] "syntacticTautologyDeletion2 returning Removed due to literals {lhs} and {rhs} from the clause {c.lits}"
-        return Removed -- The literal lhs = rhs and the literal lhs ≠ rhs are both in the clause, so the clause can be removed
+        return true -- The literal lhs = rhs and the literal lhs ≠ rhs are both in the clause, so the clause can be removed
       else
         eq_pairs := eq_pairs.insert (lhs, rhs)
     }
     else {
       if(eq_pairs.contains (lhs, rhs) || eq_pairs.contains (rhs, lhs)) then
         trace[Simp.debug] "syntacticTautologyDeletion2 returning Removed due to literals {lhs} and {rhs} from the clause {c.lits}"
-        return Removed -- The literal lhs ≠ rhs and the literal lhs = rhs are both in the clause, so the clause can be removed
+        return true -- The literal lhs ≠ rhs and the literal lhs = rhs are both in the clause, so the clause can be removed
       else
         ne_pairs := ne_pairs.insert (lhs, rhs)
     }
-  return Unapplicable
+  return false
 
 end Duper

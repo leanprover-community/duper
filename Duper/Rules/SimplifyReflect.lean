@@ -48,7 +48,7 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
     (getAtPos mainPremise[pos.lit].rhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseRhs. Importantly, this function
     does NOT check mainPremise[pos.lit].sign or that mainPremise[pos.lit].lhs and mainPremise[pos.lit].rhs agree outside of the given pos. -/
 def forwardPositiveSimplifyReflectWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId)
-  (mainPremisePos : ClausePos) (sidePremise : MClause) : RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  (mainPremisePos : ClausePos) (sidePremise : MClause) (cToLoad : Clause × Array MVarId): RuleM Bool := do
   let sidePremiseLit := sidePremise.lits[0]!
   let mainPremiseLit := mainPremise.lits[mainPremisePos.lit]!.makeLhs mainPremisePos.side
   let matchSuccess ← -- Try to match lhs of sidePremise to mainPremisePos.side of mainPremise and rhs of sidePremise to other side of main premise
@@ -59,23 +59,26 @@ def forwardPositiveSimplifyReflectWithPartner (mainPremise : MClause) (mainPremi
     for i in [:mainPremise.lits.size] do
       if i = mainPremisePos.lit then continue
       else mainPremiseLitsExceptSimplifiedLit := mainPremise.lits[i]! :: mainPremiseLitsExceptSimplifiedLit
-    return Applied [(MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray, some $ mkPositiveSimplifyReflectProof mainPremisePos true)]
-  else return Unapplicable
+    -- forwardPositiveSimplifyReflectWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
+    setLoadedClauses (cToLoad :: (← getLoadedClauses))
+    let res := MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray
+    yieldClause res
+      "forward positive simplify reflect"
+      (some $ mkPositiveSimplifyReflectProof mainPremisePos true)
+    trace[Rule.simplifyReflect] "(forward positive): Main clause: {mainPremise.lits}, side clause: {sidePremise.lits}, res: {res.lits}"
+    return true 
+  else return false
 
 def forwardPositiveSimplifyReflectAtExpr (mainPremise : MClause) (pos : ClausePos)
   (potentialSideClauses : Array Clause) (mainMVarIds : Array MVarId) :
-  RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  RuleM Bool := do
   for potentialSideClause in potentialSideClauses do
     let (sideMClause, cToLoad) ← prepLoadClause potentialSideClause
-    match ← forwardPositiveSimplifyReflectWithPartner mainPremise mainMVarIds pos sideMClause with
-    | Unapplicable => continue
-    | Applied res =>
-      -- forwardPositiveSimplifyReflectWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
-      setLoadedClauses (cToLoad :: (← getLoadedClauses))
-      trace[Rule.simplifyReflect] "(forward positive): Main clause: {mainPremise.lits}, side clause: {sideMClause.lits}, res: {res[0]!.1.lits}"
-      return Applied res
-    | Removed => throwError "Invalid simplify reflect result"
-  return Unapplicable
+    match ← forwardPositiveSimplifyReflectWithPartner mainPremise mainMVarIds pos sideMClause cToLoad with
+    | false => continue
+    | true =>
+      return true
+  return false
 
 /-- Performs positive simplifyReflect with the given clause c as the main clause -/
 def forwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
@@ -83,7 +86,7 @@ def forwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRu
   let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc _ pos => do
     match acc with
-    | Unapplicable =>
+    | false =>
       -- To find potential side clauses for the current literal, we search for clauses that subsume curLitButPositive
       let curLitButPositive := {c.lits[pos.lit]! with sign := true}
       let potentialSideClauses ← subsumptionTrie.getPotentialSubsumingClauses ⟨#[], #[curLitButPositive]⟩
@@ -98,12 +101,11 @@ def forwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRu
       let sidesAgree := Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
       if(!c.lits[pos.lit]!.sign && sidesAgree) then
         forwardPositiveSimplifyReflectAtExpr c pos potentialSideClauses cMVarIds
-      else return Unapplicable
-    | Applied res => return Applied res
-    | Removed => throwError "Invalid simplify reflect result"
+      else return false
+    | true => return true
   -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
   -- rather than just green ones
-  c.foldGreenM fold_fn Unapplicable
+  c.foldGreenM fold_fn false
 
 /-- Performs negative simplifyReflect with the given clause c as the main clause -/
 -- Note: Although it might be somewhat counterintuitive, I think it should be possible to use subsumptionTrie rather

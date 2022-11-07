@@ -30,7 +30,7 @@ def equalitySubsumptionWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
 
 def forwardEqualitySubsumptionAtExpr (mainPremise : MClause) (pos : ClausePos)
   (potentialSubsumingClauses : Array Clause) (mainMVarIds : Array MVarId) :
-  RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
+  RuleM Bool := do
   withoutModifyingMCtx do
     for potentialSubsumingClause in potentialSubsumingClauses do
       let (sideMClause, cToLoad) ← prepLoadClause potentialSubsumingClause
@@ -38,9 +38,9 @@ def forwardEqualitySubsumptionAtExpr (mainPremise : MClause) (pos : ClausePos)
       | Unapplicable => continue
       | Removed =>
         trace[Rule.equalitySubsumption] "Main clause: {mainPremise.lits} removed by side clause {potentialSubsumingClause.lits}"
-        return Removed
+        return true
       | Applied _ => throwError "Invalid equality subsumption result"
-    return Unapplicable
+    return false
 
 /-- Returns Removed if there exists a clause that subsumes c, and returns Unapplicable otherwise -/
 def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
@@ -52,7 +52,7 @@ def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule :
   let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc _ pos => do
     match acc with
-    | Unapplicable =>
+    | false =>
       /-
         The lit c[pos.lit] can be expressed as u[p ← σ(s)] = u[p ← σ(t)] if and only if the following holds:
         1. c[pos.lit].sign is true
@@ -65,12 +65,11 @@ def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule :
       let sidesAgree := Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
       if(c.lits[pos.lit]!.sign && sidesAgree) then
         forwardEqualitySubsumptionAtExpr c pos potentialSubsumingClauses cMVarIds
-      else return Unapplicable
-    | Removed => return Removed -- If forwardEqualitySubsumptionAtExpr ever succeeds, then we need not check further
-    | Applied _ => throwError "Invalid equality subsumption result"
+      else return false
+    | true => return true -- If forwardEqualitySubsumptionAtExpr ever succeeds, then we need not check further
   -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
   -- rather than just green ones
-  c.foldGreenM fold_fn Unapplicable
+  c.foldGreenM fold_fn false
 
 open BackwardSimpResult
 

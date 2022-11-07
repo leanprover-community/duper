@@ -41,20 +41,22 @@ def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : List Expr) (paren
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM (SimpResult (List (MClause × Option ProofReconstructor))) := do
-  let lit := c.lits[i]!
-  if ← unify #[(lit.lhs, lit.rhs)] then
-    return Applied [(c.eraseLit i, some (mkDestructiveEqualtiyResolutionProof i))]
-  else
-    return Unapplicable -- Cannot apply destructive equality resolution to this literal,
-                        -- but it may still be possible to apply it to a different literal in the clause
+def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM Bool := do
+  withoutModifyingMCtx do
+    let lit := c.lits[i]!
+    if ← unify #[(lit.lhs, lit.rhs)] then
+      yieldClause (c.eraseLit i) "destructive equality resolution"
+        (some (mkDestructiveEqualtiyResolutionProof i))
+      return true
+    else
+      return false -- Cannot apply destructive equality resolution to this literal,
+                  -- but it may still be possible to apply it to a different literal in the clause
 
 def destructiveEqualityResolution : MSimpRule := fun c => do
   let c ← loadClause c
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = false ∧ (is_var c.lits[i]!.lhs ∨ is_var c.lits[i]!.rhs) then
       match ← destructiveEqualityResolutionAtLit c i with
-      | Applied res => return Applied res
-      | Removed => return Removed
-      | Unapplicable => continue
-  return Unapplicable
+      | true => return true
+      | false => continue
+  return false

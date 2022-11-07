@@ -86,7 +86,7 @@ def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) (sub
     if ← subsumptionCheckHelper (subsumingClause.lits).toList subsumedClause subsumedClauseMVarIds {} then return (true, true)
     else return (false, false)
 
-/-- Returns removed if there exists a clause that subsumes c, and returns Unapplicable otherwise -/
+/-- Returns true if there exists a clause that subsumes c, and returns false otherwise -/
 def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
   let potentialSubsumingClauses ← subsumptionTrie.getPotentialSubsumingClauses c
   trace[Rule.clauseSubsumption] "number of potentialSubsumingClauses for {c}: {potentialSubsumingClauses.size}"
@@ -94,16 +94,15 @@ def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := 
   let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc nextClause => do
     match acc with
-    | Unapplicable =>
+    | false =>
       conditionallyModifyingLoadedClauses do
         let nextClause ← loadClause nextClause
         if ← subsumptionCheck nextClause c cMVarIds then
           trace[Rule.clauseSubsumption] "Forward subsumption: removed {c.lits} because it was subsumed by {nextClause.lits}"
-          return (true, Removed)
-        else return (false, Unapplicable)
-    | Removed => return Removed
-    | Applied _ => throwError "Invalid clause subsumption result"
-  potentialSubsumingClauses.foldlM fold_fn Unapplicable
+          return (true, true)
+        else return (false, false)
+    | true => return true
+  potentialSubsumingClauses.foldlM fold_fn false
 
 open BackwardSimpResult
 
