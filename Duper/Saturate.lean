@@ -45,18 +45,18 @@ open SimpResult
 
 def forwardSimpRules : ProverM (Array SimpRule) := do
   return #[
-    clausificationStep.toSimpRule "clausification",
-    syntacticTautologyDeletion1.toSimpRule "syntactic tautology deletion 1",
-    syntacticTautologyDeletion2.toSimpRule "syntactic tautology deletion 2",
-    syntacticTautologyDeletion3.toSimpRule "syntactic tautology deletion 3",
-    elimDupLit.toSimpRule "eliminate duplicate literals",
-    elimResolvedLit.toSimpRule "eliminate resolved literals",
-    destructiveEqualityResolution.toSimpRule "destructive equality resolution",
-    identPropFalseElim.toSimpRule "identity prop false elimination",
-    identBoolFalseElim.toSimpRule "identity boolean false elimination",
-    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule "forward demodulation",
-    (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule "forward clause subsumption",
-    (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule "forward equality subsumption"
+    clausificationStep.toSimpRule,
+    syntacticTautologyDeletion1.toSimpRule,
+    syntacticTautologyDeletion2.toSimpRule,
+    syntacticTautologyDeletion3.toSimpRule,
+    elimDupLit.toSimpRule,
+    elimResolvedLit.toSimpRule,
+    destructiveEqualityResolution.toSimpRule,
+    identPropFalseElim.toSimpRule,
+    identBoolFalseElim.toSimpRule,
+    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
+    (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule,
+    (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule
   ]
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do

@@ -15,30 +15,30 @@ def syntacticTautologyDeletion3 : MSimpRule := fun c => do
   for lit in c.lits do
     if lit.sign then
       if lit.rhs == mkConst ``True then
-        if eqFalseSet.contains lit.lhs then return Removed
+        if eqFalseSet.contains lit.lhs then return true
         else eqTrueSet := eqTrueSet.insert lit.lhs
       else if lit.rhs == mkConst ``False then
-        if eqTrueSet.contains lit.lhs then return Removed
+        if eqTrueSet.contains lit.lhs then return true
         else eqFalseSet := eqFalseSet.insert lit.lhs
       else if lit.lhs == mkConst ``True then
-        if eqFalseSet.contains lit.rhs then return Removed
+        if eqFalseSet.contains lit.rhs then return true
         else eqTrueSet := eqTrueSet.insert lit.rhs
       else if lit.lhs == mkConst ``False then
-        if eqTrueSet.contains lit.rhs then return Removed
+        if eqTrueSet.contains lit.rhs then return true
         else eqFalseSet := eqFalseSet.insert lit.rhs
     else -- We can view "x ≠ True" as the same as "x = False"
       if lit.rhs == mkConst ``True then
-        if eqTrueSet.contains lit.lhs then return Removed
+        if eqTrueSet.contains lit.lhs then return true
         else eqFalseSet := eqFalseSet.insert lit.lhs
       else if lit.rhs == mkConst ``False then
-        if eqFalseSet.contains lit.lhs then return Removed
+        if eqFalseSet.contains lit.lhs then return true
         else eqTrueSet := eqTrueSet.insert lit.lhs
       else if lit.lhs == mkConst ``True then
-        if eqTrueSet.contains lit.rhs then return Removed
+        if eqTrueSet.contains lit.rhs then return true
         else eqFalseSet := eqFalseSet.insert lit.rhs
       else if lit.lhs == mkConst ``False then
-        if eqFalseSet.contains lit.rhs then return Removed
+        if eqFalseSet.contains lit.rhs then return true
         else eqTrueSet := eqTrueSet.insert lit.rhs
-  return Unapplicable
+  return false
 
 end Duper

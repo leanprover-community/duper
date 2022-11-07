@@ -36,7 +36,11 @@ deriving Inhabited
 
 open SimpResult
 
-abbrev MSimpRule := Clause → RuleM Bool -- Returns true iff simplification rule was applied (if `yieldClause` was not called, the clause will be removed)
+abbrev MSimpRule := Clause → RuleM Bool
+-- Returns true iff simplification rule was applied.
+-- - The clause will be replaced by all clauses introduced via `yieldClause`.
+-- - If `yieldClause` was not called, the clause will be removed.
+
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 
 abbrev BackwardMSimpRule := Clause → RuleM BackwardSimpResult
@@ -45,7 +49,10 @@ abbrev BackwardSimpRule := Clause → ProverM Bool -- Returns true iff any backw
 def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
   let (res, cs) ← runSimpRule (rule givenClause)
   match res with
-  | false => return Unapplicable
+  | false => 
+    if ¬ cs.isEmpty then
+      throwError "Simp rule returned failure, but produced clauses {cs.map Prod.fst}"
+    return Unapplicable
   | true => do
     match cs with
     | List.nil => return Removed
