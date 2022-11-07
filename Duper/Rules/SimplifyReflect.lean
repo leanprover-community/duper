@@ -48,33 +48,33 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
     (getAtPos mainPremise[pos.lit].rhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseRhs. Importantly, this function
     does NOT check mainPremise[pos.lit].sign or that mainPremise[pos.lit].lhs and mainPremise[pos.lit].rhs agree outside of the given pos. -/
 def forwardPositiveSimplifyReflectWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId)
-  (mainPremisePos : ClausePos) (sidePremise : MClause) (cToLoad : Clause × Array MVarId): RuleM Bool := do
-  let sidePremiseLit := sidePremise.lits[0]!
-  let mainPremiseLit := mainPremise.lits[mainPremisePos.lit]!.makeLhs mainPremisePos.side
-  let matchSuccess ← -- Try to match lhs of sidePremise to mainPremisePos.side of mainPremise and rhs of sidePremise to other side of main premise
-    RuleM.performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs),
-                         (mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds
-  if matchSuccess then
-    let mut mainPremiseLitsExceptSimplifiedLit : List Lit := []
-    for i in [:mainPremise.lits.size] do
-      if i = mainPremisePos.lit then continue
-      else mainPremiseLitsExceptSimplifiedLit := mainPremise.lits[i]! :: mainPremiseLitsExceptSimplifiedLit
-    -- forwardPositiveSimplifyReflectWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
-    setLoadedClauses (cToLoad :: (← getLoadedClauses))
-    let res := MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray
-    yieldClause res
-      "forward positive simplify reflect"
-      (some $ mkPositiveSimplifyReflectProof mainPremisePos true)
-    trace[Rule.simplifyReflect] "(forward positive): Main clause: {mainPremise.lits}, side clause: {sidePremise.lits}, res: {res.lits}"
-    return true 
-  else return false
+  (mainPremisePos : ClausePos) (sidePremise : Clause) : RuleM Bool := do
+  withoutModifyingLoadedClauses do
+    let sidePremise ← loadClause sidePremise
+    let sidePremiseLit := sidePremise.lits[0]!
+    let mainPremiseLit := mainPremise.lits[mainPremisePos.lit]!.makeLhs mainPremisePos.side
+    let matchSuccess ← -- Try to match lhs of sidePremise to mainPremisePos.side of mainPremise and rhs of sidePremise to other side of main premise
+      RuleM.performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs),
+                          (mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds
+    if matchSuccess then
+      let mut mainPremiseLitsExceptSimplifiedLit : List Lit := []
+      for i in [:mainPremise.lits.size] do
+        if i = mainPremisePos.lit then continue
+        else mainPremiseLitsExceptSimplifiedLit := mainPremise.lits[i]! :: mainPremiseLitsExceptSimplifiedLit
+      -- forwardPositiveSimplifyReflectWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
+      let res := MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray
+      yieldClause res
+        "forward positive simplify reflect"
+        (some $ mkPositiveSimplifyReflectProof mainPremisePos true)
+      trace[Rule.simplifyReflect] "(forward positive): Main clause: {mainPremise.lits}, side clause: {sidePremise.lits}, res: {res.lits}"
+      return true 
+    else return false
 
 def forwardPositiveSimplifyReflectAtExpr (mainPremise : MClause) (pos : ClausePos)
   (potentialSideClauses : Array Clause) (mainMVarIds : Array MVarId) :
   RuleM Bool := do
-  for potentialSideClause in potentialSideClauses do
-    let (sideMClause, cToLoad) ← prepLoadClause potentialSideClause
-    match ← forwardPositiveSimplifyReflectWithPartner mainPremise mainMVarIds pos sideMClause cToLoad with
+  for sideClause in potentialSideClauses do
+    match ← forwardPositiveSimplifyReflectWithPartner mainPremise mainMVarIds pos sideClause with
     | false => continue
     | true =>
       return true
