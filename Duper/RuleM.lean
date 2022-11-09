@@ -166,6 +166,9 @@ def mkFreshExprMVar (type? : Option Expr) (kind := MetavarKind.natural) (userNam
 def mkAppM (constName : Name) (xs : Array Expr) :=
   runMetaAsRuleM $ Meta.mkAppM constName xs
 
+def mkAppM' (e : Expr) (xs : Array Expr) :=
+  runMetaAsRuleM $ Meta.mkAppM' e xs
+
 def mkAppOptM (constName : Name) (xs : Array (Option Expr)) :=
   runMetaAsRuleM $ Meta.mkAppOptM constName xs
 
@@ -218,6 +221,10 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
       return TransformStep.done replacement
     else return TransformStep.visit s)
 
+-- Suppose `c : Clause = ⟨bs, ls⟩`, `(mVars, m) ← loadClauseCore c`
+-- then
+-- `m = c.instantiateRev mVars`
+-- `m ≝ mkAppN c.toForallExpr mVars`
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
   let lits := c.lits.map fun l =>
@@ -251,19 +258,56 @@ def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) :
 def neutralizeMClause (c : MClause) : RuleM Clause := do
   return (← neutralizeMClauseCore c).1
 
-def yieldClauseCore (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
-  let (c, cVars) ← neutralizeMClauseCore c
+def yieldClauseCore (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
+  let (c, cVars) ← neutralizeMClauseCore mc
   let mut proofParents := []
-  for (loadedClause, instantiations) in ← getLoadedClauses do
-    let instantiations ← instantiations.mapM fun m => do instantiateMVars $ mkMVar m
-    let additionalVars := instantiations.foldl (fun acc e => e.collectMVars acc) 
-      {visitedExpr := cVars.visitedExpr, result := #[]} -- ignore vars in `cVars`
-    let instantiations := instantiations.map 
-      (fun e => e.abstractMVars ((cVars.result ++ additionalVars.result).map mkMVar))
+  for (loadedClause, mvarIds) in ← getLoadedClauses do
+    -- `mInstantiations` represents the substitution `σ`, which is created during the proof.
+    -- For each the `i`th mVar `vᵢ` in the loaded parent clause,
+    -- the `i`th element of `mInstantiations` contains `σ[vᵢ]`.
+    -- Note that relevant variables in `σ[vᵢ]` are represented by `mVars`.
+    let mInstantiations ← mvarIds.mapM fun m => do instantiateMVars $ mkMVar m
+    -- Some variables vanish during the inference, for example
+    -- `?m1 ≠ ?m1 ∨ P(?m2)` may become `P(?m2)`, which means that
+    -- the metavariable `?m1` in the premise will not occur in
+    -- the conclusion MClause. `vanishingVars` collects these metavariables.
+    let vanishingVars := mInstantiations.foldl
+      (fun acc e => e.collectMVars acc) {visitedExpr := cVars.visitedExpr, result := #[]} -- ignore vars in `cVars`
+    -- Suppose the loaded MClause is `⟨p, p_mVars⟩` and the
+    -- conclusion MClause is `c`, then
+    -- `allMVars = mVars(c) ++ vanishingvars(p, c)`
+    -- `vanishingvars(p, c) = mVars(p_mVars σ) \ mVars(c)`
+    let allMVars := (cVars.result ++ vanishingVars.result).map mkMVar
+    -- For `abstractMVars`, see `Misc.lean`. For an expression `e` and a list
+    -- of mVarId `ms`, it abstracts mVars in `e` such that
+    -- `mkAppN (λ ... λ e') ms ≝ e`, where `e' = abstractMVars e ms`
+    -- and `≝` means "defeq".
+    let instantiations := mInstantiations.map
+      (fun e => e.abstractMVars allMVars)
+    -- For the relationship between `mInstantiations` and `instantiations`,
+    -- we can draw a diagram
+    --
+    --                         instantiations
+    -- (parent) Clause `p` ━━━━━━━━━━━▲━━━━━━━━━━━━➤ Implicit: Instantiated (parent) Clause
+    --        ┇                       ┇                           ▲
+    --        ┇                       ┇                           ┇
+    --        ┇ loadClause            ┇ abstractMVars · allMVars  ┇ abstractMVars · allMVars
+    --        ┇                       ┇                           ┇
+    --        ▼                mInstantiations                    ┇
+    --    MClause `mp`     ━━━━━━━━━━━━━━━━━━━━━━━━➤ Implicit: [Instantiated (parent) MClause]
+    --    `mVarIds`
+    --
+    -- Here `p` corresponds to `loadedClause`
+    -- `mp = p.instantiateRev (mkMVar <$> mVarIds)`
+    --
+    -- The `Instantiated (parent) MClause` appears in
+    -- `ProofReconstruction.lean/instantiatePremises`
+    -- as elements of `parentsLits`, but with `allMVars` replaced
+    -- by `xs ++ vanishingVarInstances`
     let newProofParent := {
       clause := loadedClause
       instantiations := instantiations
-      vanishingVarTypes := ← additionalVars.result.mapM getMVarType
+      vanishingVarTypes := ← vanishingVars.result.mapM getMVarType
     }
     proofParents := newProofParent :: proofParents
   let mkProof := match mkProof with

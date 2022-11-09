@@ -7,6 +7,9 @@ instance [Hashable α] : Hashable (Array α) where
 -- TODO: Use this?
 -- #check Lean.Meta.abstractMVars
 
+-- Example:
+-- `abstractMVars (m₀ (λ x. x m₁ m₂) m₃) [m₁, m₂, m₃] = m_0 (λ x. x b₃ b₂) b₀`
+-- where `bᵢ` is a bound variable with de-Brujin index `i`
 def Lean.Expr.abstractMVars (e : Expr) (mVars : Array Expr) : Expr :=
   let rec visit (e : Expr) (offset : Nat) : Expr :=
     match e with

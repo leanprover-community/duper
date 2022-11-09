@@ -16,3 +16,6 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
   have inhabited_wolf : Inhabited wolf := sorry
   duper -- If these instances are not provided, duper will fail
   -- Previously: Error when reconstructing clausification
+
+set_option trace.Prover.debug true in
+example (x : ℕ) (f g : ℕ → ℕ) (h : f = g) : f x = g x := by duper

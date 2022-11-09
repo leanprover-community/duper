@@ -50,7 +50,7 @@ def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM Bool := d
       return true
     else
       return false -- Cannot apply destructive equality resolution to this literal,
-                  -- but it may still be possible to apply it to a different literal in the clause
+                   -- but it may still be possible to apply it to a different literal in the clause
 
 def destructiveEqualityResolution : MSimpRule := fun c => do
   let c ← loadClause c

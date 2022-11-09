@@ -55,4 +55,7 @@ def eligibleForResolution (c : MClause) (i : Nat) : RuleM Bool := do
       let sel_neg := List.filter (λ j => not c.lits[j]!.sign) sel
       runMetaAsRuleM $ c.isMaximalInSubClause (← getOrder) sel_neg i
 
+-- Indprinciple: *TODO*
+def strictlyEligible := eligibleForResolution
+
 end Duper

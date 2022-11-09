@@ -15,6 +15,15 @@ def appendLits (c : MClause) (lits : Array Lit) : MClause :=
 def eraseLit (c : MClause) (idx : Nat) : MClause :=
   ⟨c.lits.eraseIdx idx⟩
 
+def replaceLit? (c : MClause) (idx : Nat) (l : Lit) : Option MClause :=
+  if idx >= c.lits.size then
+    none
+  else
+    some ⟨c.lits.set! idx l⟩
+
+def replaceLit! (c : MClause) (idx : Nat) (l : Lit) : MClause :=
+  ⟨c.lits.set! idx l⟩
+
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (c : MClause) : m MClause := do
   return ⟨← c.lits.mapM (fun l => l.mapM f)⟩
 

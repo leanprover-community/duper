@@ -58,7 +58,8 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   for parent in info.proof.parents do
     let number := (← getClauseInfo! state parent.clause).number
     parents := ((← getLCtx).findFromUserName? (Name.mkNum `clause number)).get!.toExpr :: parents
-  parents := parents.reverse -- Note: Not sure if this is correct or not, just trying to see if it works
+  parents := parents.reverse
+  -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
   let mut lctx ← getLCtx
   let mut skdefs : List Expr := []
   for (fvarId, mkSkProof) in info.proof.introducedSkolems do

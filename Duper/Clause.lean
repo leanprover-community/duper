@@ -177,6 +177,11 @@ def compare (ord : Expr → Expr → MetaM Comparison) (l₁ l₂ : Lit) : MetaM
 
 end Lit
 
+-- The bvar `bᵢ` in `lits` is related to `bVarTypes[l-i-1]`,
+-- where `l = len(bVarTypes)`. Each Clause `c` will be
+-- associated with a proof `p`.
+-- !!!!!!!!!!!!!!!!! We keep an invariant !!!!!!!!!!!!!!!!
+--               `p : c.toForallExpr` 
 structure Clause :=
 (bVarTypes : Array Expr)
 (lits : Array Lit)

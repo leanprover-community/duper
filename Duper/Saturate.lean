@@ -1,3 +1,4 @@
+import Std.Data.BinomialHeap
 import Duper.ProverM
 import Duper.Util.Iterate
 import Duper.RuleM
@@ -20,7 +21,8 @@ import Duper.Rules.SyntacticTautologyDeletion1
 import Duper.Rules.SyntacticTautologyDeletion2
 import Duper.Rules.SyntacticTautologyDeletion3
 import Duper.Rules.DestructiveEqualityResolution
-import Std.Data.BinomialHeap
+-- Higher order rules
+import Duper.Rules.ArgumentCongruence
 
 namespace Duper
 
@@ -120,6 +122,8 @@ def performInferences (givenClause : Clause) : ProverM Unit := do
   performClausifyPropEq givenClause
   performSuperposition givenClause
   performEqualityFactoring givenClause
+  -- Higher order rules
+  performArgCong givenClause
 
 partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $

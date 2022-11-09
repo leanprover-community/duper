@@ -7,7 +7,7 @@ namespace Duper
 open RuleM
 open Lean
 
-def mkEqualityResolutionProof (i : Nat) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
+def mkEqualityResolutionProof (i : Nat) (premises : List Expr) (parents : List ProofParent) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -31,7 +31,7 @@ def mkEqualityResolutionProof (i : Nat) (premises : List Expr) (parents: List Pr
           let idx := if j ≥ i then j - 1 else j
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
         -- caseProofs := caseProofs.push $ ← Lean.Meta.mkSorry (← Meta.mkArrow lit.toExpr body) (synthetic := true)
-        caseProofs := caseProofs.push $ pr
+        caseProofs := caseProofs.push pr
 
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise

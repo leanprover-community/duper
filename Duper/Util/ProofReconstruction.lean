@@ -6,16 +6,29 @@ namespace Duper
 open RuleM
 open Lean
 
+-- `xs` is usually obtained by `Meta.forallTelescope c.toForallExpr fun xs body =>`
+-- `body` corresponds to `c.instantiateRev xs` in `RuleM.lean/yieldClauseCore`
+-- Or, it's `m` in `RuleM.lean/yieldClauseCore`, but with `mVars(c)`
+-- substituted by `xs`.
+-- The relationship between `(body, parentsLits[i])` in `instantiatePremises`
+-- is just `(mc, Instantiated (parent) MClause)` in `RuleM.lean/yieldClauseCore`
+-- with mvars replaced by fvars
 def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) : 
     MetaM (List (Array Lit) × List Expr) := do
   let mut parentsLits := [] -- Initializing with capacity 2 because most inference and simplification rules have at most two parents
   let mut appliedPremises := []
   for (parent, premise) in List.zip parents premises do
-    let vanishingVarSkolems ← parent.vanishingVarTypes.mapM fun ty =>
+    let vanishingVarInstances ← parent.vanishingVarTypes.mapM fun ty =>
       Meta.mkAppOptM ``default #[some ty, none]
-    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarSkolems))
+    -- `parentInstantiations` corresponds to `mInstantiations` in `RuleM.lean/yieldClauseCore`,
+    -- but with `allMVars` substituted by `xs ++ vanishingVarInstances`
+    let parentInstantiations := parent.instantiations.map (fun ins => ins.instantiateRev (xs ++ vanishingVarInstances))
+    -- Each element of `parentsLits` corresponds to a
+    -- `Instantiated (parent) MClause` in `RuleM.lean/yieldClauseCore`,
+    -- but with `allMVars` substituted by `xs ++ vanishingVarInstances`
     parentsLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations)) :: parentsLits
     appliedPremises := mkAppN premise parentInstantiations :: appliedPremises
+    -- Now, `appliedPremises[i] : parentsLits[i]`, for all `i`
   return (parentsLits, appliedPremises)
 
 /-- Construct a proof of `lits[0] ∨ ... ∨ lits[n] → target`, given proofs (`casesProofs`) of `lits[i] → target` -/
