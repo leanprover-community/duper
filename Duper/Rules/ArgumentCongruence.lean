@@ -7,8 +7,7 @@ namespace Duper
 open RuleM
 open Lean
 
-theorem foo (f g : Nat → Nat → Nat) (h : f = g) (a b : Nat) : f a b = g a b :=
-  congrFun (congrFun h a) b
+initialize Lean.registerTraceClass `Rule.argCong
 
 def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr)
   (premises : List Expr) (parents : List ProofParent) (c : Clause) : MetaM Expr :=
@@ -30,10 +29,12 @@ def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr)
         let pjl ← Meta.mkAppM' pj.lhs newMVars
         let able_to_unify ← Meta.unify #[(cjl, pjl)]
         if able_to_unify then
+          trace[Rule.argCong] m!"lhs of conclusion: {cjl}, lhs of parent: {pjl}"
           let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
             let mut pr := h
             for x in newFVars do
               pr ← Meta.mkAppM `congrFun #[pr, x]
+            trace[Rule.argCong] m!"pr: {pr}, type: {← Meta.inferType pr}"
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j pr
           caseProofs := caseProofs.push pr
         else
@@ -52,24 +53,23 @@ def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr)
 def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
-    let able_to_unify ← unify #[(lit.lhs, lit.rhs)]
-    if able_to_unify && (← strictlyEligible c i) then -- TODO: Eligibility
+    if ← strictlyEligible c i then -- TODO: Eligibility
       let ty ← inferType lit.lhs
-      let (es, _, _) ← forallMetaTelescope ty
+      let (mVars, _, _) ← forallMetaTelescope ty
+      trace[Rule.argCong] s!"Lhs: {lit.lhs}, Type of lhs: {ty}, Telescope: {mVars}"
       let lhs := lit.lhs; let rhs := lit.rhs;
       let mut newMVars := #[]; let mut mVarTys := #[]
-      for e in es do
-        newMVars := newMVars.push (← mkFreshExprMVar e)
-        mVarTys := mVarTys.push e
+      for m in mVars do
+        newMVars := newMVars.push m
+        mVarTys := mVarTys.push (← inferType m)
         let newlhs ← mkAppM' lhs newMVars
         let newrhs ← mkAppM' rhs newMVars
         let newlit := { lit with lhs := newlhs,
                                  rhs := newrhs,
-                                 ty  := ← inferType lhs}
+                                 ty  := ← inferType newlhs}
         let c' := c.replaceLit! i newlit
         yieldClause c' "argument congruence"
           (mkProof := mkArgumentCongruenceProof i mVarTys)
-
 
 def argCong (c : MClause) : RuleM Unit := do
   for i in [:c.lits.size] do
