@@ -56,7 +56,7 @@ def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
     if ← strictlyEligible c i then -- TODO: Eligibility
       let ty ← inferType lit.lhs
       let (mVars, _, _) ← forallMetaTelescope ty
-      trace[Rule.argCong] s!"Lhs: {lit.lhs}, Type of lhs: {ty}, Telescope: {mVars}"
+      trace[Rule.argCong] s!"Lhs: {lit.lhs}, Level: {lit.lvl}, Type of lhs: {ty}, Telescope: {mVars}"
       let lhs := lit.lhs; let rhs := lit.rhs;
       let mut newMVars := #[]; let mut mVarTys := #[]
       for m in mVars do
@@ -64,9 +64,12 @@ def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
         mVarTys := mVarTys.push (← inferType m)
         let newlhs := mkAppN lhs newMVars
         let newrhs := mkAppN rhs newMVars
+        let newty ← inferType newlhs
+        let newsort ← inferType newty
         let newlit := { lit with lhs := newlhs,
                                  rhs := newrhs,
-                                 ty  := ← inferType newlhs}
+                                 ty  := ← inferType newlhs
+                                 lvl := Expr.sortLevel! newsort}
         let c' := c.replaceLit! i newlit
         yieldClause c' "argument congruence"
           (mkProof := mkArgumentCongruenceProof i mVarTys)

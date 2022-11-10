@@ -13,9 +13,14 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
   have inhabited_bird : Inhabited bird := sorry
   have inhabited_fox : Inhabited fox := sorry
   have inhabited_wolf : Inhabited wolf := sorry
-  duper -- If these instances are not provided, duper will fail
+  duper
+  -- If these instances are not provided, duper will fail
   -- Previously: Error when reconstructing clausification
 
-set_option trace.Print_Proof true in
-example (x y z : Nat) (f g h : Nat → Nat) (H : f = g ∨ g = h ∨ h = f) :
+example (x : Type u) (f g : Type u → Type v) (H : f = g) : f x = g x :=
+  by duper
+-- Previously: Type mismatch caused by incorrect manipulation of
+-- universe levels in `ArgCong`
+
+example (x y z : Type 2) (f g h : Type 2 → Type 4) (H : f = g ∨ g = h ∨ h = f) :
   f x = g x ∨ g y = h y ∨ h z = f z := by duper
