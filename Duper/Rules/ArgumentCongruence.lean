@@ -33,7 +33,7 @@ def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr)
           let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
             let mut pr := h
             for x in newFVars do
-              pr ← Meta.mkAppM `congrFun #[pr, x]
+              pr ← Meta.mkAppM ``congrFun #[pr, x]
             trace[Rule.argCong] m!"pr: {pr}, type: {← Meta.inferType pr}"
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j pr
           caseProofs := caseProofs.push pr

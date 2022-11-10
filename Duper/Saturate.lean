@@ -23,6 +23,7 @@ import Duper.Rules.SyntacticTautologyDeletion3
 import Duper.Rules.DestructiveEqualityResolution
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
+import Duper.Rules.BoolHoist
 
 namespace Duper
 
@@ -56,8 +57,10 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
     (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule,
     (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule,
-    (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule
+    (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule,
     -- TODO: Forward negative simplify reflect
+    -- Higher order rules
+    boolHoist.toSimpRule
   ]
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do

@@ -41,7 +41,7 @@ def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : List Expr) (paren
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM Bool := do
+def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM Bool :=
   withoutModifyingMCtx do
     let lit := c.lits[i]!
     if ← unify #[(lit.lhs, lit.rhs)] then

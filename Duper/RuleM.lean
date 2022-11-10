@@ -210,6 +210,18 @@ def isType (e : Expr) : RuleM Bool := do
 def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
   runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
 
+-- Indprinciple: Is this ok? Can we use `runMetaAsRuleM`?
+def withNewMCtxDepth (x : RuleM α) : RuleM α := do
+  let saved ← get
+  modify fun s => { s with mctx := s.mctx.incDepth }
+  try
+    x
+  finally
+    modify fun s => { s with mctx := saved.mctx }
+
+def isDefEq (l r : Expr) : RuleM Bool := do
+  runMetaAsRuleM $ Meta.isDefEq l r
+
 -- Note for when I update Lean version: TransformStep.visit has been renamed TransformStep.continue,
 -- so when I update Lean, I need to replace TransformStep.visit with TransformStep.continue below
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do

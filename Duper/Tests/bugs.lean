@@ -17,10 +17,17 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
   -- If these instances are not provided, duper will fail
   -- Previously: Error when reconstructing clausification
 
+example (x : Prop) (H : x) : x := by duper
+
 example (x : Type u) (f g : Type u → Type v) (H : f = g) : f x = g x :=
   by duper
 -- Previously: Type mismatch caused by incorrect manipulation of
 -- universe levels in `ArgCong`
 
-example (x y z : Type 2) (f g h : Type 2 → Type 4) (H : f = g ∨ g = h ∨ h = f) :
-  f x = g x ∨ g y = h y ∨ h z = f z := by duper
+set_option trace.Print_Proof true in
+example (f : Prop → Nat) :
+  f (∀ (x : Nat), x ≠ Nat.zero) = f False := by duper
+
+set_option trace.Print_Proof true in
+example (f : Prop → Nat) :
+  f (f (∀ (x : Nat), x ≠ Nat.zero) = f False) = f True := by duper
