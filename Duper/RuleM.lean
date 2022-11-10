@@ -166,9 +166,6 @@ def mkFreshExprMVar (type? : Option Expr) (kind := MetavarKind.natural) (userNam
 def mkAppM (constName : Name) (xs : Array Expr) :=
   runMetaAsRuleM $ Meta.mkAppM constName xs
 
-def mkAppM' (e : Expr) (xs : Array Expr) :=
-  runMetaAsRuleM $ Meta.mkAppM' e xs
-
 def mkAppOptM (constName : Name) (xs : Array (Option Expr)) :=
   runMetaAsRuleM $ Meta.mkAppOptM constName xs
 

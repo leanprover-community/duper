@@ -62,8 +62,8 @@ def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
       for m in mVars do
         newMVars := newMVars.push m
         mVarTys := mVarTys.push (← inferType m)
-        let newlhs ← mkAppM' lhs newMVars
-        let newrhs ← mkAppM' rhs newMVars
+        let newlhs := mkAppN lhs newMVars
+        let newrhs := mkAppN rhs newMVars
         let newlit := { lit with lhs := newlhs,
                                  rhs := newrhs,
                                  ty  := ← inferType newlhs}
