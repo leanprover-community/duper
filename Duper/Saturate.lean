@@ -57,10 +57,10 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
     (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule,
     (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule,
-    (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule,
+    (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule
     -- TODO: Forward negative simplify reflect
     -- Higher order rules
-    boolHoist.toSimpRule
+    -- boolHoist.toSimpRule -- Temporarily disabling this because it's causing unknown metavariable errors
   ]
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do

@@ -56,7 +56,6 @@ Other:
 - Command line version of duper?
 - Currently, we have a hacky implementation of removing clauses from fingerprint indexes (tacking on a filter before retrieving). If this turns out to be
   too inefficient, implement removal from fingerprint indexes properly.
-- Add a way to efficiently find the children/descendents of a clause so that when we remove a clause, we can efficiently remove its children/descendents as well
 
 ## For later:
 

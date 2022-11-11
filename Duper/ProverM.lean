@@ -12,6 +12,8 @@ open Std
 open RuleM
 open Expr
 
+initialize registerTraceClass `RemoveClause.debug
+
 inductive Result :=
 | unknown
 | saturated
@@ -23,7 +25,9 @@ open Result
 structure ClauseInfo where
 (number : Nat)
 (proof : Proof)
-(isRemoved : Bool)
+(children : List Clause)
+(wasSimplified : Bool)
+(isOrphan : Bool)
 
 abbrev ClauseSet := HashSet Clause 
 abbrev ClauseHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
@@ -199,8 +203,20 @@ partial def chooseGivenClause : ProverM (Option Clause) := do
   setFairnessCounter (fc + 1)
   return c.2
 
+/-- Given a clause c and a list of proof parents, markAsChildToParents adds c to each parent's list of children -/
+def markAsChildToParents (c : Clause) (parents : List ProofParent) : ProverM Unit := do
+  let mut allClauses ← getAllClauses
+  for parent in parents do
+    match allClauses.find? parent.clause with
+    | some parentInfo =>
+      let childrenList := parentInfo.children
+      let parentInfo := {parentInfo with children := c :: childrenList}
+      setAllClauses $ allClauses.insert parent.clause parentInfo
+      allClauses ← getAllClauses
+    | none => throwError "Unable to find parent"
+
 /-- Registers a new clause, but does not add it to active or passive set.
-  Typically, you'll want to use `addNewToPassive` instead. -/
+    Typically, you'll want to use `addNewToPassive` instead. -/
 def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
   match (← getAllClauses).find? c with
   | some ci => return ci
@@ -209,23 +225,28 @@ def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
     let ci : ClauseInfo := {
       number := allClauses.size
       proof := proof
-      isRemoved := false
+      children := []
+      wasSimplified := false
+      isOrphan := false
     }
     setAllClauses (allClauses.insert c ci)
+    markAsChildToParents c proof.parents -- For each parent of c, add c as a child of said parent
     if c.lits.size == 0 then throwEmptyClauseException
     return ci
 
 def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
   match (← getAllClauses).find? c with
   | some ci =>
-    if (!ci.isRemoved) then pure () -- clause is not new, ignore.
-    else -- Even though c appears in all clauses, c has been "removed" due to having a removed ancestor. So we can readd it
-      trace[Prover.saturate] "New passive clause: {c}"
-      let ci := {ci with proof := proof, isRemoved := false}
+    if (ci.wasSimplified) then pure () -- No need to add c to the passive set because it would just be simplified away later
+    else if(ci.isOrphan) then -- We've seen c before, but we should readd it because it was only removed as an orphan (and wasn't simplified away)
+      trace[Prover.saturate] "Readding prior orphan to the passive set: {c}"
+      let ci := {ci with isOrphan := false} -- c is no longer an orphan because it has been added to the passiveSet by new parents
       setAllClauses ((← getAllClauses).insert c ci)
+      markAsChildToParents c proof.parents -- For each new parent of c, add c as a child of said parent
       setPassiveSet $ (← getPassiveSet).insert c
       setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
       setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
+    else pure () -- c exists in allClauses and is not an orphan, so it has already been produced and can safely be ignored
   | none =>
     trace[Prover.saturate] "New passive clause: {c}"
     let ci ← addNewClause c proof
@@ -330,69 +351,62 @@ def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
   setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
   setSubsumptionTrie (← runRuleM $ subsumptionTrie.delete c)
 
-/-- Removes c from the active set, passive set, and all discrimination trees. Additionally, we tag c as "removed" from allClauses.
-    Note that although it would be valid to additionally remove c's descendents, we do not currently do this. -/
-partial def removeClause (c : Clause) : ProverM Unit := do
+/-- If ci is the ClauseInfo corresponding to a clause c, then removeDescendants removes the direct descendants of c from the passive set.
+    Additionally, it tags each direct descendant of c as "isOrphan" in allClauses so they can potentially be readded to
+    the passive set. However, removeDescendants does not remove or mark any clause that appears in protectedClauses. -/
+partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses : List Clause) : ProverM Unit := do
+  let mut passiveSet ← getPassiveSet
+  let mut allClauses ← getAllClauses
+  for child in ci.children do
+    if protectedClauses.contains child then continue
+    trace[RemoveClause.debug] "Marking {child} as orphan because it is a child of {c} and does not appear in {protectedClauses}"
+    match allClauses.find? child with
+    | some childInfo =>
+      -- Tag child as an orphan in allClauses
+      let childInfo := {childInfo with isOrphan := true}
+      setAllClauses $ allClauses.insert child childInfo
+      allClauses ← getAllClauses
+      -- Remove c from passive set
+      if passiveSet.contains child then
+        setPassiveSet $ passiveSet.erase child
+        passiveSet ← getPassiveSet
+    | none => throwError "Unable to find child"
+
+/-- removeClause does the following:
+    - Removes c from the active set, passive set, and all discrimination trees
+    - Tags c as "wasSimplified" in allClauses
+    - Removes each direct descendant (i.e. immediate child) of c from the passive set
+    - Tags each direct descendant descendant of c as "isOrphan" in allClauses
+
+    protectedClauses is an additional argument that needs to be provided if a clause is being eliminated by a backward
+    simplification rule. The idea is that protectedClauses contains the list of pre-existing clauses that appear in the
+    conclusion of the backward simplification rule that eliminated c, and these clauses should not be removed even if
+    they happen to be descendants of c. With backward simplification rules, it is possible for a clause to remove its
+    parent (without intending to remove itself), so the protectedClauses argument ensures that no clause inadvertently
+    removes itself in the process of simplifying away a different clause. -/
+partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) : ProverM Unit := do
+  trace[RemoveClause.debug] "Calling removeClause with c: {c} and protectedClauses: {protectedClauses}"
   let mut activeSet ← getActiveSet
   let mut passiveSet ← getPassiveSet
   let mut allClauses ← getAllClauses
-
   match allClauses.find? c with
   | none => return () -- Don't need to do anything else because c was never added to anything
   | some ci =>
-    -- Tag c as "removed" from allClauses
-    let ci := {ci with isRemoved := true}
+    -- Tag c as "wasSimplified" in allClauses
+    let ci := {ci with wasSimplified := true}
     setAllClauses $ allClauses.insert c ci
     allClauses ← getAllClauses
-
     -- Remove c from active set
     if activeSet.contains c then
       setActiveSet $ activeSet.erase c
       removeFromDiscriminationTrees c
       activeSet ← getActiveSet
-
     -- Remove c from passive set
     if passiveSet.contains c then
       setPassiveSet $ passiveSet.erase c
       passiveSet ← getPassiveSet
-
-    /-
-    Note: Although it would be valid to remove descendents of c from the active set and passive set, some preliminary
-    testing suggests that the time it would take to find c's descendents outweighs the time gained by actually removing them.
-    This tradeoff might change if I added datastructures to more efficiently find c's descendents (e.g., add a ClauseSet of
-    children to the ClauseInfo structure), but for now, I'm simply going to leave descendents untouched.
-
-    -- Remove descendants from active set
-    for potentialChild in activeSet.toArray do
-      let potentialChildInfo ← getClauseInfo! potentialChild
-      let potentialChildParents := List.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
-      if potentialChildParents.contains c then
-        setActiveSet $ activeSet.erase potentialChild
-        removeFromDiscriminationTrees potentialChild
-        activeSet ← getActiveSet
-        -- Remove descendant from allClauses
-        let potentialChildInfo ← getClauseInfo! potentialChild
-        let potentialChildInfo := {potentialChildInfo with isRemoved := true}
-        setAllClauses $ allClauses.insert potentialChild potentialChildInfo
-        allClauses ← getAllClauses
-        -- Remove descendants of the child
-        removeClause potentialChild
-
-    -- Remove descendants from passive set
-    for potentialChild in passiveSet.toArray do
-      let potentialChildInfo ← getClauseInfo! potentialChild
-      let potentialChildParents := List.map (fun proofParent => proofParent.clause) potentialChildInfo.proof.parents
-      if potentialChildParents.contains c then
-        setPassiveSet $ passiveSet.erase potentialChild
-        passiveSet ← getPassiveSet
-        -- Remove descendant from allClauses
-        let potentialChildInfo ← getClauseInfo! potentialChild
-        let potentialChildInfo := {potentialChildInfo with isRemoved := true}
-        setAllClauses $ allClauses.insert potentialChild potentialChildInfo
-        allClauses ← getAllClauses
-        -- Remove descendants of the child
-        removeClause potentialChild
-    -/
+    -- Remove the descendants of c and mark them as orphans
+    removeDescendants c ci protectedClauses
 
 end ProverM
 end Duper

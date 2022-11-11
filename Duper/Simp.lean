@@ -50,10 +50,11 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
   let (res, cs) ← runSimpRule (rule givenClause)
   match res with
   | false => 
-    if ¬ cs.isEmpty then
-      throwError "Simp rule returned failure, but produced clauses {cs.map Prod.fst}"
+    if ¬ cs.isEmpty then throwError "Simp rule returned failure, but produced clauses {cs.map Prod.fst}"
     return Unapplicable
   | true => do
+    trace[RemoveClause.debug] "About to remove {givenClause} because it was simplified away to produce {cs.map (fun x => x.1)}"
+    removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated clauses
     match cs with
     | List.nil => return Removed
     | (c, proof) :: restCs =>
@@ -80,7 +81,10 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
           clausesToRemove := (← neutralizeMClause oldClause) :: clausesToRemove
         return clausesToRemove
       | BackwardSimpResult.Unapplicable => return []
-  for c in clausesToRemove do removeClause c -- Remove every clause in BackwardSimpResult.Removed and every old clause in BackwardSimpResult.Applied
+  -- It is important that we remove each clause in clausesToRemove before readding the newly generated clauses
+  for c in clausesToRemove do
+    trace[RemoveClause.debug] "About to remove {c} because it was simplified away to produce {cs.map (fun x => x.1)}"
+    removeClause c [givenClause] -- givenClause must be protected when we remove c and its descendants because givenClause was used to eliminate c
   for (c, proof) in cs do addNewToPassive c proof -- Add each yielded clause to the passive set
   return not clausesToRemove.isEmpty -- If clausesToRemove is nonempty, then some simplification was performed, so return true. Otherwise, return false
 
