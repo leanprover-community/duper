@@ -219,7 +219,11 @@ def markAsChildToParents (c : Clause) (parents : List ProofParent) : ProverM Uni
     Typically, you'll want to use `addNewToPassive` instead. -/
 def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
   match (← getAllClauses).find? c with
-  | some ci => return ci
+  | some ci =>
+    if ci.isOrphan then
+      -- Even though c was an orphan previously, it is no longer an orphan because it has been produced by new parents
+      return {ci with isOrphan := false}
+    else return ci
   | none =>
     let allClauses := (← get).allClauses
     let ci : ClauseInfo := {
@@ -230,7 +234,6 @@ def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
       isOrphan := false
     }
     setAllClauses (allClauses.insert c ci)
-    markAsChildToParents c proof.parents -- For each parent of c, add c as a child of said parent
     if c.lits.size == 0 then throwEmptyClauseException
     return ci
 
@@ -250,13 +253,13 @@ def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
   | none =>
     trace[Prover.saturate] "New passive clause: {c}"
     let ci ← addNewClause c proof
+    markAsChildToParents c proof.parents -- For each parent of c, add c as a child of said parent
     setPassiveSet $ (← getPassiveSet).insert c
     setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
     setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
 
 def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
   let c := Clause.fromExpr e
-  -- TODO: remove sorry
   let mkProof := fun _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof}
 

@@ -59,9 +59,10 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
     | List.nil => return Removed
     | (c, proof) :: restCs =>
       -- Register and return first result clause without adding it to the active or passive set. Add other result clauses to passive set
-      let _ ← addNewClause c proof
+      let ci ← addNewClause c proof
       for (c, proof) in restCs do
         addNewToPassive c proof
+      if ci.wasSimplified then return Removed -- No need to continue working on c because we've already seen previously that it will be simplified away
       return Applied c
 
 def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : String) : BackwardSimpRule :=
