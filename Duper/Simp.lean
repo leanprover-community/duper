@@ -28,12 +28,6 @@ match r with
 
 end SimpResult
 
-inductive BackwardSimpResult
-| Removed (removedClauses : List MClause) : BackwardSimpResult
-| Applied (transformedClauses : List (MClause × (MClause × Option ProofReconstructor))) : BackwardSimpResult
-| Unapplicable : BackwardSimpResult
-deriving Inhabited
-
 open SimpResult
 
 abbrev MSimpRule := Clause → RuleM Bool
@@ -43,8 +37,15 @@ abbrev MSimpRule := Clause → RuleM Bool
 
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 
-abbrev BackwardMSimpRule := Clause → RuleM BackwardSimpResult
-abbrev BackwardSimpRule := Clause → ProverM Bool -- Returns true iff any backward simplification was done (meaning backwardSimpLoop needs to loop)
+abbrev BackwardMSimpRule := Clause → RuleM (List Clause)
+/-
+Returns the list of clauses that are to be removed by simplification
+  - Clauses that are to be removed will be replaced by clauses introduced via `yieldClause`
+  - An important invariant is that the i-th clause produced via `yieldClause` must have been produced by the i-th clause in the result list.
+    This invariant ensures that we can figure out the correct set of generatingAncestors for each new clause.
+-/
+
+abbrev BackwardSimpRule := Clause → ProverM Unit
 
 def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
   let (res, cs) ← runSimpRule (rule givenClause)
@@ -70,30 +71,15 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
         return Applied c
       | none => throwError "givenClause {givenClause} was not found"
 
-def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : String) : BackwardSimpRule :=
+def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSimpRule :=
   fun givenClause => do
   let (clausesToRemove, cs) ← runSimpRule do
     withoutModifyingMCtx do
-      match ← rule givenClause with
-      | BackwardSimpResult.Removed removedClauses =>
-        let mut clausesToRemove : List Clause := []
-        for c in removedClauses do
-          clausesToRemove := (← neutralizeMClause c) :: clausesToRemove
-        return clausesToRemove
-      | BackwardSimpResult.Applied transformedClauses =>
-        let mut clausesToRemove : List Clause := []
-        for (oldClause, c, mkProof) in transformedClauses do
-          yieldClause c ruleName mkProof
-          clausesToRemove := (← neutralizeMClause oldClause) :: clausesToRemove
-        return clausesToRemove
-      | BackwardSimpResult.Unapplicable => return []
+      rule givenClause
   /-
-    The way I currently handle generating ancestors is a temporary measure until I restructure backwards simplification.
-
-    The plan is to, as we remove each clause, note that the i-th clause we remove has the generating ancestors of the i-th clause
-    that we add. So to figure out what the generatingAncestors should be when we call addNewToPassive, we can look at the
-    corresponding generating ancestors from clausesToRemove. This is extremely hacky and I fully intend to do away with it once
-    I restructure backwards simplification.
+    We have as an invariant that the i-th clause we remove has the generating ancestors of the i-th clause that we add via `yieldClause`.
+    So to figure out what the generatingAncestors should be when we call `addNewToPassive`, we can look at the corresponding generating
+    ancestors from clausesToRemove.
   -/
   let mut generatingAncestorsList : List (List Clause) := []
   -- It is important that we remove each clause in clausesToRemove before readding the newly generated clauses
@@ -102,15 +88,7 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
     removeClause c [givenClause] -- givenClause must be protected when we remove c and its descendants because givenClause was used to eliminate c
     match (← getAllClauses).find? c with
     | some ci => generatingAncestorsList := ci.generatingAncestors :: generatingAncestorsList
-    | none =>
-      /-
-        Note: Currently, there is a bug that sometimes causes c to not actually be the original clause that we want to remove, but a modification
-        of said clause with some of its original metavariables instantiated. Once I fix this bug, the line below should throw an error (rather than
-        just pretend like there are no generating clauses). But I'm using this as a stop-gap measure for now in recognition of the fact that I intend
-        to restructure backward simplification soon anyway.
-      -/
-      generatingAncestorsList := [] :: generatingAncestorsList
-      -- throwError "Could not find {c} in all clauses"
+    | none => throwError "Could not find {c} in all clauses"
   generatingAncestorsList := generatingAncestorsList.reverse -- Putting generatingAncestorsList in the right order for the next loop
   for (c, proof) in cs do
     match generatingAncestorsList with
@@ -118,6 +96,5 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) (ruleName : 
       addNewToPassive c proof generatingAncestors -- Add each yielded clause to the passive set
       generatingAncestorsList := restGeneratingAncestorsList
     | List.nil => throwError "Number of removed clauses in {clausesToRemove} did not match with number of clauses generated"
-  return not clausesToRemove.isEmpty -- If clausesToRemove is nonempty, then some simplification was performed, so return true. Otherwise, return false
 
 end Duper

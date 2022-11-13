@@ -104,19 +104,17 @@ def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := 
     | true => return true
   potentialSubsumingClauses.foldlM fold_fn false
 
-open BackwardSimpResult
-
-/-- Returns Removed l where l is a list of clauses that givenSubsumingClause subsumes -/
+/-- Returns the list of clauses that givenSubsumingClause subsumes -/
 def backwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSubsumingClause => do
   let potentialSubsumedClauses ← subsumptionTrie.getPotentialSubsumedClauses givenSubsumingClause
   trace[Rule.clauseSubsumption] "number potentialSubsumedClauses for {givenSubsumingClause}: {potentialSubsumedClauses.size}"
   let givenSubsumingClause ← loadClause givenSubsumingClause
   let fold_fn := fun acc nextClause =>
     conditionallyModifyingLoadedClauses do
-      let (nextClauseMVars, nextClause) ← loadClauseCore nextClause
+      let (nextClauseMVars, nextClauseM) ← loadClauseCore nextClause
       let nextClauseMVarIds := nextClauseMVars.map Expr.mvarId!
-      if ← subsumptionCheck givenSubsumingClause nextClause nextClauseMVarIds then
+      if ← subsumptionCheck givenSubsumingClause nextClauseM nextClauseMVarIds then
         trace[Rule.clauseSubsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
         return (true, (nextClause :: acc))
       else return (false, acc)
-  return Removed (← potentialSubsumedClauses.foldlM fold_fn [])
+  potentialSubsumedClauses.foldlM fold_fn []

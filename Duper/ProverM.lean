@@ -406,10 +406,7 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
   let mut passiveSet ← getPassiveSet
   let mut allClauses ← getAllClauses
   match allClauses.find? c with
-  | none =>
-    -- TODO: If this case happens, we should throw an error (and this case DOES happen due to a bug in how I currently handle
-    -- backwards simplification). Once I fix/rework backwards simplification, this return should be changed to a throwError
-    return ()
+  | none => throwError "Attempted to remove {c} but was not able to find it in allClauses"
   | some ci =>
     -- Tag c as "wasSimplified" in allClauses
     let ci := {ci with wasSimplified := true}

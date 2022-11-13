@@ -71,33 +71,31 @@ def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule :
   -- rather than just green ones
   c.foldGreenM fold_fn false
 
-open BackwardSimpResult
-
-/-- Returns Removed l where l is a list of clauses that givenSubsumingClause subsumes -/
+/-- Returns the list of clauses that givenSubsumingClause subsumes -/
 def backwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSubsumingClause => do
   -- Return Unapplicable if givenSubsumingClause is anything other than a clause with exactly one positive literal
-  if (givenSubsumingClause.lits.size != 1) then return Unapplicable
-  if (!givenSubsumingClause.lits[0]!.sign) then return Unapplicable
+  if (givenSubsumingClause.lits.size != 1) then return []
+  if (!givenSubsumingClause.lits[0]!.sign) then return []
 
   let potentialSubsumedClauses ← subsumptionTrie.getPotentialSubsumedClauses givenSubsumingClause
   let givenSubsumingClause ← loadClause givenSubsumingClause
   let fold_fn := fun acc nextClause =>
     conditionallyModifyingLoadedClauses do
-      let (nextClauseMVars, nextClause) ← loadClauseCore nextClause
+      let (nextClauseMVars, nextClauseM) ← loadClauseCore nextClause
       let nextClauseMVarIds := nextClauseMVars.map Expr.mvarId!
       let inner_fold_fn := fun acc _ pos => do
         match acc with
         | false =>
           let sidesAgree := Expr.expressionsAgreeExceptAtPos nextClause.lits[pos.lit]!.lhs nextClause.lits[pos.lit]!.rhs pos.pos
           if(nextClause.lits[pos.lit]!.sign && sidesAgree) then
-            match ← equalitySubsumptionWithPartner nextClause nextClauseMVarIds pos givenSubsumingClause with
+            match ← equalitySubsumptionWithPartner nextClauseM nextClauseMVarIds pos givenSubsumingClause with
             | SimpResult.Removed => return true
             | _ => return false
           else return false
         | true => return true -- If it has been determined that nextClause can be removed, no need to check further
-      let nextClauseCanBeRemoved ← nextClause.foldGreenM inner_fold_fn false
+      let nextClauseCanBeRemoved ← nextClauseM.foldGreenM inner_fold_fn false
       if nextClauseCanBeRemoved then
         trace[Rule.equalitySubsumption] "Main clause {nextClause.lits} subsumed by {givenSubsumingClause.lits} (backward equality subsumption)"
         return (true, nextClause :: acc)
       else return (false, acc)
-  return Removed (← potentialSubsumedClauses.foldlM fold_fn [])
+  potentialSubsumedClauses.foldlM fold_fn []

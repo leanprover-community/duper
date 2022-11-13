@@ -113,54 +113,49 @@ def forwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRu
 def forwardNegativeSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
   sorry
 
-open BackwardSimpResult
-
 /-- Performs positive simplifyReflect with the given clause as the side clause -/
 def backwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSideClause => do
   -- Return Unapplicable if givenSideClause is anything other than a clause with exactly one positive literal
-  if (givenSideClause.lits.size != 1 || !givenSideClause.lits[0]!.sign) then return Unapplicable
+  if (givenSideClause.lits.size != 1 || !givenSideClause.lits[0]!.sign) then return []
   -- To find potential main clauses for the given side clause, we search for clauses that would be subsumed by sideClauseButNegative
   let sideClauseButNegative := ⟨#[], #[{givenSideClause.lits[0]! with sign := false}]⟩
   let potentialMainClauses ← subsumptionTrie.getPotentialSubsumedClauses sideClauseButNegative
   let givenSideClause ← loadClause givenSideClause
+  let mut clausesToRemove := []
   for mainClause in potentialMainClauses do
-    let (mainClause, (originalMainClause, mclauseMVarIds)) ← prepLoadClause mainClause
-    let cToLoad := (originalMainClause, mclauseMVarIds)
-    let fold_fn := fun acc _ pos => do
-      match acc with
-      | BackwardSimpResult.Unapplicable =>
-        /-
-          The lit mainClause[pos.lit] can be expressed as u[p ← σ(s)] ≠ u[p ← σ(t)] if and only if the following holds:
-          1. mainClause[pos.lit].sign is false
-          2. mainClause[pos.lit].lhs and mainClause[pos.lit].rhs are identical everywhere except at p
-          3. s (the lhs of the side clause) can be matched onto position p of mainClause[pos.lit].lhs
-          4. t (the rhs of the side clause) can be matched onto position p of mainClause[pos.lit].rhs
-        -/
-        let sidesAgree := Expr.expressionsAgreeExceptAtPos mainClause.lits[pos.lit]!.lhs mainClause.lits[pos.lit]!.rhs pos.pos
-        if(!mainClause.lits[pos.lit]!.sign && sidesAgree) then
-          let sideClauseLit := givenSideClause.lits[0]!
-          let mainClauseLit := mainClause.lits[pos.lit]!.makeLhs pos.side
-          let matchSuccess ← -- Try to match lhs of sidePremise to pos.side of mclause and rhs of sidePremise to other side of mclause
-            RuleM.performMatch #[(mainClauseLit.lhs.getAtPos! pos.pos, sideClauseLit.lhs),
-                                (mainClauseLit.rhs.getAtPos! pos.pos, sideClauseLit.rhs)] mclauseMVarIds
-          if matchSuccess then
-            let mut mainClauseLitsExceptSimplifiedLit : List Lit := []
-            for i in [:mainClause.lits.size] do
-              if i = pos.lit then continue
-              else mainClauseLitsExceptSimplifiedLit := mainClause.lits[i]! :: mainClauseLitsExceptSimplifiedLit
-            return Applied [(mainClause, (MClause.mk mainClauseLitsExceptSimplifiedLit.toArray, some $ mkPositiveSimplifyReflectProof pos false))]
-          else return Unapplicable
-        else return Unapplicable
-      | BackwardSimpResult.Applied _ => return acc
-      | BackwardSimpResult.Removed _ => throwError "Invalid simplify reflect result"
-    match ← mainClause.foldGreenM fold_fn BackwardSimpResult.Unapplicable with
-    | BackwardSimpResult.Unapplicable => continue
-    | BackwardSimpResult.Applied transformedClauses =>
-      -- backwardPositiveSimplifyReflect succeeded so we need to add cToLoad to loadedClauses in the state
-      setLoadedClauses (cToLoad :: (← getLoadedClauses))
-      trace[Rule.simplifyReflect] "Backward positive simplify reflect with givenSideClause: {givenSideClause.lits} and main clause: {mainClause.lits}"
-      trace[Rule.simplifyReflect] "transformedClauses.1: {(transformedClauses.get! 0).1.lits}"
-      trace[Rule.simplifyReflect] "transformedClauses.2: {(transformedClauses.get! 0).2.1.lits}"
-      return BackwardSimpResult.Applied transformedClauses
-    | BackwardSimpResult.Removed _ => throwError "Invalid simplify reflect result"
-  return Unapplicable
+    let backwardPositiveSimplifyReflectSuccessful ←
+      withoutModifyingLoadedClauses do
+        let (mclauseMVarIds, mainClause) ← loadClauseCore mainClause
+        let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
+        let fold_fn := fun acc _ pos => do
+          -- If we've already successfully performed positive simplify reflect on this main clause, then we don't need to do more
+          if acc then return true
+          /-
+            The lit mainClause[pos.lit] can be expressed as u[p ← σ(s)] ≠ u[p ← σ(t)] if and only if the following holds:
+            1. mainClause[pos.lit].sign is false
+            2. mainClause[pos.lit].lhs and mainClause[pos.lit].rhs are identical everywhere except at p
+            3. s (the lhs of the side clause) can be matched onto position p of mainClause[pos.lit].lhs
+            4. t (the rhs of the side clause) can be matched onto position p of mainClause[pos.lit].rhs
+          -/
+          let sidesAgree := Expr.expressionsAgreeExceptAtPos mainClause.lits[pos.lit]!.lhs mainClause.lits[pos.lit]!.rhs pos.pos
+          if(!mainClause.lits[pos.lit]!.sign && sidesAgree) then
+            let sideClauseLit := givenSideClause.lits[0]!
+            let mainClauseLit := mainClause.lits[pos.lit]!.makeLhs pos.side
+            let matchSuccess ← -- Try to match lhs of sidePremise to pos.side of mclause and rhs of sidePremise to other side of mclause
+              RuleM.performMatch #[(mainClauseLit.lhs.getAtPos! pos.pos, sideClauseLit.lhs),
+                                  (mainClauseLit.rhs.getAtPos! pos.pos, sideClauseLit.rhs)] mclauseMVarIds
+            if matchSuccess then
+              let mut mainClauseLitsExceptSimplifiedLit : List Lit := []
+              for i in [:mainClause.lits.size] do
+                if i = pos.lit then continue
+                else mainClauseLitsExceptSimplifiedLit := mainClause.lits[i]! :: mainClauseLitsExceptSimplifiedLit
+              let res := MClause.mk mainClauseLitsExceptSimplifiedLit.toArray
+              trace[Rule.simplifyReflect] "Backward positive simplify reflect with givenSideClause: {givenSideClause.lits} and main clause: {mainClause.lits}"
+              trace[Rule.simplifyReflect] "Result: {res.lits}"
+              yieldClause res "backward positive simplify reflect" $ some $ mkPositiveSimplifyReflectProof pos false
+              return true
+            else return false
+          else return false
+        mainClause.foldGreenM fold_fn false
+    if backwardPositiveSimplifyReflectSuccessful then clausesToRemove := mainClause :: clausesToRemove
+  return clausesToRemove

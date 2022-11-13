@@ -114,9 +114,8 @@ def forwardDemodulation (sideIdx : RootCFPTrie) : MSimpRule := fun c => do
   -- rather than just green ones
   c.foldGreenM fold_fn false
 
-open BackwardSimpResult
-
-/- Note: I am implementing Schulz's side conditions for RP and RN, but only approximately.
+/- Attempts to perform backward demodulation with the given mainPremise and sidePremise. Returns true iff successful.
+   Note: I am implementing Schulz's side conditions for RP and RN, but only approximately.
    The side conditions are:
    - If mainPremise.lits[mainPremisePos.lit].sign is true (i.e. we are in the RP case), then all of the following must hold:
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
@@ -133,7 +132,7 @@ open BackwardSimpResult
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
 -/
 def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId) (mainPremiseSubterm : Expr)
-  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM BackwardSimpResult := do
+  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM Bool := do
   Core.checkMaxHeartbeats "backward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
@@ -142,38 +141,38 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
       (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
     if eligibleForParamodulation && (mainPremiseSideComparison == Comparison.GreaterThan) then
-      return Unapplicable -- Cannot perform demodulation because Schulz's side conditions are not met
+      return false -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
-    return Unapplicable -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
+    return false -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
-    return Unapplicable -- Cannot perform demodulation because side condition 2 listed above is not met
+    return false -- Cannot perform demodulation because side condition 2 listed above is not met
   let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← RuleM.instantiateMVars sidePremiseLit.rhs
-  return Applied [(mainPremise, (mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos false)))]
+  trace[Rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
+  trace[Rule.demodulation] "(Backward) Side clause (after matching): {sidePremise.lits}"
+  trace[Rule.demodulation] "(Backward) Result: {mainPremiseReplaced.lits}"
+  yieldClause mainPremiseReplaced "backward demodulation" $ some $ mkDemodulationProof sidePremiseLhs mainPremisePos false
+  return true
 
-/-- Performs rewriting of positive and negative literals (demodulation) with the given clause as the side clause. -/
+/-- Performs rewriting of positive and negative literals (demodulation) with the given clause as the side clause. Returns the list of
+    original clauses that are to be removed by backward simplification. -/
 def backwardDemodulation (mainIdx : RootCFPTrie) : BackwardMSimpRule := fun givenSideClause => do
   let givenSideClause ← loadClause givenSideClause
-  if givenSideClause.lits.size != 1 || not givenSideClause.lits[0]!.sign then return Unapplicable
+  if givenSideClause.lits.size != 1 || not givenSideClause.lits[0]!.sign then return []
   let l := givenSideClause.lits[0]!
   let c ← compare l.lhs l.rhs
-  if (c == Incomparable || c == Equal) then return Unapplicable
+  if (c == Incomparable || c == Equal) then return []
 
   let givenSideClauseLhs := -- givenSideClause.getSide givenSideClauseLhs is will function as the lhs of the side clause
     if c == GreaterThan then LitSide.lhs
     else LitSide.rhs
   let potentialPartners ← mainIdx.getMatchOntoPartners (Lit.getSide l givenSideClauseLhs)
+  let mut clausesToRemove := []
 
   for (partnerClause, partnerPos) in potentialPartners do
-    let (mclause, (originalMainClause, mclauseMVarIds)) ← prepLoadClause partnerClause
-    let cToLoad := (originalMainClause, mclauseMVarIds)
-    match ← backwardDemodulationWithPartner mclause mclauseMVarIds (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs with
-    | BackwardSimpResult.Unapplicable => continue
-    | BackwardSimpResult.Applied transformedClauses =>
-      -- backwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
-      setLoadedClauses (cToLoad :: (← getLoadedClauses))
-      trace[Rule.demodulation] "Applying backward demodulation with givenSideClause: {givenSideClause.lits} and main mclause: {mclause.lits}"
-      trace[Rule.demodulation] "transformedClauses.1: {(transformedClauses.get! 0).1.lits}"
-      trace[Rule.demodulation] "transformedClauses.2: {(transformedClauses.get! 0).2.1.lits}"
-      return BackwardSimpResult.Applied transformedClauses
-    | BackwardSimpResult.Removed removedClauses => throwError "Invalid demodulation result"
-  return Unapplicable
+    let backwardDemodulationSuccessful ←
+      withoutModifyingLoadedClauses do
+        let (mclauseMVarIds, mclause) ← loadClauseCore partnerClause
+        let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
+        backwardDemodulationWithPartner mclause mclauseMVarIds (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs
+    if backwardDemodulationSuccessful then clausesToRemove := partnerClause :: clausesToRemove
+  return clausesToRemove
