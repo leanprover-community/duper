@@ -25,7 +25,8 @@ open Result
 structure ClauseInfo where
 (number : Nat)
 (proof : Proof)
-(children : List Clause)
+(generatingAncestors : List Clause)
+(descendants : List Clause)
 (wasSimplified : Bool)
 (isOrphan : Bool)
 
@@ -203,33 +204,36 @@ partial def chooseGivenClause : ProverM (Option Clause) := do
   setFairnessCounter (fc + 1)
   return c.2
 
-/-- Given a clause c and a list of proof parents, markAsChildToParents adds c to each parent's list of children -/
-def markAsChildToParents (c : Clause) (parents : List ProofParent) : ProverM Unit := do
+/-- Given a clause c and a list of ancestors, markAsDescendantToGeneratingAncestors adds c to each generating ancestor's list of descendants -/
+def markAsDescendantToGeneratingAncestors (c : Clause) (generatingAncestors : List Clause) : ProverM Unit := do
   let mut allClauses ← getAllClauses
-  for parent in parents do
-    match allClauses.find? parent.clause with
-    | some parentInfo =>
-      let childrenList := parentInfo.children
-      let parentInfo := {parentInfo with children := c :: childrenList}
-      setAllClauses $ allClauses.insert parent.clause parentInfo
+  for ancestor in generatingAncestors do
+    match allClauses.find? ancestor with
+    | some ancestorInfo =>
+      let descendantList := ancestorInfo.descendants
+      let ancestorInfo := {ancestorInfo with descendants := c :: descendantList}
+      setAllClauses $ allClauses.insert ancestor ancestorInfo
       allClauses ← getAllClauses
-    | none => throwError "Unable to find parent"
+    | none => throwError "Unable to find ancestor"
 
 /-- Registers a new clause, but does not add it to active or passive set.
     Typically, you'll want to use `addNewToPassive` instead. -/
-def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
+def addNewClause (c : Clause) (proof : Proof) (generatingAncestors : List Clause) : ProverM ClauseInfo := do
   match (← getAllClauses).find? c with
   | some ci =>
     if ci.isOrphan then
-      -- Even though c was an orphan previously, it is no longer an orphan because it has been produced by new parents
-      return {ci with isOrphan := false}
+      -- Update c's generating ancestors and orphan status because it has been added to the passiveSet by new ancestors
+      let ci := {ci with generatingAncestors := generatingAncestors, isOrphan := false}
+      setAllClauses ((← getAllClauses).insert c ci)
+      return ci
     else return ci
   | none =>
     let allClauses := (← get).allClauses
     let ci : ClauseInfo := {
       number := allClauses.size
       proof := proof
-      children := []
+      generatingAncestors := generatingAncestors
+      descendants := []
       wasSimplified := false
       isOrphan := false
     }
@@ -237,23 +241,26 @@ def addNewClause (c : Clause) (proof : Proof) : ProverM ClauseInfo := do
     if c.lits.size == 0 then throwEmptyClauseException
     return ci
 
-def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
+/-- Registers a new clause and adds it to the passive set. The `generatingAncestors` argument contains the list of clauses that were
+    used to generate `c` (or `c`'s ancestor which generated `c` by a modifying inference). See page 8 of "E – A Brainiac Theorem Prover" -/
+def addNewToPassive (c : Clause) (proof : Proof) (generatingAncestors : List Clause) : ProverM Unit := do
   match (← getAllClauses).find? c with
   | some ci =>
     if (ci.wasSimplified) then pure () -- No need to add c to the passive set because it would just be simplified away later
     else if(ci.isOrphan) then -- We've seen c before, but we should readd it because it was only removed as an orphan (and wasn't simplified away)
       trace[Prover.saturate] "Readding prior orphan to the passive set: {c}"
-      let ci := {ci with isOrphan := false} -- c is no longer an orphan because it has been added to the passiveSet by new parents
+      -- Update c's generating ancestors and orphan status because it has been added to the passiveSet by new ancestors
+      let ci := {ci with generatingAncestors := generatingAncestors, isOrphan := false}
       setAllClauses ((← getAllClauses).insert c ci)
-      markAsChildToParents c proof.parents -- For each new parent of c, add c as a child of said parent
+      markAsDescendantToGeneratingAncestors c generatingAncestors -- For each generating ancestor of c, add c as a descendant of said ancestor
       setPassiveSet $ (← getPassiveSet).insert c
       setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
       setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
     else pure () -- c exists in allClauses and is not an orphan, so it has already been produced and can safely be ignored
   | none =>
     trace[Prover.saturate] "New passive clause: {c}"
-    let ci ← addNewClause c proof
-    markAsChildToParents c proof.parents -- For each parent of c, add c as a child of said parent
+    let ci ← addNewClause c proof generatingAncestors
+    markAsDescendantToGeneratingAncestors c generatingAncestors -- For each generating ancestor of c, add c as a descendant of said ancestor
     setPassiveSet $ (← getPassiveSet).insert c
     setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
     setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
@@ -261,7 +268,7 @@ def addNewToPassive (c : Clause) (proof : Proof) : ProverM Unit := do
 def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
   let c := Clause.fromExpr e
   let mkProof := fun _ _ _ => pure proof
-  addNewToPassive c {ruleName := "assumption", mkProof := mkProof}
+  addNewToPassive c {ruleName := "assumption", mkProof := mkProof} []
 
 def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 
     CoreM (α × State) := do
@@ -291,7 +298,7 @@ def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit
     let c ← loadClause c
     rule c
   for (c, proof) in cs do
-    addNewToPassive c proof
+    addNewToPassive c proof (List.map (fun p => p.clause) proof.parents)
 
 def addToActive (c : Clause) : ProverM Unit := do
   let _ ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
@@ -360,32 +367,38 @@ def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
 partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses : List Clause) : ProverM Unit := do
   let mut passiveSet ← getPassiveSet
   let mut allClauses ← getAllClauses
-  for child in ci.children do
-    if protectedClauses.contains child then continue
-    trace[RemoveClause.debug] "Marking {child} as orphan because it is a child of {c} and does not appear in {protectedClauses}"
-    match allClauses.find? child with
-    | some childInfo =>
-      -- Tag child as an orphan in allClauses
-      let childInfo := {childInfo with isOrphan := true}
-      setAllClauses $ allClauses.insert child childInfo
+  for d in ci.descendants do
+    if protectedClauses.contains d then continue
+    trace[RemoveClause.debug] "Marking {d} as orphan because it is a descendant of {c} and does not appear in {protectedClauses}"
+    match allClauses.find? d with
+    | some dInfo =>
+      /-
+        Note that it's possible for c to list d as a descendant without d listing c as a generating ancestor (e.g. if d is
+        first generated by c, then removed, then regenerated by a different set of clauses not including c). We only want to remove the
+        descendant if c is really one of c's generating ancestors, so we need to manually check that
+      -/
+      if dInfo.generatingAncestors.contains c then continue
+      -- Tag d as an orphan in allClauses
+      let dInfo := {dInfo with generatingAncestors := [], isOrphan := true}
+      setAllClauses $ allClauses.insert d dInfo
       allClauses ← getAllClauses
       -- Remove c from passive set
-      if passiveSet.contains child then
-        setPassiveSet $ passiveSet.erase child
+      if passiveSet.contains d then
+        setPassiveSet $ passiveSet.erase d
         passiveSet ← getPassiveSet
-    | none => throwError "Unable to find child"
+    | none => throwError "Unable to find descendant"
 
 /-- removeClause does the following:
     - Removes c from the active set, passive set, and all discrimination trees
     - Tags c as "wasSimplified" in allClauses
-    - Removes each direct descendant (i.e. immediate child) of c from the passive set
-    - Tags each direct descendant descendant of c as "isOrphan" in allClauses
+    - Removes each direct descendant of c from the passive set
+    - Tags each direct descendant of c as "isOrphan" in allClauses
 
     protectedClauses is an additional argument that needs to be provided if a clause is being eliminated by a backward
     simplification rule. The idea is that protectedClauses contains the list of pre-existing clauses that appear in the
     conclusion of the backward simplification rule that eliminated c, and these clauses should not be removed even if
     they happen to be descendants of c. With backward simplification rules, it is possible for a clause to remove its
-    parent (without intending to remove itself), so the protectedClauses argument ensures that no clause inadvertently
+    ancestor (without intending to remove itself), so the protectedClauses argument ensures that no clause inadvertently
     removes itself in the process of simplifying away a different clause. -/
 partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) : ProverM Unit := do
   trace[RemoveClause.debug] "Calling removeClause with c: {c} and protectedClauses: {protectedClauses}"
@@ -393,7 +406,10 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
   let mut passiveSet ← getPassiveSet
   let mut allClauses ← getAllClauses
   match allClauses.find? c with
-  | none => return () -- Don't need to do anything else because c was never added to anything
+  | none =>
+    -- TODO: If this case happens, we should throw an error (and this case DOES happen due to a bug in how I currently handle
+    -- backwards simplification). Once I fix/rework backwards simplification, this return should be changed to a throwError
+    return ()
   | some ci =>
     -- Tag c as "wasSimplified" in allClauses
     let ci := {ci with wasSimplified := true}
