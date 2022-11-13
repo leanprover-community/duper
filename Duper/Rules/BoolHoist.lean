@@ -15,7 +15,7 @@ open Lean
 open RuleM
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.BoolHoist
+initialize Lean.registerTraceClass `Rule.boolHoist
 
 theorem bool_hoist_proof (f : Prop → Prop) (e : Prop) (H : f e) : f True ∨ e = False :=
   @Classical.byCases e _
@@ -70,25 +70,26 @@ def mkBoolHoistProof (pos : ClausePos) (sgn : Bool) (premises : List Expr)
 def boolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Bool :=
   withoutModifyingMCtx do
     let ty ← inferType e
-    if ← unify #[(ty, .sort .zero)] then
+    if ty == .sort .zero then
       let ⟨l, s, p⟩ := pos
-      let is_true ← withNewMCtxDepth (isDefEq e (mkConst ``True))
-      let is_false ← withNewMCtxDepth (isDefEq e (mkConst ``False))
-      trace[Rule.BoolHoist] m!"Inspecting position {pos} in clause {c.lits.map Lit.toExpr}"
-      if is_true ∨ is_false ∨ p.size = 0 then
+      trace[Rule.boolHoist] m!"Inspecting position {pos} in clause {c.lits.map Lit.toExpr}"
+      let is_true := e == (mkConst ``True)
+      let is_false := e == (mkConst ``False)
+      let is_top_positive := p.size == 0 ∧ c.lits[l]!.sign
+      if is_true ∨ is_false ∨ is_top_positive then
         return false
       else
-        trace[Rule.BoolHoist] m!"BoolHoist at literal {l}, side {s}, position {p} in clause {c.lits.map Lit.toExpr}"
+        trace[Rule.boolHoist] m!"BoolHoist at literal {l}, side {s}, position {p} in clause {c.lits.map Lit.toExpr}"
         let litl := c.lits[l]!
         let c_erased := c.eraseLit l
         let nc := c_erased.appendLits
           #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``True), Lit.fromExpr e false]
-        trace[Rule.BoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
+        trace[Rule.boolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
         yieldClause nc "boolean hoist C<u> → C<⊤>"
           (some (mkBoolHoistProof pos true))
         let nc := c_erased.appendLits
           #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``False), Lit.fromExpr e true]
-        trace[Rule.BoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
+        trace[Rule.boolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
         yieldClause nc "boolean hoist C<u> → C<⊥>"
           (some (mkBoolHoistProof pos false))
         return true
