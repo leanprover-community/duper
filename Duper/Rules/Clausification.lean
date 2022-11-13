@@ -241,7 +241,9 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Option (List (MClause 
       -- by ```Meta.isDefEq (← Meta.inferType dproof) resRight'```
       -- in ```clausificationStep```. Normally the unification procedure will
       -- eliminate this metavariable. However, when the bound variable does not
-      -- occur in the body ```b```, the unification will assign this metavariable
+      -- occur in the body ```b```, the unification
+      --      ```if not (← Meta.isDefEq (← Meta.inferType dproof) resRight') then```
+      -- will assign this metavariable
       -- with an expression which contains other metavariables, and these
       -- metavariables will escape from ```mkProof```, which causes the bug.
       --
