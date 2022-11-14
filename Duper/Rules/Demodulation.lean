@@ -9,6 +9,7 @@ open Lean.Meta
 open RuleM
 open SimpResult
 open Comparison
+
 initialize Lean.registerTraceClass `Rule.demodulation
 
 def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) (isForward : Bool)
@@ -169,10 +170,13 @@ def backwardDemodulation (mainIdx : RootCFPTrie) : BackwardMSimpRule := fun give
   let mut clausesToRemove := []
 
   for (partnerClause, partnerPos) in potentialPartners do
+    -- Since demodulation is a simplification rule, we shouldn't perform multiple demodulation calls with the same partner clause
+    if clausesToRemove.contains partnerClause then continue
     let backwardDemodulationSuccessful ←
       withoutModifyingLoadedClauses do
-        let (mclauseMVarIds, mclause) ← loadClauseCore partnerClause
-        let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
-        backwardDemodulationWithPartner mclause mclauseMVarIds (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs
+        withoutModifyingMCtx do
+          let (mclauseMVarIds, mclause) ← loadClauseCore partnerClause
+          let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
+          backwardDemodulationWithPartner mclause mclauseMVarIds (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs
     if backwardDemodulationSuccessful then clausesToRemove := partnerClause :: clausesToRemove
   return clausesToRemove
