@@ -93,18 +93,6 @@ def isMaximalLit (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx :
     else return false
   return true
 
-/-- Determines if idx is a maximal literal in the given clause c among the list of indices given -/
-def isMaximalInSubClause (ord : Expr → Expr → MetaM Comparison) (c : MClause) (subclause : List Nat) (idx : Nat) (strict := false) : MetaM Bool := do
-  if(not (subclause.contains idx)) then
-    return false -- idx cannot be a maximal literal in c among the list of indices given because idx is not among the list of indices given
-  for j in subclause do
-    if j == idx then continue
-    let c ← Lit.compare ord c.lits[idx]! c.lits[j]!
-    if c == GreaterThan || (not strict && c == Equal) || c == Incomparable
-      then continue
-    else return false
-  return true
-
 /-- Returns true if there may be some assignment in which the given idx is maximal, and false if there is some idx' that is strictly greater
     than idx (in this case, since idx < idx', for any subsitution σ, idx σ < idx' σ so idx can never be maximal)
 

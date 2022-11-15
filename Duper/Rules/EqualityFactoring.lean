@@ -87,7 +87,7 @@ def mkEqualityFactoringProof (i : Nat) (j : Nat) (litside_i : LitSide) (litside_
   Attempts to perform equality factoring on clause c with c.lits[i] as the literal to be transformed subject to the following constraints:
   1. c.lits[i].litside_i can be unified with c.lits[j].litside_j
   2. c.lits[i].litside_i is not less than c.lits[i].(LitSide.toggleSide litside_i) by the ground reduction ordering after the unification from (1)
-  3. c.lits[i] should be eligible for paramodulation
+  3. c.lits[i] is maximal and nothing is selected
     
   If any of these constraints fail to hold, then equalityFactoringWithAllConstraints should not do anything
 -/
@@ -98,8 +98,8 @@ def equalityFactoringWithAllConstraints (c : MClause) (i : Nat) (j : Nat) (litsi
     if ← unify #[(Lit.getSide lit_i litside_i, Lit.getSide lit_j litside_j)] then
       match ← compare (Lit.getSide lit_i litside_i) (Lit.getOtherSide lit_i litside_i) with
       | Comparison.LessThan => return ()
-      | _ => -- Note: I'm not sure whether I should consider Comparison.Incomparable as passing or failing condition 2, but for now, I will consider it passing
-        if ← eligibleForParamodulation c i then
+      | _ =>
+        if (getSelections c).isEmpty ∧ (← runMetaAsRuleM $ c.isMaximalLit (← getOrder) i) then
           if not (Level.beq lit_i.lvl lit_j.lvl) then
             throwError "equalityFactoringWithAllConstraints: Levels of {lit_i} and {lit_j} are not equal"
           if lit_i.ty != lit_j.ty then

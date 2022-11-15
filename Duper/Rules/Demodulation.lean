@@ -54,12 +54,10 @@ def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) 
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
       3. At least one of the following must be false:
-        - mainPremise.lits[mainPremisePos.lit] is eligible for paramodulation
+        - mainPremise.lits[mainPremisePos.lit] is eligible for paramodulation (note, we replace this by the literal being maximal)
         - mainPremise.lits[mainPremisePos.lit].side > mainPremise.lits[mainPremisePos.lit].otherside
-        - mainPremiseSubterm = λ (note, we do not check this, so we may miss some opportunities for demodulation, but I don't believe
-          we ever perform demodulation when it should not be allowed)
-        - σ is a variable renaming (note, we do not check this, so we may miss some opportunities for demodulation, but I don't
-          believe we ever perform demodulation when it should not be allowed)
+        - mainPremiseSubterm = λ
+        - σ is a variable renaming (note, we do not check this because it's unclear if this is actually complete)
    - If mainPremise.lits[mainPremisePos.lit].sign is false (i.e. we are in the RN case), then all of the following must hold:
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
@@ -70,11 +68,12 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
   Core.checkMaxHeartbeats "forward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
-    let eligibleForParamodulation ← eligibleForParamodulation mainPremise mainPremisePos.lit
+    let isMaximalLit ← runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit
     let mainPremiseSideComparison ← compare
       (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
-    if eligibleForParamodulation && (mainPremiseSideComparison == Comparison.GreaterThan) then
+    let atTopPos := Array.isEmpty mainPremisePos.pos
+    if isMaximalLit && (mainPremiseSideComparison == Comparison.GreaterThan) && atTopPos then
       return none -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← RuleM.performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
@@ -137,11 +136,12 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
   Core.checkMaxHeartbeats "backward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
-    let eligibleForParamodulation ← eligibleForParamodulation mainPremise mainPremisePos.lit
+    let isMaximalLit ← runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit
     let mainPremiseSideComparison ← compare
       (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
-    if eligibleForParamodulation && (mainPremiseSideComparison == Comparison.GreaterThan) then
+    let atTopPos := Array.isEmpty mainPremisePos.pos
+    if isMaximalLit && (mainPremiseSideComparison == Comparison.GreaterThan) && atTopPos then
       return false -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return false -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
