@@ -53,7 +53,7 @@ def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr)
 def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
-    if ← eligible c i (strict := true) then -- TODO: Eligibility
+    if ← eligibilityNoUnificationCheck c i (strict := true) then
       let ty ← inferType lit.lhs
       let (mVars, _, _) ← forallMetaTelescope ty
       trace[Rule.argCong] s!"Lhs: {lit.lhs}, Level: {lit.lvl}, Type of lhs: {ty}, Telescope: {mVars}"
