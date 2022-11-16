@@ -103,9 +103,23 @@ def collectAssumptions (facts : Array Expr) : TacticM (List (Expr × Expr)) := d
     unless ldecl.binderInfo.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
 
+
   -- load user-provided facts
-  for f in facts do
-    formulas := (← inferType f, ← mkAppM ``eq_true #[f]) :: formulas
+  for fact in facts do
+    let type ← inferType fact
+    if ← isProp type then
+      formulas := (type, ← mkAppM ``eq_true #[fact]) :: formulas
+    else
+      unless fact.isConst do
+        throwError "invalid fact for duper, proposition expected{indentExpr type}"
+      let declName := fact.constName!
+      let unfoldEq? ← getUnfoldEqnFor? declName (nonRec := true)
+      -- TODO: For definitions using "match", the equations are currently not usable
+      match unfoldEq? with
+      | some unfoldEq => do
+        formulas := (← inferType (mkConst unfoldEq), ← mkAppM ``eq_true #[mkConst unfoldEq]) :: formulas
+      | _ => throwError "Could not generate equation for {fact}"
+
   return formulas
 
 syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
