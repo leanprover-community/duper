@@ -17,16 +17,17 @@ namespace Lean.Elab.Tactic
 
 partial def printProof (state : ProverM.State) : TacticM Unit := do
   Core.checkMaxHeartbeats "printProof"
-  let rec go c (hm : Array (Nat × Clause) := {}) : TacticM Unit := do
+  let rec go c (hm : Array (Nat × Clause) := {}) : TacticM (Array (Nat × Clause)) := do
     let info ← getClauseInfo! c
-    if hm.contains (info.number, c) then throwError "Loop! {hm} {info.number}"
-    let hm := hm.push (info.number, c)
+    if hm.contains (info.number, c) then return hm
+    let mut hm := hm.push (info.number, c)
     let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! pp.clause) 
     let parentIds := parentInfo.map fun info => info.number
     trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
     for proofParent in info.proof.parents do
-      go proofParent.clause hm
-  go Clause.empty
+      hm ← go proofParent.clause hm
+    return hm
+  let _ ← go Clause.empty
 where 
   getClauseInfo! (c : Clause) : TacticM ClauseInfo := do
     let some ci := state.allClauses.find? c
@@ -38,12 +39,13 @@ def getClauseInfo! (state : ProverM.State) (c : Clause) : TacticM ClauseInfo := 
     | throwError "clause info not found: {c}"
   return ci
 
-partial def collectClauses (state : ProverM.State) (c : Clause) (acc : ClauseHeap) : TacticM ClauseHeap := do
+partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Nat × ClauseHeap)) : TacticM (Array Nat × ClauseHeap) := do
   Core.checkMaxHeartbeats "collectClauses"
   let info ← getClauseInfo! state c
+  if acc.1.contains info.number then return acc -- No need to recall collectClauses on c because we've already collected c
   let mut acc := acc
   -- recursive calls
-  acc := acc.insert (info.number, c)
+  acc := (acc.1.push info.number, acc.2.insert (info.number, c))
   for proofParent in info.proof.parents do
     acc ← collectClauses state proofParent.clause acc
   return acc
@@ -89,7 +91,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   return proof
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
-  let l := (← collectClauses state Clause.empty Std.BinomialHeap.empty).toList.eraseDups.map Prod.snd
+  let l := (← collectClauses state Clause.empty (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
   trace[Meta.debug] "{l}"
   let proof ← mkProof state l
   trace[Print_Proof] "Proof: {proof}"

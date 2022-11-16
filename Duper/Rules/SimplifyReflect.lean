@@ -11,6 +11,8 @@ open SimpResult
 open Comparison
 initialize Lean.registerTraceClass `Rule.simplifyReflect
 
+-- NOTE: mkPositiveSimplifyReflectProof is currently buggy (e.g. it will result in a bad proof for KRS140+1 if `Inhabited TPTP.iota` is provided
+-- and the positive simplify reflect rules are enabled)
 def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Bool) (premises : List Expr) (parents : List ProofParent)
   (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
