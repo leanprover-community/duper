@@ -101,15 +101,12 @@ def collectAssumptions (facts : Array Expr) : TacticM (List (Expr × Expr)) := d
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.binderInfo.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
-      formulas := mkFVar fVarId :: formulas
+      formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
 
   -- load user-provided facts
-  for fact in facts do
-    formulas := fact :: formulas
-
-  let res := ← formulas.mapM fun f => do
-    return (← inferType f, ← mkAppM ``eq_true #[f])
-  return res
+  for f in facts do
+    formulas := (← inferType f, ← mkAppM ``eq_true #[f]) :: formulas
+  return formulas
 
 syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
 
