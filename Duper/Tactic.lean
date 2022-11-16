@@ -95,24 +95,35 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
-def collectAssumptions : TacticM (List (Expr × Expr)) := do
+def collectAssumptions (facts : Array Expr) : TacticM (List (Expr × Expr)) := do
   let mut formulas := []
+  -- Load all local decls:
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.binderInfo.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
-      formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
-  return formulas
+      formulas := mkFVar fVarId :: formulas
 
-syntax (name := duper) "duper" (colGt ident) ? : tactic
+  -- load user-provided facts
+  for fact in facts do
+    formulas := fact :: formulas
+
+  let res := ← formulas.mapM fun f => do
+    return (← inferType f, ← mkAppM ``eq_true #[f])
+  return res
+
+syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
+
+macro_rules
+| `(tactic| duper) => `(tactic| duper [])
 
 @[tactic duper]
 def evalDuper : Tactic
-| `(tactic| duper) => withMainContext do
+| `(tactic| duper [$facts,*]) => withMainContext do
   let startTime ← IO.monoMsNow
   Elab.Tactic.evalTactic
     (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions
+    let formulas ← collectAssumptions (← facts.getElems.mapM (elabTerm . none))
     trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
@@ -127,11 +138,11 @@ def evalDuper : Tactic
       trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
-| `(tactic| duper $ident:ident) => withMainContext do
+| `(tactic| duper $ident:ident [$facts,*]) => withMainContext do
   Elab.Tactic.evalTactic
     (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions
+    let formulas ← collectAssumptions (← facts.getElems.mapM (elabTerm . none))
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
     | Result.contradiction => do 
@@ -155,7 +166,7 @@ def evalDuperNoTiming : Tactic
   Elab.Tactic.evalTactic
     (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions
+    let formulas ← collectAssumptions #[]
     trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
