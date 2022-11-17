@@ -48,13 +48,20 @@ def toExpr (lit : Lit) : Expr :=
   then mkApp3 (mkConst ``Eq [lit.lvl]) lit.ty lit.lhs lit.rhs
   else mkApp3 (mkConst ``Ne [lit.lvl]) lit.ty lit.lhs lit.rhs
 
-def fromExpr (e : Expr) (sign := true) : Lit :=
+def fromSingleExpr (e : Expr) (sign := true) : Lit :=
   Lit.mk
     (sign := true)
     (lvl := levelOne)
     (ty := mkSort levelZero)
     (lhs := Expr.consumeMData e)
     (rhs := if sign then mkConst ``True else mkConst ``False)
+
+def fromExpr : Expr → Lit
+| .app (.app (.app (.const ``Eq lvl) ty) lhs) rhs =>
+  ⟨true, lvl[0]!, ty, lhs, rhs⟩
+| .app (.app (.app (.const ``Ne lvl) ty) lhs) rhs =>
+  ⟨false, lvl[0]!, ty, lhs, rhs⟩
+| e@(_) => dbg_trace "Lit.fromExpr :: Unexpected Expression: {e}"; Lit.fromSingleExpr e
 
 def map (f : Expr → Expr) (l : Lit) :=
   {l with ty := f l.ty, lhs := f l.lhs, rhs := f l.rhs}
@@ -202,8 +209,8 @@ namespace Clause
 
 def empty : Clause := ⟨#[], #[]⟩
 
-def fromExpr (e : Expr) : Clause :=
-  Clause.mk #[] #[Lit.fromExpr e]
+def fromSingleExpr (e : Expr) : Clause :=
+  Clause.mk #[] #[Lit.fromSingleExpr e]
 
 def toExpr (c : Clause) : Expr :=
   litsToExpr c.lits.data
@@ -223,11 +230,26 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
 def toForallExpr (c : Clause) : Expr :=
   c.bVarTypes.foldr (fun ty b => mkForall Name.anonymous BinderInfo.default ty b) c.toExpr
 
+def toLambdaExpr (c : Clause) : Expr :=
+  c.bVarTypes.foldr (fun ty b => mkLambda Name.anonymous BinderInfo.default ty b) c.toExpr
+
+def fromForallExpr (e : Expr) : Clause :=
+  let (bvarTypes, e) := deForall e
+  ⟨bvarTypes.toArray, (litsFromExpr e).toArray⟩
+where
+  deForall : Expr → List Expr × Expr
+  | .forallE bn ty body bi => let (l, e) := deForall body; (ty::l, e)
+  | e@(_) => ([], e)
+  litsFromExpr : Expr → List Lit
+  | .app (.app (.const ``Or _) litexpr) other => Lit.fromExpr litexpr :: litsFromExpr other
+  | .const ``False _                          => []
+  | e@(_)                                     => [Lit.fromExpr e]
+
 instance : ToFormat Clause :=
-⟨ fun c => format c.toExpr ⟩
+⟨ fun c => format c.toExpr⟩
 
 instance : ToMessageData Clause :=
-⟨ fun c => c.toExpr ⟩
+⟨ fun c => c.toForallExpr ⟩
 
 def weight (c : Clause) : Nat :=
   c.lits.foldl (fun acc lit => acc + lit.lhs.weight + lit.rhs.weight) 0

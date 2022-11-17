@@ -14,13 +14,8 @@ structure Context where
 deriving Inhabited
 
 structure ProofParent where
-  clause : Clause 
-  instantiations : Array Expr
-  vanishingVarTypes : Array Expr
--- some variables disappear in inferences, 
--- but need to be instantiated when reconstructing the proof
--- e.g., EqRes on x != y
-deriving Inhabited
+  expr : Expr
+  clause : Clause
 
 /-- Takes: Proofs of the parent clauses, ProofParent information, the target clause -/
 abbrev ProofReconstructor := List Expr → List ProofParent → Clause → MetaM Expr
@@ -175,6 +170,9 @@ def getMVarType (mvarId : MVarId) : RuleM Expr := do
 def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescope e kind
 
+def forallMetaTelescopeReducing (e : Expr) (maxMVars? : Option Nat := none) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
+  runMetaAsRuleM $ Meta.forallMetaTelescopeReducing e maxMVars? kind
+
 def mkFreshSkolem (name : Name) (type : Expr) (mkProof : Array Expr → MetaM Expr) : RuleM Expr := do
   let name := Name.mkNum name (← getLCtx).decls.size
   let (lctx, res) ← runMetaAsRuleM $ do
@@ -210,6 +208,45 @@ def isType (e : Expr) : RuleM Bool := do
 def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
   runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
 
+open Lean.Meta.AbstractMVars in
+open Lean.Meta in
+def abstractMVarsForall (e : Expr) : RuleM AbstractMVarsResult := do
+  let e ← instantiateMVars e
+  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  setNGen s.ngen
+  setMCtx s.mctx
+  let e := s.lctx.mkForall s.fvars e
+  pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
+
+open Lean.Meta.AbstractMVars in
+open Lean.Meta in
+def abstractMVarsForallWithIds (e : Expr) : RuleM (Expr × Array Expr) := do
+  let e ← instantiateMVars e
+  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  setNGen s.ngen
+  setMCtx s.mctx
+  let e := s.lctx.mkForall s.fvars e
+
+  let sfvars := s.fvars
+  let mut fvarpos : Std.HashMap FVarId Nat := {}
+  for i in [:sfvars.size] do
+    fvarpos := fvarpos.insert sfvars[i]!.fvarId! i
+  let mut mvars := sfvars
+  for (mid, fvar) in s.emap.toList do
+    (_, mvars) := mvars.swapAt! (fvarpos.find! fvar.fvarId!) (mkMVar mid)
+  pure (e, mvars)
+
+open Lean.Meta.AbstractMVars in
+open Lean.Meta in
+def abstractMVarsLambda (e : Expr) : RuleM AbstractMVarsResult := do
+  let e ← instantiateMVars e
+  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  setNGen s.ngen
+  setMCtx s.mctx
+  let e := s.lctx.mkLambda s.fvars e
+  pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
+
+
 -- Note for when I update Lean version: TransformStep.visit has been renamed TransformStep.continue,
 -- so when I update Lean, I need to replace TransformStep.visit with TransformStep.continue below
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
@@ -223,14 +260,12 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
 -- `m = c.instantiateRev mVars`
 -- `m ≝ mkAppN c.toForallExpr mVars`
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
-  let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
-  let lits := c.lits.map fun l =>
-    l.map fun e => e.instantiateRev mVars
+  let (mVars, bis, e) ← forallMetaTelescope c.toForallExpr
   setLoadedClauses ((c, mVars.map Expr.mvarId!) :: (← getLoadedClauses))
-  return (mVars, MClause.mk lits)
+  return (mVars, .fromExpr e)
 
 def loadClause (c : Clause) : RuleM MClause := do
-  let (mvars, mclause) ← loadClauseCore c
+  let (_, mclause) ← loadClauseCore c
   return mclause
 
 /-- Returns the MClause that would be returned by calling `loadClause c` and the Clause × Array MVarId pair that
@@ -238,75 +273,39 @@ def loadClause (c : Clause) : RuleM MClause := do
     loaded clauses. The purpose of this function is to process a clause and turn it into an MClause while delaying
     the decision of whether to actually load it -/
 def prepLoadClause (c : Clause) : RuleM (MClause × (Clause × Array MVarId)) := do
-  let mVars ← c.bVarTypes.mapM fun ty => mkFreshExprMVar (some ty)
-  let lits := c.lits.map fun l =>
-    l.map fun e => e.instantiateRev mVars
-  return (MClause.mk lits, (c, mVars.map Expr.mvarId!))
+  let (mVars, bis, e) ← forallMetaTelescope c.toForallExpr
+  return (.fromExpr e, (c, mVars.map Expr.mvarId!))
 
-def neutralizeMClauseCore (c : MClause) : RuleM (Clause × CollectMVars.State) := do
-  let c ← c |>.mapM instantiateMVars
-  let mVarIds := (c.lits.foldl (fun acc (l : Lit) =>
-    l.fold (fun acc e => e.collectMVars acc) acc) {})
-  let lits := c.lits.map fun l =>
-    l.map fun e => e.abstractMVars (mVarIds.result.map mkMVar)
-  let c := Clause.mk (← mVarIds.result.mapM getMVarType) lits
-  return (c, mVarIds)
+open Lean.Meta.AbstractMVars in
+open Lean.Meta in
+def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarId)) :
+  M (Clause × List ProofParent) := do
+  -- process c
+  let ec := c.toExpr
+  let fec ← AbstractMVars.abstractExprMVars ec
+  let cst ← get
+  let abstec := cst.lctx.mkForall cst.fvars fec
+  let c := Clause.fromForallExpr abstec
+  -- process loadedClause
+  let mut proofParents : List ProofParent := []
+  for (loadedClause, mvarIds) in loadedClauses do
+    set cst
+    -- add `mdata` to protect the body from `getAppArgs`
+    let mprotectedparent := Expr.mdata .empty loadedClause.toLambdaExpr
+    let minstantiatedparent := mkAppN mprotectedparent (mvarIds.map mkMVar)
+    let finstantiatedparent ← AbstractMVars.abstractExprMVars minstantiatedparent
+    let lst ← get
+    let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
+    proofParents := ⟨instantiatedparent, loadedClause⟩ :: proofParents
+  return (c, proofParents)
 
-def neutralizeMClause (c : MClause) : RuleM Clause := do
-  return (← neutralizeMClauseCore c).1
-
-def yieldClauseCore (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
-  let (c, cVars) ← neutralizeMClauseCore mc
-  let mut proofParents := []
-  for (loadedClause, mvarIds) in ← getLoadedClauses do
-    -- `mInstantiations` represents the substitution `σ`, which is created during the proof.
-    -- For each the `i`th mVar `vᵢ` in the loaded parent clause,
-    -- the `i`th element of `mInstantiations` contains `σ[vᵢ]`.
-    -- Note that relevant variables in `σ[vᵢ]` are represented by `mVars`.
-    let mInstantiations ← mvarIds.mapM fun m => do instantiateMVars $ mkMVar m
-    -- Some variables vanish during the inference, for example
-    -- `?m1 ≠ ?m1 ∨ P(?m2)` may become `P(?m2)`, which means that
-    -- the metavariable `?m1` in the premise will not occur in
-    -- the conclusion MClause. `vanishingVars` collects these metavariables.
-    let vanishingVars := mInstantiations.foldl
-      (fun acc e => e.collectMVars acc) {visitedExpr := cVars.visitedExpr, result := #[]} -- ignore vars in `cVars`
-    -- Suppose the loaded MClause is `⟨p, p_mVars⟩` and the
-    -- conclusion MClause is `c`, then
-    -- `allMVars = mVars(c) ++ vanishingvars(p, c)`
-    -- `vanishingvars(p, c) = mVars(p_mVars σ) \ mVars(c)`
-    let allMVars := (cVars.result ++ vanishingVars.result).map mkMVar
-    -- For `abstractMVars`, see `Misc.lean`. For an expression `e` and a list
-    -- of mVarId `ms`, it abstracts mVars in `e` such that
-    -- `mkAppN (λ ... λ e') ms ≝ e`, where `e' = abstractMVars e ms`
-    -- and `≝` means "defeq".
-    let instantiations := mInstantiations.map
-      (fun e => e.abstractMVars allMVars)
-    -- For the relationship between `mInstantiations` and `instantiations`,
-    -- we can draw a diagram
-    --
-    --                         instantiations
-    -- (parent) Clause `p` ━━━━━━━━━━━▲━━━━━━━━━━━━➤ Implicit: Instantiated (parent) Clause
-    --        ┇                       ┇                           ▲
-    --        ┇                       ┇                           ┇
-    --        ┇ loadClause            ┇ abstractMVars · allMVars  ┇ abstractMVars · allMVars
-    --        ┇                       ┇                           ┇
-    --        ▼                mInstantiations                    ┇
-    --    MClause `mp`     ━━━━━━━━━━━━━━━━━━━━━━━━➤ Implicit: [Instantiated (parent) MClause]
-    --    `mVarIds`
-    --
-    -- Here `p` corresponds to `loadedClause`
-    -- `mp = p.instantiateRev (mkMVar <$> mVarIds)`
-    --
-    -- The `Instantiated (parent) MClause` appears in
-    -- `ProofReconstruction.lean/instantiatePremises`
-    -- as elements of `parentsLits`, but with `allMVars` replaced
-    -- by `xs ++ vanishingVarInstances`
-    let newProofParent := {
-      clause := loadedClause
-      instantiations := instantiations
-      vanishingVarTypes := ← vanishingVars.result.mapM getMVarType
-    }
-    proofParents := newProofParent :: proofParents
+def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
+  -- Refer to `Lean.Meta.abstractMVars`
+  let ((c, proofParents), st) :=
+    neutralizeMClause mc (← getLoadedClauses) { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  setNGen st.ngen
+  setMCtx st.mctx
+  
   let mkProof := match mkProof with
   | some mkProof => mkProof
   | none => fun _ _ _ => 
@@ -319,9 +318,6 @@ def yieldClauseCore (mc : MClause) (ruleName : String) (mkProof : Option ProofRe
     mkProof := mkProof
   }
   setResultClauses ((c, proof) :: (← getResultClauses))
-
-def yieldClause (c : MClause) (ruleName : String) (mkProof : Option ProofReconstructor := none) : RuleM Unit := do
-  let _ ← yieldClauseCore c ruleName mkProof
 
 def compare (s t : Expr) : RuleM Comparison := do
   let ord ← getOrder

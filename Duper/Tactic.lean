@@ -63,9 +63,9 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   let mut lctx ← getLCtx
   let mut skdefs : List Expr := []
   for (fvarId, mkSkProof) in info.proof.introducedSkolems do
-    trace[Print_Proof] "Reconstructing skolems {mkFVar fvarId}"
+    trace[Print_Proof] "Reconstructing skolem, fvar = {mkFVar fvarId}"
     let ty := (state.lctx.get! fvarId).type
-    trace[Meta.debug] "Reconstructing skolems {ty}"
+    trace[Meta.debug] "Reconstructing skolem, type = {ty}"
     let userName := (state.lctx.get! fvarId).userName
     trace[Print_Proof] "Reconstructed skloem userName: {userName}"
     let skdef ← mkSkProof parents.toArray

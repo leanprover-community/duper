@@ -266,7 +266,7 @@ def addNewToPassive (c : Clause) (proof : Proof) (generatingAncestors : List Cla
     setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
 
 def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
-  let c := Clause.fromExpr e
+  let c := Clause.fromSingleExpr e
   let mkProof := fun _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof} []
 

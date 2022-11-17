@@ -83,12 +83,12 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Bool :=
         let litl := c.lits[l]!
         let c_erased := c.eraseLit l
         let nc := c_erased.appendLits
-          #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``True), Lit.fromExpr e false]
+          #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``True), Lit.fromSingleExpr e false]
         trace[Rule.boolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
         yieldClause nc "boolean hoist C<u> → C<⊤>"
           (some (mkBoolHoistProof pos true))
         let nc := c_erased.appendLits
-          #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``False), Lit.fromExpr e true]
+          #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``False), Lit.fromSingleExpr e true]
         trace[Rule.boolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
         yieldClause nc "boolean hoist C<u> → C<⊥>"
           (some (mkBoolHoistProof pos false))

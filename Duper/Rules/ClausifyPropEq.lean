@@ -82,8 +82,8 @@ def clausifyPropEq (c : MClause) : RuleM Unit := do
       -- TODO: check both sides?
       if ¬ lit.rhs.isConstOf ``True ∧ ¬ lit.rhs.isConstOf ``False then
         let c' := c.eraseLit i
-        let c1 := c'.appendLits #[Lit.fromExpr lit.lhs true, Lit.fromExpr lit.rhs false]
-        let c2 := c'.appendLits #[Lit.fromExpr lit.lhs false, Lit.fromExpr lit.rhs true]
+        let c1 := c'.appendLits #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
+        let c2 := c'.appendLits #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
         trace[Simp.debug] "clausify Prop Equality called with lit.lhs = {lit.lhs} and lit.rhs = {lit.rhs}"
         yieldClause c1 "clausify Prop equality" (mkProof := some (mkC1Proof i))
         yieldClause c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))

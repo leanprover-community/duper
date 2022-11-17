@@ -9,6 +9,20 @@ deriving Inhabited, BEq, Hashable
 
 namespace MClause
 
+def toExpr (c : MClause) : Expr :=
+  litsToExpr c.lits.data
+where litsToExpr : List Lit → Expr
+| [] => mkConst ``False
+| [l] => l.toExpr
+| l :: ls => mkApp2 (mkConst ``Or) l.toExpr (litsToExpr ls)
+
+def fromExpr (e : Expr) : MClause :=
+  MClause.mk (litsFromExpr e).toArray
+where   litsFromExpr : Expr → List Lit
+| .app (.app (.const ``Or _) litexpr) other => Lit.fromExpr litexpr :: litsFromExpr other
+| .const ``False _                            => []
+| e@(_)                                       => [Lit.fromExpr e]
+
 def appendLits (c : MClause) (lits : Array Lit) : MClause :=
   ⟨c.lits.append lits⟩
 
