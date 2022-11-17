@@ -30,3 +30,9 @@ def withAbstractMVarsLambda (e : Expr) (m : Expr → MetaM Expr) : MetaM Expr :=
   withLCtx s.lctx (← getLocalInstances) $ do
     let e ← m e
     return s.lctx.mkLambda s.fvars e
+
+def Lean.Meta.findInstance (ty : Expr) : MetaM Expr :=
+  if ty == .sort (.succ .zero) then
+    return (mkConst ``Nat)
+  else
+    Meta.mkAppOptM ``default #[some ty, none]

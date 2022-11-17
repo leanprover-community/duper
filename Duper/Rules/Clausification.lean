@@ -264,7 +264,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Option (List (MClause 
       -- to discocver it.
       let pr : Expr → MetaM Expr := fun premise => do
         let premisety ← Meta.inferType premise
-        let ty := (premisety.getArg! 1).getArg! 0
+        let ty := (premisety.getArg! 1).bindingDomain!
         let mvar ← Meta.mkFreshExprMVar ty
         let mvarNE ← Meta.mkAppM ``Ne #[mvar, mvar]
         let left_part_of_or ← Meta.mkAppM ``clausify_forall #[mvar, premise]

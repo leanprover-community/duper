@@ -26,10 +26,7 @@ def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs 
     for m in mvars do
       let ty ← Meta.inferType m
       let id := m.mvarId!
-      if ty == .sort (.succ .zero) then
-        id.assign (mkConst ``Nat)
-      else
-        id.assign (← Meta.mkAppOptM ``default #[some ty, none])
+      id.assign (← Meta.findInstance ty)
     let parentInstantiations := finstantiatedparent.getAppArgs
     trace[InstantiatePremises] "parentInstantiations: {parentInstantiations}"
     parentsLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations)) :: parentsLits
