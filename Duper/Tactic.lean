@@ -17,16 +17,17 @@ namespace Lean.Elab.Tactic
 
 partial def printProof (state : ProverM.State) : TacticM Unit := do
   Core.checkMaxHeartbeats "printProof"
-  let rec go c (hm : Array (Nat × Clause) := {}) : TacticM Unit := do
+  let rec go c (hm : Array (Nat × Clause) := {}) : TacticM (Array (Nat × Clause)) := do
     let info ← getClauseInfo! c
-    if hm.contains (info.number, c) then throwError "Loop! {hm} {info.number}"
-    let hm := hm.push (info.number, c)
+    if hm.contains (info.number, c) then return hm
+    let mut hm := hm.push (info.number, c)
     let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! pp.clause) 
     let parentIds := parentInfo.map fun info => info.number
     trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
     for proofParent in info.proof.parents do
-      go proofParent.clause hm
-  go Clause.empty
+      hm ← go proofParent.clause hm
+    return hm
+  let _ ← go Clause.empty
 where 
   getClauseInfo! (c : Clause) : TacticM ClauseInfo := do
     let some ci := state.allClauses.find? c
@@ -38,12 +39,13 @@ def getClauseInfo! (state : ProverM.State) (c : Clause) : TacticM ClauseInfo := 
     | throwError "clause info not found: {c}"
   return ci
 
-partial def collectClauses (state : ProverM.State) (c : Clause) (acc : ClauseHeap) : TacticM ClauseHeap := do
+partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Nat × ClauseHeap)) : TacticM (Array Nat × ClauseHeap) := do
   Core.checkMaxHeartbeats "collectClauses"
   let info ← getClauseInfo! state c
+  if acc.1.contains info.number then return acc -- No need to recall collectClauses on c because we've already collected c
   let mut acc := acc
   -- recursive calls
-  acc := acc.insert (info.number, c)
+  acc := (acc.1.push info.number, acc.2.insert (info.number, c))
   for proofParent in info.proof.parents do
     acc ← collectClauses state proofParent.clause acc
   return acc
@@ -89,30 +91,52 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   return proof
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
-  let l := (← collectClauses state Clause.empty Std.BinomialHeap.empty).toList.eraseDups.map Prod.snd
+  let l := (← collectClauses state Clause.empty (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
   trace[Meta.debug] "{l}"
   let proof ← mkProof state l
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
-def collectAssumptions : TacticM (List (Expr × Expr)) := do
+def collectAssumptions (facts : Array Expr) : TacticM (List (Expr × Expr)) := do
   let mut formulas := []
+  -- Load all local decls:
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.binderInfo.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
+
+
+  -- load user-provided facts
+  for fact in facts do
+    let type ← inferType fact
+    if ← isProp type then
+      formulas := (type, ← mkAppM ``eq_true #[fact]) :: formulas
+    else
+      unless fact.isConst do
+        throwError "invalid fact for duper, proposition expected{indentExpr type}"
+      let declName := fact.constName!
+      let unfoldEq? ← getUnfoldEqnFor? declName (nonRec := true)
+      -- TODO: For definitions using "match", the equations are currently not usable
+      match unfoldEq? with
+      | some unfoldEq => do
+        formulas := (← inferType (mkConst unfoldEq), ← mkAppM ``eq_true #[mkConst unfoldEq]) :: formulas
+      | _ => throwError "Could not generate equation for {fact}"
+
   return formulas
 
-syntax (name := duper) "duper" (colGt ident) ? : tactic
+syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
+
+macro_rules
+| `(tactic| duper) => `(tactic| duper [])
 
 @[tactic duper]
 def evalDuper : Tactic
-| `(tactic| duper) => withMainContext do
+| `(tactic| duper [$facts,*]) => withMainContext do
   let startTime ← IO.monoMsNow
   Elab.Tactic.evalTactic
     (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions
+    let formulas ← collectAssumptions (← facts.getElems.mapM (elabTerm . none))
     trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
@@ -127,11 +151,11 @@ def evalDuper : Tactic
       trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
-| `(tactic| duper $ident:ident) => withMainContext do
+| `(tactic| duper $ident:ident [$facts,*]) => withMainContext do
   Elab.Tactic.evalTactic
     (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions
+    let formulas ← collectAssumptions (← facts.getElems.mapM (elabTerm . none))
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with
     | Result.contradiction => do 
@@ -155,7 +179,7 @@ def evalDuperNoTiming : Tactic
   Elab.Tactic.evalTactic
     (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions
+    let formulas ← collectAssumptions #[]
     trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
     let (_, state) ← ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
     match state.result with

@@ -377,3 +377,12 @@ by duper
 -- Miscellaneous tests
 example (h : ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d) :
   ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d := by duper
+
+--###############################################################################################################################
+-- Tests for providing facts to duper
+theorem add_assoc : ∀ x : Nat, ∀ y : Nat, ∀ z : Nat, (x + y) + z = x + (y + z) := sorry
+theorem one_add_one_eq_two : 1 + 1 = 2 := by simp
+theorem two_add_two_eq_four : 2 + 2 = 4 := by simp
+
+theorem test_duper_with_fact : 1 + 1 = 2 := by duper [one_add_one_eq_two]
+theorem test_duper_with_facts : 1 + 1 + 1 + 1 = 4 := by duper [one_add_one_eq_two, two_add_two_eq_four, add_assoc]
