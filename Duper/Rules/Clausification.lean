@@ -106,14 +106,14 @@ theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = Fal
   eq_false (fun hp => not_of_eq_false h ⟨x, hp⟩)
 
 --TODO: move
-noncomputable def Inhabited.some [Inhabited α] (p : α → Prop) :=
+noncomputable def Skolem.some (p : α → Prop) (x : α) :=
   let _ : Decidable (∃ a, p a) := Classical.propDecidable _
-  if hp: ∃ a, p a then Classical.choose hp else Inhabited.default
+  if hp: ∃ a, p a then Classical.choose hp else x
 
 --TODO: move
-theorem Inhabited.some_spec [Inhabited α] {p : α → Prop} (hp : ∃ a, p a) : 
-  p (Inhabited.some p) := by
-  simp only [Inhabited.some, hp]
+theorem Skolem.spec {p : α → Prop} (x : α) (hp : ∃ a, p a) : 
+  p (Skolem.some p x) := by
+  simp only [Skolem.some, hp]
   exact Classical.choose_spec _
 
 theorem exists_of_forall_eq_false {p : α → Prop} (h : (∀ x, p x) = False) : ∃ x, ¬ p x := by
@@ -265,6 +265,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Option (List (MClause 
       let pr : Expr → MetaM Expr := fun premise => do
         let premisety ← Meta.inferType premise
         let ty := (premisety.getArg! 1).bindingDomain!
+        -- This `mvar` will be assigned by `isDefEq`
         let mvar ← Meta.mkFreshExprMVar ty
         let mvarNE ← Meta.mkAppM ``Ne #[mvar, mvar]
         let left_part_of_or ← Meta.mkAppM ``clausify_forall #[mvar, premise]
@@ -275,8 +276,12 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Option (List (MClause 
   | true, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     let skTerm ← makeSkTerm ty b
     let pr : Expr → MetaM Expr := fun premise => do
+      let premisety ← Meta.inferType premise
+      let ty := (premisety.getArg! 1).getArg! 0
+      -- This `mvar` will be assigned by `isDefEq`
+      let mvar ← Meta.mkFreshExprMVar  ty
       return ← Meta.mkAppM ``eq_true
-        #[← Meta.mkAppM ``Inhabited.some_spec #[← Meta.mkAppM ``of_eq_true #[premise]]]
+        #[← Meta.mkAppM ``Skolem.spec #[mvar, ← Meta.mkAppM ``of_eq_true #[premise]]]
     return some [(MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 skTerm], some pr)]
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
     let pr : Expr → MetaM Expr := fun premise => do
@@ -292,7 +297,8 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Option (List (MClause 
     return some [(MClause.mk #[Lit.fromSingleExpr e₂ false], some pr₂), (MClause.mk #[Lit.fromSingleExpr e₁ false], some pr₁)]
   | false, Expr.forallE _ ty b _ => do
     if (← inferType ty).isProp
-    then 
+    then
+      -- TODO
       if b.hasLooseBVars then
         throwError "Types depending on props are not supported"
       let pr₁ : Expr → MetaM Expr := fun premise => do
@@ -304,8 +310,12 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Option (List (MClause 
     else
       let skTerm ← makeSkTerm ty (mkNot b)
       let pr : Expr → MetaM Expr := fun premise => do
+        let premisety ← Meta.inferType premise
+        let ty := (premisety.getArg! 1).bindingDomain!
+        -- This `mvar` will be assigned by `isDefEq`
+        let mvar ← Meta.mkFreshExprMVar ty
         Meta.mkAppM ``eq_true
-          #[← Meta.mkAppM ``Inhabited.some_spec #[← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
+          #[← Meta.mkAppM ``Skolem.spec #[mvar, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
       return some [(MClause.mk #[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], some pr)]
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     -- Hack. Add literal ((mvar ≠ mvar) = True). Similar to ```true, Expr.forallE```
@@ -357,15 +367,27 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Option (List (MClause 
     return none
 
 where
+  -- h : (∃ x : ty, p x)
+  -- sk : (∃ x : ty, p x) → ty
+  --     No! May contain metavariables
+  -- sk : ∀ [metavars], ty → ty :=
+  --   fun [metavars] => Skolem.some (fun x : ty => p x)
+  -- sk_spec : ∀ [metavars] (x : ty), (∃ x : ty, p x) → p (sk [metavars] x) :=
+  --   fun [metavars] (x : ty) (h : ∃ x, p x) => Skolem.spec x h
+  -- We don't need to construct `sk_spec` explicitly. We
+  --   can directly use `Skolem.spec` and leave the job of unification
+  --   to Lean
   makeSkTerm ty b : RuleM Expr := do
-    let abstres ← abstractMVarsForallWithIds ty
-    let skTy := abstres.fst
-    let mkProof := fun parents => do      
-      let p := mkLambda `x BinderInfo.default ty b
-      withAbstractMVarsLambda p fun e =>
-        Meta.mkAppM ``Inhabited.some #[e]
-    let fvar ← mkFreshSkolem `sk skTy mkProof
-    return mkAppN fvar abstres.snd
+    let p := mkLambda `x BinderInfo.default ty b
+    let prf_pre ← mkAppM ``Skolem.some #[p]
+    let abstres ← abstractMVarsLambdaWithIds prf_pre
+    let prf := abstres.fst
+    let skTy ← inferType prf
+    let fvar ← mkFreshSkolem `sk skTy (fun parents => pure prf)
+    let newmvar ← mkFreshExprMVar ty
+    return mkApp (mkAppN fvar abstres.snd) newmvar
+
+#check @Skolem.spec
 
 def clausificationStepLit (c : MClause) (i : Nat) : RuleM (Option (List (MClause × Option (Expr → MetaM Expr)))) := do
   let l := c.lits[i]!

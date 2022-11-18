@@ -40,3 +40,15 @@ example (x : Prop) (H : x) : x := by duper
 set_option trace.Meta.debug true in
 example (f : Nat → Bool → Nat) : (∃ (x : Nat) (y : Bool), f x y = f x y) = True :=
   by duper
+
+set_option trace.Print_Proof true in
+set_option trace.Meta.debug true in
+example (f g : Nat → Nat) (h : ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d) :
+  ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d := by duper
+
+set_option trace.Meta.debug true in
+example (f g : Nat → Nat) (h : ∀ a, ∃ d, f a = d) :
+  ∀ a, ∃ d, f a = d := by duper
+
+set_option trace.Print_Proof true in
+example : ((∀ (f : Nat → Nat) (x : Nat), f x = f x) = True) := by duper

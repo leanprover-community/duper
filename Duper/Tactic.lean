@@ -69,7 +69,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
     let ty := (state.lctx.get! fvarId).type
     trace[Meta.debug] "Reconstructing skolem, type = {ty}"
     let userName := (state.lctx.get! fvarId).userName
-    trace[Print_Proof] "Reconstructed skloem userName: {userName}"
+    trace[Print_Proof] "Reconstructed skloem, userName = {userName}"
     let skdef ← mkSkProof parents.toArray
     trace[Meta.debug] "Reconstructed skolem definition: {skdef}"
     trace[Meta.debug] "Reconstructed skolem definition, toString: {toString skdef}"

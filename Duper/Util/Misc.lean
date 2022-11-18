@@ -20,17 +20,6 @@ private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) 
 def Lean.Expr.instantiateForallNoReducing (e : Expr) (ps : Array Expr) : MetaM Expr :=
   instantiateForallAux ps 0 e
 
-open Lean.Meta.AbstractMVars in
-open Lean.Meta in
-def withAbstractMVarsLambda (e : Expr) (m : Expr → MetaM Expr) : MetaM Expr := do
-  let e ← instantiateMVars e
-  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
-  setNGen s.ngen
-  setMCtx s.mctx
-  withLCtx s.lctx (← getLocalInstances) $ do
-    let e ← m e
-    return s.lctx.mkLambda s.fvars e
-
 def Lean.Meta.findInstance (ty : Expr) : MetaM Expr :=
   if ty == .sort (.succ .zero) then
     return (mkConst ``Nat)

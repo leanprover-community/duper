@@ -220,12 +220,12 @@ def abstractMVarsForall (e : Expr) : RuleM AbstractMVarsResult := do
 
 open Lean.Meta.AbstractMVars in
 open Lean.Meta in
-def abstractMVarsForallWithIds (e : Expr) : RuleM (Expr × Array Expr) := do
+def abstractMVarsLambdaWithIds (e : Expr) : RuleM (Expr × Array Expr) := do
   let e ← instantiateMVars e
   let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   setNGen s.ngen
   setMCtx s.mctx
-  let e := s.lctx.mkForall s.fvars e
+  let e := s.lctx.mkLambda s.fvars e
 
   let sfvars := s.fvars
   let mut fvarpos : Std.HashMap FVarId Nat := {}
