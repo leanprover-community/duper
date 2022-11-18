@@ -31,7 +31,7 @@ partial def Lean.Meta.unify (l : Array (Expr × Expr)) : MetaM Bool := do
     for (t, s) in l do
       let t_type := (← instantiateMVars (← inferType t))
       let s_type := (← instantiateMVars (← inferType s))
-      if (t_type != s_type) then
+      if ¬ (← unify1 t_type s_type) then
         state.restore
         return false
       else if ← unify1 t s then
