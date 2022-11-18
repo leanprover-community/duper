@@ -280,21 +280,29 @@ open Lean.Meta.AbstractMVars in
 open Lean.Meta in
 def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarId)) :
   M (Clause × List ProofParent) := do
-  -- process c
+  -- process c, `umvars` stands for "uninstantiated mvars"
+  -- `ec = concl[umvars]`
   let ec := c.toExpr
+  -- `fec = concl[fvars]`
   let fec ← AbstractMVars.abstractExprMVars ec
   let cst ← get
+  -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := cst.lctx.mkForall cst.fvars fec
   let c := Clause.fromForallExpr abstec
   -- process loadedClause
   let mut proofParents : List ProofParent := []
   for (loadedClause, mvarIds) in loadedClauses do
     set cst
-    -- add `mdata` to protect the body from `getAppArgs`
+    -- Add `mdata` to protect the body from `getAppArgs`
+    -- The inner part will no longer be used, it is almost dummy, except that it makes the type check
+    -- `mprotectedparent = fun [vars] => parent[vars]`
     let mprotectedparent := Expr.mdata .empty loadedClause.toLambdaExpr
+    -- `minstantiatedparent = (fun [vars] => parent[vars]) mvars[umvars] ≝ parent[mvars[umvars]]`
     let minstantiatedparent := mkAppN mprotectedparent (mvarIds.map mkMVar)
+    -- `finstantiatedparent = (fun [vars] => parent[vars]) mvars[fvars]`
     let finstantiatedparent ← AbstractMVars.abstractExprMVars minstantiatedparent
     let lst ← get
+    -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
     let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
     proofParents := ⟨instantiatedparent, loadedClause⟩ :: proofParents
   return (c, proofParents)

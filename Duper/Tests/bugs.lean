@@ -1,11 +1,11 @@
 import Duper.TPTP
 import Duper.Tactic
 
----- set_option maxHeartbeats 20000
---
---tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
---  by duper -- Prover saturated (from PUZ_tests.lean)
---
+set_option maxHeartbeats 20000
+
+tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
+  by duper -- Prover saturated (from PUZ_tests.lean)
+
 tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by 
   have inhabited_plant : Inhabited plant := sorry
   have inhabited_snail : Inhabited snail := sorry
@@ -25,7 +25,7 @@ example (x : Type u) (f g : Type u → Type v) (H : f = g) : f x = g x :=
   by duper
 -- Previously: Type mismatch caused by incorrect manipulation of
 -- universe levels in `ArgCong`
---
+
 set_option trace.Meta.debug true in
 example (f : Prop → Nat) :
   f (∀ (x : Nat), x ≠ Nat.zero) = f False := by duper
@@ -35,20 +35,19 @@ example (f : Prop → Nat) :
   f (f (∀ (x : Nat), x ≠ Nat.zero) = f False) = f True := by duper
 
 set_option trace.Meta.debug true in
-example (x : Prop) (H : x) : x := by duper
-
-set_option trace.Meta.debug true in
-example (f : Nat → Bool → Nat) : (∃ (x : Nat) (y : Bool), f x y = f x y) = True :=
-  by duper
-
-set_option trace.Print_Proof true in
-set_option trace.Meta.debug true in
-example (f g : Nat → Nat) (h : ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d) :
-  ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d := by duper
-
-set_option trace.Meta.debug true in
 example (f g : Nat → Nat) (h : ∀ a, ∃ d, f a = d) :
   ∀ a, ∃ d, f a = d := by duper
 
 set_option trace.Print_Proof true in
 example : ((∀ (f : Nat → Nat) (x : Nat), f x = f x) = True) := by duper
+
+set_option trace.Meta.debug true in
+example : ((∀ (A : Type) (f : Nat → A) (x : Nat), f x = f x) = True) := by duper
+
+set_option trace.Print_Proof true in
+example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
+  by duper
+
+set_option trace.Print_Proof true in
+example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
+  by duper

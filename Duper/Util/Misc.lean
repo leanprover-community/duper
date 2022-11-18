@@ -20,8 +20,12 @@ private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) 
 def Lean.Expr.instantiateForallNoReducing (e : Expr) (ps : Array Expr) : MetaM Expr :=
   instantiateForallAux ps 0 e
 
-def Lean.Meta.findInstance (ty : Expr) : MetaM Expr :=
-  if ty == .sort (.succ .zero) then
-    return (mkConst ``Nat)
-  else
-    Meta.mkAppOptM ``default #[some ty, none]
+def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
+  let ty ← instantiateMVars ty
+  forallTelescope ty fun xs ty' => do
+    let u :=
+      if ty' == .sort (.succ .zero) then
+        mkConst ``Nat
+      else
+        ← Meta.mkAppOptM ``default #[some ty', none]
+    mkLambdaFVars xs u

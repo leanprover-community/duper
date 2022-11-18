@@ -10,23 +10,20 @@ open Lean
 initialize Lean.registerTraceClass `InstantiatePremises
 
 -- `xs` is usually obtained by `Meta.forallTelescope c.toForallExpr fun xs body =>`
--- `body` corresponds to `c.instantiateRev xs` in `RuleM.lean/yieldClause`
--- Or, it's `m` in `RuleM.lean/yieldClause`, but with `mVars(c)`
--- substituted by `xs`.
--- The relationship between `(body, parentsLits[i])` in `instantiatePremises`
--- is just `(mc, Instantiated (parent) MClause)` in `RuleM.lean/yieldClause`
--- with mvars replaced by fvars
 def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) : 
     MetaM (List (Array Lit) × List Expr) := do
   let mut parentsLits := [] -- Initializing with capacity 2 because most inference and simplification rules have at most two parents
   let mut appliedPremises := []
   for (parent, premise) in List.zip parents premises do
     let finstantiatedparent_pre ← parent.expr.instantiateForallNoReducing xs
+    -- `fvars = xs ++ vanishedvars`
+    -- `finstantiatedparent = ((.mdata) fun [vars] => parent[vars]) mvars[fvars]`
     let (mvars, bis, finstantiatedparent) ← Meta.forallMetaTelescope finstantiatedparent_pre
     for m in mvars do
       let ty ← Meta.inferType m
       let id := m.mvarId!
       id.assign (← Meta.findInstance ty)
+    -- `parentInstantiations = mvars[fvars]`
     let parentInstantiations := finstantiatedparent.getAppArgs
     trace[InstantiatePremises] "parentInstantiations: {parentInstantiations}"
     parentsLits := parent.clause.lits.map (fun lit => lit.map (fun e => e.instantiateRev parentInstantiations)) :: parentsLits
