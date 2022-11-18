@@ -19,25 +19,26 @@ noncomputable instance : Inhabited G := ⟨one⟩
 theorem test : x ⬝ one = x :=
 by duper [@Group.mul_one]
 
+set_option trace.Print_Proof true in
 theorem exists_right_inv : inv x ⬝ x = e :=
-by duper [@Group.mul_assoc G hG, @Group.mul_one G hG, @Group.mul_inv G hG]
+by duper [@Group.mul_assoc G, @Group.mul_one G, @Group.mul_inv G]
 
 theorem left_neutral_unique (x : G) : (∀ y, x ⬝ y = y) → x = e :=
-by duper [@Group.mul_assoc G hG, @Group.mul_one G hG, @Group.mul_inv G hG]
+by duper [@Group.mul_assoc G, @Group.mul_one G, @Group.mul_inv G]
 
 theorem right_neutral_unique (x : G) : (∀ y, y ⬝ x = y) → x = e :=
-by duper [@Group.mul_assoc G hG, @Group.mul_one G hG, @Group.mul_inv G hG]
+by duper [@Group.mul_assoc G, @Group.mul_one G, @Group.mul_inv G]
 
 theorem right_inv_unique (x y z : G) (h : x ⬝ y = e) (h : x ⬝ z = e) : y = z :=
-by duper [@Group.mul_assoc G hG, @Group.mul_one G hG, @Group.mul_inv G hG]
+by duper [@Group.mul_assoc G, @Group.mul_one G, @Group.mul_inv G]
 
 theorem left_inv_unique (x y z : G) (h : y ⬝ x = e) (h : z ⬝ x = e) : y = z :=
-by duper [@Group.mul_assoc G hG, @Group.mul_one G hG, @Group.mul_inv G hG]
+by duper [@Group.mul_assoc G, @Group.mul_one G, @Group.mul_inv G]
 
 noncomputable def sq := x ⬝ x
 
 theorem sq_mul_sq_eq_e (h_comm : ∀ (a b : G), a ⬝ b = b ⬝ a) (h : x ⬝ y = e) :
   sq x ⬝ sq y = e :=
-by duper [@sq, @Group.mul_assoc G hG, @Group.mul_one G hG, @Group.mul_inv G hG]
+by duper [@sq, @Group.mul_assoc G, @Group.mul_one G, @Group.mul_inv G]
 
 end Group

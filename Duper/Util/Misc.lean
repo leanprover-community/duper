@@ -23,9 +23,25 @@ def Lean.Expr.instantiateForallNoReducing (e : Expr) (ps : Array Expr) : MetaM E
 def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
   let ty ← instantiateMVars ty
   forallTelescope ty fun xs ty' => do
-    let u :=
+    let u ← do
       if ty' == .sort (.succ .zero) then
-        mkConst ``Nat
-      else
-        ← Meta.mkAppOptM ``default #[some ty', none]
+        pure <| mkConst ``Nat
+      else if let .sort (.succ l) := ty then
+        pure <| mkSort l
+      else try
+        Meta.mkAppOptM ``inferInstanceAs #[ty', none]
+      catch _ =>
+        -- Find assumption in Local Context
+        let ctx ← getLCtx
+        let option_matching_expr ← ctx.findDeclM? fun decl: Lean.LocalDecl => do
+          let declExpr := decl.toExpr
+          let declType ← Lean.Meta.inferType declExpr
+          if ← Lean.Meta.isDefEq declType ty'
+          then
+            return Option.some declExpr
+          else
+            return Option.none
+        match option_matching_expr with
+        | some e => pure e
+        | none => Meta.mkAppOptM ``default #[ty', none]
     mkLambdaFVars xs u

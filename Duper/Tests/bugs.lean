@@ -51,3 +51,5 @@ example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
 set_option trace.Print_Proof true in
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
   by duper
+
+example (A : Type) (x : A) : (∃ x : A, x = x) := by duper
