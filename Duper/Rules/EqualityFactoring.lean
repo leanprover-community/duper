@@ -102,8 +102,10 @@ def equalityFactoringWithAllConstraints (c : MClause) (i : Nat) (j : Nat) (litsi
         if (getSelections c).isEmpty ∧ (← runMetaAsRuleM $ c.isMaximalLit (← getOrder) i) then
           if not (Level.beq lit_i.lvl lit_j.lvl) then
             throwError "equalityFactoringWithAllConstraints: Levels of {lit_i} and {lit_j} are not equal"
-          if lit_i.ty != lit_j.ty then
-            throwError "equalityFactoringWithAllConstraints: Types of {lit_i} and {lit_j} are not the same"
+          if (← RuleM.instantiateMVars lit_i.ty) != (← RuleM.instantiateMVars lit_j.ty) then
+            let s1 := m!"equalityFactoringWithAllConstraints: Types of {lit_i} and {lit_j} are not the same\n"
+            let s2 := m!"Type of first is {lit_i.ty}, type of second is {lit_j.ty}"
+            throwError s1 ++ s2
 
           let new_lit : Lit := 
             { sign := false,
