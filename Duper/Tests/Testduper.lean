@@ -1,4 +1,3 @@
-
 import Lean
 import Std.Data.BinomialHeap
 
@@ -25,13 +24,11 @@ def cnf (formulas : List (Expr × Expr)) : TacticM (List (Bool × Expr × Expr))
 
 open Std
 
--- Note for when I update Lean version: TransformStep.visit has been renamed TransformStep.continue,
--- so when I update Lean, I need to replace TransformStep.visit with TransformStep.continue below
 def replace (e : Expr) (target : Expr) (replacement : Expr) : MetaM Expr := do
   Core.transform e (pre := fun s => do
     if (← instantiateMVars s) == (← instantiateMVars target) then
       return TransformStep.done replacement
-    else return TransformStep.visit s)
+    else return TransformStep.continue s)
 
 def saturate (clauses : List (Bool × Expr × Expr)) : TacticM Unit := do
   let mut passive : BinomialHeap (Nat × (Bool × Expr × Expr)) fun c d => c.1 ≤ d.1 := 
@@ -82,7 +79,7 @@ def collectAssms : TacticM (List (Expr × Expr)) := do
   let mut formulas := []
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
-    unless ldecl.binderInfo.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
+    unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
   return formulas
 

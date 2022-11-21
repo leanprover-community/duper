@@ -101,18 +101,18 @@ partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
     let t₁ ← processTffTerm t₁
     let t₂ ← processTffTerm t₂
     match conn.raw[0].getKind with
-    | `«&» => `($t₁ ∧ $t₂)
-    | `«=>» => `($t₁ → $t₂)
-    | `«|» => `($t₁ ∨ $t₂)
-    | `«<=>» => `($t₁ ↔ $t₂)
-    | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
+    | Name.str _ "&" => `($t₁ ∧ $t₂)
+    | Name.str _ "=>" => `($t₁ → $t₂)
+    | Name.str _ "|"=> `($t₁ ∨ $t₂)
+    | Name.str _ "<=>" => `($t₁ ↔ $t₂)
+    | _ => Macro.throwError s!"Unsupported prop_binary_connective: {conn.raw[0].getKind}"
   | `(tff_term| $t₁:tff_term $conn:non_prop_binary_connective $t₂:tff_term ) => do
     let t₁ ← processTffTerm t₁
     let t₂ ← processTffTerm t₂
     match conn.raw[0].getKind with
-    | `«=» => `($t₁ = $t₂)
-    | `«!=» => `($t₁ ≠ $t₂)
-    | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
+    | Name.str _ "=" => `($t₁ = $t₂)
+    | Name.str _ "!=" => `($t₁ ≠ $t₂)
+    | _ => Macro.throwError s!"Unsupported non_prop_binary_connective: {conn.raw[0].getKind}"
   | `(tff_term| $f:ident $args:tff_arguments ?) => do
     let ts : Array Syntax ← match args with
     | some args =>
@@ -134,8 +134,8 @@ partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
           pure (v, ← processTffAtomicType ty)
         | _ => Macro.throwError s!"Unsupported tff_variable: {v}"
         match q.raw[0].getKind with
-        | `«!» => `(∀ ($v : $ty), $acc)
-        | `«?» => `(Exists fun ($v : $ty) => $acc)
+        | Name.str _ "!" => `(∀ ($v : $ty), $acc)
+        | Name.str _ "?" => `(Exists fun ($v : $ty) => $acc)
         | _ => Macro.throwError s!"Unsupported fof_quantifier: {q.raw[0].getKind}"
       body
   | _ => Macro.throwError s!"Unsupported tff_term: {stx}"
@@ -172,7 +172,7 @@ partial def processTffType (stx : Syntax) : MacroM Syntax := do
             pure (v, ← processTffAtomicType v_ty)
           | _ => Macro.throwError s!"Unsupported tff_variable: {v} when trying to process a tf1_quantified_type"
           match q.raw[0].getKind with
-          | `«!>» => `(∀ ($v : $v_ty), $acc)
+          | Name.str _ "!>" => `(∀ ($v : $v_ty), $acc)
           | _ => Macro.throwError s!"Unsupported tf1_quantifier: {q.raw[0].getKind}"
         ty
     | _ => Macro.throwError s!"Unsupported tff_type: {stx}"
@@ -245,18 +245,18 @@ partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topTyp
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else
       match conn.raw[0].getKind with
-      | `«&» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
-      | `«=>» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
-      | `«|» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
-      | `«<=>» => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
-      | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
+      | Name.str _ "&" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | Name.str _ "=>" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | Name.str _ "|" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | Name.str _ "<=>" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | _ => Macro.throwError s!"Unsupported prop_binary_connective: {conn.raw[0].getKind}"
   | `(tff_term| $t1:tff_term $conn:non_prop_binary_connective $t2:tff_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else
       match conn.raw[0].getKind with
-      | `«=» => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
-      | `«!=» => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
-      | _ => Macro.throwError s!"Unsupported binary_connective: {conn.raw[0].getKind}"
+      | Name.str _ "=" => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
+      | Name.str _ "!=" => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
+      | _ => Macro.throwError s!"Unsupported non_prop_binary_connective: {conn.raw[0].getKind}"
   | `(tff_term| $f:ident $args:tff_arguments ?) =>
     match args with
     | none =>
@@ -343,7 +343,7 @@ def loadTptp (path : System.FilePath) : CommandElabM Syntax := do
 
 syntax (name := tptpKind) "tptp " ident strLit term : command
 
-@[commandElab tptpKind] def elabResolve : CommandElab := fun stx => do
+@[command_elab tptpKind] def elabResolve : CommandElab := fun stx => do
   match stx with
   | `(tptp $name $file $proof) =>
     match Syntax.isStrLit? file with

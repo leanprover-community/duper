@@ -152,7 +152,6 @@ theorem clausify_iff2 (h : (p ↔ q) = True) : p = False ∨ q = True := by
 theorem clausify_not_iff (h : (p ↔ q) = False) : p ≠ q := by
   intro p_eq_q
   rw [← h, p_eq_q]
-  exact Iff.rfl
 
 theorem clausify_not_iff1 (h : (p ↔ q) = False) : p = False ∨ q = False := by
   cases Classical.propComplete p with

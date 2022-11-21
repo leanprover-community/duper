@@ -228,7 +228,7 @@ def abstractMVarsLambdaWithIds (e : Expr) : RuleM (Expr × Array Expr) := do
   let e := s.lctx.mkLambda s.fvars e
 
   let sfvars := s.fvars
-  let mut fvarpos : Std.HashMap FVarId Nat := {}
+  let mut fvarpos : HashMap FVarId Nat := {}
   for i in [:sfvars.size] do
     fvarpos := fvarpos.insert sfvars[i]!.fvarId! i
   let mut mvars := sfvars
@@ -246,14 +246,11 @@ def abstractMVarsLambda (e : Expr) : RuleM AbstractMVarsResult := do
   let e := s.lctx.mkLambda s.fvars e
   pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
 
-
--- Note for when I update Lean version: TransformStep.visit has been renamed TransformStep.continue,
--- so when I update Lean, I need to replace TransformStep.visit with TransformStep.continue below
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
   Core.transform e (pre := fun s => do
     if (← instantiateMVars s) == (← instantiateMVars target) then
       return TransformStep.done replacement
-    else return TransformStep.visit s)
+    else return TransformStep.continue s)
 
 -- Suppose `c : Clause = ⟨bs, ls⟩`, `(mVars, m) ← loadClauseCore c`
 -- then

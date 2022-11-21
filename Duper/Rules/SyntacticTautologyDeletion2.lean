@@ -1,7 +1,7 @@
 import Duper.Simp
 
 namespace Duper
-open Std
+open Lean
 open RuleM
 open SimpResult
 

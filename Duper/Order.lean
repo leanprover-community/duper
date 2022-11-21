@@ -26,7 +26,7 @@ namespace Order
 open Lean.Meta
 open Comparison
 
-def VarBalance := Std.HashMap Expr Int
+def VarBalance := HashMap Expr Int
 
 def VarBalance.addPosVar (vb : VarBalance) (t : Expr) : VarBalance :=
   vb.insert t $ vb.findD t 0 + 1
@@ -169,7 +169,7 @@ def precCompare (f g : Expr) : Comparison := match f, g with
 
 -- Inspired by Zipperposition
 partial def kbo (t1 t2 : Expr) : MetaM Comparison := do
-  let (_, _, res) ← tckbo 0 Std.HashMap.empty t1 t2
+  let (_, _, res) ← tckbo 0 HashMap.empty t1 t2
   return res
 where
 --     -- (** Update variable balance, weight balance, and check whether the term contains the fluid term s.

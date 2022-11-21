@@ -1,5 +1,4 @@
 import Lean
-import Std
 import Duper.RuleM
 
 namespace Duper
