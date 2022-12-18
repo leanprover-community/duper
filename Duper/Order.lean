@@ -1,4 +1,5 @@
 import Lean
+import Duper.Util.Misc
 
 namespace Duper
 open Lean
@@ -69,6 +70,7 @@ def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) : Int := match f with
   | Expr.mvar .. => 1
   | Expr.bvar .. => 1
   | Expr.sort .. => 1
+  | Expr.lit .. => 1
   | Expr.mdata _ e => headWeight e symbolPrecMap
   | _ => panic! s!"head_weight: not implemented {f}"
 
@@ -100,85 +102,157 @@ def VarBalance.noPositives (vb : VarBalance) : Bool := Id.run do
       return False
   return True
 
-/-- A comparison function for comparing fvars and consts based on precomputed precedences. Note that
-    lower numbers in symbolPrecMap correspond to higher precedences -/
-def symbolPrecCompare (s1 : Symbol) (s2 : Symbol) (symbolPrecMap : SymbolPrecMap) : Comparison :=
+/-- A last resort comparison function to use if symbolPrecCompare needs to compare two symbols, neither
+    of which appeared in symbolPrecMap. We use the convention: Anonymous < Num < Str -/
+def nameCompare (n1 : Name) (n2 : Name) : Comparison :=
+  match n1, n2 with
+  | Name.anonymous, Name.anonymous => Equal
+  | Name.num pre1 n1, Name.num pre2 n2 =>
+    if n1 < n2 then LessThan
+    else if n1 > n2 then GreaterThan
+    else nameCompare pre1 pre2
+  | Name.str pre1 s1, Name.str pre2 s2 =>
+    if s1 < s2 then LessThan
+    else if s1 > s2 then GreaterThan
+    else nameCompare pre1 pre2
+  | Name.anonymous, Name.num _ _ => LessThan
+  | Name.anonymous, Name.str _ _ => LessThan
+  | Name.num _ _, Name.anonymous => GreaterThan
+  | Name.num _ _, Name.str _ _ => LessThan
+  | Name.str _ _, Name.anonymous => GreaterThan
+  | Name.str _ _, Name.num _ _ => GreaterThan
+
+/-- A comparison function for comparing fvars and consts based on precomputed precedences. Note that lower numbers in symbolPrecMap
+    correspond to higher precedences. e1 is the expression that produces symbol s1 and e2 is the expression that produces symbol s2
+    (e1 and e2 need to be included in addition to s1 and s2 in case if we need to determine the arity of e1 or e2) -/
+def symbolPrecCompare (e1 : Expr) (e2 : Expr) (s1 : Symbol) (s2 : Symbol) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison :=
+  -- Note: We don't need hardcode checks to see if e1 or e2 is True/False because precCompare already checks for that
   match symbolPrecMap.find? s1, symbolPrecMap.find? s2 with
   | some n1, some n2 =>
-    if n1 > n2 then LessThan -- n1 is larger than n2 so s1 has a lower precedence
-    else if n1 < n2 then GreaterThan -- n1 is smaller than n2 so s1 has a higher precedence
-    else Equal
-  | _, _ => panic! s!"symbolPrecCompare: Either {s1} or {s2} was not found in symbolPrecMap"
+    if n1 > n2 then return LessThan -- n1 is larger than n2 so s1 has a lower precedence
+    else if n1 < n2 then return GreaterThan -- n1 is smaller than n2 so s1 has a higher precedence
+    else return Equal
+  | some _, none => do
+    -- Unary symbols > Large arity symbols > Small arity symbols (unary_first precedence rule)
+    -- If arity is shared, symbols in symbolPrecMap have greater precedence than symbols not in symbolPrecMap
+    let s1Type ← inferType e1
+    let s2Type ← inferType e2
+    let s1Arity := getArity s1Type
+    let s2Arity := getArity s2Type
+    if s1Arity == 1 && s2Arity != 1 then return GreaterThan
+    else if s1Arity != 1 && s2Arity == 1 then return LessThan
+    else if s1Arity > s2Arity then return GreaterThan
+    else if s2Arity > s1Arity then return LessThan
+    else return GreaterThan -- Arity is the same, tiebreak by preferring s1 which is in symbolPrecMap
+  | none, some _ => do
+    -- Unary symbols > Large arity symbols > Small arity symbols (unary_first precedence rule)
+    -- If arity is shared, symbols in symbolPrecMap have greater precedence than symbols not in symbolPrecMap
+    let s1Type ← inferType e1
+    let s2Type ← inferType e2
+    let s1Arity := getArity s1Type
+    let s2Arity := getArity s2Type
+    if s1Arity == 1 && s2Arity != 1 then return GreaterThan
+    else if s1Arity != 1 && s2Arity == 1 then return LessThan
+    else if s1Arity > s2Arity then return GreaterThan
+    else if s2Arity > s1Arity then return LessThan
+    else return LessThan -- Arity is the same, tiebreak by preferring s2 which is in symbolPrecMap
+  | none, none =>
+    let s1Name :=
+      match s1 with
+      | Symbol.Const n => n
+      | Symbol.FVarId f => f.name
+    let s2Name :=
+      match s2 with
+      | Symbol.Const n => n
+      | Symbol.FVarId f => f.name
+    return nameCompare s1Name s2Name
 
-def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : Comparison := match f, g with
+def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison := match f, g with
 
--- Sort > lam > db > quantifier > symbols > False > True 
-| Expr.sort .., Expr.const ``LAM _ => GreaterThan
-| Expr.sort .., Expr.bvar .. => GreaterThan
-| Expr.sort .., Expr.fvar .. => GreaterThan
-| Expr.sort .., Expr.const ``False _ => GreaterThan
-| Expr.sort .., Expr.const ``True _ => GreaterThan
+-- Sort > lam > db > quantifier > symbols > lits > False > True
+| Expr.sort .., Expr.const ``LAM _ => return GreaterThan
+| Expr.sort .., Expr.bvar .. => return GreaterThan
+| Expr.sort .., Expr.fvar .. => return GreaterThan
+| Expr.sort .., Expr.lit .. => return GreaterThan
+| Expr.sort .., Expr.const ``False _ => return GreaterThan
+| Expr.sort .., Expr.const ``True _ => return GreaterThan
 
-| Expr.const ``LAM _, Expr.sort .. => LessThan
-| Expr.const ``LAM _, Expr.bvar .. => GreaterThan
-| Expr.const ``LAM _, Expr.fvar .. => GreaterThan
-| Expr.const ``LAM _, Expr.const ``False _ => GreaterThan
-| Expr.const ``LAM _, Expr.const ``True _ => GreaterThan
+| Expr.const ``LAM _, Expr.sort .. => return LessThan
+| Expr.const ``LAM _, Expr.bvar .. => return GreaterThan
+| Expr.const ``LAM _, Expr.fvar .. => return GreaterThan
+| Expr.const ``LAM _, Expr.lit .. => return GreaterThan
+| Expr.const ``LAM _, Expr.const ``False _ => return GreaterThan
+| Expr.const ``LAM _, Expr.const ``True _ => return GreaterThan
 
-| Expr.bvar .., Expr.sort .. => LessThan
-| Expr.bvar .., Expr.const ``LAM _ => LessThan
-| Expr.bvar .., Expr.fvar .. => GreaterThan
-| Expr.bvar .., Expr.const ``False _ => GreaterThan
-| Expr.bvar .., Expr.const ``True _ => GreaterThan
+| Expr.bvar .., Expr.sort .. => return LessThan
+| Expr.bvar .., Expr.const ``LAM _ => return LessThan
+| Expr.bvar .., Expr.fvar .. => return GreaterThan
+| Expr.bvar .., Expr.lit .. => return GreaterThan
+| Expr.bvar .., Expr.const ``False _ => return GreaterThan
+| Expr.bvar .., Expr.const ``True _ => return GreaterThan
 
-| Expr.fvar .., Expr.sort .. => LessThan
-| Expr.fvar .., Expr.const ``LAM _ => LessThan
-| Expr.fvar .., Expr.bvar .. => LessThan
-| Expr.fvar .., Expr.const ``False _ => GreaterThan
-| Expr.fvar .., Expr.const ``True _ => GreaterThan
+| Expr.fvar .., Expr.sort .. => return LessThan
+| Expr.fvar .., Expr.const ``LAM _ => return LessThan
+| Expr.fvar .., Expr.bvar .. => return LessThan
+| Expr.fvar .., Expr.lit .. => return GreaterThan
+| Expr.fvar .., Expr.const ``False _ => return GreaterThan
+| Expr.fvar .., Expr.const ``True _ => return GreaterThan
 
-| Expr.const ``False _, Expr.sort .. => LessThan
-| Expr.const ``False _, Expr.const ``LAM _ => LessThan
-| Expr.const ``False _, Expr.bvar .. => LessThan
-| Expr.const ``False _, Expr.fvar .. => LessThan
-| Expr.const ``False _, Expr.const ``True _ => GreaterThan
+| Expr.lit .., Expr.sort .. => return LessThan
+| Expr.lit .., Expr.bvar .. => return LessThan
+| Expr.lit .., Expr.const ``False _ => return GreaterThan
+| Expr.lit .., Expr.const ``True _ => return GreaterThan
+| Expr.lit .., Expr.const .. => return LessThan
+| Expr.lit .., Expr.fvar .. => return LessThan
 
-| Expr.const ``True _, Expr.sort .. => LessThan
-| Expr.const ``True _, Expr.const ``LAM _ => LessThan
-| Expr.const ``True _, Expr.bvar .. => LessThan
-| Expr.const ``True _, Expr.fvar .. => LessThan
-| Expr.const ``True _, Expr.const ``False _ => LessThan
+| Expr.const ``False _, Expr.sort .. => return LessThan
+| Expr.const ``False _, Expr.const ``LAM _ => return LessThan
+| Expr.const ``False _, Expr.bvar .. => return LessThan
+| Expr.const ``False _, Expr.fvar .. => return LessThan
+| Expr.const ``False _, Expr.lit .. => return LessThan
+| Expr.const ``False _, Expr.const ``True _ => return GreaterThan
 
-| Expr.sort l .., Expr.sort m .. => if l == m then Equal else Incomparable -- TODO?
-| Expr.const ``LAM _, Expr.const ``LAM _ => Equal
+| Expr.const ``True _, Expr.sort .. => return LessThan
+| Expr.const ``True _, Expr.const ``LAM _ => return LessThan
+| Expr.const ``True _, Expr.bvar .. => return LessThan
+| Expr.const ``True _, Expr.fvar .. => return LessThan
+| Expr.const ``True _, Expr.lit .. => return LessThan
+| Expr.const ``True _, Expr.const ``False _ => return LessThan
+
+| Expr.sort l .., Expr.sort m .. => if l == m then return Equal else return Incomparable -- TODO?
+| Expr.const ``LAM _, Expr.const ``LAM _ => return Equal
 | Expr.bvar m .., Expr.bvar n .. => 
-  if m == n then Equal
-  else if m > n then GreaterThan
-  else if m < n then LessThan
-  else Incomparable
-| Expr.fvar m .., Expr.fvar n .. => symbolPrecCompare (Symbol.FVarId m) (Symbol.FVarId n) symbolPrecMap
-| Expr.const ``False _, Expr.const ``False _ => Equal
-| Expr.const ``True _, Expr.const ``True _ => Equal
+  if m == n then return Equal
+  else if m > n then return GreaterThan
+  else if m < n then return LessThan
+  else return Incomparable
+| Expr.fvar m .., Expr.fvar n .. => symbolPrecCompare f g (Symbol.FVarId m) (Symbol.FVarId n) symbolPrecMap
+| Expr.const ``False _, Expr.const ``False _ => return Equal
+| Expr.const ``True _, Expr.const ``True _ => return Equal
 
+| Expr.const ``LAM _, Expr.const .. => return GreaterThan
+| Expr.bvar .., Expr.const .. => return GreaterThan
+| Expr.fvar m .., Expr.const n .. => symbolPrecCompare f g (Symbol.FVarId m) (Symbol.Const n) symbolPrecMap
+| Expr.const ``True _, Expr.const .. => return LessThan
+| Expr.const ``False _, Expr.const .. => return LessThan
 
-| Expr.const ``LAM _, Expr.const .. => GreaterThan
-| Expr.bvar .., Expr.const .. => GreaterThan
-| Expr.fvar m .., Expr.const n .. => symbolPrecCompare (Symbol.FVarId m) (Symbol.Const n) symbolPrecMap
-| Expr.const ``True _, Expr.const .. => LessThan
-| Expr.const ``False _, Expr.const .. => LessThan
+| Expr.const .., Expr.const ``LAM _ => return LessThan
+| Expr.const .., Expr.bvar .. => return LessThan
+| Expr.const m .., Expr.fvar n .. => symbolPrecCompare f g (Symbol.Const m) (Symbol.FVarId n) symbolPrecMap
+| Expr.const .., Expr.const ``False _ => return GreaterThan
+| Expr.const .., Expr.const ``True _ => return GreaterThan
 
-| Expr.const .., Expr.const ``LAM _ => LessThan
-| Expr.const .., Expr.bvar .. => LessThan
-| Expr.const m .., Expr.fvar n .. => symbolPrecCompare (Symbol.Const m) (Symbol.FVarId n) symbolPrecMap
-| Expr.const .., Expr.const ``False _ => GreaterThan
-| Expr.const .., Expr.const ``True _ => GreaterThan
+| Expr.const m .., Expr.const n .. => symbolPrecCompare f g (Symbol.Const m) (Symbol.Const n) symbolPrecMap
 
-| Expr.const m .., Expr.const n .. => symbolPrecCompare (Symbol.Const m) (Symbol.Const n) symbolPrecMap
+| Expr.lit l1, Expr.lit l2 =>
+  if l1 < l2 then return LessThan
+  else if l2 < l1 then return GreaterThan
+  else return Equal
 
 | Expr.mvar v, Expr.mvar w => 
-  if v == w then Equal else Incomparable
-| _, Expr.mvar _ => Incomparable
-| Expr.mvar _, _ => Incomparable
+  if v == w then return Equal else return Incomparable
+| _, Expr.mvar _ => return Incomparable
+| Expr.mvar _, _ => return Incomparable
 | _, _ => panic! s!"precCompare: not implemented {f} <> {g}"
 
 -- Inspired by Zipperposition
@@ -284,7 +358,7 @@ where
     if wb > 0 then return (wb, vb, g_or_n)
     else if wb < 0 then return (wb, vb, l_or_n)
     else 
-      match precCompare f g symbolPrecMap with
+      match ← precCompare f g symbolPrecMap with
       | GreaterThan => return (wb, vb, g_or_n)
       | LessThan => return (wb, vb, l_or_n)
       | Equal =>
@@ -295,7 +369,7 @@ where
       | _ => return (wb, vb, Incomparable)
 --     (* recursive comparison *)
   tckbo_rec wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
-    if precCompare f g symbolPrecMap == Comparison.Equal
+    if (← precCompare f g symbolPrecMap) == Comparison.Equal
     then return ← tckbolenlex wb vb ss ts
     else
       --(* just compute variable and weight balances *)

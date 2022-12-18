@@ -122,12 +122,6 @@ def collectAssumptions (facts : Array Expr) : TacticM (List (Expr × Expr)) := d
       | _ => throwError "Could not generate equation for {fact}"
   return formulas
 
-/-- Returns the arity of e -/
-partial def getArity (e : Expr) : Nat :=
-  match e.consumeMData with
-  | Expr.forallE _ _ b _ => 1 + getArity b
-  | _ => 0
-
 /-- Updates symbolFreqArityMap to increase the count of all symbols that appear in f (and if a symbol in f appears n
     times, then updates f's result in symbolFreqMap to be n greater than it was originally). Note that as with Expr.weight,
     this function may require revision to be more similar to Zipperposition's implementation once we actually start working

@@ -45,3 +45,9 @@ def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
         | some e => pure e
         | none => Meta.mkAppOptM ``default #[ty', none]
     mkLambdaFVars xs u
+
+/-- Returns the arity of e -/
+partial def getArity (e : Expr) : Nat :=
+  match e.consumeMData with
+  | Expr.forallE _ _ b _ => 1 + getArity b
+  | _ => 0
