@@ -48,6 +48,7 @@ structure State where
   allClauses : HashMap Clause ClauseInfo := {}
   activeSet : ClauseSet := {} --TODO: put clause into only in allClauses?
   passiveSet : ClauseSet := {}
+  symbolPrecMap : SymbolPrecMap := HashMap.empty
   passiveSetAgeHeap : ClauseHeap := BinomialHeap.empty
   passiveSetWeightHeap : ClauseHeap := BinomialHeap.empty
   fairnessCounter : Nat := 0
@@ -108,6 +109,9 @@ def getActiveSet : ProverM ClauseSet :=
 def getPassiveSet : ProverM ClauseSet :=
   return (← get).passiveSet
 
+def getSymbolPrecMap : ProverM SymbolPrecMap :=
+  return (← get).symbolPrecMap
+
 def getPassiveSetAgeHeap : ProverM ClauseHeap :=
   return (← get).passiveSetAgeHeap
 
@@ -145,6 +149,9 @@ def setAllClauses (allClauses : HashMap Clause ClauseInfo) : ProverM Unit :=
 
 def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
   modify fun s => { s with passiveSet := passiveSet }
+
+def setSymbolPrecMap (symbolPrecMap : SymbolPrecMap) : ProverM Unit :=
+  modify fun s => { s with symbolPrecMap := symbolPrecMap }
 
 def setPassiveSetAgeHeap (passiveSetAgeHeap : ClauseHeap) : ProverM Unit :=
   modify fun s => { s with passiveSetAgeHeap := passiveSetAgeHeap }
@@ -278,18 +285,24 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Cont
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
-  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
+  let symbolPrecMap ← getSymbolPrecMap
+  let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap
+  let (res, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   ProverM.setMCtx state.mctx
   return res
 
 @[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (List (Clause × Proof)) := do
-  let (_, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
+  let symbolPrecMap ← getSymbolPrecMap
+  let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap
+  let (_, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return state.resultClauses
 
 @[inline] def runSimpRule (x : RuleM α) : ProverM.ProverM (α × List (Clause × Proof)) := do
-  let (res, state) ← RuleM.run x (s := {lctx := ← getLCtx, mctx := ← getMCtx})
+  let symbolPrecMap ← getSymbolPrecMap
+  let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap
+  let (res, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return (res, state.resultClauses)
 

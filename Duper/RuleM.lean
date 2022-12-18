@@ -10,7 +10,7 @@ open Lean
 open Lean.Core
 
 structure Context where
-  order : Expr → Expr → MetaM Comparison := Order.kbo
+  order : Expr → Expr → MetaM Comparison
 deriving Inhabited
 
 structure ProofParent where
@@ -48,18 +48,15 @@ instance : MonadMCtx RuleM where
   getMCtx    := return (← get).mctx
   modifyMCtx f := modify fun s => { s with mctx := f s.mctx }
 
-@[inline] def RuleM.run (x : RuleM α) (ctx : Context := {}) (s : State := {}) : CoreM (α × State) :=
+@[inline] def RuleM.run (x : RuleM α) (ctx : Context) (s : State := {}) : CoreM (α × State) :=
   x ctx |>.run s
 
-@[inline] def RuleM.run' (x : RuleM α) (ctx : Context := {}) (s : State := {}) : CoreM α :=
+@[inline] def RuleM.run' (x : RuleM α) (ctx : Context) (s : State := {}) : CoreM α :=
   Prod.fst <$> x.run ctx s
 
-@[inline] def RuleM.toIO (x : RuleM α) (ctxCore : Core.Context) (sCore : Core.State) (ctx : Context := {}) (s : State := {}) : IO (α × Core.State × State) := do
+@[inline] def RuleM.toIO (x : RuleM α) (ctxCore : Core.Context) (sCore : Core.State) (ctx : Context) (s : State := {}) : IO (α × Core.State × State) := do
   let ((a, s), sCore) ← (x.run ctx s).toIO ctxCore sCore
   pure (a, sCore, s)
-
-instance [MetaEval α] : MetaEval (RuleM α) :=
-  ⟨fun env opts x _ => MetaEval.eval env opts x.run' true⟩
 
 def getOrder : RuleM (Expr → Expr → MetaM Comparison) :=
   return (← read).order

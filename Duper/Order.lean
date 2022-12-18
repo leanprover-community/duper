@@ -10,6 +10,24 @@ inductive Comparison
 | Incomparable
 deriving BEq, Inhabited
 
+inductive Symbol
+| FVarId : FVarId → Symbol
+| Const : Name → Symbol
+deriving BEq, Inhabited, Hashable
+
+def Symbol.format : Symbol → MessageData
+  | FVarId fVarId => m!"FVarId {fVarId.name}"
+  | Const name => m!"Const {name}"
+
+def Symbol.toString : Symbol → String
+  | FVarId fVarId => s!"FVarId {fVarId.name}"
+  | Const name => s!"Const {name}"
+
+instance : ToMessageData Symbol := ⟨Symbol.format⟩
+instance : ToString Symbol := ⟨Symbol.toString⟩
+
+abbrev SymbolPrecMap := HashMap Symbol Nat -- Maps symbols to their precedence. Lower numbers indicate higher precedence
+
 namespace Comparison
 
 instance : ToMessageData Comparison := ⟨
@@ -34,14 +52,25 @@ def VarBalance.addPosVar (vb : VarBalance) (t : Expr) : VarBalance :=
 def VarBalance.addNegVar (vb : VarBalance) (t : Expr) : VarBalance :=
   vb.insert t $ vb.findD t 0 - 1
 
-def headWeight (f : Expr) : Int := match f with
-| Expr.const .. => 1
-| Expr.mvar .. => 1
-| Expr.fvar .. => 1
-| Expr.bvar .. => 1
-| Expr.sort .. => 1
-| Expr.mdata _ e => headWeight e
-| _ => panic! s!"head_weight: not implemented {f}"
+/-- Computes headWeight according to firstmaximal0 weight generation scheme. The head
+    is given weight 1 unless if the head is the unique symbol with the highest precedence in
+    symbolPrecMap -/
+def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) : Int := match f with
+  | Expr.const name _ =>
+    let fSymbol := Symbol.Const name
+    match symbolPrecMap.find? fSymbol with
+    | some 0 => 0 -- The symbol with the highest precedence in symbolPrecMap is mapped to 0
+    | _ => 1
+  | Expr.fvar fVarId =>
+    let fSymbol := Symbol.FVarId fVarId
+    match symbolPrecMap.find? fSymbol with
+    | some 0 => 0 -- The symbol with the highest precedence in symbolPrecMap is mapped to 0
+    | _ => 1
+  | Expr.mvar .. => 1
+  | Expr.bvar .. => 1
+  | Expr.sort .. => 1
+  | Expr.mdata _ e => headWeight e symbolPrecMap
+  | _ => panic! s!"head_weight: not implemented {f}"
 
 -- The orderings treat lambda-expressions like a "LAM" symbol applied to the
 -- type and body of the lambda-expression
@@ -71,28 +100,17 @@ def VarBalance.noPositives (vb : VarBalance) : Bool := Id.run do
       return False
   return True
 
-/-- A comparison function for comparing names that should be less sensitive to arbitrary changes
-    than the previous approach of simply comparing hashes. When comparing different types of names,
-    we use the convention: Anonymous < Num < Str -/
-def nameCompare (n1 : Name) (n2 : Name) : Comparison :=
-  match n1, n2 with
-  | Name.anonymous, Name.anonymous => Equal
-  | Name.num pre1 n1, Name.num pre2 n2 =>
-    if n1 < n2 then LessThan
-    else if n1 > n2 then GreaterThan
-    else nameCompare pre1 pre2
-  | Name.str pre1 s1, Name.str pre2 s2 =>
-    if s1 < s2 then LessThan
-    else if s1 > s2 then GreaterThan
-    else nameCompare pre1 pre2
-  | Name.anonymous, Name.num _ _ => LessThan
-  | Name.anonymous, Name.str _ _ => LessThan
-  | Name.num _ _, Name.anonymous => GreaterThan
-  | Name.num _ _, Name.str _ _ => LessThan
-  | Name.str _ _, Name.anonymous => GreaterThan
-  | Name.str _ _, Name.num _ _ => GreaterThan
+/-- A comparison function for comparing fvars and consts based on precomputed precedences. Note that
+    lower numbers in symbolPrecMap correspond to higher precedences -/
+def symbolPrecCompare (s1 : Symbol) (s2 : Symbol) (symbolPrecMap : SymbolPrecMap) : Comparison :=
+  match symbolPrecMap.find? s1, symbolPrecMap.find? s2 with
+  | some n1, some n2 =>
+    if n1 > n2 then LessThan -- n1 is larger than n2 so s1 has a lower precedence
+    else if n1 < n2 then GreaterThan -- n1 is smaller than n2 so s1 has a higher precedence
+    else Equal
+  | _, _ => panic! s!"symbolPrecCompare: Either {s1} or {s2} was not found in symbolPrecMap"
 
-def precCompare (f g : Expr) : Comparison := match f, g with
+def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : Comparison := match f, g with
 
 -- Sort > lam > db > quantifier > symbols > False > True 
 | Expr.sort .., Expr.const ``LAM _ => GreaterThan
@@ -138,28 +156,24 @@ def precCompare (f g : Expr) : Comparison := match f, g with
   else if m > n then GreaterThan
   else if m < n then LessThan
   else Incomparable
-| Expr.fvar m .., Expr.fvar n .. => nameCompare m.name n.name
+| Expr.fvar m .., Expr.fvar n .. => symbolPrecCompare (Symbol.FVarId m) (Symbol.FVarId n) symbolPrecMap
 | Expr.const ``False _, Expr.const ``False _ => Equal
 | Expr.const ``True _, Expr.const ``True _ => Equal
 
 
 | Expr.const ``LAM _, Expr.const .. => GreaterThan
 | Expr.bvar .., Expr.const .. => GreaterThan
-| Expr.fvar .., Expr.const .. => GreaterThan
+| Expr.fvar m .., Expr.const n .. => symbolPrecCompare (Symbol.FVarId m) (Symbol.Const n) symbolPrecMap
 | Expr.const ``True _, Expr.const .. => LessThan
 | Expr.const ``False _, Expr.const .. => LessThan
 
 | Expr.const .., Expr.const ``LAM _ => LessThan
 | Expr.const .., Expr.bvar .. => LessThan
-| Expr.const .., Expr.fvar .. => LessThan
+| Expr.const m .., Expr.fvar n .. => symbolPrecCompare (Symbol.Const m) (Symbol.FVarId n) symbolPrecMap
 | Expr.const .., Expr.const ``False _ => GreaterThan
 | Expr.const .., Expr.const ``True _ => GreaterThan
 
-| Expr.const m .., Expr.const n .. =>
-  if m == n then Equal
-  else if m.hash > n.hash then GreaterThan
-  else if m.hash < n.hash then LessThan
-  else Incomparable
+| Expr.const m .., Expr.const n .. => symbolPrecCompare (Symbol.Const m) (Symbol.Const n) symbolPrecMap
 
 | Expr.mvar v, Expr.mvar w => 
   if v == w then Equal else Incomparable
@@ -168,7 +182,7 @@ def precCompare (f g : Expr) : Comparison := match f, g with
 | _, _ => panic! s!"precCompare: not implemented {f} <> {g}"
 
 -- Inspired by Zipperposition
-partial def kbo (t1 t2 : Expr) : MetaM Comparison := do
+partial def kbo (t1 t2 : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison := do
   let (_, _, res) ← tckbo 0 HashMap.empty t1 t2
   return res
 where
@@ -187,8 +201,8 @@ where
       | h, args =>
         let wb :=
           if pos
-          then wb + headWeight h
-          else wb - headWeight h
+          then wb + headWeight h symbolPrecMap
+          else wb - headWeight h symbolPrecMap
         balance_weight_rec wb vb args s pos false
   -- (** balance_weight for the case where t is an applied variable *)
   balance_weight_var (wb : Int) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) : MetaM (Int × VarBalance × Bool) := do
@@ -262,7 +276,7 @@ where
   tckbo_composite wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
 --       (* do the recursive computation of kbo *)
     let (wb, vb, res) := ← tckbo_rec wb vb f g ss ts
-    let wb := wb + headWeight f - headWeight g
+    let wb := wb + headWeight f symbolPrecMap - headWeight g symbolPrecMap
     --(* check variable condition *)
     let g_or_n := if vb.noNegatives then GreaterThan else Incomparable
     let l_or_n := if vb.noPositives then LessThan else Incomparable
@@ -270,7 +284,7 @@ where
     if wb > 0 then return (wb, vb, g_or_n)
     else if wb < 0 then return (wb, vb, l_or_n)
     else 
-      match precCompare f g with
+      match precCompare f g symbolPrecMap with
       | GreaterThan => return (wb, vb, g_or_n)
       | LessThan => return (wb, vb, l_or_n)
       | Equal =>
@@ -281,7 +295,7 @@ where
       | _ => return (wb, vb, Incomparable)
 --     (* recursive comparison *)
   tckbo_rec wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
-    if precCompare f g == Comparison.Equal
+    if precCompare f g symbolPrecMap == Comparison.Equal
     then return ← tckbolenlex wb vb ss ts
     else
       --(* just compute variable and weight balances *)
@@ -289,7 +303,7 @@ where
       let (wb, vb, _) := ← balance_weight_rec wb vb ts none (pos := false) false
       return (wb, vb, Comparison.Incomparable)
 
-
+/-
 def test : MetaM Unit := do
   let ty := mkConst ``Nat
   let x ← mkFreshExprMVar ty
@@ -303,6 +317,7 @@ def test : MetaM Unit := do
 
 set_option trace.Meta.debug true
 #eval test
+-/
 
 end Order
 
