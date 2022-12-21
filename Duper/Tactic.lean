@@ -171,7 +171,10 @@ def evalDuper : Tactic
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
-syntax (name := duper_no_timing) "duper_no_timing" (colGt ident)? ("[" term,* "]")? : tactic
+syntax (name := duper_no_timing) "duper_no_timing" ("[" term,* "]")? : tactic
+
+macro_rules
+| `(tactic| duper_no_timing) => `(tactic| duper_no_timing [])
 
 @[tactic duper_no_timing]
 def evalDuperNoTiming : Tactic
