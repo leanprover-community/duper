@@ -1,6 +1,5 @@
 import Lean
 import Duper.Saturate
-import Duper.Unif
 
 open Lean
 open Lean.Meta
@@ -12,7 +11,6 @@ initialize
   registerTraceClass `TPTP_Testing
   registerTraceClass `Print_Proof
   registerTraceClass `Saturate.debug
-  registerTraceClass `Unary_first.debug
 
 namespace Lean.Elab.Tactic
 
@@ -122,139 +120,45 @@ def collectAssumptions (facts : Array Expr) : TacticM (List (Expr × Expr)) := d
       | _ => throwError "Could not generate equation for {fact}"
   return formulas
 
-/-- Updates symbolFreqArityMap to increase the count of all symbols that appear in f (and if a symbol in f appears n
-    times, then updates f's result in symbolFreqMap to be n greater than it was originally). Note that as with Expr.weight,
-    this function may require revision to be more similar to Zipperposition's implementation once we actually start working
-    on higher order things. -/
-partial def updateSymbolFreqArityMap (f : Expr) (symbolFreqArityMap : HashMap Symbol (Nat × Nat)) :
-  TacticM (HashMap Symbol (Nat × Nat)) := do
-  match f with
-  | Expr.fvar fVarId =>
-    let fSymbol := Symbol.FVarId fVarId
-    match symbolFreqArityMap.find? fSymbol with
-    | some (fFreq, fArity) => return symbolFreqArityMap.insert fSymbol (fFreq + 1, fArity)
-    | none =>
-      match (← getLCtx).fvarIdToDecl.find? fVarId with
-      | some fDecl =>
-        let fType := LocalDecl.type fDecl
-        return symbolFreqArityMap.insert fSymbol (1, getArity fType)
-      | none => throwError s!"Unable to find {fVarId.name} in local context"
-  | Expr.const name _ =>
-    let fSymbol := Symbol.Const name
-    match symbolFreqArityMap.find? fSymbol with
-    | some (fFreq, fArity) => return symbolFreqArityMap.insert fSymbol (fFreq + 1, fArity)
-    | none =>
-      let fType ← inferType f
-      return symbolFreqArityMap.insert fSymbol (1, getArity fType)
-  | Expr.app f1 f2 =>
-    let symbolFreqMap' ← updateSymbolFreqArityMap f1 symbolFreqArityMap
-    updateSymbolFreqArityMap f2 symbolFreqMap'
-  | Expr.lam _ t b _ =>
-    let symbolFreqArityMap' ← updateSymbolFreqArityMap t symbolFreqArityMap
-    updateSymbolFreqArityMap b symbolFreqArityMap'
-  | Expr.forallE _ t b _ =>
-    let symbolFreqArityMap' ← updateSymbolFreqArityMap t symbolFreqArityMap
-    updateSymbolFreqArityMap b symbolFreqArityMap'
-  | Expr.letE _ _ v b _ =>
-    let symbolFreqMap' ← updateSymbolFreqArityMap v symbolFreqArityMap
-    updateSymbolFreqArityMap b symbolFreqMap'
-  | Expr.proj _ _ b => updateSymbolFreqArityMap b symbolFreqArityMap
-  | Expr.mdata _ b => updateSymbolFreqArityMap b symbolFreqArityMap
-  | Expr.sort .. => return symbolFreqArityMap
-  | Expr.mvar .. => return symbolFreqArityMap
-  | Expr.bvar .. => return symbolFreqArityMap
-  | Expr.lit .. => return symbolFreqArityMap
-
-/-- Builds a HashMap that maps each symbol to a tuple containing:
-    - The number of times they appear in formulas
-    - Its arity -/
-partial def buildSymbolFreqArityMap (formulas : List Expr) : TacticM (HashMap Symbol (Nat × Nat)) := do
-  let mut symbolFreqArityMap := HashMap.empty
-  for f in formulas do
-    symbolFreqArityMap ← updateSymbolFreqArityMap f symbolFreqArityMap
-  trace[Unary_first.debug] "symbolFreqArityMap: {symbolFreqArityMap.toArray}"
-  return symbolFreqArityMap
-
-/-- Builds the symbolPrecMap from the input assumptions. Note that lower numbers in the symbol prec
-    map correspond to higher precedences (so that symbol s is maximal iff s maps to 0) -/
-def buildSymbolPrecMap (formulas : List Expr) : TacticM SymbolPrecMap := do
-  let symbolFreqArityMap ← buildSymbolFreqArityMap formulas
-  let mut symbolPrecArr : Array (Symbol × Nat × Nat) := #[]
-  let lctx ← getLCtx
-  -- unaryFirstGt sorts implements the greater-than test for the unary_first precedence generation scheme
-  let unaryFirstGt : (Symbol × Nat × Nat) → (Symbol × Nat × Nat) → Bool :=
-    fun (s1, s1Freq, s1Arity) (s2, s2Freq, s2Arity) =>
-      if s1Arity == 1 && s2Arity != 1 then true
-      else if s2Arity == 1 && s1Arity != 1 then false
-      else if s1Arity > s2Arity then true
-      else if s2Arity > s1Arity then false
-      else -- s1Arity == s2Arity, so use frequency as a tie breaker (rarer symbols have greater precedence)
-        if s1Freq < s2Freq then true
-        else if s2Freq < s1Freq then false
-        else -- Array.binInsert requires the lt define a total (rather than merely partial) ordering, so tiebreak by symbol
-          match s1, s2 with
-          | Symbol.FVarId _, Symbol.Const _ => true
-          | Symbol.Const _, Symbol.FVarId _ => false
-          | Symbol.Const c1, Symbol.Const c2 => c1.toString < c2.toString
-          | Symbol.FVarId fVarId1, Symbol.FVarId fVarId2 =>
-              -- Tiebreaking fVarId1 and fVarId2 by name would cause duper's behavior to depend on the environment in unexpected ways,
-              -- so we instead tiebreak based on whether fVarId1 or fVarId2 appears first in the local context
-              match lctx.fvarIdToDecl.toList.find? (fun (fVarId, _) => fVarId == fVarId1 || fVarId == fVarId2) with
-              | some (firstFVarId, _) =>
-                if firstFVarId == fVarId1 then true
-                else false
-              | none => false -- This case isn't possible because fVarId1 and fVarId2 must both appear in the local context
-  for (s, sFreq, sArity) in symbolFreqArityMap.toArray do
-    -- We use unaryFirstGt as the lt argument for binInsert so that symbols with higher precedence come first in symbolPrecArray
-    symbolPrecArr := symbolPrecArr.binInsert unaryFirstGt (s, sFreq, sArity)
-  trace[Unary_first.debug] "symbolPrecArr: {symbolPrecArr}"
-  let mut symbolPrecMap := HashMap.empty
-  let mut counter := 0
-  for (s, _, _) in symbolPrecArr do
-    symbolPrecMap := symbolPrecMap.insert s counter -- Map s to its index in symbolPrecArr
-    counter := counter + 1
-  trace[Unary_first.debug] "symbolPrecMap: {symbolPrecMap.toArray}"
-  return symbolPrecMap
-
 syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
 
 macro_rules
 | `(tactic| duper) => `(tactic| duper [])
 
+def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := do
+  let formulas ← collectAssumptions (← facts.getElems.mapM (elabTerm . none))
+  trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
+  let (_, state) ←
+    ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx})
+      ProverM.clausifyThenSaturate
+      formulas
+  return state
+
 @[tactic duper]
 def evalDuper : Tactic
 | `(tactic| duper [$facts,*]) => withMainContext do
   let startTime ← IO.monoMsNow
-  Elab.Tactic.evalTactic
-    (← `(tactic| intros; apply Classical.byContradiction _; intro))
+  Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions (← facts.getElems.mapM (elabTerm . none))
-    trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
-    let symbolPrecMap ← buildSymbolPrecMap (formulas.map (fun (formula, _) => formula))
-    let (_, state) ←
-      ProverM.runWithExprs (s := {symbolPrecMap := symbolPrecMap, lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
+    let state ← runDuper facts
     match state.result with
     | Result.contradiction => do
-        logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
-        trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-        printProof state
-        applyProof state
-        logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
-    | Result.saturated => 
+      logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
+      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
+      printProof state
+      applyProof state
+      logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+    | Result.saturated =>
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident [$facts,*]) => withMainContext do
-  Elab.Tactic.evalTactic
-    (← `(tactic| intros; apply Classical.byContradiction _; intro))
+  Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions (← facts.getElems.mapM (elabTerm . none))
-    let symbolPrecMap ← buildSymbolPrecMap (formulas.map (fun (formula, _) => formula))
-    let (_, state) ←
-      ProverM.runWithExprs (s := {symbolPrecMap := symbolPrecMap, lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
+    let state ← runDuper facts
     match state.result with
-    | Result.contradiction => do 
+    | Result.contradiction => do
       logInfo s!"{ident} test succeeded in finding a contradiction"
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
       printProof state
@@ -267,26 +171,21 @@ def evalDuper : Tactic
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
-syntax (name := duper_no_timing) "duper_no_timing" : tactic
+syntax (name := duper_no_timing) "duper_no_timing" (colGt ident)? ("[" term,* "]")? : tactic
 
 @[tactic duper_no_timing]
 def evalDuperNoTiming : Tactic
-| `(tactic| duper_no_timing) => withMainContext do
-  Elab.Tactic.evalTactic
-    (← `(tactic| intros; apply Classical.byContradiction _; intro))
+| `(tactic| duper_no_timing [$facts,*]) => withMainContext do
+  Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let formulas ← collectAssumptions #[]
-    trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
-    let symbolPrecMap ← buildSymbolPrecMap (formulas.map (fun (formula, _) => formula))
-    let (_, state) ←
-      ProverM.runWithExprs (s := {symbolPrecMap := symbolPrecMap, lctx := ← getLCtx, mctx := ← getMCtx}) ProverM.saturate formulas
+    let state ← runDuper facts
     match state.result with
     | Result.contradiction => do
-        logInfo s!"Contradiction found"
-        trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-        printProof state
-        applyProof state
-        logInfo s!"Constructed proof"
+      logInfo s!"Contradiction found"
+      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
+      printProof state
+      applyProof state
+      logInfo s!"Constructed proof"
     | Result.saturated =>
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"

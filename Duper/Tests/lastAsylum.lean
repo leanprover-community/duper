@@ -44,7 +44,7 @@ theorem asylum_one
 theorem asylum_seven
   (h1 : Sane A ↔ ¬ Sane B)
   (h2 : Sane B ↔ Doctor A)
-  : (¬ Sane A ∨ Doctor A) ∨ (Sane A ∧ ¬ Doctor A) := by duper
+  : (¬ Sane A ∧ Doctor A) ∨ (Sane A ∧ ¬ Doctor A) := by duper
 
 #print axioms asylum_seven
 

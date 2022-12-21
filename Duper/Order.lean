@@ -55,23 +55,33 @@ def VarBalance.addNegVar (vb : VarBalance) (t : Expr) : VarBalance :=
 
 /-- Computes headWeight according to firstmaximal0 weight generation scheme. The head
     is given weight 1 unless if the head is the unique symbol with the highest precedence in
-    symbolPrecMap -/
-def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) : Int := match f with
+    symbolPrecMap, in which case, it is given weight 0.
+
+    Note: In order to make the firstmaximal0 weight generation scheme compliant with KBO, if
+    the highest precedence symbol has arity 0 (i.e. is a first-order 'constant'), then I cannot
+    assign the highest precedence symbol weight 0 (because this would violate KBO's constraint
+    that all first-order 'constants' share some positive weight μ). In this case, I simply assign
+    the highest precedence symbol weight 1, as with everything else. -/
+def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : Int := match f with
   | Expr.const name _ =>
     let fSymbol := Symbol.Const name
     match symbolPrecMap.find? fSymbol with
-    | some 0 => 0 -- The symbol with the highest precedence in symbolPrecMap is mapped to 0
+    | some 0 => -- The symbol with the highest precedence in symbolPrecMap is mapped to 0 (unless it has arity zero)
+      if highesetPrecSymbolHasArityZero then 1
+      else 0
     | _ => 1
   | Expr.fvar fVarId =>
     let fSymbol := Symbol.FVarId fVarId
     match symbolPrecMap.find? fSymbol with
-    | some 0 => 0 -- The symbol with the highest precedence in symbolPrecMap is mapped to 0
+    | some 0 => -- The symbol with the highest precedence in symbolPrecMap is mapped to 0 (unless it has arity zero)
+      if highesetPrecSymbolHasArityZero then 1
+      else 0
     | _ => 1
   | Expr.mvar .. => 1
   | Expr.bvar .. => 1
   | Expr.sort .. => 1
   | Expr.lit .. => 1
-  | Expr.mdata _ e => headWeight e symbolPrecMap
+  | Expr.mdata _ e => headWeight e symbolPrecMap highesetPrecSymbolHasArityZero
   | _ => panic! s!"head_weight: not implemented {f}"
 
 -- The orderings treat lambda-expressions like a "LAM" symbol applied to the
@@ -108,6 +118,8 @@ def nameCompare (n1 : Name) (n2 : Name) : Comparison :=
   match n1, n2 with
   | Name.anonymous, Name.anonymous => Equal
   | Name.num pre1 n1, Name.num pre2 n2 =>
+    -- For completeness, it is important that newer skolems have higher precedence than older skolems. Fortunately,
+    -- newer skolems also have larger numbers at the end, so simply comparing the numbers at the end works.
     if n1 < n2 then LessThan
     else if n1 > n2 then GreaterThan
     else nameCompare pre1 pre2
@@ -126,13 +138,20 @@ def nameCompare (n1 : Name) (n2 : Name) : Comparison :=
     correspond to higher precedences. e1 is the expression that produces symbol s1 and e2 is the expression that produces symbol s2
     (e1 and e2 need to be included in addition to s1 and s2 in case if we need to determine the arity of e1 or e2) -/
 def symbolPrecCompare (e1 : Expr) (e2 : Expr) (s1 : Symbol) (s2 : Symbol) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison :=
-  -- Note: We don't need hardcode checks to see if e1 or e2 is True/False because precCompare already checks for that
+  /-
+    Note: We don't need hardcode checks to see if e1 or e2 is True/False because precCompare already checks for that
+
+    However, we do need to hardcode that the highest precedence symbol in symbolPrecMap has the highest precedence symbol overall
+    so that the firstmaximal0 weight generation scheme can determine if a symbol is maximal simply by checking whether it maps
+    to 0 in symbolPrecMap
+  -/
   match symbolPrecMap.find? s1, symbolPrecMap.find? s2 with
   | some n1, some n2 =>
     if n1 > n2 then return LessThan -- n1 is larger than n2 so s1 has a lower precedence
     else if n1 < n2 then return GreaterThan -- n1 is smaller than n2 so s1 has a higher precedence
     else return Equal
-  | some _, none => do
+  | some n, none => do
+    if n == 0 then return GreaterThan -- Hardcode that the highest precedence symbol in symbolPrecMap has the highest precedence overall
     -- Unary symbols > Large arity symbols > Small arity symbols (unary_first precedence rule)
     -- If arity is shared, symbols in symbolPrecMap have greater precedence than symbols not in symbolPrecMap
     let s1Type ← inferType e1
@@ -144,7 +163,8 @@ def symbolPrecCompare (e1 : Expr) (e2 : Expr) (s1 : Symbol) (s2 : Symbol) (symbo
     else if s1Arity > s2Arity then return GreaterThan
     else if s2Arity > s1Arity then return LessThan
     else return GreaterThan -- Arity is the same, tiebreak by preferring s1 which is in symbolPrecMap
-  | none, some _ => do
+  | none, some n => do
+    if n == 0 then return LessThan -- Hardcode that the highest precedence symbol in symbolPrecMap has the highest precedence overall
     -- Unary symbols > Large arity symbols > Small arity symbols (unary_first precedence rule)
     -- If arity is shared, symbols in symbolPrecMap have greater precedence than symbols not in symbolPrecMap
     let s1Type ← inferType e1
@@ -256,7 +276,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | _, _ => panic! s!"precCompare: not implemented {f} <> {g}"
 
 -- Inspired by Zipperposition
-partial def kbo (t1 t2 : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison := do
+partial def kbo (t1 t2 : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
   let (_, _, res) ← tckbo 0 HashMap.empty t1 t2
   return res
 where
@@ -275,8 +295,8 @@ where
       | h, args =>
         let wb :=
           if pos
-          then wb + headWeight h symbolPrecMap
-          else wb - headWeight h symbolPrecMap
+          then wb + headWeight h symbolPrecMap highesetPrecSymbolHasArityZero
+          else wb - headWeight h symbolPrecMap highesetPrecSymbolHasArityZero
         balance_weight_rec wb vb args s pos false
   -- (** balance_weight for the case where t is an applied variable *)
   balance_weight_var (wb : Int) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) : MetaM (Int × VarBalance × Bool) := do
@@ -350,7 +370,7 @@ where
   tckbo_composite wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
 --       (* do the recursive computation of kbo *)
     let (wb, vb, res) := ← tckbo_rec wb vb f g ss ts
-    let wb := wb + headWeight f symbolPrecMap - headWeight g symbolPrecMap
+    let wb := wb + headWeight f symbolPrecMap highesetPrecSymbolHasArityZero - headWeight g symbolPrecMap highesetPrecSymbolHasArityZero
     --(* check variable condition *)
     let g_or_n := if vb.noNegatives then GreaterThan else Incomparable
     let l_or_n := if vb.noPositives then LessThan else Incomparable
@@ -376,22 +396,6 @@ where
       let (wb, vb, _) := ← balance_weight_rec wb vb ss none (pos := true) false
       let (wb, vb, _) := ← balance_weight_rec wb vb ts none (pos := false) false
       return (wb, vb, Comparison.Incomparable)
-
-/-
-def test : MetaM Unit := do
-  let ty := mkConst ``Nat
-  let x ← mkFreshExprMVar ty
-  let y ← mkFreshExprMVar ty
-  let s := mkApp2 (mkConst ``Nat.sub) x x
-  let t := mkApp2 (mkConst ``Nat.add) x y
-  let res ← kbo s t
-  trace[Meta.debug] "s: {s}"
-  trace[Meta.debug] "t: {t}"
-  trace[Meta.debug] "res: {res}"
-
-set_option trace.Meta.debug true
-#eval test
--/
 
 end Order
 

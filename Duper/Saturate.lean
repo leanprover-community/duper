@@ -4,6 +4,7 @@ import Duper.Util.Iterate
 import Duper.RuleM
 import Duper.MClause
 import Duper.Simp
+import Duper.Preprocessing
 import Duper.Rules.ClauseSubsumption
 import Duper.Rules.Clausification
 import Duper.Rules.ClausifyPropEq
@@ -142,8 +143,16 @@ partial def saturate : ProverM Unit := do
       return LoopCtrl.abort
     | e =>
       trace[Timeout.debug] "Active set at timeout: {(← getActiveSet).toArray}"
-      --trace[Timeout.debug] "All clauses at timeout: {Array.map (fun x => x.1) (← getAllClauses).toArray}"
+      -- trace[Timeout.debug] "All clauses at timeout: {Array.map (fun x => x.1) (← getAllClauses).toArray}"
       throw e
+
+def clausifyThenSaturate : ProverM Unit := do
+  Core.withCurrHeartbeats $
+    preprocessingClausification;
+    let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getPassiveSet).toList;
+    setSymbolPrecMap symbolPrecMap;
+    setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
+    saturate
 
 end ProverM
 
