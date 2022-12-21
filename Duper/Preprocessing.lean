@@ -25,30 +25,31 @@ initialize
     clausification will ensure that ¬ is not selected as the unary symbol with highest precedence) -/
 partial def preprocessingClausification : ProverM Unit := do
   Core.withCurrHeartbeats do
-    let mut clausified : ClauseSet := HashSet.empty -- A ClauseSet for storing the clauses that have been fully clausified
+    let mut clausified : Array Clause := #[] -- An array for storing the clauses that have been fully clausified
     try
       Core.checkMaxHeartbeats "preprocessingClausification"
       let mut moreToClausify := true
-      let mut internalCounter := 0
       while moreToClausify do
-        internalCounter := internalCounter + 1
         match ← chooseGivenClause with
         | some givenClause =>
-          match ← clausificationStep.toSimpRule givenClause with
-          | Applied c => addClausifiedToPassive c -- Add c back to the passive set for further clausification
-          | Removed => continue
-          | Unapplicable => clausified := clausified.insert givenClause
+          let rec clausifyToFixedPoint (c : Clause) : ProverM (Option Clause) := do
+            match ← clausificationStep.toSimpRule c with
+            | Applied c' => clausifyToFixedPoint c'
+            | Removed => return none
+            | Unapplicable => return some c
+          match ← clausifyToFixedPoint givenClause with
+          | none => continue
+          | some clausifiedGivenClause => clausified := clausified.push clausifiedGivenClause
         | none => moreToClausify := false
       -- Return everything in clausified back to the passive set
-      trace[Preprocessing.debug] "Clausified set after preprocessing: {clausified.toArray}"
-      trace[Preprocessing.debug] "Internal counter: {internalCounter}"
+      trace[Preprocessing.debug] "Clausified after preprocessing: {clausified}"
       for c in clausified do
         addClausifiedToPassive c
     catch
     | e =>
       trace[Timeout.debug] "Timed out during preprocessingClausification"
       trace[Timeout.debug] "Passive set: {(← getPassiveSet).toArray}"
-      trace[Timeout.debug] "Clausified: {clausified.toArray}"
+      trace[Timeout.debug] "Clausified: {clausified}"
       throw e
 
 /-- Updates symbolFreqArityMap to increase the count of all symbols that appear in f (and if a symbol in f appears n
