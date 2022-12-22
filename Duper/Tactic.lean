@@ -130,7 +130,7 @@ def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := do
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←
     ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx})
-      ProverM.clausifyThenSaturate
+      ProverM.saturateNoPreprocessingClausification
       formulas
   return state
 

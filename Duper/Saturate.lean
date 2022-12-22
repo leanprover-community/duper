@@ -154,6 +154,13 @@ def clausifyThenSaturate : ProverM Unit := do
     setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
     saturate
 
+def saturateNoPreprocessingClausification : ProverM Unit := do
+  Core.withCurrHeartbeats $ do
+    let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getPassiveSet).toList;
+    setSymbolPrecMap symbolPrecMap;
+    setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
+    saturate
+
 end ProverM
 
 end Duper
