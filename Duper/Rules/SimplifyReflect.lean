@@ -11,8 +11,6 @@ open SimpResult
 open Comparison
 initialize Lean.registerTraceClass `Rule.simplifyReflect
 
--- NOTE: mkPositiveSimplifyReflectProof is currently buggy (e.g. it will result in a bad proof for KRS140+1 if `Inhabited TPTP.iota` is provided
--- and the positive simplify reflect rules are enabled)
 def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Bool) (premises : List Expr) (parents : List ProofParent)
   (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
@@ -32,10 +30,19 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
         let lit := mainParentLits[i]!
         let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           if(i == mainPremisePos.lit) then
-            if (mainPremisePos.side == LitSide.lhs) then -- lhs of side premise is matched onto lhs of main premise, so no Eq.symm needed
-              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ mkApp h appliedSidePremise
-            else -- lhs of side premise is matched onto rhs of main premise, so we do need an Eq.symm
-              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ mkApp h $ ← Meta.mkAppM ``Eq.symm #[appliedSidePremise]
+            let motiveTy ← inferType (lit.lhs.getAtPos! mainPremisePos.pos)
+            if mainPremisePos.side == LitSide.lhs then -- the lhs of the side clause can be matched onto mainPremisePos.pos of lit.lhs
+              let motive :=
+                mkLambda .anonymous BinderInfo.default motiveTy $
+                  mkAppN (mkConst ``Ne [lit.lvl]) #[lit.ty, ← lit.lhs.replaceAtPos! mainPremisePos.pos (Expr.bvar 0), lit.rhs]
+              let hAfterRw ← Meta.mkAppOptM ``Eq.ndrec #[none, none, motive, h, none, appliedSidePremise]
+              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ ← Meta.mkAppM' hAfterRw #[← Meta.mkAppM ``Eq.refl #[lit.rhs]]
+            else -- the lhs of the side clause can be matched onto mainPremisePos.pos of lit.rhs
+              let motive :=
+                mkLambda .anonymous BinderInfo.default motiveTy $
+                  mkAppN (mkConst ``Ne [lit.lvl]) #[lit.ty, lit.lhs, ← lit.rhs.replaceAtPos! mainPremisePos.pos (Expr.bvar 0)]
+              let hAfterRw ← Meta.mkAppOptM ``Eq.ndrec #[none, none, motive, h, none, appliedSidePremise]
+              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ ← Meta.mkAppM' hAfterRw #[← Meta.mkAppM ``Eq.refl #[lit.lhs]]
           else if (i < mainPremisePos.lit) then
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i h
           else -- i > mainPremisePos.lit, so we have to adjust for the off-by-one error by giving orIntro `i - 1` rather than `i`
@@ -46,8 +53,8 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
     let proof ← Meta.mkLambdaFVars xs $ mkApp proof appliedSidePremise
     return proof
 
-/-- Checks that (getAtPos mainPremise[pos.lit].lhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseLhs and that 
-    (getAtPos mainPremise[pos.lit].rhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseRhs. Importantly, this function
+/-- Checks that (getAtPos mainPremiseLit.lhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseLhs and that
+    (getAtPos mainPremiseLit.rhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseRhs. Importantly, this function
     does NOT check mainPremise[pos.lit].sign or that mainPremise[pos.lit].lhs and mainPremise[pos.lit].rhs agree outside of the given pos. -/
 def forwardPositiveSimplifyReflectWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId)
   (mainPremisePos : ClausePos) (sidePremise : Clause) : RuleM Bool := do
@@ -136,8 +143,8 @@ def backwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
             The lit mainClause[pos.lit] can be expressed as u[p ← σ(s)] ≠ u[p ← σ(t)] if and only if the following holds:
             1. mainClause[pos.lit].sign is false
             2. mainClause[pos.lit].lhs and mainClause[pos.lit].rhs are identical everywhere except at p
-            3. s (the lhs of the side clause) can be matched onto position p of mainClause[pos.lit].lhs
-            4. t (the rhs of the side clause) can be matched onto position p of mainClause[pos.lit].rhs
+            3. s (the lhs of the side clause) can be matched onto position p of mainClauseLit.lhs
+            4. t (the rhs of the side clause) can be matched onto position p of mainClauseLit.rhs
           -/
           let sidesAgree := Expr.expressionsAgreeExceptAtPos mainClause.lits[pos.lit]!.lhs mainClause.lits[pos.lit]!.rhs pos.pos
           if(!mainClause.lits[pos.lit]!.sign && sidesAgree) then

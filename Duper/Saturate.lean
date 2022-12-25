@@ -58,7 +58,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
     (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule,
     (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule,
-    -- (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule
+    (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule,
     -- TODO: Forward negative simplify reflect
     -- Higher order rules
     boolHoist.toSimpRule
@@ -68,8 +68,8 @@ def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
   return #[
     (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule,
     (backwardClauseSubsumption (← getSubsumptionTrie)).toBackwardSimpRule,
-    (backwardEqualitySubsumption (← getSubsumptionTrie)).toBackwardSimpRule
-    -- (backwardPositiveSimplifyReflect (← getSubsumptionTrie)).toBackwardSimpRule
+    (backwardEqualitySubsumption (← getSubsumptionTrie)).toBackwardSimpRule,
+    (backwardPositiveSimplifyReflect (← getSubsumptionTrie)).toBackwardSimpRule
     -- TODO: Backward negative simplify reflect
   ]
 

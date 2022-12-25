@@ -361,6 +361,15 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
   by duper
 
 #print PUZ012_1
+--###############################################################################################################################
+-- Tests that (in the current commit at least) use positive simplify reflect
+set_option trace.Rule.simplifyReflect true in
+tptp NUN004_5 "../TPTP-v8.0.0/Problems/NUN/NUN004_5.p"
+  by duper
+
+set_option trace.Rule.simplifyReflect true in
+tptp ITP209_2 "../TPTP-v8.0.0/Problems/ITP/ITP209_2.p"
+  by duper
 
 --###############################################################################################################################
 -- Example from super

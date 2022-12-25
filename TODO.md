@@ -64,8 +64,6 @@ Clausification
 - Tseitin transformation?
 
 Heuristics:
-- LPO Ordering
-- Precedence heuristics for ordering
 - Literal selection heuristics
 - Next given clause heuristics
 
