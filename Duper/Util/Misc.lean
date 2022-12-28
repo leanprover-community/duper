@@ -51,3 +51,43 @@ partial def getArity (e : Expr) : Nat :=
   match e.consumeMData with
   | Expr.forallE _ _ b _ => 1 + getArity b
   | _ => 0
+
+/-- Abstracts occurences of `p` in `e`. Previously, `Meta.kabstract` was used for this purpose, but because
+    `Meta.kabstract` invokes definitional equality, there were some instances in which `Meta.kabstract` performed
+    an abstraction at a position where `RuleM.replace` would not perform a replacement. This was an issue because it
+    created inconsistencies between the clauses produced by superposition's main code and proof reconstruction.
+    
+    `abstractAtExpr` is written to follow the implementation of `Meta.kabstract` without invoking definitional equality
+    (instead testing for equality after instantiating metavariables).  -/
+def Lean.Meta.abstractAtExpr (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
+  let e ← Lean.instantiateMVars e
+  let p ← Lean.instantiateMVars p
+  if p.isFVar && occs == Occurrences.all then
+    return e.abstract #[p] -- Easy case
+  else
+    let pHeadIdx := p.toHeadIndex
+    let pNumArgs := p.headNumArgs
+    let rec visit (e : Expr) (offset : Nat) : StateRefT Nat MetaM Expr := do
+      let visitChildren : Unit → StateRefT Nat MetaM Expr := fun _ => do
+        match e with
+        | .app f a         => return e.updateApp! (← visit f offset) (← visit a offset)
+        | .mdata _ b       => return e.updateMData! (← visit b offset)
+        | .proj _ _ b      => return e.updateProj! (← visit b offset)
+        | .letE _ t v b _  => return e.updateLet! (← visit t offset) (← visit v offset) (← visit b (offset+1))
+        | .lam _ d b _     => return e.updateLambdaE! (← visit d offset) (← visit b (offset+1))
+        | .forallE _ d b _ => return e.updateForallE! (← visit d offset) (← visit b (offset+1))
+        | e                => return e
+      if e.hasLooseBVars then
+        visitChildren ()
+      else if e.toHeadIndex != pHeadIdx || e.headNumArgs != pNumArgs then
+        visitChildren ()
+      else if e == p then -- e and p have already had their metavariables instantiated at the beginning of abstrAtExpr
+        let i ← get
+        set (i+1)
+        if occs.contains i then
+          return mkBVar offset
+        else
+          visitChildren ()
+      else
+        visitChildren ()
+    visit e 0 |>.run' 1

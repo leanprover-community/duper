@@ -1,6 +1,7 @@
 import Duper.ProverM
 import Duper.RuleM
 import Duper.Selection
+import Duper.Util.Misc
 import Duper.Util.ProofReconstruction
 
 namespace Duper
@@ -81,7 +82,7 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
             let lit := mainParentLits[i]!
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
-              let abstr ← Meta.kabstract lit.toExpr $ eqLit.getSide sidePremiseLitSide
+              let abstr ← Lean.Meta.abstractAtExpr lit.toExpr $ eqLit.getSide sidePremiseLitSide
               let abstr := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstr
               let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,eq], h]
               Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
