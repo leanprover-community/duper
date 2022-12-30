@@ -53,6 +53,39 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
     let proof ← Meta.mkLambdaFVars xs $ mkApp proof appliedSidePremise
     return proof
 
+def mkNegativeSimplifyReflectProof (mainPremiseLitIdx : Nat) (mainPremiseLhs : LitSide) (isForward : Bool) (premises : List Expr)
+  (parents : List ProofParent) (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
+    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+
+    let mainParentLits := if isForward then parentsLits[1]! else parentsLits[0]!
+    let sideParentLits := if isForward then parentsLits[0]! else parentsLits[1]!
+    let appliedMainPremise := if isForward then appliedPremises[1]! else appliedPremises[0]!
+    let appliedSidePremise := if isForward then appliedPremises[0]! else appliedPremises[1]!
+
+    let neLit := sideParentLits[0]!
+
+    let proof ← Meta.withLocalDeclD `hne neLit.toExpr fun hne => do
+      let mut caseProofs : Array Expr := Array.mkEmpty mainParentLits.size
+      for i in [:mainParentLits.size] do
+        let lit := mainParentLits[i]!
+        let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          if(i == mainPremiseLitIdx) then
+            if mainPremiseLhs == LitSide.lhs then
+              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ mkApp appliedSidePremise h
+            else
+              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ mkApp (← Meta.mkAppM ``Ne.symm #[appliedSidePremise]) h
+          else if (i < mainPremiseLitIdx) then
+            Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i h
+          else -- i > mainPremisePos.lit, so we have to adjust for the off-by-one error by giving orIntro `i - 1` rather than `i`
+            Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) (i - 1) h
+        caseProofs := caseProofs.push $ pr
+      let r ← orCases (mainParentLits.map Lit.toExpr) caseProofs
+      Meta.mkLambdaFVars #[hne] $ mkApp r appliedMainPremise
+    let proof ← Meta.mkLambdaFVars xs $ mkApp proof appliedSidePremise
+    return proof
+
 /-- Checks that (getAtPos mainPremiseLit.lhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseLhs and that
     (getAtPos mainPremiseLit.rhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseRhs. Importantly, this function
     does NOT check mainPremise[pos.lit].sign or that mainPremise[pos.lit].lhs and mainPremise[pos.lit].rhs agree outside of the given pos. -/
@@ -70,7 +103,7 @@ def forwardPositiveSimplifyReflectWithPartner (mainPremise : MClause) (mainPremi
       for i in [:mainPremise.lits.size] do
         if i = mainPremisePos.lit then continue
         else mainPremiseLitsExceptSimplifiedLit := mainPremise.lits[i]! :: mainPremiseLitsExceptSimplifiedLit
-      let res := MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray
+      let res := MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray.reverse
       yieldClause res
         "forward positive simplify reflect"
         (some $ mkPositiveSimplifyReflectProof mainPremisePos true)
@@ -84,8 +117,7 @@ def forwardPositiveSimplifyReflectAtExpr (mainPremise : MClause) (pos : ClausePo
   for sideClause in potentialSideClauses do
     match ← forwardPositiveSimplifyReflectWithPartner mainPremise mainMVarIds pos sideClause with
     | false => continue
-    | true =>
-      return true
+    | true => return true
   return false
 
 /-- Performs positive simplifyReflect with the given clause c as the main clause -/
@@ -95,6 +127,7 @@ def forwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRu
   let fold_fn := fun acc _ pos => do
     match acc with
     | false =>
+      if c.lits[pos.lit]!.sign then return false -- Can only perform positive simplify reflect at negative literals
       -- To find potential side clauses for the current literal, we search for clauses that subsume curLitButPositive
       let curLitButPositive := {c.lits[pos.lit]! with sign := true}
       let potentialSideClauses ← subsumptionTrie.getPotentialSubsumingClauses ⟨#[], #[curLitButPositive]⟩
@@ -107,20 +140,55 @@ def forwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRu
         Conditions 1 and 2 are checked here, conditions 3 and 4 are checked in forwardPositiveSimplifyReflectAtExpr.
       -/
       let sidesAgree := Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
-      if(!c.lits[pos.lit]!.sign && sidesAgree) then
-        forwardPositiveSimplifyReflectAtExpr c pos potentialSideClauses cMVarIds
+      if sidesAgree then forwardPositiveSimplifyReflectAtExpr c pos potentialSideClauses cMVarIds
       else return false
     | true => return true
   -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
   -- rather than just green ones
   c.foldGreenM fold_fn false
 
+def forwardNegativeSimplifyReflectWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId)
+  (sidePremise : Clause) (mainPremiseLitIdx : Nat) (mainPremiseLhs : LitSide) : RuleM Bool := do
+  withoutModifyingLoadedClauses do
+    let sidePremise ← loadClause sidePremise
+    let sidePremiseLit := sidePremise.lits[0]!
+    let mainPremiseLit := mainPremise.lits[mainPremiseLitIdx]!.makeLhs mainPremiseLhs
+    let matchSuccess ← -- Try to match lhs of sidePremise to mainPremiseLhs of mainPremise and rhs of sidePremise to other side of main premise
+      RuleM.performMatch #[(mainPremiseLit.lhs, sidePremiseLit.lhs), (mainPremiseLit.rhs, sidePremiseLit.rhs)] mainPremiseMVarIds
+    if matchSuccess then
+      let mut mainPremiseLitsExceptSimplifiedLit : List Lit := []
+      for i in [:mainPremise.lits.size] do
+        if i = mainPremiseLitIdx then continue
+        else mainPremiseLitsExceptSimplifiedLit := mainPremise.lits[i]! :: mainPremiseLitsExceptSimplifiedLit
+      let res := MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray.reverse
+      yieldClause res
+        "forward negative simplify reflect"
+        (some $ mkNegativeSimplifyReflectProof mainPremiseLitIdx mainPremiseLhs true)
+      trace[Rule.simplifyReflect] "(forward negative): Main clause: {mainPremise.lits}, side clause: {sidePremise.lits}, res: {res.lits}"
+      return true
+    else return false
+
+def forwardNegativeSimplifyReflectAtLit (subsumptionTrie : SubsumptionTrie) (mainPremise : MClause)
+  (mainPremiseMVarIds : Array MVarId) (mainPremiseLit : Nat) : RuleM Bool := do
+  let curLitButNegative := {mainPremise.lits[mainPremiseLit]! with sign := false}
+  let potentialSideClauses ← subsumptionTrie.getPotentialSubsumingClauses ⟨#[], #[curLitButNegative]⟩
+  for sidePremise in potentialSideClauses do
+    match ← forwardNegativeSimplifyReflectWithPartner mainPremise mainPremiseMVarIds sidePremise mainPremiseLit LitSide.lhs with
+    | false =>
+      match ← forwardNegativeSimplifyReflectWithPartner mainPremise mainPremiseMVarIds sidePremise mainPremiseLit LitSide.rhs with
+      | false => continue
+      | true => return true
+    | true => return true
+  return false
+
 /-- Performs negative simplifyReflect with the given clause c as the main clause -/
--- Note: Although it might be somewhat counterintuitive, I think it should be possible to use subsumptionTrie rather
--- than a fingerprint trie. My idea is, if we are considering the lit e1 = e2 in clause c, we can search for all clauses
--- in subsumptionTrie that are subsumed by the full clause "e1 ≠ e2".
 def forwardNegativeSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRule := fun c => do
-  sorry
+  let (cMVars, c) ← loadClauseCore c
+  let cMVarIds := cMVars.map Expr.mvarId!
+  for curLitIdx in [0:c.lits.size] do
+    if c.lits[curLitIdx]!.sign && (← forwardNegativeSimplifyReflectAtLit subsumptionTrie c cMVarIds curLitIdx) then return true
+    else continue
+  return false
 
 /-- Performs positive simplifyReflect with the given clause as the side clause -/
 def backwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSideClause => do
@@ -167,4 +235,39 @@ def backwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
           else return false
         mainClause.foldGreenM fold_fn false
     if backwardPositiveSimplifyReflectSuccessful then clausesToRemove := mainClause :: clausesToRemove
+  return clausesToRemove
+
+/-- Performs negative simplifyReflect with the given clause as the side clause -/
+def backwardNegativeSimplifyReflect (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSideClause => do
+  -- Return Unapplicable if givenSideClause is anything other than a clause with exactly one negative literal
+  if (givenSideClause.lits.size != 1 || givenSideClause.lits[0]!.sign) then return []
+  -- To find potential main clauses for the given side clause, we search for clauses that would be subsumed by sideClauseButPositive
+  let sideClauseButPositive := ⟨#[], #[{givenSideClause.lits[0]! with sign := true}]⟩
+  let potentialMainClauses ← subsumptionTrie.getPotentialSubsumedClauses sideClauseButPositive
+  let givenSideClause ← loadClause givenSideClause
+  let mut clausesToRemove := []
+  for mainClause in potentialMainClauses do
+    let backwardNegativeSimplifyReflectSuccessful ←
+      withoutModifyingLoadedClauses do
+        let (mclauseMVarIds, mainClause) ← loadClauseCore mainClause
+        let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
+        let sideClauseLit := givenSideClause.lits[0]!
+        for mainClauseLitIdx in [0:mainClause.lits.size] do
+          for mainClauseLhs in [LitSide.lhs, LitSide.rhs] do
+            let mainClauseLit := mainClause.lits[mainClauseLitIdx]!.makeLhs mainClauseLhs
+            let matchSuccess ← -- Try to match sideClause.lhs to mainClauseLit.lhs and sideClause.rhs to mainClauseLit.rhs
+              RuleM.performMatch #[(mainClauseLit.lhs, sideClauseLit.lhs), (mainClauseLit.rhs, sideClauseLit.rhs)] mclauseMVarIds
+            if matchSuccess then
+              let mut mainClauseLitsExceptSimplifiedLit : List Lit := []
+              for i in [:mainClause.lits.size] do
+                if i = mainClauseLitIdx then continue
+                else mainClauseLitsExceptSimplifiedLit := mainClause.lits[i]! :: mainClauseLitsExceptSimplifiedLit
+              let res := MClause.mk mainClauseLitsExceptSimplifiedLit.toArray.reverse
+              trace[Rule.simplifyReflect] "Backward negative simplify reflect with givenSideClause: {givenSideClause.lits} and main clause: {mainClause.lits}"
+              trace[Rule.simplifyReflect] "Result: {res.lits}"
+              yieldClause res "backward negative simplify reflect" (some $ mkNegativeSimplifyReflectProof mainClauseLitIdx mainClauseLhs false)
+              return true
+            else continue
+        return false
+    if backwardNegativeSimplifyReflectSuccessful then clausesToRemove := mainClause :: clausesToRemove
   return clausesToRemove

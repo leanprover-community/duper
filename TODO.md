@@ -18,7 +18,7 @@ Inference rules:
 
 Simplification rules:
 - Semantic tautology deletion?
-- Positive/Negative simplify-reflect
+- Contextual Literal Cluttering
 - Equality subsumption?
 
 Refactoring to consider:
