@@ -253,6 +253,7 @@ def backwardNegativeSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
         let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
         let sideClauseLit := givenSideClause.lits[0]!
         for mainClauseLitIdx in [0:mainClause.lits.size] do
+          if !mainClause.lits[mainClauseLitIdx]!.sign then continue -- mainClauseLit must be positive
           for mainClauseLhs in [LitSide.lhs, LitSide.rhs] do
             let mainClauseLit := mainClause.lits[mainClauseLitIdx]!.makeLhs mainClauseLhs
             let matchSuccess ← -- Try to match sideClause.lhs to mainClauseLit.lhs and sideClause.rhs to mainClauseLit.rhs
