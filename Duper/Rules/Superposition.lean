@@ -1,4 +1,3 @@
-import Duper.ProverM
 import Duper.RuleM
 import Duper.Selection
 import Duper.Util.Misc
@@ -174,6 +173,7 @@ def superpositionWithGivenAsMain (e : Expr) (pos : ClausePos) (sidePremiseIdx : 
         (givenIsMain := true) simultaneousSuperposition
 
 def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (givenMClause : MClause) : RuleM Unit := do
+  trace[Prover.debug] "Superposition inferences with {givenMClause.lits}"
   let simultaneousSuperposition := true -- TODO: Make this an option that can be passed into duper
   -- With given clause as side premise:
   for i in [:givenMClause.lits.size] do
@@ -188,13 +188,5 @@ def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) 
   givenMClause.foldGreenM fun acc e pos => do
       superpositionWithGivenAsMain e pos sidePremiseIdx givenMClause simultaneousSuperposition
     ()
-      
-open ProverM
-
-def performSuperposition (givenClause : Clause) : ProverM Unit := do
-  trace[Prover.debug] "Superposition inferences with {givenClause}"
-  let mainPremiseIdx ← getMainPremiseIdx
-  let sidePremiseIdx ← getSupSidePremiseIdx
-  performInference (superposition mainPremiseIdx sidePremiseIdx) givenClause
 
 end Duper

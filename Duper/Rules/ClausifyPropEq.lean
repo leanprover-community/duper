@@ -1,4 +1,3 @@
-import Duper.ProverM
 import Duper.RuleM
 import Duper.Selection
 import Duper.Util.ProofReconstruction
@@ -76,6 +75,7 @@ def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (c :
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
 def clausifyPropEq (c : MClause) : RuleM Unit := do
+  trace[Prover.debug] "ClausifyPropEq inferences with {c.lits}"
   for i in [:c.lits.size] do
     let lit := c.lits[i]!
     if lit.sign = true ∧ lit.ty.isProp ∧ litSelectedOrNothingSelected c i then
@@ -87,11 +87,5 @@ def clausifyPropEq (c : MClause) : RuleM Unit := do
         trace[Simp.debug] "clausify Prop Equality called with lit.lhs = {lit.lhs} and lit.rhs = {lit.rhs}"
         yieldClause c1 "clausify Prop equality" (mkProof := some (mkC1Proof i))
         yieldClause c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
-
-open ProverM
-
-def performClausifyPropEq (givenClause : Clause) : ProverM Unit := do
-  trace[Prover.debug] "ClausifyPropEq inferences with {givenClause}"
-  performInference clausifyPropEq givenClause
 
 end Duper

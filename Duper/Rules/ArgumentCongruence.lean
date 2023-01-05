@@ -1,4 +1,3 @@
-import Duper.ProverM
 import Duper.RuleM
 import Duper.MClause
 import Duper.Util.ProofReconstruction
@@ -75,14 +74,9 @@ def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
           (mkProof := mkArgumentCongruenceProof i mVarTys)
 
 def argCong (c : MClause) : RuleM Unit := do
+  trace[Prover.debug] "ArgCong inferences with {c.lits}"
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = true then
       argCongAtLit c i
-
-open ProverM
-
-def performArgCong (givenClause : Clause) : ProverM Unit := do
-  trace[Prover.debug] "ArgCong inferences with {givenClause}"
-  performInference argCong givenClause
 
 end Duper

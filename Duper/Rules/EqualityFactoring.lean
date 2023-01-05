@@ -1,4 +1,3 @@
-import Duper.ProverM
 import Duper.RuleM
 import Duper.MClause
 import Duper.Clause
@@ -163,6 +162,7 @@ def equalityFactoringAtLit (c : MClause) (i : Nat) (j : Nat) : RuleM Unit := do
     equalityFactoringWithAllConstraints c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
 
 def equalityFactoring (c : MClause) : RuleM Unit := do
+  trace[Prover.debug] "EqFact inferences with {c.lits}"
   for i in [:c.lits.size] do
     if(c.lits[i]!.sign) then
       for j in [i+1:c.lits.size] do -- Since we call equalityFactoringAtLit c i j and equalityFactoringAtLit c j i, we can always have j > i
@@ -172,11 +172,5 @@ def equalityFactoring (c : MClause) : RuleM Unit := do
           equalityFactoringAtLit c i j
           -- Attempt to perform equalityFactoring with c.lits[j] as the literal to be transformed
           equalityFactoringAtLit c j i
-
-open ProverM
-
-def performEqualityFactoring (givenClause : Clause) : ProverM Unit := do
-  trace[Prover.debug] "EqFact inferences with {givenClause}"
-  performInference equalityFactoring givenClause
 
 end Duper

@@ -3,6 +3,7 @@ import Std.Data.BinomialHeap
 import Duper.Fingerprint
 import Duper.Selection
 import Duper.SubsumptionTrie
+import Duper.Util.ClauseSubsumptionCheck
 
 namespace Duper
 namespace ProverM
@@ -12,7 +13,9 @@ open Std
 open RuleM
 open Expr
 
-initialize registerTraceClass `RemoveClause.debug
+initialize
+  registerTraceClass `RemoveClause.debug
+  registerTraceClass `ImmediateSimplification.debug
 
 inductive Result :=
 | unknown
@@ -275,7 +278,6 @@ def addNewToPassive (c : Clause) (proof : Proof) (generatingAncestors : List Cla
   | none =>
     trace[Prover.saturate] "New passive clause: {c}"
     let ci ← addNewClause c proof generatingAncestors
-    markAsDescendantToGeneratingAncestors c generatingAncestors -- For each generating ancestor of c, add c as a descendant of said ancestor
     setPassiveSet $ (← getPassiveSet).insert c
     setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
     setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
@@ -325,25 +327,6 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Cont
   let (res, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
   return (res, state.resultClauses)
-
-/-
-  TODO: Add immediate simplification.
-  After obtaining cs, can check whether any of the clauses in cs subsume c, in which case, we only need to
-  add the clause that subsumes c to the passive set. If that happens, we can also call `removeClause c`
-  and return a bool that indicates whether the `performInferences` function in Saturate.lean needs to
-  move on to the next inference rule (obviously, if c is removed, we don't need to keep performing
-  inferences on it)
-
-  What I describe above isn't exactly the same as immediate simplification (by Schulz's definition
-  or the iProver definition) but it's a reasonable first step (and I can put a note in TODO to actually
-  follow either Schulz's algorithm or the iProver description)
--/
-def performInference (rule : MClause → RuleM Unit) (c : Clause) : ProverM Unit := do
-  let cs ← runInferenceRule do
-    let c ← loadClause c
-    rule c
-  for (c, proof) in cs do
-    addNewToPassive c proof (List.map (fun p => p.clause) proof.parents)
 
 def addToActive (c : Clause) : ProverM Unit := do
   let _ ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
@@ -462,6 +445,45 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
       passiveSet ← getPassiveSet
     -- Remove the descendants of c and mark them as orphans
     removeDescendants c ci protectedClauses
+
+/-- Checks whether any clause in resultClauses subsumes givenClause (by clause subsumption). If there is a clause
+    c that subsumes givenClause, then `some c` is returned. Otherwise, `none` is returned.
+
+    Note: Currently, we only check for clause subsumption, and we only check clauses in resultClauses against the
+    givenClause. But it may be good in the future to:
+    - Check whether any result clause can eliminate givenClause by equality subsumption (or some other simplification rule)
+    - Inter-simplify the clauses in resultClauses (this would change the return type but would be more faithful to how
+      immediate simplification is described in http://www.cs.man.ac.uk/~korovink/my_pub/iprover_ijcar_app_2020.pdf. See table
+      1 to see which rules should be used for inter-simplification) -/
+def immediateSimplification (givenClause : MClause) (resultClauses : List Clause) (givenClauseMVarIds : Array MVarId) :
+  ProverM (Option Clause) := -- This is written as a ProverM rather than RuleM because subsumptionCheck depends on RuleM.lean
+  runRuleM $ withoutModifyingLoadedClauses do
+    for c in resultClauses do
+      if ← subsumptionCheck (← loadClause c) givenClause givenClauseMVarIds then
+        trace[ImmediateSimplification.debug] "Immediately simplified {givenClause.lits} with {c}"
+        return some c
+    return none
+
+def performInferences (rules : List (MClause → RuleM Unit)) (c : Clause) : ProverM Unit := do
+  let mut cs : List (Clause × Proof) := []
+  for rule in rules do
+    let curCs ← runInferenceRule do
+      let c ← loadClause c
+      rule c
+    cs := cs.append curCs
+  let (givenClauseMVars, givenClause) ← runRuleM $ RuleM.loadClauseCore c
+  let givenClauseMVarIds := givenClauseMVars.map Expr.mvarId!
+  let resultClauses := cs.map (fun (c, _) => c)
+  match ← immediateSimplification givenClause resultClauses givenClauseMVarIds with
+  | some subsumingClause => -- subsumingClause subsumes c so we can remove c and only need to add subsumingClause
+    removeClause c [subsumingClause]
+    match cs.find? (fun (c, _) => c == subsumingClause) with
+    | some (subsumingClause, subsumingClauseProof) =>
+      addNewToPassive subsumingClause subsumingClauseProof (List.map (fun p => p.clause) subsumingClauseProof.parents)
+    | none => throwError "Unable to find {subsumingClause} in resultClauses"
+  | none => -- No result clause subsumes c, so add each result clause to the passive set
+    for (c, proof) in cs do
+      addNewToPassive c proof (List.map (fun p => p.clause) proof.parents)
 
 end ProverM
 end Duper

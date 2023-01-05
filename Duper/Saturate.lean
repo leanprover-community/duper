@@ -112,13 +112,15 @@ def applyBackwardSimpRules (givenClause : Clause) : ProverM Unit := do
     the current state's allClauses and passiveSet -/
 def backwardSimplify (givenClause : Clause) : ProverM Unit := applyBackwardSimpRules givenClause
 
-def performInferences (givenClause : Clause) : ProverM Unit := do
-  performEqualityResolution givenClause
-  performClausifyPropEq givenClause
-  performSuperposition givenClause
-  performEqualityFactoring givenClause
+def inferenceRules : ProverM (List (MClause → RuleM Unit)) := do
+  return [
+  equalityResolution,
+  clausifyPropEq,
+  superposition (← getMainPremiseIdx) (← getSupSidePremiseIdx),
+  equalityFactoring,
   -- Higher order rules
-  performArgCong givenClause
+  argCong
+]
 
 partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $
@@ -134,7 +136,8 @@ partial def saturate : ProverM Unit := do
       trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause}"
       backwardSimplify simplifiedGivenClause
       addToActive simplifiedGivenClause
-      performInferences simplifiedGivenClause
+      let inferenceRules ← inferenceRules
+      performInferences inferenceRules simplifiedGivenClause
       trace[Prover.saturate] "New active Set: {(← getActiveSet).toArray}"
       return LoopCtrl.next
     catch
@@ -142,7 +145,10 @@ partial def saturate : ProverM Unit := do
       setResult ProverM.Result.contradiction
       return LoopCtrl.abort
     | e =>
-      trace[Timeout.debug] "Active set at timeout: {(← getActiveSet).toArray}"
+      -- trace[Timeout.debug] "Active set at timeout: {(← getActiveSet).toArray}"
+      trace[Timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
+      trace[Timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
+      trace[Timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
       -- trace[Timeout.debug] "All clauses at timeout: {Array.map (fun x => x.1) (← getAllClauses).toArray}"
       throw e
 
