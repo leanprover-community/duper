@@ -57,6 +57,7 @@ Other:
 - Currently, we have a hacky implementation of removing clauses from fingerprint indexes (tacking on a filter before retrieving). If this turns out to be
   too inefficient, implement removal from fingerprint indexes properly.
 - Add inter-simplification to more faithfully implement immediate simplification
+- Investigate why the current implementation of orphan elimination (removeDescendants) worsens performance on average
 
 ## For later:
 

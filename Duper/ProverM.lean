@@ -444,7 +444,7 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
       setPassiveSet $ passiveSet.erase c
       passiveSet ← getPassiveSet
     -- Remove the descendants of c and mark them as orphans
-    removeDescendants c ci protectedClauses
+    -- removeDescendants c ci protectedClauses -- Currently commented out because tests indicate it currently worsens performance
 
 /-- Checks whether any clause in resultClauses subsumes givenClause (by clause subsumption). If there is a clause
     c that subsumes givenClause, then `some c` is returned. Otherwise, `none` is returned.
