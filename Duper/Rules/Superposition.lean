@@ -150,24 +150,18 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
 def superpositionWithGivenAsSide (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseLitIdx : Nat)
   (sidePremiseSide : LitSide) (simultaneousSuperposition : Bool) : RuleM Unit := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
-  trace[Superposition.debug] "Superposition inferences at with side premise literal {sidePremiseLit} in side premise: {sidePremise.lits}"
   let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
-  trace[Superposition.debug] "Potential main clauses to {sidePremiseLit.lhs} in {sidePremiseLit} are: {potentialPartners}"
   for (mainClause, mainPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
-      trace[Superposition.debug] "Superposition with partner main clause: {mainClause}"
       let c ← loadClause mainClause
       superpositionAtLitWithPartner c (c.getAtPos! mainPos) mainPos sidePremise sidePremiseLitIdx sidePremiseSide
         (givenIsMain := false) simultaneousSuperposition
 
 def superpositionWithGivenAsMain (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
   (mainPremise : MClause) (simultaneousSuperposition : Bool) : RuleM Unit := do
-  trace[Superposition.debug] "Superposition inferences at expression {e} in main premise: {mainPremise.lits}"
   let potentialPartners ← sidePremiseIdx.getUnificationPartners e
-  trace[Superposition.debug] "Potential side clauses to {e} in {mainPremise.lits} are: {potentialPartners}"
   for (sideClause, sidePos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
-      trace[Superposition.debug] "Superposition with partner side clause: {sideClause}"
       let c ← loadClause sideClause
       superpositionAtLitWithPartner mainPremise e pos c sidePos.lit sidePos.side
         (givenIsMain := true) simultaneousSuperposition

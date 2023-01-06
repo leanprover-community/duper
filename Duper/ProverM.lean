@@ -455,12 +455,14 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
     - Inter-simplify the clauses in resultClauses (this would change the return type but would be more faithful to how
       immediate simplification is described in http://www.cs.man.ac.uk/~korovink/my_pub/iprover_ijcar_app_2020.pdf. See table
       1 to see which rules should be used for inter-simplification) -/
-def immediateSimplification (givenClause : MClause) (resultClauses : List Clause) (givenClauseMVarIds : Array MVarId) :
+def immediateSimplification (givenClause : Clause) (resultClauses : List Clause) :
   ProverM (Option Clause) := -- This is written as a ProverM rather than RuleM because subsumptionCheck depends on RuleM.lean
   runRuleM $ withoutModifyingLoadedClauses do
+    let (givenMClauseMVars, givenMClause) ← RuleM.loadClauseCore givenClause
+    let givenMClauseMVarIds := givenMClauseMVars.map Expr.mvarId!
     for c in resultClauses do
-      if ← subsumptionCheck (← loadClause c) givenClause givenClauseMVarIds then
-        trace[ImmediateSimplification.debug] "Immediately simplified {givenClause.lits} with {c}"
+      if c != givenClause && (← subsumptionCheck (← loadClause c) givenMClause givenMClauseMVarIds) then
+        trace[ImmediateSimplification.debug] "Immediately simplified {givenClause} with {c}"
         return some c
     return none
 
@@ -471,10 +473,8 @@ def performInferences (rules : List (MClause → RuleM Unit)) (c : Clause) : Pro
       let c ← loadClause c
       rule c
     cs := cs.append curCs
-  let (givenClauseMVars, givenClause) ← runRuleM $ RuleM.loadClauseCore c
-  let givenClauseMVarIds := givenClauseMVars.map Expr.mvarId!
   let resultClauses := cs.map (fun (c, _) => c)
-  match ← immediateSimplification givenClause resultClauses givenClauseMVarIds with
+  match ← immediateSimplification c resultClauses with
   | some subsumingClause => -- subsumingClause subsumes c so we can remove c and only need to add subsumingClause
     removeClause c [subsumingClause]
     match cs.find? (fun (c, _) => c == subsumingClause) with
