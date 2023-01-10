@@ -73,7 +73,7 @@ def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
         yieldClause c' "argument congruence"
           (mkProof := mkArgumentCongruenceProof i mVarTys)
 
-def argCong (c : MClause) : RuleM Unit := do
+def argCong (c : MClause) (cNum : Nat) : RuleM Unit := do
   trace[Prover.debug] "ArgCong inferences with {c.lits}"
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = true then

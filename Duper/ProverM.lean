@@ -329,7 +329,8 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Cont
   return (res, state.resultClauses)
 
 def addToActive (c : Clause) : ProverM Unit := do
-  let _ ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
+  let cInfo ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
+  let cNum := cInfo.number
   -- Add to superposition's side premise index:
   let idx ← getSupSidePremiseIdx
   let idx ← runRuleM do
@@ -343,7 +344,7 @@ def addToActive (c : Clause) : ProverM Unit := do
           else if(sel.contains pos.lit) then true
           else if(sel == []) then not canNeverBeMaximal
           else false
-        if eligible then idx.insert e (c, pos)
+        if eligible then idx.insert e (cNum, c, pos)
         else return idx
       idx
   setSupSidePremiseIdx idx
@@ -352,7 +353,7 @@ def addToActive (c : Clause) : ProverM Unit := do
     let idx ← getDemodSidePremiseIdx
     let idx ← runRuleM do
       let (_, mclause) ← loadClauseCore c
-      mclause.foldM (fun idx e pos => idx.insert e (c, pos)) idx
+      mclause.foldM (fun idx e pos => idx.insert e (cNum, c, pos)) idx
     setDemodSidePremiseIdx idx
   -- Add to main premise index:
   let idx ← getMainPremiseIdx
@@ -367,7 +368,7 @@ def addToActive (c : Clause) : ProverM Unit := do
           else if(sel.contains pos.lit) then true
           else if(sel == []) then not canNeverBeMaximal
           else false
-        if eligible then idx.insert e (c, pos)
+        if eligible then idx.insert e (cNum, c, pos)
         else return idx
       idx
   setMainPremiseIdx idx
@@ -466,12 +467,14 @@ def immediateSimplification (givenClause : Clause) (resultClauses : List Clause)
         return some c
     return none
 
-def performInferences (rules : List (MClause → RuleM Unit)) (c : Clause) : ProverM Unit := do
+def performInferences (rules : List (MClause → Nat → RuleM Unit)) (c : Clause) : ProverM Unit := do
   let mut cs : List (Clause × Proof) := []
+  let cInfo ← getClauseInfo! c
+  let cNum := cInfo.number
   for rule in rules do
     let curCs ← runInferenceRule do
       let c ← loadClause c
-      rule c
+      rule c cNum
     cs := cs.append curCs
   let resultClauses := cs.map (fun (c, _) => c)
   match ← immediateSimplification c resultClauses with

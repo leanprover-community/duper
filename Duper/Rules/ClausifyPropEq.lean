@@ -74,7 +74,7 @@ def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (c :
     let r ← orCases (parentLits.map Lit.toExpr) proofCases
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def clausifyPropEq (c : MClause) : RuleM Unit := do
+def clausifyPropEq (c : MClause) (cNum : Nat) : RuleM Unit := do
   trace[Prover.debug] "ClausifyPropEq inferences with {c.lits}"
   for i in [:c.lits.size] do
     let lit := c.lits[i]!

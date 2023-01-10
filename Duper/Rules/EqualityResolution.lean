@@ -47,7 +47,7 @@ def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
     yieldClause c "equality resolution" 
       (mkProof := mkEqualityResolutionProof i)
 
-def equalityResolution (c : MClause) : RuleM Unit := do
+def equalityResolution (c : MClause) (cNum : Nat) : RuleM Unit := do
   trace[Prover.debug] "EqRes inferences with {c.lits}"
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = false then

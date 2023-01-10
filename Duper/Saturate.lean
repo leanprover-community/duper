@@ -112,7 +112,7 @@ def applyBackwardSimpRules (givenClause : Clause) : ProverM Unit := do
     the current state's allClauses and passiveSet -/
 def backwardSimplify (givenClause : Clause) : ProverM Unit := applyBackwardSimpRules givenClause
 
-def inferenceRules : ProverM (List (MClause → RuleM Unit)) := do
+def inferenceRules : ProverM (List (MClause → Nat → RuleM Unit)) := do
   return [
   equalityResolution,
   clausifyPropEq,

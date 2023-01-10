@@ -100,9 +100,9 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
     let proof ← Meta.mkLambdaFVars xs $ mkApp r appliedSidePremise
     return proof
 
-def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : Expr) (mainPremisePos : ClausePos)
-  (sidePremise : MClause) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (givenIsMain : Bool) 
-  (simultaneousSuperposition : Bool) : RuleM Unit := do
+def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseSubterm : Expr)
+  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide)
+  (givenIsMain : Bool) (simultaneousSuperposition : Bool) : RuleM Unit := do
   Core.checkMaxHeartbeats "superposition"
   withoutModifyingMCtx $ do
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
@@ -110,6 +110,14 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
     if mainPremiseSubterm.isMVar then
       return () -- No superposition into variables
     
+    /-
+      To efficiently approximate condition 7 in https://matryoshka-project.github.io/pubs/hosup_report.pdf, if the main
+      premise literal is positive and the main premise subterm is directly below the equality, then we require that the
+      main premise's clause id is less than or equal to the side premise's clause id (as an arbitrary tiebreaker).
+    -/
+    if mainPremise.lits[mainPremisePos.lit]!.sign && mainPremisePos.pos == #[] && mainPremiseNum > sidePremiseNum then
+      return ()
+
     let sidePremiseEligibility ← eligibilityPreUnificationCheck sidePremise sidePremiseLitIdx
     let mainPremiseEligibility ← eligibilityPreUnificationCheck mainPremise mainPremisePos.lit
 
@@ -124,9 +132,15 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
         (strict := mainPremise.lits[mainPremisePos.lit]!.sign)
     if not mainPremiseFinalEligibility then return ()
 
+    -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
     let lhs ← RuleM.instantiateMVars sidePremiseLit.lhs
     let rhs ← RuleM.instantiateMVars sidePremiseLit.rhs
     if (← compare lhs rhs) == Comparison.LessThan then
+      return ()
+
+    let mainPremiseLhs := mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side
+    let mainPremiseRhs := mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side
+    if (← compare mainPremiseLhs mainPremiseRhs) == Comparison.LessThan then
       return ()
 
     let mainPremiseReplaced ←
@@ -147,40 +161,50 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseSubterm : 
       m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
     yieldClause res "superposition" mkProof
 
-def superpositionWithGivenAsSide (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseLitIdx : Nat)
+def superpositionWithGivenAsSide (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
   (sidePremiseSide : LitSide) (simultaneousSuperposition : Bool) : RuleM Unit := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
-  for (mainClause, mainPos) in potentialPartners do
+  for (mainClauseNum, mainClause, mainPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
-      superpositionAtLitWithPartner c (c.getAtPos! mainPos) mainPos sidePremise sidePremiseLitIdx sidePremiseSide
-        (givenIsMain := false) simultaneousSuperposition
+      let mainLit := c.lits[mainPos.lit]!.makeLhs mainPos.side
+      if (← RuleM.compare mainLit.lhs mainLit.rhs) != Comparison.LessThan then
+        superpositionAtLitWithPartner c mainClauseNum (c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
+          (givenIsMain := false) simultaneousSuperposition
 
 def superpositionWithGivenAsMain (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
-  (mainPremise : MClause) (simultaneousSuperposition : Bool) : RuleM Unit := do
+  (mainPremise : MClause) (mainPremiseNum : Nat) (simultaneousSuperposition : Bool) : RuleM Unit := do
   let potentialPartners ← sidePremiseIdx.getUnificationPartners e
-  for (sideClause, sidePos) in potentialPartners do
+  for (sideClauseNum, sideClause, sidePos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       let c ← loadClause sideClause
-      superpositionAtLitWithPartner mainPremise e pos c sidePos.lit sidePos.side
-        (givenIsMain := true) simultaneousSuperposition
+      let sideLit := c.lits[sidePos.lit]!.makeLhs sidePos.side
+      if (← RuleM.compare sideLit.lhs sideLit.rhs) != Comparison.LessThan then
+        superpositionAtLitWithPartner mainPremise mainPremiseNum e pos c sideClauseNum sidePos.lit sidePos.side
+          (givenIsMain := true) simultaneousSuperposition
 
-def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (givenMClause : MClause) : RuleM Unit := do
-  trace[Prover.debug] "Superposition inferences with {givenMClause.lits}"
+def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (givenClause : MClause)
+  (givenClauseNum : Nat) : RuleM Unit := do
+  trace[Prover.debug] "Superposition inferences with {givenClause.lits}"
   let simultaneousSuperposition := true -- TODO: Make this an option that can be passed into duper
   -- With given clause as side premise:
-  for i in [:givenMClause.lits.size] do
-    if givenMClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenMClause i
+  for i in [:givenClause.lits.size] do
+    if givenClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenClause i
     then
       for side in #[LitSide.lhs, LitSide.rhs] do
-        let flippedLit := givenMClause.lits[i]!.makeLhs side
+        let flippedLit := givenClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then
           continue
-        let cs ← superpositionWithGivenAsSide mainPremiseIdx givenMClause i side simultaneousSuperposition
+        let cs ← superpositionWithGivenAsSide mainPremiseIdx givenClause givenClauseNum i side simultaneousSuperposition
   -- With given clause as main premise
-  givenMClause.foldGreenM fun acc e pos => do
-      superpositionWithGivenAsMain e pos sidePremiseIdx givenMClause simultaneousSuperposition
+  givenClause.foldGreenM fun acc e pos =>
+    do
+      let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
+      if (← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs) == Comparison.LessThan then
+        return ()
+      else
+        superpositionWithGivenAsMain e pos sidePremiseIdx givenClause givenClauseNum simultaneousSuperposition
     ()
 
 end Duper

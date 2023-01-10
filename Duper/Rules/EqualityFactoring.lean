@@ -161,7 +161,7 @@ def equalityFactoringAtLit (c : MClause) (i : Nat) (j : Nat) : RuleM Unit := do
     equalityFactoringWithAllConstraints c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
     equalityFactoringWithAllConstraints c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
 
-def equalityFactoring (c : MClause) : RuleM Unit := do
+def equalityFactoring (c : MClause) (cNum : Nat) : RuleM Unit := do
   trace[Prover.debug] "EqFact inferences with {c.lits}"
   for i in [:c.lits.size] do
     if(c.lits[i]!.sign) then

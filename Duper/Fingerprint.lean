@@ -32,7 +32,7 @@ inductive FingerprintTrie (α : Type) [BEq α] [Hashable α] where
   | leaf (vals : Array α)
 deriving Inhabited
 
-abbrev ClauseFingerprintTrie := FingerprintTrie (Clause × ClausePos)
+abbrev ClauseFingerprintTrie := FingerprintTrie (Nat × Clause × ClausePos) -- Nat is for clause id
 
 open FingerprintTrie
 open FingerprintFeatureValue
@@ -65,6 +65,10 @@ private partial def printElemsHelper [ToMessageData α] [BEq α] [Hashable α] :
 
 def FingerprintTrie.printElems [ToMessageData α] [BEq α] [Hashable α] (t : FingerprintTrie α) : MessageData :=
   foldMsgs $ printElemsHelper t
+
+def printVal (v : Nat × Clause × ClausePos) : MessageData := m!"({v.1}, " ++ m!"{v.2.1}, " ++ m!"{v.2.2})"
+
+instance : ToMessageData (Nat × Clause × ClausePos) := ⟨printVal⟩
 
 instance [ToMessageData α] [BEq α] [Hashable α] : ToMessageData (FingerprintTrie α) :=
   ⟨FingerprintTrie.printElems⟩
@@ -120,7 +124,7 @@ def getFingerprint (e : Expr) : Fingerprint :=
 
 /-- Given a fingerprint f, yields a ClauseFingerprintTrie whose depth equals the length of f and whose
     only value is v (located at the position indiced by f) -/
-def mkSingleton (f : Fingerprint) (v : (Clause × ClausePos)) : ClauseFingerprintTrie :=
+def mkSingleton (f : Fingerprint) (v : (Nat × Clause × ClausePos)) : ClauseFingerprintTrie :=
   let childDepth := f.length - 1
   let emptyChild := mkEmptyWithDepth childDepth
   match f with
@@ -133,7 +137,7 @@ def mkSingleton (f : Fingerprint) (v : (Clause × ClausePos)) : ClauseFingerprin
 /-- Inserts v into t at the position indiced by fingerprint f.
     Throws an error if the length of f does not equal the depth of t -/
 def insertHelper (t : ClauseFingerprintTrie) (f : Fingerprint)
-  (v : (Clause × ClausePos)) : RuleM ClauseFingerprintTrie := do
+  (v : (Nat × Clause × ClausePos)) : RuleM ClauseFingerprintTrie := do
   match f, t with
   | [], leaf vals => return leaf (vals.push v)
   | A :: restFeatures, node childA childB childN childF =>
@@ -157,10 +161,10 @@ def insertHelper (t : ClauseFingerprintTrie) (f : Fingerprint)
       return node childA childB childN childF'
   | _, _ => throwError "Depth of {t} incompatible with length of {f}"
 
-/-- Adds v to t.root at the location indiced by e and removes v.1 from t.filterSet so that previously
+/-- Adds v to t.root at the location indiced by e and removes v.2.1 from t.filterSet so that previously
     deleted clauses can be readded -/
-def insert (t : RootCFPTrie) (e : Expr) (v : (Clause × ClausePos)) : RuleM RootCFPTrie :=
-  return ⟨← insertHelper t.root (getFingerprint e) v, t.filterSet.erase v.1⟩
+def insert (t : RootCFPTrie) (e : Expr) (v : (Nat × Clause × ClausePos)) : RuleM RootCFPTrie :=
+  return ⟨← insertHelper t.root (getFingerprint e) v, t.filterSet.erase v.2.1⟩
 
 /-- Adds c to t.filterSet so that Clause × ClausePos pairs with c as the clause are ignored going forward -/
 def delete (t : RootCFPTrie) (c : Clause) : RuleM RootCFPTrie :=
@@ -169,7 +173,7 @@ def delete (t : RootCFPTrie) (c : Clause) : RuleM RootCFPTrie :=
 /-- Obtains all values in t that are unification-compatible with f. Throws an error if the depth of t is not
     equal to the length of f -/
 private def getUnificationPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerprint) :
-  RuleM (Array (Clause × ClausePos)) := do
+  RuleM (Array (Nat × Clause × ClausePos)) := do
   match f, t with
   | [], leaf vals => return vals
   | A :: restFeatures, node childA childB childN childF =>
@@ -200,16 +204,16 @@ private def getUnificationPartnersHelper (t : ClauseFingerprintTrie) (f : Finger
   | _, _ => throwError "Depth of {t} incompatible with length of {f}"
 
 /-- Returns all clause and position pairs that indicate subexpressions that may be unifiable with e -/
-def getUnificationPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Clause × ClausePos)) := do
+def getUnificationPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos)) := do
   trace[Fingerprint.debug] "About to call getUnificationPartnersHelper with {t.root} and {getFingerprint e}"
   let unfilteredRes ← getUnificationPartnersHelper t.root (getFingerprint e)
   trace[Fingerprint.debug] "Unfiltered result from getUnificationPartners {e}: {unfilteredRes}"
   trace[Fingerprint.debug] "{e} fingerprint: {getFingerprint e}"
   trace[Fingerprint.debug] "Current RootCFPTrie: {t.root}"
-  return Array.filter (fun c => not (t.filterSet.contains c.1)) unfilteredRes
+  return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes
 
 private def getMatchOntoPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerprint) :
-  RuleM (Array (Clause × ClausePos)) := do
+  RuleM (Array (Nat × Clause × ClausePos)) := do
   match f, t with
   | [], leaf vals => return vals
   | A :: restFeatures, node childA childB childN childF =>
@@ -235,12 +239,12 @@ private def getMatchOntoPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerpr
 
 /-- Returns all clause and position pairs that indicate subexpressions that e can match onto
     (i.e. assigning metavariables in e) -/
-def getMatchOntoPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Clause × ClausePos)) := do
+def getMatchOntoPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos)) := do
   let unfilteredRes ← getMatchOntoPartnersHelper t.root (getFingerprint e)
-  return Array.filter (fun c => not (t.filterSet.contains c.1)) unfilteredRes
+  return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes
 
 private def getMatchFromPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerprint) :
-  RuleM (Array (Clause × ClausePos)) := do
+  RuleM (Array (Nat × Clause × ClausePos)) := do
   match f, t with
   | [], leaf vals => return vals
   | A :: restFeatures, node childA childB childN childF =>
@@ -266,6 +270,6 @@ private def getMatchFromPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerpr
 
 /-- Returns all clause and position pairs that indicate subexpressions that can be matched onto e
     (i.e. not assigning metavariables in e) -/
-def getMatchFromPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Clause × ClausePos)) := do
+def getMatchFromPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos)) := do
   let unfilteredRes ← getMatchFromPartnersHelper t.root (getFingerprint e)
-  return Array.filter (fun c => not (t.filterSet.contains c.1)) unfilteredRes
+  return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes
