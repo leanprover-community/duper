@@ -8,6 +8,7 @@ import Duper.Preprocessing
 import Duper.Rules.ClauseSubsumption
 import Duper.Rules.Clausification
 import Duper.Rules.ClausifyPropEq
+import Duper.Rules.ContextualLiteralCutting
 import Duper.Rules.Demodulation
 import Duper.Rules.ElimDupLit
 import Duper.Rules.ElimResolvedLit
@@ -45,6 +46,7 @@ initialize
 open SimpResult
 
 def forwardSimpRules : ProverM (Array SimpRule) := do
+  let subsumptionTrie ← getSubsumptionTrie
   return #[
     clausificationStep.toSimpRule,
     syntacticTautologyDeletion1.toSimpRule,
@@ -56,21 +58,24 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     identPropFalseElim.toSimpRule,
     identBoolFalseElim.toSimpRule,
     (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
-    (forwardClauseSubsumption (← getSubsumptionTrie)).toSimpRule,
-    (forwardEqualitySubsumption (← getSubsumptionTrie)).toSimpRule,
-    (forwardPositiveSimplifyReflect (← getSubsumptionTrie)).toSimpRule,
-    (forwardNegativeSimplifyReflect (← getSubsumptionTrie)).toSimpRule,
+    (forwardClauseSubsumption subsumptionTrie).toSimpRule,
+    (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
+    (forwardContextualLiteralCutting subsumptionTrie).toSimpRule,
+    (forwardPositiveSimplifyReflect subsumptionTrie).toSimpRule,
+    (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
     -- Higher order rules
     boolHoist.toSimpRule
   ]
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
+  let subsumptionTrie ← getSubsumptionTrie
   return #[
     (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule,
-    (backwardClauseSubsumption (← getSubsumptionTrie)).toBackwardSimpRule,
-    (backwardEqualitySubsumption (← getSubsumptionTrie)).toBackwardSimpRule,
-    (backwardPositiveSimplifyReflect (← getSubsumptionTrie)).toBackwardSimpRule,
-    (backwardNegativeSimplifyReflect (← getSubsumptionTrie)).toBackwardSimpRule
+    (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
+    (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
+    (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
+    (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
+    (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
   ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
