@@ -73,6 +73,9 @@ partial def subsumptionCheckHelper (subsumingClauseLits : List Lit) (subsumedCla
       if tryWithIdx then return true
       else subsumptionCheckHelper subsumingClauseLits subsumedClauseLits subsumedClauseMVarIds exclude (idx + 1)
 
+/-- Returns true if `subsumedClause` is indeed subsumed by `subsumingClause` and returns false otherwise. If the check succeeds (meaning
+    true is returned) then any changes to the MCtx are preserved (meaning any mvar substitutions are applied) and if the check fails,
+    then the MCtx is left unchanged. -/
 def subsumptionCheck (subsumingClause : MClause) (subsumedClause : MClause) (subsumedClauseMVarIds : Array MVarId) : RuleM Bool :=
   conditionallyModifyingMCtx do -- Only modify the MCtx if the subsumption check succeeds (so failed checks don't impact future checks)
     if subsumingClause.lits.size > subsumedClause.lits.size then return (false, false)

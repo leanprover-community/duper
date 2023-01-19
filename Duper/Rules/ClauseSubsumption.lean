@@ -33,11 +33,12 @@ def backwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSim
   trace[Rule.clauseSubsumption] "number potentialSubsumedClauses for {givenSubsumingClause}: {potentialSubsumedClauses.size}"
   let givenSubsumingClause ← loadClause givenSubsumingClause
   let fold_fn := fun acc nextClause =>
-    conditionallyModifyingLoadedClauses do
-      let (nextClauseMVars, nextClauseM) ← loadClauseCore nextClause
-      let nextClauseMVarIds := nextClauseMVars.map Expr.mvarId!
-      if ← subsumptionCheck givenSubsumingClause nextClauseM nextClauseMVarIds then
-        trace[Rule.clauseSubsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
-        return (true, (nextClause :: acc))
-      else return (false, acc)
+    withoutModifyingMCtx do
+      conditionallyModifyingLoadedClauses do
+        let (nextClauseMVars, nextClauseM) ← loadClauseCore nextClause
+        let nextClauseMVarIds := nextClauseMVars.map Expr.mvarId!
+        if ← subsumptionCheck givenSubsumingClause nextClauseM nextClauseMVarIds then
+          trace[Rule.clauseSubsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
+          return (true, (nextClause :: acc))
+        else return (false, acc)
   potentialSubsumedClauses.foldlM fold_fn []

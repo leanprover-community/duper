@@ -193,6 +193,37 @@ def getFeatureVector (c : Clause) : FeatureVector := Id.run $ do
     M posDepthMap, M negDepthMap, M posOccurrenceMap, M negOccurrenceMap
   ]
 
+/-- Identical to getFeatureVector except it is written to taken an MClause rather than a Clause -/
+def getFeatureVector' (c : MClause) : FeatureVector := Id.run $ do
+  let mut posLits := 0
+  let mut negLits := 0
+  let mut posWeight := 0
+  let mut negWeight := 0
+  let mut posSymbols := {}
+  let mut negSymbols := {}
+  let mut posDepthMap := {}
+  let mut negDepthMap := {}
+  let mut posOccurrenceMap := {}
+  let mut negOccurrenceMap := {}
+  for l in c.lits do
+    if l.sign then
+      posLits := posLits + 1
+      posWeight := posWeight + l.lhs.weight + l.rhs.weight
+      posSymbols := collectSymbolsInLit posSymbols l
+      posDepthMap := updateDepthMapWithLit posDepthMap l
+      posOccurrenceMap := updateOccurrenceMapWithLit posOccurrenceMap l
+    else
+      negLits := negLits + 1
+      negWeight := negWeight + l.lhs.weight + l.rhs.weight
+      negSymbols := collectSymbolsInLit negSymbols l
+      negDepthMap := updateDepthMapWithLit negDepthMap l
+      negOccurrenceMap := updateOccurrenceMapWithLit negOccurrenceMap l
+  return [
+    N posLits, N negLits, N posWeight, N negWeight,
+    S posSymbols, S negSymbols,
+    M posDepthMap, M negDepthMap, M posOccurrenceMap, M negOccurrenceMap
+  ]
+
 def emptyLeaf : SubsumptionTrie := leaf {}
 def emptyNode : SubsumptionTrie := node #[]
 
@@ -249,6 +280,10 @@ private def getPotentialSubsumingClausesHelper (t : SubsumptionTrie) (features :
 def getPotentialSubsumingClauses (t : SubsumptionTrie) (c : Clause) : RuleM (Array Clause) :=
   getPotentialSubsumingClausesHelper t (getFeatureVector c)
 
+/-- Identical to `getPotentialSubsumingClauses` except it takes an MClause rather than a Clause -/
+def getPotentialSubsumingClauses' (t : SubsumptionTrie) (c : MClause) : RuleM (Array Clause) :=
+  getPotentialSubsumingClausesHelper t (getFeatureVector' c)
+
 private def getPotentialSubsumedClausesHelper (t : SubsumptionTrie) (features : FeatureVector) : RuleM (Array Clause) :=
   match t, features with
   | node children, (fstFeature :: restFeatures) => do
@@ -262,3 +297,7 @@ private def getPotentialSubsumedClausesHelper (t : SubsumptionTrie) (features : 
 
 def getPotentialSubsumedClauses (t : SubsumptionTrie) (c : Clause) : RuleM (Array Clause) :=
   getPotentialSubsumedClausesHelper t (getFeatureVector c)
+
+/-- Identical to `getPotentialSubsumedClauses` except that it takes an MClause rather than a Clause -/
+def getPotentialSubsumedClauses' (t : SubsumptionTrie) (c : MClause) : RuleM (Array Clause) :=
+  getPotentialSubsumedClausesHelper t (getFeatureVector' c)
