@@ -17,7 +17,7 @@ partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) (protected_mvars :
     for (match_target, e) in l do
       let match_target_type := (← instantiateMVars (← inferType match_target))
       let e_type := (← instantiateMVars (← inferType e))
-      if (match_target_type != e_type) then
+      if not (← match1 match_target_type e_type protected_mvars) then
         state.restore
         return false
       else if ← match1 match_target e protected_mvars then
