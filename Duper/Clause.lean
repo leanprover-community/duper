@@ -227,6 +227,9 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     acc ← c.lits[i]!.foldM f' acc
   return acc
 
+def getAtPos! (c : Clause) (pos : ClausePos) : Expr :=
+  c.lits[pos.lit]!.getAtPos! ⟨pos.side, pos.pos⟩
+
 def toForallExpr (c : Clause) : Expr :=
   c.bVarTypes.foldr (fun ty b => mkForall Name.anonymous BinderInfo.default ty b) c.toExpr
 

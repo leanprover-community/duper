@@ -386,8 +386,6 @@ where
     let newmvar ← mkFreshExprMVar ty
     return mkApp (mkAppN fvar abstres.snd) newmvar
 
-#check @Skolem.spec
-
 def clausificationStepLit (c : MClause) (i : Nat) : RuleM (Option (List (MClause × Option (Expr → MetaM Expr)))) := do
   let l := c.lits[i]!
   if not l.ty.isProp then return none

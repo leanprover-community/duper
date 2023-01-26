@@ -5,6 +5,7 @@ import Duper.RuleM
 import Duper.MClause
 import Duper.Simp
 import Duper.Preprocessing
+import Duper.Rules.BoolSimp
 import Duper.Rules.ClauseSubsumption
 import Duper.Rules.Clausification
 import Duper.Rules.ClausifyPropEq
@@ -51,6 +52,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     clausificationStep.toSimpRule,
     syntacticTautologyDeletion1.toSimpRule,
     syntacticTautologyDeletion2.toSimpRule,
+    boolSimp.toSimpRule,
     syntacticTautologyDeletion3.toSimpRule,
     elimDupLit.toSimpRule,
     elimResolvedLit.toSimpRule,
