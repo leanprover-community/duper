@@ -185,29 +185,6 @@ theorem iffClausificationTest2 {p : Prop} {q : Prop} (h : ¬(p ↔ q)) : (p → 
 #print iffClausificationTest2
 #print axioms iffClausificationTest1
 #print axioms iffClausificationTest2
-
---###############################################################################################################################
---BoolSimp tests
-theorem boolSimpRule1Test (p : Prop) (h : (p ∨ p ∨ p ∨ p) = q) : p = q :=
-  by duper
-
-theorem boolSimpRule2Test (p q : Prop) (h : (¬p ∨ p) = q) : q :=
-  by duper
-
-theorem boolSimpRule2SymTest (p q : Prop) (h : (p ∨ ¬p) = q) : q :=
-  by duper
-
-theorem boolSimpRule3Test (p q : Prop) (h : (p ∨ True) = q) : q :=
-  by duper
-
-theorem boolSimpRule3SymTest (p q : Prop) (h : (True ∨ p) = q) : q :=
-  by duper
-
-#print boolSimpRule1Test
-#print boolSimpRule2Test
-#print boolSimpRule2SymTest
-#print boolSimpRule3Test
-#print boolSimpRule3SymTest
 --###############################################################################################################################
 --Aside from being an interesting thing to prove on its own, the barber_paradox tests rely on the first case of Iff clausification and
 --on the soundness of ClausifyPropEq's reconstructed proofs
