@@ -71,3 +71,27 @@ theorem boolSimpRule14Test (p q : Prop) (h : p = Not True) : ¬p :=
 
 theorem boolSimpRule15Test (p q : Prop) (h : (¬¬p) = q) : p = q :=
   by duper
+
+theorem boolSimpRule16Test (p q : Prop) (h : (True → p) = q) : p = q :=
+  by duper
+
+theorem boolSimpRule17Test (p q : Prop) (h : (False → p) = q) : q :=
+  by duper
+
+theorem boolSimpRule18Test (p q : Prop) (h : (p → False) = (q → False)) : p = q :=
+  by duper
+
+theorem boolSimpRule19Test (p q : Prop) (h : (p → True) = q) : q :=
+  by duper
+
+theorem boolSimpRule19Test2 (α) (q : Prop) (h : (∀ _ : α, True) = q) : q :=
+  by duper
+
+theorem boolSimpRule20Test (p q : Prop) (h : (p → ¬p) = (q → ¬q)) : p = q :=
+  by duper
+
+theorem boolSimpRule21Test (p q : Prop) (h : (¬p → p) = (¬q → q)) : p = q :=
+  by duper
+
+theorem boolSimpRule22Test (p q : Prop) (h : (p → p) = q) : q :=
+  by duper

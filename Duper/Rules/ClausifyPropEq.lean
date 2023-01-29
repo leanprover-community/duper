@@ -6,6 +6,8 @@ namespace Duper
 open RuleM
 open Lean
 
+initialize Lean.registerTraceClass `Rule.clausifyPropEq
+
 theorem c1_soundness {p : Prop} {q : Prop} (h : p = q) : (p = True) ∨ (q = False) := by
   rw [h]
   exact Classical.propComplete q
@@ -75,16 +77,16 @@ def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (c :
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
 def clausifyPropEq (c : MClause) (cNum : Nat) : RuleM Unit := do
-  trace[Prover.debug] "ClausifyPropEq inferences with {c.lits}"
+  trace[Rule.clausifyPropEq] "ClausifyPropEq inferences with {c.lits}"
   for i in [:c.lits.size] do
     let lit := c.lits[i]!
-    if lit.sign = true ∧ lit.ty.isProp ∧ litSelectedOrNothingSelected c i then
+    if lit.sign = true && lit.ty.isProp && litSelectedOrNothingSelected c i then
       -- TODO: check both sides?
-      if ¬ lit.rhs.isConstOf ``True ∧ ¬ lit.rhs.isConstOf ``False then
+      if ¬ lit.rhs.isConstOf ``True && ¬ lit.rhs.isConstOf ``False then
         let c' := c.eraseLit i
         let c1 := c'.appendLits #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
         let c2 := c'.appendLits #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
-        trace[Simp.debug] "clausify Prop Equality called with lit.lhs = {lit.lhs} and lit.rhs = {lit.rhs}"
+        trace[Rule.clausifyPropEq] "clausifyPropEq called on {lit} in {c.lits} to produce {c1.lits} and {c2.lits}"
         yieldClause c1 "clausify Prop equality" (mkProof := some (mkC1Proof i))
         yieldClause c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
 

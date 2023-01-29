@@ -1,6 +1,7 @@
 import Duper.Simp
 import Duper.Selection
 import Duper.Util.ProofReconstruction
+import Duper.Util.Misc
 
 namespace Duper
 
@@ -12,8 +13,23 @@ open Comparison
 
 initialize Lean.registerTraceClass `Rule.boolSimp
 
--- Rules 1 through 15 are from Leo-III. Remaining rules are from "Superposition with First-Class
--- Booleans and Inprocessing Clausification"
+/-
+  Rules 1 through 15 are from Leo-III. Rules 16 through 22 are from "Superposition with First-Class
+  Booleans and Inprocessing Clausification."
+
+  Rules 23 and 24 (which have not been implemented yet) were made just for duper. They are:
+  - ∀ p, f(p) ↦ f True ∧ f False
+  - ∃ p, f(p) ↦ f True ∨ f False
+
+  Additionally, three rules that are considered to be part of BoolSimp in "Superposition with First-Class
+  Booleans and Inprocessing Clausification" but are not included here are:
+  - (s1 → s2 → ... → sn → v) ↦ True if there exists i and j such that si = ¬sj
+  - (s1 → s2 → ... → sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
+  - (s1 ∧ s2 ∧ ... ∧ sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
+
+  I hope to implement each of these rules later, either in this file or in another file, but they
+  haven't been implemented yet because they each require more complex proof reconstruction
+-/
 inductive BoolSimpRule
   | rule1 -- s ∨ s ↦ s
   | rule2 -- ¬s ∨ s ↦ True
@@ -38,7 +54,13 @@ inductive BoolSimpRule
   | rule13Sym -- False = s ↦ ¬s
   | rule14 -- Not True ↦ False
   | rule15 -- ¬¬s ↦ s
-  -- TODO: Implement rules from "Superposition with First-Class Booleans and Inprocessing Clausification"
+  | rule16 -- True → s ↦ s
+  | rule17 -- False → s ↦ True
+  | rule18 -- s → False ↦ ¬s
+  | rule19 -- s → True ↦ True (we generalize this to (∀ _ : α, True) ↦ True)
+  | rule20 -- s → ¬s ↦ ¬s
+  | rule21 -- ¬s → s ↦ s
+  | rule22 -- s → s ↦ True
 
 open BoolSimpRule
 
@@ -67,6 +89,13 @@ def BoolSimpRule.format (boolSimpRule : BoolSimpRule) : MessageData :=
   | rule13Sym => m!"rule13Sym"
   | rule14 => m!"rule14"
   | rule15 => m!"rule15"
+  | rule16 => m!"rule16"
+  | rule17 => m!"rule17"
+  | rule18 => m!"rule18"
+  | rule19 => m!"rule19"
+  | rule20 => m!"rule20"
+  | rule21 => m!"rule21"
+  | rule22 => m!"rule22"
 
 instance : ToMessageData BoolSimpRule := ⟨BoolSimpRule.format⟩
 
@@ -80,13 +109,11 @@ theorem rule2Theorem (p : Prop) : (¬p ∨ p) = True := by
     apply eq_true
     exact Or.intro_left _ hnp
 theorem rule2SymTheorem (p : Prop) : (p ∨ ¬p) = True := by
-  apply @Classical.byCases p
-  . intro hnp
-    apply eq_true
-    exact Or.intro_left _ hnp
-  . intro hp
-    apply eq_true
-    exact Or.intro_right _ hp
+  by_cases h : p
+  . apply eq_true
+    exact Or.intro_left _ h
+  . apply eq_true
+    exact Or.intro_right _ h
 theorem rule3Theorem (p : Prop) : (p ∨ True) = True := by simp
 theorem rule3SymTheorem (p : Prop) : (True ∨ p) = True := by simp
 theorem rule4Theorem (p : Prop) : (p ∨ False) = p := by simp
@@ -107,6 +134,63 @@ theorem rule13Theorem (p : Prop) : (p = False) = ¬p := by simp
 theorem rule13SymTheorem (p : Prop) : (False = p) = ¬p := by simp
 theorem rule14Theorem : Not True = False := by simp
 theorem rule15Theorem (p : Prop) : (¬¬p) = p := by rw [Classical.not_not]
+theorem rule16Theorem (p : Prop) : (True → p) = p := by simp
+theorem rule17Theorem (p : Prop) : (False → p) = True := by simp
+theorem rule18Theorem (p : Prop) : (p → False) = ¬p := by rfl
+theorem rule19Theorem (α) : (∀ _ : α, True) = True := by simp
+theorem rule20Theorem (p : Prop) : (p → ¬p) = ¬p := by simp
+theorem rule21Theorem (p : Prop) : (¬p → p) = p := by
+  by_cases h : p
+  . rw [eq_true h]
+    simp
+  . rw [eq_false h]
+    simp
+theorem rule22Theorem (p : Prop) : (p → p) = True := by simp
+theorem rule23Theorem (f : Prop → Prop) : (∀ p : Prop, f p) = (f True ∧ f False) := by
+  by_cases h : ∀ p : Prop, f p
+  . rw [eq_true h]
+    apply Eq.symm
+    apply eq_true
+    constructor
+    . exact h True
+    . exact h False
+  . rw [eq_false h]
+    apply Eq.symm
+    apply eq_false
+    intro h2
+    have h3 : (∀ p : Prop, f p) := by
+      intro p
+      by_cases hp : p
+      . rw [eq_true hp]
+        exact h2.1
+      . rw [eq_false hp]
+        exact h2.2
+    exact h h3
+theorem rule24Theorem (f : Prop → Prop) : (∃ p : Prop, f p) = (f True ∨ f False) := by
+  by_cases h : ∃ p : Prop, f p
+  . rw [eq_true h]
+    apply Eq.symm
+    apply eq_true
+    cases h with
+    | intro p h =>
+      cases Classical.propComplete p with
+      | inl p_eq_true =>
+        rw [p_eq_true] at h
+        exact Or.inl h
+      | inr p_eq_false =>
+        rw [p_eq_false] at h
+        exact Or.inr h
+  . rw [eq_false h]
+    apply Eq.symm
+    apply eq_false
+    intro h2
+    cases h2 with
+    | inl f_true =>
+      have h2 : ∃ p : Prop, f p := Exists.intro True f_true
+      exact h h2
+    | inr f_false =>
+      have h2 : ∃ p : Prop, f p := Exists.intro False f_false
+      exact h h2
 
 /-- s ∨ s ↦ s -/
 def applyRule1 (e : Expr) : Option Expr :=
@@ -286,6 +370,62 @@ def applyRule15 (e : Expr) : Option Expr :=
   | Expr.app (Expr.const ``Not _) (Expr.app (Expr.const ``Not _) e') => some e'
   | _ => none
 
+/-- True → s ↦ s -/
+def applyRule16 (e : Expr) : Option Expr :=
+  match e with
+  | Expr.forallE _ t b _ =>
+    if t == mkConst ``True then some b
+    else none
+  | _ => none
+
+/-- False → s ↦ True -/
+def applyRule17 (e : Expr) : Option Expr :=
+  match e with
+  | Expr.forallE _ t _ _ =>
+    if t == mkConst ``False then some (mkConst ``True)
+    else none
+  | _ => none
+
+/-- s → False ↦ ¬s -/
+def applyRule18 (e : Expr) : RuleM (Option Expr) := do
+  match e with
+  | Expr.forallE _ t b _ =>
+    if b == mkConst ``False && (← inferType t).isProp then return some (mkApp (mkConst ``Not) t)
+    else return none
+  | _ => return none
+
+/-- s → True ↦ True (we generalize this to (∀ _ : α, True) ↦ True) -/
+def applyRule19 (e : Expr) : Option Expr := do
+  match e with
+  | Expr.forallE _ _ b _ =>
+    if b == mkConst ``True then some (mkConst ``True)
+    else none
+  | _ => none
+
+/-- s → ¬s ↦ ¬s -/
+def applyRule20 (e : Expr) : Option Expr := do
+  match e with
+  | Expr.forallE _ t b _ =>
+    if b == Expr.app (Expr.const ``Not []) t then some b
+    else none
+  | _ => none
+
+/-- ¬s → s ↦ s -/
+def applyRule21 (e : Expr) : Option Expr := do
+  match e with
+  | Expr.forallE _ t b _ =>
+    if t == Expr.app (Expr.const ``Not []) b then some b
+    else none
+  | _ => none
+
+/-- s → s ↦ True -/
+def applyRule22 (e : Expr) : Option Expr := do
+  match e with
+  | Expr.forallE _ t b _ =>
+    if t == b then some (mkConst ``True)
+    else none
+  | _ => none
+
 /-- Returns the rule theorem corresponding to boolSimpRule with the first argument applied.
 
     Note that this function assumes that `boolSimpRule` has already been shown to be applicable to `originalExp` so
@@ -385,6 +525,34 @@ def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) : 
     match originalExp.consumeMData with
     | Expr.app (Expr.const ``Not _) (Expr.app (Expr.const ``Not _) e') => return mkApp (mkConst ``rule15Theorem) e'
     | _ => throwError "Invalid originalExp {originalExp} for rule15"
+  | rule16 => -- True → s ↦ s
+    match originalExp.consumeMData with
+    | Expr.forallE _ _ b _ => return mkApp (mkConst ``rule16Theorem) b
+    | _ => throwError "Invalid originalExp {originalExp} for rule16"
+  | rule17 => -- False → s ↦ True
+    match originalExp.consumeMData with
+    | Expr.forallE _ _ b _ => return mkApp (mkConst ``rule17Theorem) b
+    | _ => throwError "Invalid originalExp {originalExp} for rule17"
+  | rule18 => -- s → False ↦ ¬s
+    match originalExp.consumeMData with
+    | Expr.forallE _ t _ _ => return mkApp (mkConst ``rule18Theorem) t
+    | _ => throwError "Invalid originalExp {originalExp} for rule18"
+  | rule19 => -- s → True ↦ True (we generalize this to (∀ _ : α, True) ↦ True)
+    match originalExp.consumeMData with
+    | Expr.forallE _ t _ _ => Meta.mkAppM ``rule19Theorem #[t]
+    | _ => throwError "Invalid originalExp {originalExp} for rule19"
+  | rule20 => -- s → ¬s ↦ ¬s
+    match originalExp.consumeMData with
+    | Expr.forallE _ t _ _ => return mkApp (mkConst ``rule20Theorem) t
+    | _ => throwError "Invalid originalExp {originalExp} for rule20"
+  | rule21 => -- ¬s → s ↦ s
+    match originalExp.consumeMData with
+    | Expr.forallE _ _ b _ => return mkApp (mkConst ``rule21Theorem) b
+    | _ => throwError "Invalid originalExp {originalExp} for rule21"
+  | rule22 => -- s → s ↦ True
+    match originalExp.consumeMData with
+    | Expr.forallE _ _ b _ => return mkApp (mkConst ``rule22Theorem) b
+    | _ => throwError "Invalid originalExp {originalExp} for rule22"
 
 def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (premises : List Expr) (parents : List ProofParent)
   (c : Clause) : MetaM Expr :=
@@ -414,7 +582,8 @@ def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (premis
     let proof ← orCases (parentLits.map Lit.toExpr) proofCases
     Meta.mkLambdaFVars xs $ mkApp proof appliedPremise
 
-def applyRulesList : List ((Expr → (Option Expr)) × BoolSimpRule) := [
+/-- The list of rules that do not require the RuleM monad -/
+def applyRulesList1 : List ((Expr → (Option Expr)) × BoolSimpRule) := [
   (applyRule1, rule1),
   (applyRule2, rule2),
   (applyRule2Sym, rule2Sym),
@@ -437,12 +606,27 @@ def applyRulesList : List ((Expr → (Option Expr)) × BoolSimpRule) := [
   (applyRule13, rule13),
   (applyRule13Sym, rule13Sym),
   (applyRule14, rule14),
-  (applyRule15, rule15)
+  (applyRule15, rule15),
+  (applyRule16, rule16),
+  (applyRule17, rule17),
+  (applyRule19, rule19),
+  (applyRule20, rule20),
+  (applyRule21, rule21),
+  (applyRule22, rule22)
+]
+
+/-- The list of rules that do require the RuleM monad -/
+def applyRulesList2 : List ((Expr → RuleM (Option Expr)) × BoolSimpRule) := [
+  (applyRule18, rule18)
 ]
 
 def applyBoolSimpRules (e : Expr) : RuleM (Option (Expr × BoolSimpRule)) := do
-  for (applyRuleFn, rule) in applyRulesList do
+  for (applyRuleFn, rule) in applyRulesList1 do
     match applyRuleFn e with
+    | some e' => return some (e', rule)
+    | none => continue
+  for (applyRuleFn, rule) in applyRulesList2 do
+    match ← applyRuleFn e with
     | some e' => return some (e', rule)
     | none => continue
   return none
