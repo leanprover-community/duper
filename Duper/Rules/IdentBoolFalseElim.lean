@@ -7,8 +7,8 @@ open SimpResult
 open Lean
 
 /-- Determines whether a literal has exactly the form `false = true` or `true = false`-/
-def isFalseLiteral (lit : Lit) : MetaM Bool := do
-  if ← Meta.isDefEq lit.ty (mkConst ``Bool) then
+def isFalseBoolLiteral (lit : Lit) : MetaM Bool := do
+  if lit.ty.consumeMData == (mkConst ``Bool) then
     return lit.sign &&
       ((lit.lhs == mkConst ``true && lit.rhs == mkConst ``false) ||
       (lit.lhs == mkConst ``false && lit.rhs == mkConst ``true))
@@ -28,7 +28,7 @@ def mkIdentBoolFalseElimProof (refs : List (Option Nat)) (premises : List Expr) 
     let mut proofCases : Array Expr := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
       let lit := parentLits[i]!
-      if (← isFalseLiteral lit) then -- lit has the form `false = true` or `true = false`
+      if (← isFalseBoolLiteral lit) then -- lit has the form `false = true` or `true = false`
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           if (lit.lhs == mkConst ``false) then
             let proofCase := mkApp (mkConst ``bool_false_ne_true) h
@@ -64,7 +64,7 @@ def identBoolFalseElim : MSimpRule := fun c => do
   let mut newLits : List Lit := []
   let mut refs : List (Option Nat) := []
   for lit in c.lits do
-    if (← runMetaAsRuleM (isFalseLiteral lit)) then
+    if (← runMetaAsRuleM (isFalseBoolLiteral lit)) then
       refs := none :: refs
     else
       refs := (some newLits.length) :: refs

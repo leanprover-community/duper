@@ -84,24 +84,4 @@ def identPropFalseElim : MSimpRule := fun c => do
       (some (mkIdentPropFalseElimProof refs))
     return true
 
-
-  /-
-  let mut newLits : Array Lit := Array.mkEmpty c.lits.size
-  -- If c.lits[i] is `False = True` or `True = False`, then refs[i] = none
-  -- If c.lits[i] isn't `False = True` or `True = False`,then refs[i] = some j where newLits[j] = c.lits[i]
-  let mut refs : Array (Option Nat) := Array.mkEmpty c.lits.size
-  for lit in c.lits do
-    if (← runMetaAsRuleM (isFalsePropLiteral lit)) then
-      refs := refs.push none
-    else
-      refs := refs.push (some newLits.size)
-      newLits := newLits.push lit
-  if (newLits.size = c.lits.size) then
-    trace[Simp.identPropFalseElim] "Returning Unapplicable on {c.lits}"
-    return Unapplicable
-  else
-    trace[Simp.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
-    return Applied [(MClause.mk newLits, some (mkIdentPropFalseElimProof refs))]
-  -/
-
 end Duper

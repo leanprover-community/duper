@@ -150,7 +150,6 @@ def evalDuper : Tactic
       logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated =>
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
-      trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident [$facts,*]) => withMainContext do
@@ -166,7 +165,6 @@ def evalDuper : Tactic
     | Result.saturated =>
       logInfo s!"{ident} test resulted in prover saturation"
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
-      trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
       Lean.Elab.Tactic.evalTactic (← `(tactic| sorry))
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
@@ -191,7 +189,6 @@ def evalDuperNoTiming : Tactic
       logInfo s!"Constructed proof"
     | Result.saturated =>
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
-      trace[Saturate.debug] "Final set of all clauses: {Array.map (fun x => x.1) state.allClauses.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
