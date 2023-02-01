@@ -1,6 +1,19 @@
 import Lean
 open Lean
 
+@[reducible] def SumN : List (Type _) → Type _
+| .nil => PUnit
+| .cons a as => a ⊕ SumN as
+
+def Sum3.mk1 {α β γ} (x : α) : SumN [α, β, γ] := .inl x
+def Sum3.mk2 {α β γ} (x : β) : SumN [α, β, γ] := .inr (.inl x)
+def Sum3.mk3 {α β γ} (x : γ) : SumN [α, β, γ] := .inr (.inr (.inl x))
+
+def List.subsequences (xs : List α) :=
+  match xs with
+  | nil => [nil]
+  | cons a as => List.subsequences as ++ map (List.cons a) (List.subsequences as)
+
 instance [Hashable α] : Hashable (Array α) where
   hash as := as.foldl (fun r a => mixHash r (hash a)) 7
 
@@ -15,6 +28,10 @@ private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) 
     | _                => throwError "invalid instantiateForallNoReducing, too many parameters"
   else
     return e
+
+def Lean.Expr.countLambdas : Expr → Nat
+| lam _ _ b _ => countLambdas b + 1
+| _            => 0
 
 /-- Given `e` of the form `forall (a_1 : A_1) ... (a_n : A_n), B[a_1, ..., a_n]` and `p_1 : A_1, ... p_n : A_n`, return `B[p_1, ..., p_n]`. -/
 def Lean.Expr.instantiateForallNoReducing (e : Expr) (ps : Array Expr) : MetaM Expr :=
