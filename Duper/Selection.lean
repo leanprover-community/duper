@@ -83,8 +83,8 @@ A literal L is (strictly) eligible w.r.t. a substitution σ
 in C if it is selected in C or there are no selected literals
 in C and Lσ is (strictly) maximal in Cσ. -/
 def eligibilityPostUnificationCheck (c : MClause) (i : Nat) (preUnificationResult : Eligibility) (strict := false) : RuleM Bool := do
-  if preUnificationResult == Eligibility.eligible
-  then return true
+  if preUnificationResult == Eligibility.eligible then return true
+  else if preUnificationResult == Eligibility.notEligible then return false
   else
     let c ← c.mapM RuleM.instantiateMVars
     runMetaAsRuleM $ c.isMaximalLit (← getOrder) i (strict := strict)

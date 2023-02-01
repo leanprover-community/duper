@@ -24,12 +24,6 @@ Simplification rules:
 Refactoring to consider:
 - Use mvars in Clause to avoid cost of conversion?
 
-Known bugs/issues (bugs.lean):
-- Premature saturation instances:
-  - PUZ137_8 achieves premature saturation because our current interpretation of $o/$oType in tff isn't correct. Currently, we interpreting $o/$oType
-    as Prop, but there is an important sense in which we should at least sometimes be interpreting it as Bool. PUZ137_8 is one such instance.
-    - Though at present, I don't know that fully interpreting $o/$oType as Bool would necessarily work either
-
 Other:
 - Improve indexing functions for fingerprint indices
   - Current fingerprint function was arbitrarily copied from http://www.eprover.eu/EXPDATA/FP_INDEX/schulz_fp-index_ext.pdf. Explore whether other

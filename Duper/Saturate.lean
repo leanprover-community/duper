@@ -16,6 +16,7 @@ import Duper.Rules.ElimResolvedLit
 import Duper.Rules.EqualityFactoring
 import Duper.Rules.EqualityResolution
 import Duper.Rules.EqualitySubsumption
+import Duper.Rules.FalseElim
 import Duper.Rules.IdentBoolFalseElim
 import Duper.Rules.IdentPropFalseElim
 import Duper.Rules.SimplifyReflect
@@ -125,6 +126,8 @@ def inferenceRules : ProverM (List (MClause → Nat → RuleM Unit)) := do
   clausifyPropEq,
   superposition (← getMainPremiseIdx) (← getSupSidePremiseIdx),
   equalityFactoring,
+  -- Prop specific rules
+  falseElim,
   -- Higher order rules
   argCong
 ]
