@@ -9,16 +9,20 @@ structure UnifEq where
   rhs : Expr
   lflex : Bool := false
   rflex : Bool := false
-  deriving Hashable, Inhabited, BEq
+  deriving Hashable, Inhabited, BEq, Repr
 
-def UnifEq.fromExpr (e1 e2 : Expr) : UnifEq := {lhs := e1, rhs := e2, lflex := true, rflex := true}
+instance : ToString UnifEq where
+  toString := fun ⟨lhs, rhs, lflex, rflex⟩ => s!"\{{h lflex} lhs: {lhs}, {h rflex} rhs: {rhs}}"
+    where h b := if b then "Flex" else "Rigid"
+
+def UnifEq.fromExprPair (e1 e2 : Expr) : UnifEq := {lhs := e1, rhs := e2, lflex := true, rflex := true}
 
 structure UnifProblem where
-  rigidrigid : Array UnifEq
-  flexrigid  : Array UnifEq
+  rigidrigid : Array UnifEq := #[]
+  flexrigid  : Array UnifEq := #[]
   -- Equations which haven't been checked are also put
   -- into flexflex
-  flexflex   : Array UnifEq
+  flexflex   : Array UnifEq := #[]
   -- When selecting UnifEq, we prioritize `rigidrigid` to `rigidflex`
   --   to `flexflex`.
   -- When `rigidrigid` is not empty, we will select an arbitrary equation
@@ -31,8 +35,17 @@ structure UnifProblem where
   -- So, when `rigidrigid` is empty, and some metavariables
   --   have been instantiated after the last check, we need to 
   --   check again.
-  checked : Bool
-  deriving Hashable, Inhabited, BEq
+  checked    : Bool         := false
+  state      : Meta.SavedState
+  -- Identification variables
+  identVar   : HashSet Expr := HashSet.empty
+  -- Elimivarion variables
+  elimVar    : HashSet Expr := HashSet.empty
+  deriving Inhabited
+
+def UnifProblem.empty : MetaM UnifProblem := do
+  let s ← saveState
+  return {state := s}
 
 -- Here `e` hasn't been checked
 def UnifProblem.pushUnchecked (p : UnifProblem) (e : UnifEq) := {p with flexflex := p.flexflex.push e, checked := false}

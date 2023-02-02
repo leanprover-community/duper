@@ -28,10 +28,6 @@ def size : LazyList α → Nat
 @[inline] protected def pure : α → LazyList α
 | a => cons a nil
 
-def get : LazyList α → LazyList α
-| (delayed as) => get as.get
-| other        => other
-
 def isEmpty : LazyList α → Bool
 | nil          => true
 | (cons _ _)   => false
@@ -62,8 +58,8 @@ instance : Append (LazyList α) :=
 
 @[specialize] def map (f : α → β) : LazyList α → LazyList β
 | nil          => nil
-| (cons a as)  => cons (f a) (delayed (map f as))
-| (delayed as) => map f as.get
+| (cons a as)  => cons (f a) (map f as)
+| (delayed as) => delayed (map f as.get)
 
 @[specialize] def map₂ (f : α → β → δ) : LazyList α → LazyList β → LazyList δ
 | nil          , _            => nil
@@ -157,8 +153,8 @@ def approx : Nat → LazyList α → List α
 
 @[specialize] def filter (p : α → Bool) : LazyList α → LazyList α
 | nil          => nil
-| (cons a as)  => if p a then cons a (delayed (filter p as)) else filter p as
-| (delayed as) => filter p as.get
+| (cons a as)  => if p a then cons a (filter p as) else filter p as
+| (delayed as) => delayed (filter p as.get)
 
 partial def cycle : LazyList α → LazyList α
 | xs => xs ++ delayed (cycle xs)
@@ -186,6 +182,14 @@ def approxToString [ToString α] (as : LazyList α) (n : Nat := 10) : String :=
 instance [ToString α] : ToString (LazyList α) := ⟨approxToString⟩
 
 end LazyList
+
+
+
+-- Other utilities
+
+def List.lazySubsequences {α : Type u} : List α → LazyList (List α)
+| .nil => .cons .nil .nil
+| .cons a as => List.lazySubsequences as ++ .delayed (LazyList.map (List.cons a) (lazySubsequences as))
 
 
 

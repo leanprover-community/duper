@@ -2,7 +2,7 @@ import Lean
 open Lean
 
 @[reducible] def SumN : List (Type _) → Type _
-| .nil => PUnit
+| .nil => Empty
 | .cons a as => a ⊕ SumN as
 
 def Sum3.mk1 {α β γ} (x : α) : SumN [α, β, γ] := .inl x
