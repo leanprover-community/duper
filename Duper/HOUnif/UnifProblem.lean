@@ -36,7 +36,7 @@ structure UnifProblem where
   --   have been instantiated after the last check, we need to 
   --   check again.
   checked    : Bool         := false
-  state      : Meta.SavedState
+  mctx       : MetavarContext
   -- Identification variables
   identVar   : HashSet Expr := HashSet.empty
   -- Elimivarion variables
@@ -44,8 +44,8 @@ structure UnifProblem where
   deriving Inhabited
 
 def UnifProblem.empty : MetaM UnifProblem := do
-  let s ← saveState
-  return {state := s}
+  let s ← getMCtx
+  return {mctx := s}
 
 -- Here `e` hasn't been checked
 def UnifProblem.pushUnchecked (p : UnifProblem) (e : UnifEq) := {p with flexflex := p.flexflex.push e, checked := false}

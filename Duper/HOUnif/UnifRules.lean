@@ -111,7 +111,7 @@ def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := do
     else
       flexflex' := flexflex'.push c
   return {p with rigidrigid := rigidrigid', flexrigid := flexrigid', flexflex := flexflex',
-                 checked := true, state := ← saveState}
+                 checked := true, mctx := ← getMCtx}
 
 --  This function takes caure of `Delete`, `Fail` and `Decompose`
 -- Assumming both sides of p are flex
@@ -150,6 +150,8 @@ def unifyRigidRigid (p : UnifEq) : MetaM (Option (Array (Expr × Expr))) := do
 -- Bool : True -> Succeed, False -> Fail
 abbrev UnifRuleResult := SumN [Array UnifProblem, LazyList (MetaM (Array UnifProblem)), Bool]
 
+-- Rules are run inside `applyRules` without `withoutModifyingMCtx`,
+-- so `applyRules` should be run with `withoutModifyingMCtx`
 def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
   let mut p := p
   if ¬ p.checked then
@@ -191,21 +193,28 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
     -- Left flex, Right flex
     -- Heads are different
     if lh != rh then
-      -- TODO: Iteration
+      -- Iteration for both lhs and rhs
+      let liter ← HOUnif.iteration lh p false
+      let riter ← HOUnif.iteration rh p false
+      let iter := LazyList.interleave liter riter
+      -- Identification
       let mut arr ← HOUnif.identification lh rh p
+      -- JP style projection
       if ¬ p.identVar.contains lh then
         arr := arr.append (← HOUnif.jpProjection lh p)
       if ¬ p.identVar.contains rh then
         arr := arr.append (← HOUnif.jpProjection rh p)
-      return Sum3.mk1 arr
+      return Sum3.mk2 (.cons (pure arr) iter)
     -- Left flex, Right flex
     -- Heads are the same
     else
-      -- TODO: Iteration
       if p.elimVar.contains lh then
         return Sum3.mk1 #[]
+      -- Iteration at arguments of functional type
+      let iters ← HOUnif.iteration lh p true
+      -- Eliminations
       let elims ← HOUnif.elimination lh p
-      return Sum3.mk2 elims
+      return Sum3.mk2 (LazyList.interleave elims iters)
   else
     -- No problems left
     return Sum3.mk3 true
@@ -236,7 +245,7 @@ def UnifierGenerator.fromExprPair (e1 e2 : Expr) : MetaM UnifierGenerator := do
 def UnifierGenerator.isEmpty : UnifierGenerator → Bool
 | .mk q => q.isEmpty
 
-def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option Meta.SavedState × UnifierGenerator) := do
+def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option MetavarContext × UnifierGenerator) := do
   let q := ug.q
   let dq := q.dequeue?
   if dq.isNone then
@@ -244,7 +253,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option Meta.SavedStat
   let (top, q') := dq.get!
   match top with
   | .inl up => do
-    let urr ← applyRules up
+    let urr ← withoutModifyingMCtx <| applyRules up
     match urr with
     -- arr : Array UnifProblem
     | .inl arr => do
@@ -257,7 +266,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option Meta.SavedStat
     -- b : Bool
     | .inr (.inr (.inl b)) =>
       if (b : Bool) then
-        return (some up.state, ⟨q'⟩)
+        return (some up.mctx, ⟨q'⟩)
       else
         return (none, ⟨q'⟩)
   | .inr ls =>
@@ -265,7 +274,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option Meta.SavedStat
     | .cons arr ls' => do
       let mut q' := q'
       q' := q'.enqueue (.inr ls')
-      for a in (← arr) do
+      for a in (← withoutModifyingMCtx arr) do
         q' := q'.enqueue (.inl a)
       return (none, ⟨q'⟩)
     | .nil => pure (none, ⟨q'⟩)

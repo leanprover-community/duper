@@ -20,6 +20,8 @@ variable {α : Type u} {β : Type v} {δ : Type w}
 instance : Inhabited (LazyList α) :=
 ⟨nil⟩
 
+partial def nats i := cons i (delayed (nats (i + 1)))
+
 def size : LazyList α → Nat
 | nil        => 0
 | cons hd tl => size tl + 1
@@ -232,6 +234,4 @@ def maintest : IO Unit := do
   -- IO.println $ ((iota.map (+10)).filter (λ v, v % 2 == 0)),
   pure ()
 
-partial def nats i := cons i (delayed (nats (i + 1)))
-
-partial def natuple := LazyList.bindω (nats 0) (fun i => (nats 0).zip (repeats i))
+partial def natuple := LazyList.bindω (LazyList.nats 0) (fun i => (LazyList.nats 0).zip (repeats i))
