@@ -13,16 +13,34 @@ namespace HOUnif
 -- 2: Do we unify the types?
 -- 3: How to deal with `mdata`?
 -- 4: How to deal with `let`?
+-- 5: Find out whether we need to consider metavariables of
+--    different depth to be rigid. (Anyway, we need to prevent
+--    us from assigning the metavariables that are assumed to
+--    be synthesized by typeclass resolution. It seems that
+--    `Elab.Term.synthesizeSyntheticMVarsNoPostponing` might help?)
+-- 6: Whether it's safe to proceed with term unification
+--    when type unification is not finished.
 
 inductive HeadType where
-  -- Note : Unbound free variables are considered constant
-  --        because of their role during unification
+  -- Things considered as `const`:
+  -- 1. constants
+  -- 2. free variables
+  -- 3. metavariables not of current depth
+  -- 4. literals
   | Const : HeadType
   | Bound : HeadType
   | MVar  : HeadType
   -- Currently, `mdata`, `forall`, `let`
   | Other : HeadType
-  deriving Hashable, Inhabited, BEq
+  deriving Hashable, Inhabited, BEq, Repr
+
+instance : ToString HeadType where
+  toString (ht : HeadType) : String :=
+  match ht with
+  | .Const => "HeadType.Const"
+  | .Bound => "HeadType.Bound"
+  | .MVar  => "HeadType.MVar"
+  | .Other => "HeadType.Other"
 
 def HeadType.isFlex : HeadType → Bool
 | Const => false
@@ -47,11 +65,15 @@ def headInfo (e : Expr) : MetaM (Expr × HeadType) :=
       if bound then
         return (h, .Bound)
       else
-        return (h, .Const)      
-    else if h.isConst then
+        return (h, .Const)
+    else if h.isConst ∨ h.isSort ∨ h.isLit then
       return (h, .Const)
     else if h.isMVar then
-      return (h, .MVar)
+      let decl := (← getMCtx).getDecl h.mvarId!
+      if decl.depth != (← getMCtx).depth then
+        return (h, .Const)
+      else
+        return (h, .MVar)
     else
       return (h, .Other)
 
@@ -96,7 +118,11 @@ def derefNormEq (u : UnifEq) : MetaM UnifEq := do
   else 
     return {lhs := lhs', lflex := lflex', rhs := rhs', rflex := rflex'}
 
-def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := do
+def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := withoutModifyingMCtx <| do
+  setMCtx p.mctx
+  let mut p := p
+  if p.isActiveEmpty then
+    p := {p with flexflex := p.postponed, postponed := #[], checked := false}
   if p.checked then
     return p
   let mut rigidrigid' := p.rigidrigid
@@ -153,23 +179,30 @@ abbrev UnifRuleResult := SumN [Array UnifProblem, LazyList (MetaM (Array UnifPro
 -- Rules are run inside `applyRules` without `withoutModifyingMCtx`,
 -- so `applyRules` should be run with `withoutModifyingMCtx`
 def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
+  -- To make messages print, we set `mctx` to that of `p`'s
+  setMCtx p.mctx
   let mut p := p
-  if ¬ p.checked then
+  if ¬ p.checked ∨ p.isActiveEmpty then
     p ← derefNormProblem p
+  trace[Meta.debug] m!"{p}"
   if let some (eq, p') := p.pop? then
     let (lh, lhtype) ← headInfo eq.lhs
+    -- debug
+    trace[Meta.debug] "lhs headInfo ({lh}) ({lhtype})"
     let (rh, rhtype) ← headInfo eq.rhs
+    -- debug
+    trace[Meta.debug] "rhs headInfo ({rh}) ({rhtype})"
     if lhtype == .Other then
-      trace[Meta.debug] s!"applyRule :: Head type of {eq.lhs} is `Other`"
+      trace[Meta.debug] m!"applyRule :: Type of head of `{eq.lhs}` is `Other`"
       return Sum3.mk3 false
     if rhtype == .Other then
-      trace[Meta.debug] s!"applyRule :: Head type of {eq.rhs} is `Other`"
+      trace[Meta.debug] m!"applyRule :: Type of head of `{eq.rhs}` is `Other`"
       return Sum3.mk3 false
     if eq.lflex != lhtype.isFlex then
-      trace[Meta.debug] s!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
+      trace[Meta.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
       return Sum3.mk3 false
     if eq.rflex != rhtype.isFlex then
-      trace[Meta.debug] s!"applyRule :: Flex-rigid-cache mismatch in rhs of {eq}"
+      trace[Meta.debug] m!"applyRule :: Flex-rigid-cache mismatch in rhs of {eq}"
       return Sum3.mk3 false
     -- Fail, Delete, Decompose
     -- If head type
@@ -186,24 +219,24 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
     if eq.lflex ∧ ¬ eq.rflex then
       let mut ret := #[]
       if rhtype == .Const then
-        ret := ret.append (← HOUnif.imitation lh rh p)
+        ret := ret.append (← HOUnif.imitation lh rh p' eq)
       if ¬ p.identVar.contains lh then
-        ret := ret.append (← HOUnif.huetProjection lh p)
+        ret := ret.append (← HOUnif.huetProjection lh p' eq)
       return Sum3.mk1 ret
     -- Left flex, Right flex
     -- Heads are different
     if lh != rh then
       -- Iteration for both lhs and rhs
-      let liter ← HOUnif.iteration lh p false
-      let riter ← HOUnif.iteration rh p false
+      let liter ← HOUnif.iteration lh p' eq false
+      let riter ← HOUnif.iteration rh p' eq false
       let iter := LazyList.interleave liter riter
       -- Identification
-      let mut arr ← HOUnif.identification lh rh p
+      let mut arr ← HOUnif.identification lh rh p' eq
       -- JP style projection
       if ¬ p.identVar.contains lh then
-        arr := arr.append (← HOUnif.jpProjection lh p)
+        arr := arr.append (← HOUnif.jpProjection lh p' eq)
       if ¬ p.identVar.contains rh then
-        arr := arr.append (← HOUnif.jpProjection rh p)
+        arr := arr.append (← HOUnif.jpProjection rh p' eq)
       return Sum3.mk2 (.cons (pure arr) iter)
     -- Left flex, Right flex
     -- Heads are the same
@@ -211,9 +244,9 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
       if p.elimVar.contains lh then
         return Sum3.mk1 #[]
       -- Iteration at arguments of functional type
-      let iters ← HOUnif.iteration lh p true
+      let iters ← HOUnif.iteration lh p' eq true
       -- Eliminations
-      let elims ← HOUnif.elimination lh p
+      let elims ← HOUnif.elimination lh p' eq
       return Sum3.mk2 (LazyList.interleave elims iters)
   else
     -- No problems left

@@ -4,8 +4,10 @@ import Duper.Util.LazyList
 import Duper.HOUnif.UnifProblem
 open Lean
 
--- TODO: Will `ListT` (Haskell "ListT done right") provide a more
--- elegant way of modelling monadic nondeterminism?
+-- TODO:
+-- 1. Will `ListT` (Haskell "ListT done right") provide a more
+--    elegant way of modelling monadic nondeterminism?
+-- 2. Change the `abstractMVars` approach `!!!!!!!!!!!!`
 
 -- Note:
 -- 1. Rules may modify the MetaM mctx arbitrarily, so they should
@@ -25,7 +27,7 @@ def withoutModifyingMCtx (x : MetaM α) : MetaM α := do
   finally
     setMCtx s
 
-def iteration (F : Expr) (p : UnifProblem) (funcArgOnly : Bool) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
+def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   Meta.forallTelescope Fty fun xs β₁ => (do
@@ -77,7 +79,7 @@ def iteration (F : Expr) (p : UnifProblem) (funcArgOnly : Bool) : MetaM (LazyLis
         let mH ← Meta.mkFreshExprMVar Hty
         let mt ← Meta.mkLambdaFVars xs (mkAppN mH xs)
         MVarId.assign F.mvarId! mt
-        return #[{p with checked := false, mctx := ← getMCtx}]
+        return #[{(p.pushChecked eq) with checked := false, mctx := ← getMCtx}]
       )
       -- Get rid of metavariables in `xys`
       setMCtx p.mctx
@@ -86,7 +88,7 @@ def iteration (F : Expr) (p : UnifProblem) (funcArgOnly : Bool) : MetaM (LazyLis
   )
 
 -- `F` is a metavariable
-def jpProjection (F : Expr) (p : UnifProblem) : MetaM (Array UnifProblem) := do
+def jpProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   Meta.forallTelescope Fty fun xs β => (do
@@ -98,12 +100,12 @@ def jpProjection (F : Expr) (p : UnifProblem) : MetaM (Array UnifProblem) := do
       if αi == β then
         let t ← Meta.mkLambdaFVars xs xi
         MVarId.assign F.mvarId! t
-        ret := ret.push {p with checked := false, mctx := ← getMCtx}
+        ret := ret.push {(p.pushChecked eq) with checked := false, mctx := ← getMCtx}
       setMCtx s₀
     return ret)
 
 -- `F` is a metavariable
-def huetProjection (F : Expr) (p : UnifProblem) : MetaM (Array UnifProblem) := do
+def huetProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   Meta.forallTelescope Fty fun xs β => (do
@@ -134,41 +136,39 @@ def huetProjection (F : Expr) (p : UnifProblem) : MetaM (Array UnifProblem) := d
           setMCtx p.mctx
           let (_, _, t) ← Meta.openAbstractMVarsResult res
           MVarId.assign F.mvarId! t
-          return {p with checked := false, mctx := ← getMCtx}
+          return {(p.pushChecked eq) with checked := false, mctx := ← getMCtx}
         return #[s']
       ret := ret.append binding
     return ret)
 
 -- `F` is a metavariable, and `g` is a constant
-def imitation (F : Expr) (g : Expr) (p : UnifProblem) : MetaM (Array UnifProblem) := do
+def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   let gty ← Meta.inferType g
-  Meta.forallTelescope Fty fun xs β => 
-    Meta.withNewMCtxDepth <| do
-      let (ys, _, β') ← Meta.forallMetaTelescope gty
-      -- TODO 2
-      if β' != β then
-        return #[]
-      let mut appargs := #[]
-      for yi in ys do
-        let γi ← Meta.inferType yi
-        -- `xi`s are eliminated
-        let mvarTy ← Meta.mkForallFVars xs γi
-        -- newMVar : [α] → γi
-        let newMVar ← Meta.mkFreshExprMVar mvarTy
-        -- yi := newMVar [xs]
-        MVarId.assign yi.mvarId! newMVar
-        appargs := appargs.push (mkAppN newMVar xs)
-      -- Metavariables are eliminated
-      let mt ← Meta.mkLambdaFVars xs (mkAppN g appargs)
-      let res ← Meta.abstractMVars mt
-      let s' ← withoutModifyingMCtx <| do
-        setMCtx p.mctx
-        let (_, _, t) ← Meta.openAbstractMVarsResult res
-        MVarId.assign F.mvarId! t
-        return {p with checked := false, mctx := ← getMCtx}
-      return #[s']
+  Meta.forallTelescope Fty fun xs β => do
+    let (ys, _, β') ← Meta.forallMetaTelescope gty
+    let mut p := p
+    if β' != β then
+      -- We need to unify their types first
+      p := {p with postponed := p.postponed.push eq}
+      p := p.pushUnchecked (UnifEq.fromExprPair β β')
+    else
+      p := p.pushChecked eq
+    let mut appargs := #[]
+    for yi in ys do
+      let γi ← Meta.inferType yi
+      -- `xi`s are eliminated
+      let mvarTy ← Meta.mkForallFVars xs γi
+      -- newMVar : [α] → γi
+      let newMVar ← Meta.mkFreshExprMVar mvarTy
+      -- yi := newMVar [xs]
+      MVarId.assign yi.mvarId! newMVar
+      appargs := appargs.push (mkAppN newMVar xs)
+    -- Metavariables are eliminated
+    let mt ← Meta.mkLambdaFVars xs (mkAppN g appargs)
+    MVarId.assign F.mvarId! mt
+    return #[{p with checked := false, mctx := ← getMCtx}]
 
 -- Both `F` and `G` are metavariables
 -- Question: How to generalize to dependent types?
@@ -187,7 +187,7 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) : MetaM (Array UnifProblem
 --     λ[y]. η (G₁ [y]) ⋯ (Gₙ [y]) [y] =? λ[y]. δ [y]
 -- `Note`: Currently, we ignore dependent types. If any of β or η depends
 --         on preceeding bound variables, we generate no bindings.
-def identification (F : Expr) (G : Expr) (p : UnifProblem) : MetaM (Array UnifProblem) := do
+def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   let Gty ← Meta.inferType G
@@ -239,10 +239,10 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) : MetaM (Array UnifPr
       let tG := args[3]!
       let mH := tF.getAppFn
       MVarId.assign F.mvarId! tF *> MVarId.assign G.mvarId! tG
-      return {p with checked := false, mctx := ← getMCtx, identVar := p.identVar.insert mH}
+      return {(p.pushChecked eq) with checked := false, mctx := ← getMCtx, identVar := p.identVar.insert mH}
     return #[s']
 
-def elimination (F : Expr) (p : UnifProblem) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
+def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   Meta.forallTelescope Fty fun xs β => do
@@ -273,6 +273,6 @@ def elimination (F : Expr) (p : UnifProblem) : MetaM (LazyList <| MetaM (Array U
         let newMVar ← Meta.mkFreshExprMVar mvarTy
         let mt ← Meta.mkLambdaFVars xs (mkAppN newMVar vars)
         MVarId.assign F.mvarId! mt
-        return {p with checked := false, mctx := ← getMCtx, elimVar := p.elimVar.insert newMVar})
+        return {(p.pushChecked eq) with checked := false, mctx := ← getMCtx, elimVar := p.elimVar.insert newMVar})
       return #[res]
     return indsubseqs.map nats2binding
