@@ -19,6 +19,43 @@ instance : ToMessageData UnifEq := ⟨UnifEq.toMessageData⟩
 
 def UnifEq.fromExprPair (e1 e2 : Expr) : UnifEq := {lhs := e1, rhs := e2, lflex := true, rflex := true}
 
+-- Parent Rules
+
+inductive ParentRule where
+| FromExprPair   : Expr → Expr → ParentRule
+| Succeed        : ParentRule
+-- Normalize, Dereference : Does not count as rule
+-- Fail : Does not produce child
+| Delete         : UnifEq → ParentRule
+| OracleSucc     : UnifEq → ParentRule
+| OracleFail     : UnifEq → ParentRule
+| Decompose      : UnifEq → ParentRule
+-- Bindings
+| Iteration      : UnifEq → Expr → (argn: Nat) → (narg : Nat) → ParentRule
+| JPProjection   : UnifEq → Expr → (arg : Nat) → ParentRule
+| HuetProjection : UnifEq → Expr → (arg : Nat) → ParentRule
+| Imitation      : UnifEq → (flex : Expr) → (rigid : Expr) → ParentRule
+| Identification : UnifEq → (e1 e2 : Expr) → ParentRule
+| Elimination    : UnifEq → Expr → Array Nat → ParentRule
+
+def ParentRule.toMessageData : ParentRule → MessageData
+| FromExprPair e1 e2 => m!"From {e1} and {e2}"
+| Succeed  => "Succeed"
+| Delete ue => m!"Delete {ue}"
+| OracleSucc ue => m!"OracleSucc {ue}"
+| OracleFail ue => m!"OracleFail {ue}"
+| Decompose ue => m!"Decompose {ue}"
+| Iteration ue F i argn => m!"Iteration for {F} at {i} with extra {argn} args in {ue}"
+| JPProjection ue F i => m!"JPProjection for {F} at {i} in {ue}"
+| HuetProjection ue F i => m!"HuetProjection for {F} at {i} in {ue}"
+| Imitation ue F g => m!"Imitation of {g} for {F} in {ue}"
+| Identification ue F G => m!"Identification of {F} and {G} in {ue}"
+| Elimination ue F arr => m!"Elimination of {F} at {arr} in {ue}"
+
+instance : ToMessageData ParentRule := ⟨ParentRule.toMessageData⟩
+
+
+
 structure UnifProblem where
   -- Attention:
   --   rigidrigid, flexrigid, flexflex, postponed, checked
@@ -68,20 +105,35 @@ structure UnifProblem where
   identVar   : HashSet Expr := HashSet.empty
   -- Elimivarion variables
   elimVar    : HashSet Expr := HashSet.empty
+  parentRules: PersistentArray ParentRule
   deriving Inhabited
 
 def UnifProblem.format : UnifProblem → MessageData :=
-  fun ⟨rigidrigid, flexrigid, flexflex, postponed, checked, _, identVar, elimVar⟩ =>
+  fun ⟨rigidrigid, flexrigid, flexflex, postponed, checked, _, identVar, elimVar, parentrules⟩ =>
     "Unification Problem:" ++
     m!"\n  rigidrigid := {rigidrigid},\n  flexrigid := {flexrigid},\n  flexflex := {flexflex},\n  " ++
     m!"postponed := {postponed},\n  checked := {checked},\n  identVar := {identVar.toList},\n  elimVar := {elimVar.toList}" ++
-    "\n"
+    m!"\n  parentrules := {parentrules.toArray}\n"
 
 instance : ToMessageData UnifProblem := ⟨UnifProblem.format⟩
 
-def UnifProblem.empty : MetaM UnifProblem := do
+def UnifProblem.fromExprPair (e1 e2 : Expr) : MetaM (Option UnifProblem) := do
+  let ty1 ← Meta.inferType e1
+  let sort1 ← Meta.inferType ty1
+  let ty2 ← Meta.inferType e2
+  let sort2 ← Meta.inferType ty2
+  let mut flexflex := #[]
+  -- TODO : Unify sort
+  if sort1 != sort2 then
+    return none
+  else
+    let unifTyEq := UnifEq.fromExprPair ty1 ty2
+    flexflex := flexflex.push unifTyEq
+    let unifEq := UnifEq.fromExprPair e1 e2
+    flexflex := flexflex.push unifEq
   let s ← getMCtx
-  return {mctx := s}
+  return some {mctx := s, flexflex := flexflex, checked := false,
+               parentRules := #[.FromExprPair e1 e2].toPArray'}
 
 -- Empty, except that `postponed` might not be empty
 def UnifProblem.isActiveEmpty (up : UnifProblem) : Bool := up.rigidrigid.isEmpty ∧ up.flexrigid.isEmpty ∧ up.flexflex.isEmpty
@@ -100,6 +152,13 @@ def UnifProblem.pushChecked (p : UnifProblem) (e : UnifEq) :=
     {p with flexrigid := p.flexrigid.push e}
   else
     {p with flexflex := p.flexflex.push e}
+
+def UnifProblem.pushParentRule (p : UnifProblem) (pr : ParentRule) :=
+  {p with parentRules := p.parentRules.push pr}
+
+def UnifProblem.dropParentRulesButLast (p : UnifProblem) (n : Nat) :=
+  let len := p.parentRules.size
+  {p with parentRules := (p.parentRules.toArray.extract (len - n) len).toPArray'}
 
 -- Here `es` has been checked
 def UnifProblem.appendChecked (p : UnifProblem) (es : Array UnifEq) := Id.run <| do

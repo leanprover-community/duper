@@ -99,5 +99,6 @@ def evalHoApply : Elab.Tactic.Tactic := fun stx =>
 
 set_option trace.Meta.debug true
 
-def test (f : Nat → Prop) (h : ∀ x, f x) : f 3 := by
-  hoapply h attempt 19
+def test (f : Nat → Prop) (h : ∀ x y (z : Nat), f z → f (x + y)) : f (3+b) := by
+  hoapply h attempt 30
+  case a => hoapply h attempt 22

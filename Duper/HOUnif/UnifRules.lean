@@ -8,7 +8,7 @@ open Duper
 
 namespace HOUnif
 
--- TODOs
+-- TODO
 -- 1: How do we deal with `forall`?
 -- 2: Do we unify the types?
 -- 3: How to deal with `mdata`?
@@ -20,6 +20,9 @@ namespace HOUnif
 --    `Elab.Term.synthesizeSyntheticMVarsNoPostponing` might help?)
 -- 6: Whether it's safe to proceed with term unification
 --    when type unification is not finished.
+-- 7: Will `ListT` (Haskell "ListT done right") provide a more
+--    elegant way of modelling monadic nondeterminism?
+-- 8: The binding `Decomposition`: How to deal with dependent types?
 
 inductive HeadType where
   -- Things considered as `const`:
@@ -143,10 +146,10 @@ def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := withoutModifyingMC
 -- Assumming both sides of p are flex
 -- If the head is unequal and number of arguments are equal, return `none`
 -- If the head is equal and number of arguments are equal, return `none`
-def unifyRigidRigid (p : UnifEq) : MetaM (Option (Array (Expr × Expr))) := do
+def unifyRigidRigid (p : UnifEq) : MetaM (Option (Array (Expr × Expr) × ParentRule)) := do
   -- Rule: Delete
   if p.lhs == p.rhs then
-    return some #[]
+    return some (#[], .Delete p)
   Meta.lambdaTelescope p.lhs fun xs lhs' => do
     -- apply the right-hand-side to `xs`
     -- TODO 1
@@ -169,7 +172,7 @@ def unifyRigidRigid (p : UnifEq) : MetaM (Option (Array (Expr × Expr))) := do
     if argsl.size != argsr.size then
       trace[Meta.debug] "unifyRigidRigid :: Head equal but number of args unequal"
     -- Rule: Decompose
-    return some (argsl.zip argsr)
+    return some (argsl.zip argsr, .Decompose p)
 
 -- MetaM : mvar assignments
 -- LazyList UnifProblem : unification problems being generated
@@ -184,14 +187,10 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
   let mut p := p
   if ¬ p.checked ∨ p.isActiveEmpty then
     p ← derefNormProblem p
-  trace[Meta.debug] m!"{p}"
+  trace[Meta.debug] m!"{p.dropParentRulesButLast 5}"
   if let some (eq, p') := p.pop? then
     let (lh, lhtype) ← headInfo eq.lhs
-    -- debug
-    trace[Meta.debug] "lhs headInfo ({lh}) ({lhtype})"
     let (rh, rhtype) ← headInfo eq.rhs
-    -- debug
-    trace[Meta.debug] "rhs headInfo ({rh}) ({rhtype})"
     if lhtype == .Other then
       trace[Meta.debug] m!"applyRule :: Type of head of `{eq.lhs}` is `Other`"
       return Sum3.mk3 false
@@ -209,8 +208,9 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
     if ¬ eq.lflex ∧ ¬ eq.rflex then
       let urr ← unifyRigidRigid eq
       -- Head equal, one unification problem generated
-      if let some eqs := urr then
-        return Sum3.mk1 #[p'.appendUnchecked (eqs.map fun (l, r) => UnifEq.fromExprPair l r)]
+      if let some (eqs, prule) := urr then
+        return Sum3.mk1 #[{p' with parentRules := p'.parentRules.push prule}.appendUnchecked
+                                             (eqs.map fun (l, r) => UnifEq.fromExprPair l r)]
       else
         -- Not unifiable
         return Sum3.mk3 false
@@ -261,19 +261,11 @@ structure UnifierGenerator where
 
 def UnifierGenerator.fromExprPair (e1 e2 : Expr) : MetaM UnifierGenerator := do
   let q := Std.Queue.empty
-  let emptyProblem ← UnifProblem.empty
-  let ty1 ← Meta.inferType e1
-  let sort1 ← Meta.inferType ty1
-  let ty2 ← Meta.inferType e2
-  let sort2 ← Meta.inferType ty2
-  -- TODO : Unify sort
-  if sort1 != sort2 then
+  let unifPrb ← UnifProblem.fromExprPair e1 e2
+  if let some prb := unifPrb then
+    return ⟨q.enqueue (.inl prb)⟩
+  else
     return ⟨q⟩
-  let unifTyEq := UnifEq.fromExprPair ty1 ty2
-  let unifPrb := emptyProblem.pushUnchecked unifTyEq
-  let unifEq := UnifEq.fromExprPair e1 e2
-  let unifPrb := unifPrb.pushUnchecked unifEq
-  return ⟨q.enqueue (.inl unifPrb)⟩
 
 def UnifierGenerator.isEmpty : UnifierGenerator → Bool
 | .mk q => q.isEmpty

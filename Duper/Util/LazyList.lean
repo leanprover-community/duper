@@ -85,7 +85,7 @@ def interleave : LazyList α → LazyList α → LazyList α
   cons a (delayed (interleave bs as))
 | (delayed as) , bs  =>
   have : size (Thunk.get as) + size bs < size (delayed as) + size bs := by simp_arith [size]
-  interleave as.get bs
+  delayed (interleave as.get bs)
 termination_by interleave as bs => size as + size bs
 
 -- interleave between N lists
