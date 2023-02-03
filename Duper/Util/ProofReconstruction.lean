@@ -72,4 +72,22 @@ def orSubclause (lits : Array Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
     tyR := mkApp2 (mkConst ``Or) lits[lits.size-j]! tyR
   return proofRight
 
+/-- Given a list `l` of propositions, constructs the proposition `l[0] ∧ ... ∧ l[n]` -/
+def andBuild (l : List Expr) : MetaM Expr :=
+  match l with
+  | List.nil => throwError "Cannot build an empty conjunction"
+  | l1 :: List.nil => return l1
+  | l1 :: restL => return mkApp2 (mkConst ``And) l1 $ ← andBuild restL
+
+/-- Given a proof of `l[0] ∧ ... ∧ l[n]`, constructs a proof of `l[i]` -/
+def andGet (l : List Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
+  match l with
+  | List.nil => throwError "andGet index {i} out of bound (l is {l})"
+  | _ :: List.nil =>
+    if i == 0 then return proof
+    else throwError "andGet index {i} out of bound (l is {l})"
+  | l1 :: restL => -- restL is not List.nil so it is safe to pass into andbuild
+    if i == 0 then return mkApp3 (mkConst ``And.left) l1 (← andBuild restL) proof
+    else andGet restL (i - 1) $ mkApp3 (mkConst ``And.right) l1 (← andBuild restL) proof
+
 end Duper

@@ -14,21 +14,8 @@ open Comparison
 initialize Lean.registerTraceClass `Rule.boolSimp
 
 /-
-  Rules 1 through 15 are from Leo-III. Rules 16 through 22 are from "Superposition with First-Class
-  Booleans and Inprocessing Clausification."
-
-  Rules 23 and 24 (which have not been implemented yet) were made just for duper. They are:
-  - ∀ p, f(p) ↦ f True ∧ f False
-  - ∃ p, f(p) ↦ f True ∨ f False
-
-  Additionally, three rules that are considered to be part of BoolSimp in "Superposition with First-Class
-  Booleans and Inprocessing Clausification" but are not included here are:
-  - (s1 → s2 → ... → sn → v) ↦ True if there exists i and j such that si = ¬sj
-  - (s1 → s2 → ... → sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
-  - (s1 ∧ s2 ∧ ... ∧ sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
-
-  I hope to implement each of these rules later, either in this file or in another file, but they
-  haven't been implemented yet because they each require more complex proof reconstruction
+  Rules 1 through 15 are from Leo-III. Rules 16 through 22 and 25 through 27 are from "Superposition with
+  First-Class Booleans and Inprocessing Clausification." Rules 23 and 24 were made just for duper.
 -/
 inductive BoolSimpRule
   | rule1 -- s ∨ s ↦ s
@@ -61,6 +48,11 @@ inductive BoolSimpRule
   | rule20 -- s → ¬s ↦ ¬s
   | rule21 -- ¬s → s ↦ s
   | rule22 -- s → s ↦ True
+  | rule23 -- ∀ p : Prop, f(p) ↦ f True ∧ f False
+  | rule24 -- ∃ p : Prop, f(p) ↦ f True ∨ f False
+  | rule25 -- (s1 → s2 → ... → sn → v) ↦ True if there exists i and j such that si = ¬sj
+  | rule26 -- (s1 → s2 → ... → sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
+  | rule27 -- (s1 ∧ s2 ∧ ... ∧ sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
 
 open BoolSimpRule
 
@@ -96,6 +88,11 @@ def BoolSimpRule.format (boolSimpRule : BoolSimpRule) : MessageData :=
   | rule20 => m!"rule20"
   | rule21 => m!"rule21"
   | rule22 => m!"rule22"
+  | rule23 => m!"rule23"
+  | rule24 => m!"rule24"
+  | rule25 => m!"rule25"
+  | rule26 => m!"rule26"
+  | rule27 => m!"rule27"
 
 instance : ToMessageData BoolSimpRule := ⟨BoolSimpRule.format⟩
 
@@ -191,6 +188,54 @@ theorem rule24Theorem (f : Prop → Prop) : (∃ p : Prop, f p) = (f True ∨ f 
     | inr f_false =>
       have h2 : ∃ p : Prop, f p := Exists.intro False f_false
       exact h h2
+
+partial def mkRule25Theorem (e : Expr) (counter : Nat) (i : Nat) (j : Nat) : MetaM Expr := do
+  match e.consumeMData with
+  | Expr.forallE _ t b _ =>
+    let innerBody ← mkRule25Theorem b (counter + 1) i j
+    return .lam Name.anonymous t innerBody default
+  | _ =>
+    let iIdx := (counter - 1) - i
+    let jIdx := (counter - 1) - j
+    return mkApp2 (mkConst ``False.elim [levelZero]) e (mkApp (Expr.bvar iIdx) (Expr.bvar jIdx))
+
+/-- Assuming e has the form e1 ∨ e2 ∨ ... ∨ en, returns an array #[e1, e2, ... en].
+    Note: If e has the form (e1a ∨ e1b) ∨ e2 ∨ ... en, then the disjunction (e1a ∨ e1b) will
+    be considered e1 (and the disjunction e1 will not be broken down further). This decision is made
+    to reflect the form of the disjunction assumed by ProofReconstruction.lean's `orIntro` -/
+partial def getDisjunctiveGoals (e : Expr) (goals : Array Expr) : Array Expr :=
+  match e.consumeMData with
+  | Expr.app (Expr.app (Expr.const ``Or _) e1) e2 => getDisjunctiveGoals e2 (goals.push e1)
+  | _ => goals.push e
+
+partial def mkRule26Theorem (e : Expr) (counter : Nat) (i : Nat) (j : Nat) : MetaM Expr := do
+  match e.consumeMData with
+  | Expr.forallE _ t b _ =>
+    let innerBody ← mkRule26Theorem b (counter + 1) i j
+    return .lam Name.anonymous t innerBody default
+  | _ =>
+    let goals := getDisjunctiveGoals e #[]
+    let iIdx := (counter - 1) - i
+    orIntro goals j (Expr.bvar iIdx)
+
+/-- Assuming e has the form e1 ∧ e2 ∧ ... ∧ en, returns an array #[e1, e2, ... en].
+    Note: If e has the form (e1a ∧ e1b) ∧ e2 ∧ ... ∧ en, then the conjunction (e1a ∧ e1b) will
+    be considered e1 (and the conjunction e1 will not be broken down further). This decision is made
+    to reflect the form of the conjunction assumed by ProofReconstruction.lean's `andGet` -/
+partial def getConjunctiveHypotheses (e : Expr) (hyps : Array Expr) : Array Expr :=
+  match e.consumeMData with
+  | Expr.app (Expr.app (Expr.const ``And _) e1) e2 => getConjunctiveHypotheses e2 (hyps.push e1)
+  | _ => hyps.push e
+
+partial def mkRule27Theorem (e : Expr) (i : Nat) (j : Nat) : MetaM Expr := do
+  match e.consumeMData with
+  | Expr.forallE _ t b _ =>
+    let hyps := (getConjunctiveHypotheses t #[]).toList
+    let goals := getDisjunctiveGoals b #[]
+    let iHypProof ← andGet hyps i (Expr.bvar 0)
+    let innerBody ← orIntro goals j iHypProof
+    return .lam Name.anonymous t innerBody default
+  | _ => throwError "{e} has the wrong shape for rule27"
 
 /-- s ∨ s ↦ s -/
 def applyRule1 (e : Expr) : Option Expr :=
@@ -426,12 +471,89 @@ def applyRule22 (e : Expr) : Option Expr := do
     else none
   | _ => none
 
+/-- ∀ p : Prop, f(p) ↦ f(True) ∧ f(False) -/
+def applyRule23 (e : Expr) : RuleM (Option Expr) := do
+  match e with
+  | Expr.forallE name t b _ =>
+    if t.isProp && (← inferType e).isProp then
+      let bFunction := Expr.lam name (mkSort levelZero) b BinderInfo.default
+      let bTrue ← RuleM.runMetaAsRuleM $ whnf $ mkApp bFunction (mkConst ``True)
+      let bFalse ← RuleM.runMetaAsRuleM $ whnf $ mkApp bFunction (mkConst ``False)
+      mkAppM ``And #[bTrue, bFalse]
+    else return none
+  | _ => return none
+
+/-- ∃ p : Prop, f(p) ↦ f True ∨ f False -/
+def applyRule24 (e : Expr) : RuleM (Option Expr) := do
+  match e with
+  | Expr.app (Expr.app (Expr.const ``Exists _) t) b =>
+    if t.isProp then
+      let bTrue ← RuleM.runMetaAsRuleM $ whnf $ mkApp b (mkConst ``True)
+      let bFalse ← RuleM.runMetaAsRuleM $ whnf $ mkApp b (mkConst ``False)
+      mkAppM ``Or #[bTrue, bFalse]
+    else return none
+  | _ => return none
+
+partial def applyRule25Helper (e : Expr) (hyps : Array Expr) : RuleM (Option (Nat × Nat)) := do
+  match e.consumeMData with
+  | Expr.forallE _ t b _ =>
+    let findNegation (h : Expr) : Bool := -- h = ¬t or t = ¬h
+      h == Expr.app (Expr.const ``Not []) t || t == Expr.app (Expr.const ``Not []) h
+    match hyps.findIdx? findNegation with
+    | some hIdx =>
+      let tIdx := hyps.size
+      if t == Expr.app (Expr.const ``Not []) hyps[hIdx]! then return some (tIdx, hIdx)
+      else return some (hIdx, tIdx)
+    | none => applyRule25Helper b (hyps.push t)
+  | _ => return none
+
+/-- (s1 → s2 → ... → sn → v) ↦ True if there exists i and j such that si = ¬sj
+    Since this rule will require a more involved proof reconstruction, rather than returning the
+    resulting expression as in previous applyRule functions, we return the two indices of the hypotheses
+    that directly contradict each other. Specifically, if si = ¬sj, then we return some (i, j). -/
+def applyRule25 (e : Expr) : RuleM (Option (Nat × Nat)) := applyRule25Helper e #[]
+
+partial def applyRule26Helper (e : Expr) (hyps : Array Expr) : RuleM (Option (Nat × Nat)) := do
+  match e.consumeMData with
+  | Expr.forallE _ t b _ => applyRule26Helper b (hyps.push t)
+  | _ =>
+    let goals := getDisjunctiveGoals e #[]
+    let mut goalIdx := 0
+    for goal in goals do
+      match hyps.findIdx? (fun hyp => hyp == goal) with
+      | some hypIdx => return some (hypIdx, goalIdx)
+      | none => goalIdx := goalIdx + 1
+    return none
+
+/-- (s1 → s2 → ... → sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
+    Since this rule will require a more involved proof reconstruction, rather than returning the
+    resulting expression as in previous applyRule functions, we return the index of the hypothesis si and
+    the index of the conclusion vj. Specifically, if si = vj, then we return some (i, j) -/
+def applyRule26 (e : Expr) : RuleM (Option (Nat × Nat)) := applyRule26Helper e #[]
+
+/-- (s1 ∧ s2 ∧ ... ∧ sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
+    Since this rule will require a more involved proof reconstruction, rather than returning the
+    resulting expression as in previous applyRule functions, we return the index of the hypothesis si
+    and the inddex of the conclusion vj. Specifically, if si = vj, then we return some (i, j) -/
+partial def applyRule27 (e : Expr) : RuleM (Option (Nat × Nat)) := do
+  match e.consumeMData with
+  | Expr.forallE _ t b _ =>
+    let hyps := getConjunctiveHypotheses t #[]
+    let goals := getDisjunctiveGoals b #[]
+    let mut goalIdx := 0
+    for goal in goals do
+      match hyps.findIdx? (fun hyp => hyp == goal) with
+      | some hypIdx => return some (hypIdx, goalIdx)
+      | none => goalIdx := goalIdx + 1
+    return none
+  | _ => return none
+
 /-- Returns the rule theorem corresponding to boolSimpRule with the first argument applied.
 
     Note that this function assumes that `boolSimpRule` has already been shown to be applicable to `originalExp` so
     this is not rechecked (e.g. for rule1, this function does not check that the two propositions in the disjunction
     are actually equal, it assumes that this is the case from the fact that rule1 was applied) -/
-def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) : MetaM Expr :=
+def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) (ijOpt : Option (Nat × Nat)) : MetaM Expr :=
   match boolSimpRule with
   | rule1 => -- s ∨ s ↦ s
     match originalExp.consumeMData with
@@ -553,9 +675,31 @@ def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) : 
     match originalExp.consumeMData with
     | Expr.forallE _ _ b _ => return mkApp (mkConst ``rule22Theorem) b
     | _ => throwError "Invalid originalExp {originalExp} for rule22"
+  | rule23 => -- ∀ p : Prop, f(p) ↦ f(True) ∧ f(False)
+    match originalExp.consumeMData with
+    | Expr.forallE n _ b _ => do
+      let bFunction := Expr.lam n (mkSort levelZero) b BinderInfo.default
+      return mkApp (mkConst ``rule23Theorem) bFunction
+    | _ => throwError "Invalid originalExp {originalExp} for rule23"
+  | rule24 => -- ∃ p : Prop, f(p) ↦ f True ∨ f False
+    match originalExp.consumeMData with
+    | Expr.app (Expr.app (Expr.const ``Exists _) t) b => return mkApp (mkConst ``rule24Theorem) b
+    | _ => throwError "Invalid originalExp {originalExp} for rule24"
+  | rule25 => -- (s1 → s2 → ... → sn → v) ↦ True if there exists i and j such that si = ¬sj
+    match ijOpt with
+    | some (i, j) => do Meta.mkAppM ``eq_true #[← mkRule25Theorem originalExp 0 i j]
+    | none => throwError "rule25 requires indices that were not passed into getBoolSimpRuleTheorem"
+  | rule26 => -- (s1 → s2 → ... → sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
+    match ijOpt with
+    | some (i, j) => do Meta.mkAppM ``eq_true #[← mkRule26Theorem originalExp 0 i j]
+    | none => throwError "rule26 requires indices that were not passed into getBoolSimpRuleTheorem"
+  | rule27 => -- (s1 ∧ s2 ∧ ... ∧ sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
+    match ijOpt with
+    | some (i, j) => do Meta.mkAppM ``eq_true #[← mkRule27Theorem originalExp i j]
+    | none => throwError "rule27 requires indices that were not passed into getBoolSimpRuleTheorem"
 
-def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (premises : List Expr) (parents : List ProofParent)
-  (c : Clause) : MetaM Expr :=
+def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (ijOpt : Option (Nat × Nat)) (premises : List Expr)
+  (parents : List ProofParent) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -568,10 +712,9 @@ def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (premis
       let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
         if(i == substPos.lit) then
           let substLitPos : LitPos := ⟨substPos.side, substPos.pos⟩
-          let boolSimpRuleThm ← getBoolSimpRuleTheorem boolSimpRule (parentLits[substPos.lit]!.getAtPos! substLitPos)
+          let boolSimpRuleThm ← getBoolSimpRuleTheorem boolSimpRule (parentLits[substPos.lit]!.getAtPos! substLitPos) ijOpt
 
-          let litPos : LitPos := {side := substPos.side, pos := substPos.pos}
-          let abstrLit ← (lit.abstractAtPos! litPos)
+          let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr
           let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
           let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstrLam, boolSimpRuleThm], h]
@@ -617,7 +760,16 @@ def applyRulesList1 : List ((Expr → (Option Expr)) × BoolSimpRule) := [
 
 /-- The list of rules that do require the RuleM monad -/
 def applyRulesList2 : List ((Expr → RuleM (Option Expr)) × BoolSimpRule) := [
-  (applyRule18, rule18)
+  (applyRule18, rule18),
+  (applyRule23, rule23),
+  (applyRule24, rule24)
+]
+
+/-- The list of rules for which indices must be returned -/
+def applyRulesList3 : List ((Expr → RuleM (Option (Nat × Nat))) × BoolSimpRule) := [
+  (applyRule25, rule25),
+  (applyRule26, rule26),
+  (applyRule27, rule27)
 ]
 
 def applyBoolSimpRules (e : Expr) : RuleM (Option (Expr × BoolSimpRule)) := do
@@ -628,6 +780,13 @@ def applyBoolSimpRules (e : Expr) : RuleM (Option (Expr × BoolSimpRule)) := do
   for (applyRuleFn, rule) in applyRulesList2 do
     match ← applyRuleFn e with
     | some e' => return some (e', rule)
+    | none => continue
+  return none
+
+def applyBoolSimpRulesWithIndices (e : Expr) : RuleM (Option ((Nat × Nat) × BoolSimpRule)) := do
+  for (applyRuleFn, rule) in applyRulesList3 do
+    match ← applyRuleFn e with
+    | some ij => return some (ij, rule)
     | none => continue
   return none
 
@@ -649,8 +808,13 @@ def boolSimp : MSimpRule := fun c => do
       match ← applyBoolSimpRules e with
       | some (e', boolSimpRule) =>
         trace[Rule.boolSimp] "Replaced {e} with {e'} in {c.lits} to produce {(← c.replaceAtPos! pos e').lits} via {boolSimpRule}"
-        return (← c.replaceAtPos! pos e', mkBoolSimpProof pos boolSimpRule)
-      | none => return acc -- If no bool simp rule can be applied, then return the original clause unchanged
+        return (← c.replaceAtPos! pos e', mkBoolSimpProof pos boolSimpRule none)
+      | none => -- If none of the first 24 rules worked, attempt rules 25, 26, and 27
+        match ← applyBoolSimpRulesWithIndices e with
+        | some (ij, boolSimpRule) =>
+          trace[Rule.boolSimp] "Replaced {e} with True in {c.lits} to produce {(← c.replaceAtPos! pos (mkConst ``True)).lits} via {boolSimpRule}"
+          return (← c.replaceAtPos! pos (mkConst ``True), mkBoolSimpProof pos boolSimpRule (some ij))
+        | none => return acc -- If no bool simp rule can be applied, then return the original clause unchanged
   let (c', proofOpt) ← c.foldGreenM fold_fn (c, none)
   match proofOpt with
   | none => return false -- No substitutions were performed, so we don't need to yield any clause and we can return false

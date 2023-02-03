@@ -95,3 +95,18 @@ theorem boolSimpRule21Test (p q : Prop) (h : (¬p → p) = (¬q → q)) : p = q 
 
 theorem boolSimpRule22Test (p q : Prop) (h : (p → p) = q) : q :=
   by duper
+
+theorem boolSimpRule23Test (f : Prop → Prop) (q : Prop) (hq : q) (h : (∀ p : Prop, f p) = q) : f True :=
+  by duper
+
+theorem boolSimpRule24Test (f : Prop → Prop) (q : Prop) (hq : q) (h : (∃ p : Prop, f p) = q) : (f True) ∨ (f False) :=
+  by duper
+
+theorem boolSimpRule25Test (p q r : Prop) (h : (p → ¬q → q → p → False) = r) : r :=
+  by duper
+
+theorem boolSimpRule26Test (a b c shared x y z r : Prop) (h : (a → b → shared → c → (x ∨ shared ∨ y ∨ z)) = r) : r :=
+  by duper
+
+theorem boolSimpRule27Test (a b c shared x y z r : Prop) (h : ((a ∧ b ∧ shared ∧ c) → (x ∨ shared ∨ y ∨ z)) = r) : r :=
+  by duper
