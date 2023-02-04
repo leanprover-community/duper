@@ -125,7 +125,8 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       return () -- Preunification checks determined ineligibility, so we don't need to bother with unificaiton
     if not $ ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)] then
       return () -- Unification failed, so superposition cannot occur
-    let sidePremiseFinalEligibility ← eligibilityPostUnificationCheck sidePremise sidePremiseLitIdx sidePremiseEligibility
+    let sidePremiseFinalEligibility ←
+      eligibilityPostUnificationCheck sidePremise sidePremiseLitIdx sidePremiseEligibility (strict := true)
     if not sidePremiseFinalEligibility then return ()
     let mainPremiseFinalEligibility ←
       eligibilityPostUnificationCheck mainPremise mainPremisePos.lit mainPremiseEligibility
@@ -141,6 +142,10 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
     let mainPremiseLhs := mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side
     let mainPremiseRhs := mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side
     if (← compare mainPremiseLhs mainPremiseRhs) == Comparison.LessThan then
+      return ()
+
+    -- Checking Sup condition 10 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
+    if rhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then
       return ()
 
     let mainPremiseReplaced ←
