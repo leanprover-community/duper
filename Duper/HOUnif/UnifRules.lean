@@ -22,7 +22,7 @@ namespace HOUnif
 --    when type unification is not finished.
 -- 7: Will `ListT` (Haskell "ListT done right") provide a more
 --    elegant way of modelling monadic nondeterminism?
--- 8: The binding `Decomposition`: How to deal with dependent types?
+-- 8: Currently only `huetProjection` and `imitation` deals with metavariables correctly
 
 inductive HeadType where
   -- Things considered as `const`:
@@ -58,7 +58,7 @@ def HeadType.isRigid : HeadType → Bool
 | Other => false
 
 def headInfo (e : Expr) : MetaM (Expr × HeadType) :=
-  Meta.forallTelescope e fun xs b => do
+  Meta.lambdaTelescope e fun xs b => do
     let h := Expr.getAppFn b
     if h.isFVar then
       let mut bound := false
@@ -91,12 +91,12 @@ partial def derefNormTerm (e : Expr) : MetaM (Expr × Bool) := dnrec #[] e
       let args := Expr.getAppArgs body
       let fni ← instantiateMVars fn
       if let .mvar _ := fni then
-        let body ← Meta.etaExpand body
-        let e' ← Meta.mkLambdaFVars (xs ++ xs') body
+        let body' ← Meta.etaExpand (mkAppN fni args)
+        let e' ← Meta.mkLambdaFVars (xs ++ xs') body'
         return (e', true)
       else
-        let body' := mkAppN fni args
-        dnrec xs body'
+        let body' ← Meta.etaExpand (mkAppN fni args)
+        dnrec (xs ++ xs') body'
     else
       let body ← Meta.etaExpand body
       let e' ← Meta.mkLambdaFVars (xs ++ xs') body
@@ -142,7 +142,7 @@ def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := withoutModifyingMC
   return {p with rigidrigid := rigidrigid', flexrigid := flexrigid', flexflex := flexflex',
                  checked := true, mctx := ← getMCtx}
 
---  This function takes caure of `Delete`, `Fail` and `Decompose`
+-- This function takes care of `Delete`, `Fail` and `Decompose`
 -- Assumming both sides of p are flex
 -- If the head is unequal and number of arguments are equal, return `none`
 -- If the head is equal and number of arguments are equal, return `none`
@@ -172,6 +172,8 @@ def unifyRigidRigid (p : UnifEq) : MetaM (Option (Array (Expr × Expr) × Parent
     if argsl.size != argsr.size then
       trace[Meta.debug] "unifyRigidRigid :: Head equal but number of args unequal"
     -- Rule: Decompose
+    let argsl ← argsl.mapM (Meta.mkLambdaFVars xs)
+    let argsr ← argsr.mapM (Meta.mkLambdaFVars xs)
     return some (argsl.zip argsr, .Decompose p)
 
 -- MetaM : mvar assignments
@@ -187,15 +189,16 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
   let mut p := p
   if ¬ p.checked ∨ p.isActiveEmpty then
     p ← derefNormProblem p
-  trace[Meta.debug] m!"{p.dropParentRulesButLast 5}"
+  -- debug
+  trace[Meta.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 5}"
   if let some (eq, p') := p.pop? then
     let (lh, lhtype) ← headInfo eq.lhs
     let (rh, rhtype) ← headInfo eq.rhs
     if lhtype == .Other then
-      trace[Meta.debug] m!"applyRule :: Type of head of `{eq.lhs}` is `Other`"
+      trace[Meta.debug] m!"applyRule :: Type `{lhtype}` of head `{lh}` of `{eq.lhs}` is `Other`"
       return Sum3.mk3 false
     if rhtype == .Other then
-      trace[Meta.debug] m!"applyRule :: Type of head of `{eq.rhs}` is `Other`"
+      trace[Meta.debug] m!"applyRule :: Type `{rhtype}` of head `{rh}` of `{eq.rhs}` is `Other`"
       return Sum3.mk3 false
     if eq.lflex != lhtype.isFlex then
       trace[Meta.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
@@ -203,14 +206,18 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
     if eq.rflex != rhtype.isFlex then
       trace[Meta.debug] m!"applyRule :: Flex-rigid-cache mismatch in rhs of {eq}"
       return Sum3.mk3 false
+    -- Delete
+    if eq.lhs == eq.rhs then
+      let p' := p'.pushParentRule (.Delete eq)
+      return Sum3.mk1 #[p']
     -- Fail, Delete, Decompose
-    -- If head type
+    -- If head type are both rigid
     if ¬ eq.lflex ∧ ¬ eq.rflex then
       let urr ← unifyRigidRigid eq
       -- Head equal, one unification problem generated
       if let some (eqs, prule) := urr then
-        return Sum3.mk1 #[{p' with parentRules := p'.parentRules.push prule}.appendUnchecked
-                                             (eqs.map fun (l, r) => UnifEq.fromExprPair l r)]
+        return Sum3.mk1 #[(p'.pushParentRule prule).appendUnchecked
+                            (eqs.map fun (l, r) => UnifEq.fromExprPair l r)]
       else
         -- Not unifiable
         return Sum3.mk3 false
@@ -250,6 +257,8 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
       return Sum3.mk2 (LazyList.interleave elims iters)
   else
     -- No problems left
+    -- debug
+    trace[Meta.debug] m!"{p}"
     return Sum3.mk3 true
 
 
@@ -263,6 +272,8 @@ def UnifierGenerator.fromExprPair (e1 e2 : Expr) : MetaM UnifierGenerator := do
   let q := Std.Queue.empty
   let unifPrb ← UnifProblem.fromExprPair e1 e2
   if let some prb := unifPrb then
+    -- debug
+    let prb := {prb with trackedExpr := #[e1, e2]}
     return ⟨q.enqueue (.inl prb)⟩
   else
     return ⟨q⟩

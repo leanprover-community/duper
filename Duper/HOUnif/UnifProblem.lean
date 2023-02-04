@@ -105,15 +105,20 @@ structure UnifProblem where
   identVar   : HashSet Expr := HashSet.empty
   -- Elimivarion variables
   elimVar    : HashSet Expr := HashSet.empty
+  -- PersistentArray of parent rules, for debugging
   parentRules: PersistentArray ParentRule
+  -- Tracked expressions, for debuggin.
+  -- These expressions will have metavariables instantiated
+  --   before they're printed
+  trackedExpr: Array Expr   := #[]
   deriving Inhabited
 
 def UnifProblem.format : UnifProblem → MessageData :=
-  fun ⟨rigidrigid, flexrigid, flexflex, postponed, checked, _, identVar, elimVar, parentrules⟩ =>
+  fun ⟨rigidrigid, flexrigid, flexflex, postponed, checked, _, identVar, elimVar, parentrules, trackedExpr⟩ =>
     "Unification Problem:" ++
     m!"\n  rigidrigid := {rigidrigid},\n  flexrigid := {flexrigid},\n  flexflex := {flexflex},\n  " ++
     m!"postponed := {postponed},\n  checked := {checked},\n  identVar := {identVar.toList},\n  elimVar := {elimVar.toList}" ++
-    m!"\n  parentrules := {parentrules.toArray}\n"
+    m!"\n  parentrules := {parentrules.toArray}\n  trackedExpr := {trackedExpr}\n"
 
 instance : ToMessageData UnifProblem := ⟨UnifProblem.format⟩
 
@@ -183,3 +188,7 @@ def UnifProblem.pop? (p : UnifProblem) : Option (UnifEq × UnifProblem) := Id.ru
     let rf' := p.flexflex.pop
     return (e, {p with flexflex := rf'})
   return none
+
+def UnifProblem.instantiateTrackedExpr (p : UnifProblem) : MetaM UnifProblem := do
+  let trackedExpr ← p.trackedExpr.mapM instantiateMVars
+  return {p with trackedExpr := trackedExpr}

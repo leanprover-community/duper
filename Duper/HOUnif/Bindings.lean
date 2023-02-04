@@ -124,20 +124,13 @@ def huetProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array Uni
         if β' != β then
           -- We need to unify their types first
           p := {p with postponed := p.postponed.push eq}
+          let β  ← Meta.mkLambdaFVars xs β
+          let β' ← Meta.mkLambdaFVars xs β'
           p := p.pushUnchecked (UnifEq.fromExprPair β β')
         else
           p := p.pushChecked eq
-        let mut appargs := #[]
-        for yi in ys do
-          -- `xi`s are eliminated
-          let mvarTy ← Meta.mkForallFVars xs (← Meta.inferType yi)
-          -- newMVar : [α] → γi
-          let newMVar ← Meta.mkFreshExprMVar mvarTy
-          -- yi := newMVar [xs]
-          MVarId.assign yi.mvarId! newMVar
-          appargs := appargs.push (mkAppN newMVar xs)
-        let mF ← Meta.mkLambdaFVars xs (mkAppN xi appargs)
-        -- Assign metavariable
+        -- Apply the binding to `F`
+        let mF ← Meta.mkLambdaFVars xs (mkAppN xi ys)
         MVarId.assign F.mvarId! mF
         return #[{p.pushParentRule (.HuetProjection eq F (argnp1 - 1))
                   with checked := false, mctx := ← getMCtx}]
@@ -155,21 +148,13 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Arr
     if β' != β then
       -- We need to unify their types first
       p := {p with postponed := p.postponed.push eq}
+      let β  ← Meta.mkLambdaFVars xs β
+      let β' ← Meta.mkLambdaFVars xs β'
       p := p.pushUnchecked (UnifEq.fromExprPair β β')
     else
       p := p.pushChecked eq
-    let mut appargs := #[]
-    for yi in ys do
-      let γi ← Meta.inferType yi
-      -- `xi`s are eliminated
-      let mvarTy ← Meta.mkForallFVars xs γi
-      -- newMVar : [α] → γi
-      let newMVar ← Meta.mkFreshExprMVar mvarTy
-      -- yi := newMVar [xs]
-      MVarId.assign yi.mvarId! newMVar
-      appargs := appargs.push (mkAppN newMVar xs)
-    -- Metavariables are eliminated
-    let mt ← Meta.mkLambdaFVars xs (mkAppN g appargs)
+    -- Apply the binding to `F`
+    let mt ← Meta.mkLambdaFVars xs (mkAppN g ys)
     MVarId.assign F.mvarId! mt
     return #[{p.pushParentRule (.Imitation eq F g) with checked := false, mctx := ← getMCtx}]
 
@@ -187,8 +172,6 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Arr
 --   Extra Unification Problems:
 --     λ[x]. η [x] (F₁ [x]) ⋯ (Fₘ [x]) =? λ[x]. β [x]
 --     λ[y]. η (G₁ [y]) ⋯ (Gₙ [y]) [y] =? λ[y]. δ [y]
--- `Note`: Currently, we ignore dependent types. If any of β or η depends
---         on preceeding bound variables, we generate no bindings.
 def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
@@ -242,20 +225,21 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM
     for yi in ys do
       appargs := appargs.push yi
     Meta.mkLambdaFVars ys (mkAppN mH appargs)
-  -- Combine them together, then abstract away all the metavariables
+  -- Unify types
   let mtFty ← Meta.inferType mtF
-  let feq := (mtFty == Fty)
+  let feq := mtFty == Fty
   let mtGty ← Meta.inferType mtG
-  let geq := (mtGty == Gty)
+  let geq := mtGty == Gty
   let mut p := p
   if (feq && geq) then
     p := p.pushChecked eq
   else
-    if feq then
+    if ¬ feq then
       p := p.pushUnchecked (UnifEq.fromExprPair mtFty Fty)
-    if geq then
+    if ¬ geq then
       p := p.pushUnchecked (UnifEq.fromExprPair mtGty Gty)
     p := {p with postponed := p.postponed.push eq}
+  -- Assign metavariables
   MVarId.assign F.mvarId! mtF
   MVarId.assign G.mvarId! mtG
   return #[{p.pushParentRule (.Identification eq F G)
