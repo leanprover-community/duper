@@ -134,23 +134,27 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
     if not mainPremiseFinalEligibility then return ()
 
     -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
-    let lhs ← RuleM.instantiateMVars sidePremiseLit.lhs
-    let rhs ← RuleM.instantiateMVars sidePremiseLit.rhs
-    if (← compare lhs rhs) == Comparison.LessThan then
+    let sidePremiseLhs ← RuleM.instantiateMVars sidePremiseLit.lhs
+    let sidePremiseRhs ← RuleM.instantiateMVars sidePremiseLit.rhs
+    let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs
+    if sidePremiseComparison == Comparison.LessThan || sidePremiseComparison == Comparison.Equal then
       return ()
 
     let mainPremiseLhs := mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side
     let mainPremiseRhs := mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side
-    if (← compare mainPremiseLhs mainPremiseRhs) == Comparison.LessThan then
+    let mainPremiseComparison ← compare mainPremiseLhs mainPremiseRhs
+    if mainPremiseComparison == Comparison.LessThan || mainPremiseComparison == Comparison.Equal then
       return ()
+
+    -- Checking Sup condition 9 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
+    if sidePremiseLhs.isFullyAppliedLogicalSymbol then return ()
 
     -- Checking Sup condition 10 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
-    if rhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then
-      return ()
+    if sidePremiseRhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then return ()
 
     let mainPremiseReplaced ←
-      if simultaneousSuperposition then mainPremise.mapM fun e => do replace e lhs rhs --TODO: Replace only green subterms
-      else mainPremise.replaceAtPos! mainPremisePos rhs
+      if simultaneousSuperposition then mainPremise.mapM fun e => do replace e sidePremiseLhs sidePremiseRhs --TODO: Replace only green subterms
+      else mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
 
     if mainPremiseReplaced.isTrivial then
       trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
