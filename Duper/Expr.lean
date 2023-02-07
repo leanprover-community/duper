@@ -6,7 +6,7 @@ namespace Duper
 instance [Hashable α] : Hashable (Array α) where
   hash as := as.foldl (fun r a => mixHash r (hash a)) 7
 
-/-- Positions in an expression: Counting argument numbers form the right
+/-- Positions in an expression: Counting argument numbers from the right
   e.g. `a` is at #[1] and `b` is at #[0] in `f a b` -/
 abbrev ExprPos := Array Nat
 
@@ -145,5 +145,21 @@ def expressionsAgreeExceptAtPos (e1 : Expr) (e2 : Expr) (p : ExprPos) : Bool :=
     match e2.replaceAtPos? p e1Subterm with
     | none => false
     | some e2Replaced => e1 == e2Replaced
+
+/-- Returns true iff e is a fully applied logical symbol. The set of symbols we consider to be logical symbols are:
+    ∧, ∨, →, ↔, ¬, True, False, ∀, ∃, =, and ≠ -/
+def isFullyAppliedLogicalSymbol (e : Expr) : Bool :=
+  match e.consumeMData with
+  | Expr.const ``False _ => true
+  | Expr.const ``True _ => true
+  | Expr.app (Expr.const ``Not _) _ => true
+  | Expr.app (Expr.app (Expr.const ``Exists _) _) _ => true
+  | Expr.app (Expr.app (Expr.app (Expr.const ``Eq _) _) _) _ => true
+  | Expr.app (Expr.app (Expr.app (Expr.const ``Ne _) _) _) _ => true
+  | Expr.app (Expr.app (Expr.const ``And _) _) _ => true
+  | Expr.app (Expr.app (Expr.const ``Or _) _) _ => true
+  | Expr.app (Expr.app (Expr.const ``Iff _) _) _ => true
+  | Expr.forallE _ _ _ _ => true
+  | _ => false
 
 end Lean.Expr
