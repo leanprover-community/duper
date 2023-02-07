@@ -13,6 +13,7 @@ def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) : MetaM Bool := do
     if let some m := mctx then
       if cnt == nUnif then
         setMCtx m
+        trace[Meta.Tactic] "Final: {← instantiateMVars e1}, {← instantiateMVars e2}"
         return true
       else
         cnt := cnt + 1
@@ -105,13 +106,18 @@ def evalHoApply : Elab.Tactic.Tactic := fun stx =>
   | _ => Elab.throwUnsupportedSyntax
 
 
-def test₁ (f : Nat → Prop)
+-- Imitation
+set_option trace.Meta.debug true in
+def imt₀ (f : Nat → Prop)
+         (h : ∀ x, f x) : f 3 := by hoapply h attempt 30 unifier 0
+
+def imt₁ (f : Nat → Prop)
          (h : ∀ x y (z : Nat), f z → f (x + y))
          (k : f 0) : f (3 + b) := by
   hoapply h attempt 30 unifier 0
   case a => hoapply h attempt 70 unifier 0; exact 0; apply k; exact 0; exact 0
 
-def test₂ (f : Nat → Prop)
+def imt₂ (f : Nat → Prop)
           (comm : ∀ x y, f (x + y) → f (y + x))
           (h : ∀ x y z, f (x + z) → f (x + y))
           (g : f (u + v))
@@ -121,19 +127,33 @@ def test₂ (f : Nat → Prop)
     hoapply comm attempt 42 unifier 0; hoapply h attempt 42 unifier 0
     case a.a => apply g
 
-def test₃ (ftr : ∀ (f g : Nat → Prop) (x : Nat), f x → g x)
-          (atr : ∀ (f : Nat → Prop) (x y : Nat), f x → f y)
+-- Huet-Style Projection
+def hsp₁ (ftr : ∀ (f g : Nat → Prop) (x : Nat), f x → g x)
           (S T : Nat → Prop) (u v : Nat)
           (h   : S u) : T v := by
   hoapply ftr attempt 100 unifier 1
   case a => hoapply h attempt 10 unifier 0
 
-def ho₁ (p : Nat → Prop) (x y : Nat)
+def hsp₂ (p : Nat → Prop) (x y : Nat)
         (hp : ∀ (f : Nat → Nat → Nat), p (f x y) ∧ p (f y x))
         : p x ∧ p y := by
   hoapply hp attempt 11 unifier 0
 
-def ho₂ (p : Nat → Prop) (x y : Nat)
+def hsp₃ (p : Nat → Prop) (x y : Nat)
         (hp : ∀ (f : Nat → Nat → Nat), p (f x y) ∧ p (f y x))
         : p (x + y) ∧ p (y + x) := by
   hoapply hp attempt 300 unifier 0
+
+opaque www : Nat → Nat → Nat := fun _ _ => 1
+opaque ww : Nat → Nat := id
+opaque w : Nat
+
+-- ???
+def elm₁ (p : Nat → Prop) (x : Nat)
+         (hp : ∀ (f g : Nat → Nat), p (f (g x)) ∧ p (g (f x)))
+         (done : Prop)
+         (hq : ∀ w, p w ∧ p w → done) : done := by
+  hoapply hq attempt 10 unifier 0
+  case a => hoapply hp attempt 70000 unifier 356; exact www
+
+#print elm₁.proof_1

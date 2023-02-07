@@ -31,12 +31,12 @@ inductive ParentRule where
 | OracleFail     : UnifEq → ParentRule
 | Decompose      : UnifEq → ParentRule
 -- Bindings
-| Iteration      : UnifEq → Expr → (argn: Nat) → (narg : Nat) → ParentRule
-| JPProjection   : UnifEq → Expr → (arg : Nat) → ParentRule
-| HuetProjection : UnifEq → Expr → (arg : Nat) → ParentRule
-| Imitation      : UnifEq → (flex : Expr) → (rigid : Expr) → ParentRule
-| Identification : UnifEq → (e1 e2 : Expr) → ParentRule
-| Elimination    : UnifEq → Expr → Array Nat → ParentRule
+| Iteration      : UnifEq → Expr → (argn: Nat) → (narg : Nat) → Expr → ParentRule
+| JPProjection   : UnifEq → Expr → (arg : Nat) → Expr → ParentRule
+| HuetProjection : UnifEq → Expr → (arg : Nat) → Expr → ParentRule
+| Imitation      : UnifEq → (flex : Expr) → (rigid : Expr) → Expr → ParentRule
+| Identification : UnifEq → (e1 e2 : Expr) → Expr → Expr → ParentRule
+| Elimination    : UnifEq → Expr → Array Nat → Expr → ParentRule
 
 def ParentRule.toMessageData : ParentRule → MessageData
 | FromExprPair e1 e2 => m!"From {e1} and {e2}"
@@ -45,12 +45,12 @@ def ParentRule.toMessageData : ParentRule → MessageData
 | OracleSucc ue => m!"OracleSucc {ue}"
 | OracleFail ue => m!"OracleFail {ue}"
 | Decompose ue => m!"Decompose {ue}"
-| Iteration ue F i argn => m!"Iteration for {F} at {i} with extra {argn} args in {ue}"
-| JPProjection ue F i => m!"JPProjection for {F} at {i} in {ue}"
-| HuetProjection ue F i => m!"HuetProjection for {F} at {i} in {ue}"
-| Imitation ue F g => m!"Imitation of {g} for {F} in {ue}"
-| Identification ue F G => m!"Identification of {F} and {G} in {ue}"
-| Elimination ue F arr => m!"Elimination of {F} at {arr} in {ue}"
+| Iteration ue F i argn b => m!"Iteration for {F} at {i} with extra {argn} args in {ue} binding {b}"
+| JPProjection ue F i b => m!"JPProjection for {F} at {i} in {ue} binding {b}"
+| HuetProjection ue F i b => m!"HuetProjection for {F} at {i} in {ue} binding {b}"
+| Imitation ue F g b => m!"Imitation of {g} for {F} in {ue} binding {b}"
+| Identification ue F G bF bG => m!"Identification of {F} and {G} in {ue} binding {bF} and {bG}"
+| Elimination ue F arr b => m!"Elimination of {F} at {arr} in {ue} binding {b}"
 
 instance : ToMessageData ParentRule := ⟨ParentRule.toMessageData⟩
 
@@ -107,6 +107,8 @@ structure UnifProblem where
   elimVar    : HashSet Expr := HashSet.empty
   -- PersistentArray of parent rules, for debugging
   parentRules: PersistentArray ParentRule
+  -- PersistentArray of parent clauses (including itself), for debugging
+  parentClauses : PersistentArray Nat 
   -- Tracked expressions, for debuggin.
   -- These expressions will have metavariables instantiated
   --   before they're printed
@@ -114,11 +116,11 @@ structure UnifProblem where
   deriving Inhabited
 
 def UnifProblem.format : UnifProblem → MessageData :=
-  fun ⟨rigidrigid, flexrigid, flexflex, postponed, checked, _, identVar, elimVar, parentrules, trackedExpr⟩ =>
+  fun ⟨rigidrigid, flexrigid, flexflex, postponed, checked, _, identVar, elimVar, parentrules, parentclauses, trackedExpr⟩ =>
     "Unification Problem:" ++
     m!"\n  rigidrigid := {rigidrigid},\n  flexrigid := {flexrigid},\n  flexflex := {flexflex},\n  " ++
     m!"postponed := {postponed},\n  checked := {checked},\n  identVar := {identVar.toList},\n  elimVar := {elimVar.toList}" ++
-    m!"\n  parentrules := {parentrules.toArray}\n  trackedExpr := {trackedExpr}\n"
+    m!"\n  parentclauses := {parentclauses.toList}\n  parentrules := {parentrules.toArray}\n  trackedExpr := {trackedExpr}\n"
 
 instance : ToMessageData UnifProblem := ⟨UnifProblem.format⟩
 
@@ -138,7 +140,7 @@ def UnifProblem.fromExprPair (e1 e2 : Expr) : MetaM (Option UnifProblem) := do
     flexflex := flexflex.push unifEq
   let s ← getMCtx
   return some {mctx := s, flexflex := flexflex, checked := false,
-               parentRules := #[.FromExprPair e1 e2].toPArray'}
+               parentRules := #[.FromExprPair e1 e2].toPArray', parentClauses := .empty}
 
 -- Empty, except that `postponed` might not be empty
 def UnifProblem.isActiveEmpty (up : UnifProblem) : Bool := up.rigidrigid.isEmpty ∧ up.flexrigid.isEmpty ∧ up.flexflex.isEmpty
@@ -164,6 +166,9 @@ def UnifProblem.pushParentRule (p : UnifProblem) (pr : ParentRule) :=
 def UnifProblem.dropParentRulesButLast (p : UnifProblem) (n : Nat) :=
   let len := p.parentRules.size
   {p with parentRules := (p.parentRules.toArray.extract (len - n) len).toPArray'}
+
+def UnifProblem.pushParentClause (p : UnifProblem) (c : Nat) :=
+  {p with parentClauses := p.parentClauses.push c}
 
 -- Here `es` has been checked
 def UnifProblem.appendChecked (p : UnifProblem) (es : Array UnifEq) := Id.run <| do
