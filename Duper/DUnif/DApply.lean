@@ -1,8 +1,8 @@
 import Lean
-import Duper.HOUnif.UnifRules
+import Duper.DUnif.UnifRules
 open Lean
 
-namespace HOUnif
+namespace DUnif
 
 -- Note: This is copied from standard library with some code
 --       removed to make it simpler and a few lines changed to
@@ -51,7 +51,7 @@ def exechoapply (mvarId : MVarId) (e : Expr) (nAttempt : Nat) (nUnif : Nat) (con
       if i < rangeNumArgs.stop then
         let s ← saveState
         let (newMVars, binderInfos, eType) ← Meta.forallMetaTelescopeReducing eType i
-        if (← hounif eType targetType nAttempt nUnif cont) then
+        if (← hounif eType targetType nAttempt nUnif cont true) then
           return (newMVars, binderInfos)
         else
           s.restore
@@ -138,12 +138,11 @@ def hsp₃ (p : Nat → Prop) (x y : Nat)
         : p (x + y) ∧ p (y + x) := by
   hoapply hp attempt 300 unifier 0 contains 0
 
-set_option trace.Meta.debug true in
 def hsp₄ (done : Prop)
          (gene : ∀ (H : (Nat → Nat) → Nat → Nat), (fun F X => H F X) = (fun F X => F X) → done) :
          done := by
   hoapply gene attempt 10 unifier 0 contains 0
-  case a => hoapply Eq.refl attempt 70 unifier 0 contains 56;
+  case a => hoapply Eq.refl attempt 70 unifier 0 contains 0;
 
 opaque www : Nat → Nat → Nat := fun _ _ => 1
 opaque ww : Nat → Nat := id
@@ -151,13 +150,12 @@ opaque w : Nat
 
 -- Elimination
 
-set_option trace.Meta.debug true in
 def elm₁ (p : Nat → Prop) 
          (a b : Nat) (h : ∀ (f : Nat → Nat → Nat), p (f a b))
          (g : ∀ (ay : Nat), p ay → False)
          : False := by
   hoapply g attempt 10 unifier 0 contains 0
-  case a => hoapply h attempt 510 unifier 2 contains 20; exact ww
+  case a => hoapply h attempt 590 unifier 0 contains 37; exact www
 
 #print elm₁.proof_1
 

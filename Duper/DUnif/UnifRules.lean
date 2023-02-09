@@ -1,12 +1,16 @@
 import Lean
-import Duper.HOUnif.UnifProblem
-import Duper.HOUnif.Bindings
+import Duper.DUnif.UnifProblem
+import Duper.DUnif.Bindings
 import Duper.Util.LazyList
 import Duper.Util.Misc
 open Lean
 open Duper
 
-namespace HOUnif
+namespace DUnif
+
+structure Config where
+  contains    : Nat
+  iterationOn : Bool
 
 -- TODO
 -- 3: How to deal with `mdata`?
@@ -26,6 +30,10 @@ inductive StructType where
   -- The first `Nat` is the number of `lambda`s
   -- The second `Nat` is the number of `forall`s
   | Const : Nat → Nat → StructType
+  -- `proj _ · idx` is viewed as a function, with type
+  -- `innerTy → outerTy` (with variables abstracted).
+  -- Irreducible `proj`s are viewed as rigid
+  | Proj  : Nat → Nat → (innerTy : Expr) → (outerTy : Expr) → (name : Name) →  (idx : Nat) → StructType
   | Bound : Nat → Nat → StructType
   | MVar  : Nat → Nat → StructType
   -- Currently, `mdata`, `forall`, `let`
@@ -36,27 +44,36 @@ instance : ToString StructType where
   toString (ht : StructType) : String :=
   match ht with
   | .Const l f => s!"StructType.Const {l} {f}"
+  | .Proj  l f iTy oTy _ idx => s!"StructType.Proj {l} {f} iTy = {iTy} oTy = {oTy} idx = {idx}"
   | .Bound l f => s!"StructType.Bound {l} {f}"
   | .MVar  l f => s!"StructType.MVar {l} {f}"
   | .Other l f => s!"StructType.Other {l} {f}"
 
 def StructType.getLambdaForall : StructType → Nat × Nat
 | Const a b => (a, b)
+| Proj a b _ _ _ _ => (a, b)
 | Bound a b => (a, b)
 | MVar a b  => (a, b)
 | Other a b => (a, b)
 
 def StructType.isFlex : StructType → Bool
 | Const _ _ => false
+| Proj _ _ _ _ _ _ => false
 | Bound _ _ => false
 | MVar _ _  => true
 | Other _ _ => false
 
 def StructType.isRigid : StructType → Bool
 | Const _ _ => true
+| Proj _ _ _ _ _ _ => true
 | Bound _ _ => true
 | MVar _ _  => false
-| Other _ _ => false
+-- If headType is `other`, then we assume that the head is rigid
+| Other _ _ => true
+
+def projName! : Expr → Name
+  | .proj n _ _ => n
+  | _          => panic! "proj expression expected"
 
 def structInfo (e : Expr) : MetaM (Expr × StructType) :=
   Meta.lambdaTelescope e fun xs t => Meta.forallTelescope t fun ys b => do
@@ -78,8 +95,20 @@ def structInfo (e : Expr) : MetaM (Expr × StructType) :=
         return (h, .Const xs.size ys.size)
       else
         return (h, .MVar xs.size ys.size)
+    else if h.isProj ∧ ys.size == 0 then
+      let idx := h.projIdx!
+      let expr := h.projExpr!
+      let name := projName! h
+      let innerTy ← Meta.inferType expr
+      let outerTy ← Meta.inferType h
+      let innerTyAbst ← Meta.mkForallFVars xs innerTy
+      let outerTyAbst ← Meta.mkForallFVars xs outerTy
+      return (.lit (.strVal "You shouldn't see me. I'm in `structInfo`"),
+              .Proj xs.size ys.size innerTyAbst outerTyAbst name idx)
     else
-      return (h, .Other xs.size ys.size)
+      -- If the type is `other`, then free variables might
+      -- occur inside the head, so we must abstract them
+      return (← Meta.mkLambdaFVars xs (← Meta.mkForallFVars ys h), .Other xs.size ys.size)
 
 -- Given expression `e = λ [x]. ∀ [y], body`, return
 -- 1. An expression, `λ [x] [y]. body`
@@ -207,16 +236,17 @@ def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array Unif
   let p := p.pushPrioritized (.fromExprPair lhs' rhs')
   let neweqs := (larray.zip rarray).map (fun (a, b) => UnifEq.fromExprPair a b)
   -- Later types depend on previous, so we push in reverse order
-  let p := p.appendUnchecked neweqs
+  let p := p.appendPrioritized neweqs.reverse
   return #[{p.pushParentRule (.ForallToLambda eq n) with checked := false, mctx := ← getMCtx}]
 
 -- This function takes care of `Delete`, `Fail` and `Decompose`
 -- Assumming both sides of `eq` are rigid, or both sides of `eq` are flex
 -- If the head is unequal and number of arguments are equal, return `none`
 -- If the head is equal and number of arguments are equal, return `none`
-def failDecompose (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
+def failDecompose (is_prio : Bool) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   Meta.lambdaTelescope eq.lhs fun xs t => Meta.forallTelescope t fun ts lhs' => do
     -- apply the right-hand-side to `xs`
+    let mut p := p
     let n_lam := Expr.countLambdas eq.rhs
     let n_red := Nat.min n_lam xs.size
     let rhs_red ← Meta.instantiateLambda eq.rhs (xs.extract 0 n_red)
@@ -249,6 +279,12 @@ def failDecompose (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) :=
       let lfr := fr.sortLevel!
       if ¬ (← Meta.isLevelDefEq lfl lfr) then
         return #[]
+    else if fl.isProj ∧ fr.isProj then
+      if fl.projIdx! != fr.projIdx! then
+        return #[]
+      let el ← Meta.mkLambdaFVars xs (← Meta.mkForallFVars ts fl.projExpr!)
+      let er ← Meta.mkLambdaFVars xs (← Meta.mkForallFVars ts fr.projExpr!)
+      p := p.pushUnchecked (UnifEq.fromExprPair el er) is_prio
     else
       if fl != fr then
         return #[]
@@ -265,7 +301,7 @@ def failDecompose (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) :=
     -- Later args may depend on previous args, so we push in
     --   the reverse order.
     let neweqs := (argsl.zip argsr).reverse.map (fun (a, b) => UnifEq.fromExprPair a b)
-    let p := (p.appendUnchecked neweqs).pushParentRule (.Decompose eq)
+    p := (p.appendUnchecked neweqs is_prio).pushParentRule (.Decompose eq)
     -- Does not assign ExprMVars, so no need to set `Checked = False`
     return #[{p with mctx := ← getMCtx}]
 
@@ -285,24 +321,23 @@ inductive UnifRuleResult
 --   `mctx` upon entry.
 -- The argument "print" is for debugging. Only problems whose parentClause
 --   contains "print" will be printed
-def applyRules (p : UnifProblem) (print : Nat) : MetaM UnifRuleResult := do
+def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
   -- To make messages print, we set `mctx` to that of `p`'s
   setMCtx p.mctx
   let mut p := p
   if ¬ p.checked ∨ ¬ p.prioritized.isEmpty then
     p ← derefNormProblem p
   -- debug
-  if p.parentClauses.toList.contains print then
+  if p.parentClauses.toList.contains config.contains then
     trace[Meta.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
+  let is_prio : Bool := ¬ p.prioritized.isEmpty
   if let some (eq, p') := p.pop? then
     let (lh, lhtype) ← structInfo eq.lhs
     let (rh, rhtype) ← structInfo eq.rhs
     if let .Other _ _ := lhtype then
-      trace[Meta.debug] m!"applyRule :: Type `{lhtype}` of head `{lh}` of `{eq.lhs}` is `Other` in problem {p}"
-      return .NewArray #[]
+      trace[Meta.debug] m!"applyRule :: Type of head is `Other`"
     if let .Other _ _ := rhtype then
-      trace[Meta.debug] m!"applyRule :: Type `{rhtype}` of head `{rh}` of `{eq.rhs}` is `Other` in problem {p}"
-      return .NewArray #[]
+      trace[Meta.debug] m!"applyRule :: Type of head is `Other`"
     if eq.lflex != lhtype.isFlex then
       trace[Meta.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
       return .NewArray #[]
@@ -326,11 +361,10 @@ def applyRules (p : UnifProblem) (print : Nat) : MetaM UnifRuleResult := do
     -- Fail, Decompose
     -- If head type are both rigid
     if ¬ eq.lflex ∧ ¬ eq.rflex then
-      let urr ← failDecompose p' eq
+      let urr ← failDecompose is_prio p' eq
       return .NewArray urr
     -- Following: Bind
     -- Left flex, Right rigid
-    -- debug
     if eq.lflex ∧ ¬ eq.rflex then
       -- Imitation of `forall`. We imitate `forall` one at a time
       if lf != 0 then
@@ -341,37 +375,47 @@ def applyRules (p : UnifProblem) (print : Nat) : MetaM UnifRuleResult := do
       let mut ret := #[]
       if rf != 0 then
         -- lf must be `0`
-        ret := ret.append (← HOUnif.imitForall lh p eq)
+        ret := ret.append (← DUnif.imitForall lh p eq)
+      if let .Proj nLam _ iTy oTy name idx := rhtype then
+        ret := ret.append (← DUnif.imitProj lh nLam iTy oTy name idx p eq)
       if let .Const _ _ := rhtype then
-        ret := ret.append (← HOUnif.imitation lh rh p eq)
+        ret := ret.append (← DUnif.imitation lh rh p eq)
       if ¬ p.identVar.contains lh then
-        ret := ret.append (← HOUnif.huetProjection lh p eq)
+        ret := ret.append (← DUnif.huetProjection lh p eq)
       return .NewArray ret
     -- Left flex, Right flex
     -- Heads are different
     if lh != rh then
       -- Iteration for both lhs and rhs
-      let liter ← HOUnif.iteration lh p eq false
-      let riter ← HOUnif.iteration rh p eq false
-      let iter := LazyList.interleave liter riter
+      let iter ← (do
+        if config.iterationOn then
+          let liter ← DUnif.iteration lh p eq false
+          let riter ← DUnif.iteration rh p eq false
+          return LazyList.interleave liter riter
+        else
+          return LazyList.nil)
       -- Identification
-      let mut arr ← HOUnif.identification lh rh p eq
+      let mut arr ← DUnif.identification lh rh p eq
       -- JP style projection
       if ¬ p.identVar.contains lh then
-        arr := arr.append (← HOUnif.jpProjection lh p eq)
+        arr := arr.append (← DUnif.jpProjection lh p eq)
       if ¬ p.identVar.contains rh then
-        arr := arr.append (← HOUnif.jpProjection rh p eq)
+        arr := arr.append (← DUnif.jpProjection rh p eq)
       return .NewLazyList (.cons (pure arr) iter)
     -- Left flex, Right flex
     -- Heads are the same
     else
-      let decomp ← failDecompose p' eq
+      let decomp ← failDecompose is_prio p' eq
       if p.elimVar.contains lh then
         return .NewArray decomp
       -- Iteration at arguments of functional type
-      let iters ← HOUnif.iteration lh p eq true
+      let iters ← (do
+        if config.iterationOn then
+          DUnif.iteration lh p eq true
+        else
+          return LazyList.nil)
       -- Eliminations
-      let elims ← HOUnif.elimination lh p eq
+      let elims ← DUnif.elimination lh p eq
       return .NewLazyList (LazyList.cons (pure decomp) (LazyList.interleave elims iters))
   else
     -- No problems left
@@ -396,7 +440,6 @@ def UnifierGenerator.fromExprPair (e1 e2 : Expr) : MetaM UnifierGenerator := do
   let q := Std.Queue.empty
   let unifPrb ← UnifProblem.fromExprPair e1 e2
   if let some prb := unifPrb then
-    -- debug
     let prb := {prb.pushParentClause 0 with trackedExpr := #[e1, e2]}
     return ⟨q.enqueue (.Problem prb), 1⟩
   else
@@ -407,7 +450,7 @@ def UnifierGenerator.isEmpty : UnifierGenerator → Bool
 
 -- The argument "print" is for debugging. Only problems whose parentClause
 -- contains "print" will be printed
-def UnifierGenerator.take (ug : UnifierGenerator) (print : Nat) :
+def UnifierGenerator.take (ug : UnifierGenerator) (config : Config) :
   MetaM (Option UnifProblem × UnifierGenerator) := Meta.withTransparency .reducible do
   let q := ug.q
   let dq := q.dequeue?
@@ -416,7 +459,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) (print : Nat) :
   let (top, q') := dq.get!
   match top with
   | .Problem up => do
-    let urr ← withoutModifyingMCtx <| applyRules up print
+    let urr ← withoutModifyingMCtx <| applyRules up config
     match urr with
     -- arr : Array UnifProblem
     | .NewArray arr => do
@@ -445,14 +488,13 @@ def UnifierGenerator.take (ug : UnifierGenerator) (print : Nat) :
     | .delayed t => pure (none, ⟨q'.enqueue (.LazyListOfProblem t.get), ug.N⟩)
 
 -- For testing
-def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) (ncont : Nat) : MetaM Bool := do
+def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) (ncont : Nat) (iterOn : Bool) : MetaM Bool := do
   let mut ug ← UnifierGenerator.fromExprPair e1 e2
   let mut cnt := 0
   for _ in List.range nAttempt do
-    let (up, ug') ← ug.take ncont
+    let (up, ug') ← ug.take ⟨ncont, iterOn⟩
     ug := ug'
     if let some up := up then
-      -- debug
       if ¬ up.parentClauses.toList.contains ncont then
         continue
       let mctx := up.mctx

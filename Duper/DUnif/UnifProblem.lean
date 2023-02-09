@@ -36,6 +36,7 @@ inductive ParentRule where
 | JPProjection   : UnifEq → Expr → (arg : Nat) → Expr → ParentRule
 | HuetProjection : UnifEq → Expr → (arg : Nat) → Expr → ParentRule
 | ImitForall     : UnifEq → Expr → Expr → ParentRule
+| ImitProj       : UnifEq → Expr → (idx : Nat) → Expr → ParentRule
 | Imitation      : UnifEq → (flex : Expr) → (rigid : Expr) → Expr → ParentRule
 | Identification : UnifEq → (e1 e2 : Expr) → Expr → Expr → ParentRule
 | Elimination    : UnifEq → Expr → Array Nat → Expr → ParentRule
@@ -53,6 +54,7 @@ def ParentRule.toMessageData : ParentRule → MessageData
 | JPProjection ue F i b => m!"JPProjection for {F} at {i} in {ue} binding {b}"
 | HuetProjection ue F i b => m!"HuetProjection for {F} at {i} in {ue} binding {b}"
 | ImitForall ue F b => m!"ImitForall of {F} in {ue} binding {b}"
+| ImitProj ue F i b => m!"ImitProj of {F} in {ue} proj {i} binding {b}"
 | Imitation ue F g b => m!"Imitation of {g} for {F} in {ue} binding {b}"
 | Identification ue F G bF bG => m!"Identification of {F} and {G} in {ue} binding {bF} and {bG}"
 | Elimination ue F arr b => m!"Elimination of {F} at {arr} in {ue} binding {b}"
@@ -147,13 +149,25 @@ def UnifProblem.fromExprPair (e1 e2 : Expr) : MetaM (Option UnifProblem) := do
   return some {mctx := s, prioritized := prioritized, flexflex := flexflex, checked := false,
                parentRules := #[.FromExprPair e1 e2].toPArray', parentClauses := .empty}
 
-def UnifProblem.pushPrioritized (p : UnifProblem) (e : UnifEq) := {p with prioritized := p.prioritized.push e}
+def UnifProblem.pushPrioritized (p : UnifProblem) (e : UnifEq) :=
+  {p with prioritized := p.prioritized.push e}
+
+def UnifProblem.appendPrioritized (p : UnifProblem) (es : Array UnifEq) :=
+  {p with prioritized := p.prioritized.append es}
 
 -- Here `e` hasn't been checked
-def UnifProblem.pushUnchecked (p : UnifProblem) (e : UnifEq) := {p with flexflex := p.flexflex.push e, checked := false}
+def UnifProblem.pushUnchecked (p : UnifProblem) (e : UnifEq) (is_prio := false) :=
+  if is_prio then
+    {p with prioritized := p.prioritized.push e, checked := false}
+  else
+    {p with flexflex := p.flexflex.push e, checked := false}
 
 -- Here `es` hasn't been checked
-def UnifProblem.appendUnchecked (p : UnifProblem) (es : Array UnifEq) := {p with flexflex := p.flexflex.append es, checked := false}
+def UnifProblem.appendUnchecked (p : UnifProblem) (es : Array UnifEq) (is_prio := false) :=
+  if is_prio then
+    {p with prioritized := p.prioritized.append es, checked := false}
+  else
+    {p with flexflex := p.flexflex.append es, checked := false}
 
 -- Here `e` has been checked
 def UnifProblem.pushChecked (p : UnifProblem) (e : UnifEq) (isprio : Bool) :=

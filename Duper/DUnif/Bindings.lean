@@ -1,7 +1,7 @@
 import Lean
 import Duper.Util.Misc
 import Duper.Util.LazyList
-import Duper.HOUnif.UnifProblem
+import Duper.DUnif.UnifProblem
 open Lean
 
 -- Note:
@@ -13,7 +13,7 @@ open Lean
 
 open Duper
 
-namespace HOUnif
+namespace DUnif
 
 def withoutModifyingMCtx (x : MetaM α) : MetaM α := do
   let s ← getMCtx
@@ -144,6 +144,26 @@ def imitForall (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifPro
     let mt ← Meta.mkLambdaFVars xs newt
     MVarId.assign F.mvarId! mt
     return #[{p.pushParentRule (.ImitForall eq F mt) with checked := false, mctx := ← getMCtx}]
+
+-- `F` is a metavariable
+def imitProj (F : Expr) (nLam : Nat) (iTy : Expr) (oTy : Expr) (name : Name) (idx : Nat) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
+  setMCtx p.mctx
+  let Fty ← Meta.inferType F
+  Meta.forallTelescopeReducing Fty fun xs β => do
+    let (ys, _, β') ← Meta.forallMetaTelescopeReducing oTy
+    let mut p := p
+    if β' != β then
+      -- We need to unify their types first
+      let β  ← Meta.mkLambdaFVars xs β
+      let β' ← Meta.mkLambdaFVars xs β'
+      p := p.pushPrioritized (UnifEq.fromExprPair β β')
+    -- Apply the binding to `F`
+    let innerTy ← Meta.instantiateForall iTy (ys.extract 0 nLam)
+    let innerMVar ← Meta.mkFreshExprMVar innerTy
+    let projTerm := Expr.proj name idx innerMVar
+    let mt ← Meta.mkLambdaFVars xs (mkAppN projTerm (ys.extract nLam ys.size))
+    MVarId.assign F.mvarId! mt
+    return #[{p.pushParentRule (.ImitProj eq F idx mt) with checked := false, mctx := ← getMCtx}]
 
 -- `F` is a metavariable, and `g` is a constant
 def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
