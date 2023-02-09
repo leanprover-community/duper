@@ -2,7 +2,7 @@ import Lake
 
 open Lake DSL
 
-require std from git "https://github.com/leanprover/std4.git"@"eb43042ebfebcc111ccd1986d3f7615cdf986a0d"
+require std from git "https://github.com/leanprover/std4.git"@"main"
 
 package Duper {
   precompileModules := true
