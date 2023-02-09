@@ -30,13 +30,16 @@ inductive ParentRule where
 | OracleSucc     : UnifEq → ParentRule
 | OracleFail     : UnifEq → ParentRule
 | Decompose      : UnifEq → ParentRule
+| ForallToLambda : UnifEq → Nat → ParentRule
 -- Bindings
 | Iteration      : UnifEq → Expr → (argn: Nat) → (narg : Nat) → Expr → ParentRule
 | JPProjection   : UnifEq → Expr → (arg : Nat) → Expr → ParentRule
 | HuetProjection : UnifEq → Expr → (arg : Nat) → Expr → ParentRule
+| ImitForall     : UnifEq → Expr → Expr → ParentRule
 | Imitation      : UnifEq → (flex : Expr) → (rigid : Expr) → Expr → ParentRule
 | Identification : UnifEq → (e1 e2 : Expr) → Expr → Expr → ParentRule
 | Elimination    : UnifEq → Expr → Array Nat → Expr → ParentRule
+deriving Inhabited, BEq
 
 def ParentRule.toMessageData : ParentRule → MessageData
 | FromExprPair e1 e2 => m!"From {e1} and {e2}"
@@ -45,9 +48,11 @@ def ParentRule.toMessageData : ParentRule → MessageData
 | OracleSucc ue => m!"OracleSucc {ue}"
 | OracleFail ue => m!"OracleFail {ue}"
 | Decompose ue => m!"Decompose {ue}"
+| ForallToLambda ue n => m!"ForallToLambda {ue} for {n} binders"
 | Iteration ue F i argn b => m!"Iteration for {F} at {i} with extra {argn} args in {ue} binding {b}"
 | JPProjection ue F i b => m!"JPProjection for {F} at {i} in {ue} binding {b}"
 | HuetProjection ue F i b => m!"HuetProjection for {F} at {i} in {ue} binding {b}"
+| ImitForall ue F b => m!"ImitForall of {F} in {ue} binding {b}"
 | Imitation ue F g b => m!"Imitation of {g} for {F} in {ue} binding {b}"
 | Identification ue F G bF bG => m!"Identification of {F} and {G} in {ue} binding {bF} and {bG}"
 | Elimination ue F arr b => m!"Elimination of {F} at {arr} in {ue} binding {b}"
@@ -57,6 +62,11 @@ instance : ToMessageData ParentRule := ⟨ParentRule.toMessageData⟩
 
 
 structure UnifProblem where
+  -- Prioritized unification equations
+  --   If an equation `e`'s corresponding type unification
+  --   equation was not solved when `e` was inspected, the
+  --   type unification equation is prioritized
+  prioritized: Array UnifEq := #[]
   -- Attention:
   --   rigidrigid, flexrigid, flexflex, postponed, checked
   -- These five fields are useless except for the equation selection function.
@@ -65,40 +75,32 @@ structure UnifProblem where
   rigidrigid : Array UnifEq := #[]
   flexrigid  : Array UnifEq := #[]
   -- Equations which haven't been checked are also put
-  -- into flexflex
+  --   into flexflex
   flexflex   : Array UnifEq := #[]
-  -- Postponed unification equations
-  -- If some of an equation `e`'s corresponding type unification
-  --   equation was not solved when `e` was inspected, the equation
-  --   `e` is postponed.
-  postponed  : Array UnifEq := #[]
-  -- When selecting equations, we prioritize `rigidrigid` to `rigidflex`
-  --   to `flexflex` to `postponed`.
-  -- When `rigidrigid` is not empty, we will select an arbitrary equation
-  --   in `rigidrigid`. However, when `rigidrigid` is empty, we can't simply
-  --   pick one in `rigidflex` because some metavariables may have already
-  --   been instantiated.
+  -- When selecting equations, we prioritize `prioritized` to `rigidrigid`
+  --   to `rigidflex` to `flexflex`.
+  -- When `prioritized` is empty and `rigidrigid` is not empty, we will
+  --   select an arbitrary equation in `rigidrigid`. However, when
+  --   `rigidrigid` is empty, we can't simply pick one in `rigidflex`
+  --   because some metavariables may have already been instantiated.
   --
   -- We call the following operation "check":
-  --   1. If `rigidrigid`, `rigidflex` and `flexflex` are all empty, put all equations
-  --   in `postponed` to `flexflex`. Otherwise do nothing.
-  --   2. Instantiates and normalize the head of all equations in
+  --   1. If `prioritized` is not empty, instantiate and normalize the head
+  --      of the last equation in `prioritized`
+  --   2. Otherwise, instantiates and normalize the head of all equations in
   --      `rigidflex` and `flexflex`, then redistribute then among
   --      the three arrays.
   --
   -- When
-  --   1. `rigidrigid` is empty, and some metavariables
-  --      have been instantiated after the last check, or
+  --   1. `prioritized` is not empty, or
   --   2. `rigidrigid`, `rigidflex` and `flexflex` are all empty
   -- we need to check again.
   --
-  -- The field `check` records whether the equations in `flexflex`
-  -- requres normalizing. So, to test for whether a unification problem `p`
-  -- requires check, we need to use `¬ p.checked ∨ p.isActiveEmpty`
+  -- The field `check` records whether new bindings has been applied since
+  -- the last check. So, to test for whether a unification problem `p`
+  -- requires check, we need to use `¬ p.checked ∨ ¬ p.prioritized.empty`
   --
   -- The function `derefNormProblem` does the check
-  -- The function `isActiveEmpty` inspects whether `rigidrigid`, `rigidflex`
-  --   and `flexflex` are all empty.
   checked    : Bool         := false
   mctx       : MetavarContext
   -- Identification variables
@@ -108,42 +110,44 @@ structure UnifProblem where
   -- PersistentArray of parent rules, for debugging
   parentRules: PersistentArray ParentRule
   -- PersistentArray of parent clauses (including itself), for debugging
-  parentClauses : PersistentArray Nat 
-  -- Tracked expressions, for debuggin.
+  parentClauses : PersistentArray Nat
+  -- Tracked expressions, for debugging.
   -- These expressions will have metavariables instantiated
-  --   before they're printed
+  --   before they're printed.
   trackedExpr: Array Expr   := #[]
   deriving Inhabited
 
 def UnifProblem.format : UnifProblem → MessageData :=
-  fun ⟨rigidrigid, flexrigid, flexflex, postponed, checked, _, identVar, elimVar, parentrules, parentclauses, trackedExpr⟩ =>
+  fun ⟨prioritized, rigidrigid, flexrigid, flexflex, checked, _, identVar, elimVar, parentrules, parentclauses, trackedExpr⟩ =>
     "Unification Problem:" ++
-    m!"\n  rigidrigid := {rigidrigid},\n  flexrigid := {flexrigid},\n  flexflex := {flexflex},\n  " ++
-    m!"postponed := {postponed},\n  checked := {checked},\n  identVar := {identVar.toList},\n  elimVar := {elimVar.toList}" ++
+    m!"\n  prioritized := {prioritized},\n  rigidrigid := {rigidrigid},\n  flexrigid := {flexrigid}," ++
+    m!"\n  flexflex := {flexflex},\n  checked := {checked},\n  identVar := {identVar.toList},\n  elimVar := {elimVar.toList}" ++
     m!"\n  parentclauses := {parentclauses.toList}\n  parentrules := {parentrules.toArray}\n  trackedExpr := {trackedExpr}\n"
 
 instance : ToMessageData UnifProblem := ⟨UnifProblem.format⟩
 
 def UnifProblem.fromExprPair (e1 e2 : Expr) : MetaM (Option UnifProblem) := do
+  -- withoutModifyingMCtx
+  let mctx₀ ← getMCtx
   let ty1 ← Meta.inferType e1
   let sort1 ← Meta.inferType ty1
   let ty2 ← Meta.inferType e2
   let sort2 ← Meta.inferType ty2
   let mut flexflex := #[]
-  -- TODO : Unify sort
-  if sort1 != sort2 then
+  let mut prioritized := #[]
+  if ¬ (← Meta.isExprDefEq sort1 sort2) then
     return none
   else
-    let unifTyEq := UnifEq.fromExprPair ty1 ty2
-    flexflex := flexflex.push unifTyEq
     let unifEq := UnifEq.fromExprPair e1 e2
     flexflex := flexflex.push unifEq
+    let unifTyEq := UnifEq.fromExprPair ty1 ty2
+    prioritized := prioritized.push unifTyEq
   let s ← getMCtx
-  return some {mctx := s, flexflex := flexflex, checked := false,
+  setMCtx mctx₀
+  return some {mctx := s, prioritized := prioritized, flexflex := flexflex, checked := false,
                parentRules := #[.FromExprPair e1 e2].toPArray', parentClauses := .empty}
 
--- Empty, except that `postponed` might not be empty
-def UnifProblem.isActiveEmpty (up : UnifProblem) : Bool := up.rigidrigid.isEmpty ∧ up.flexrigid.isEmpty ∧ up.flexflex.isEmpty
+def UnifProblem.pushPrioritized (p : UnifProblem) (e : UnifEq) := {p with prioritized := p.prioritized.push e}
 
 -- Here `e` hasn't been checked
 def UnifProblem.pushUnchecked (p : UnifProblem) (e : UnifEq) := {p with flexflex := p.flexflex.push e, checked := false}
@@ -152,8 +156,10 @@ def UnifProblem.pushUnchecked (p : UnifProblem) (e : UnifEq) := {p with flexflex
 def UnifProblem.appendUnchecked (p : UnifProblem) (es : Array UnifEq) := {p with flexflex := p.flexflex.append es, checked := false}
 
 -- Here `e` has been checked
-def UnifProblem.pushChecked (p : UnifProblem) (e : UnifEq) :=
-  if ¬ e.lflex ∧ ¬ e.rflex then
+def UnifProblem.pushChecked (p : UnifProblem) (e : UnifEq) (isprio : Bool) :=
+  if isprio then
+    {p with prioritized := p.prioritized.push e}
+  else if ¬ e.lflex ∧ ¬ e.rflex then
     {p with rigidrigid := p.rigidrigid.push e}
   else if e.lflex ∧ ¬ e.rflex then
     {p with flexrigid := p.flexrigid.push e}
@@ -170,14 +176,12 @@ def UnifProblem.dropParentRulesButLast (p : UnifProblem) (n : Nat) :=
 def UnifProblem.pushParentClause (p : UnifProblem) (c : Nat) :=
   {p with parentClauses := p.parentClauses.push c}
 
--- Here `es` has been checked
-def UnifProblem.appendChecked (p : UnifProblem) (es : Array UnifEq) := Id.run <| do
-  let mut ret := p
-  for e in es do
-    ret := ret.pushChecked e
-
--- The selection function
+-- The selection function                         -- prioritized : Bool
 def UnifProblem.pop? (p : UnifProblem) : Option (UnifEq × UnifProblem) := Id.run <| do
+  if p.prioritized.size != 0 then
+    let e := p.prioritized.back
+    let pr' := p.prioritized.pop
+    return (e, {p with prioritized := pr'})
   if p.rigidrigid.size != 0 then
     let e := p.rigidrigid.back
     let rr' := p.rigidrigid.pop

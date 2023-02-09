@@ -25,7 +25,7 @@ def withoutModifyingMCtx (x : MetaM α) : MetaM α := do
 def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
-  Meta.forallTelescope Fty fun xs β₁ => (do
+  Meta.forallTelescopeReducing Fty fun xs β₁ => (do
     let ctx₀ ← read
     let mut iterAtIFuns : Array (Nat → MetaM (Array UnifProblem)):= #[]
     let mut argnp1 := 0
@@ -56,7 +56,7 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
           ys := ys.push fvar
         -- Make Gᵢs
         let lastExpr ← withReader (fun ctx : Meta.Context => { ctx with lctx := lctx }) do
-          let (xys, _, _) ← Meta.forallMetaTelescope αi
+          let (xys, _, _) ← Meta.forallMetaTelescopeReducing αi
           let body := mkAppN xi xys
           Meta.mkLambdaFVars ys body
         -- Make H
@@ -66,7 +66,7 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
         let mH ← Meta.mkFreshExprMVar Hty
         let mt ← Meta.mkLambdaFVars xs (mkApp mH lastExpr)
         MVarId.assign F.mvarId! mt
-        return #[{(p.pushChecked eq).pushParentRule (.Iteration eq F (argnp1 - 1) i mt)
+        return #[{p.pushParentRule (.Iteration eq F (argnp1 - 1) i mt)
                    with checked := false, mctx := ← getMCtx}]
       )
       -- Get rid of metavariables in `xys`
@@ -79,7 +79,7 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
 def jpProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
-  Meta.forallTelescope Fty fun xs β => (do
+  Meta.forallTelescopeReducing Fty fun xs β => (do
     let mut ret : Array UnifProblem := #[]
     let s₀ ← getMCtx
     let mut argnp1 := 0
@@ -88,12 +88,10 @@ def jpProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifP
       let αi ← Meta.inferType xi
       let mut p := p
       if β != αi then
-        p := {p with postponed := p.postponed.push eq}
+        -- We need to unify their types first
         let βabst ← Meta.mkForallFVars xs β
         let αabst ← Meta.mkForallFVars xs αi
-        p := p.pushUnchecked (.fromExprPair βabst αabst)
-      else
-        p := p.pushChecked eq
+        p := p.pushPrioritized (.fromExprPair βabst αabst)
       let t ← Meta.mkLambdaFVars xs xi
       MVarId.assign F.mvarId! t
       ret := ret.push {p.pushParentRule (.JPProjection eq F (argnp1 - 1) t)
@@ -105,7 +103,7 @@ def jpProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifP
 def huetProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
-  Meta.forallTelescope Fty fun xs β => (do
+  Meta.forallTelescopeReducing Fty fun xs β => (do
     let mut ret : Array UnifProblem := #[]
     let mut argnp1 := 0
     for xi in xs do
@@ -113,41 +111,53 @@ def huetProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array Uni
       let αi ← Meta.inferType xi
       -- If the result types does not match, return #[]
       -- If the result type matches, return #[binding]
-      let binding ← withoutModifyingMCtx <| do
-        let (ys, _, β') ← Meta.forallMetaTelescope αi
+      let newProblem ← withoutModifyingMCtx <| do
+        let (ys, _, β') ← Meta.forallMetaTelescopeReducing αi
         let mut p := p
         if β' != β then
           -- We need to unify their types first
-          p := {p with postponed := p.postponed.push eq}
           let β  ← Meta.mkLambdaFVars xs β
           let β' ← Meta.mkLambdaFVars xs β'
-          p := p.pushUnchecked (UnifEq.fromExprPair β β')
-        else
-          p := p.pushChecked eq
+          p := p.pushPrioritized (UnifEq.fromExprPair β β')
         -- Apply the binding to `F`
         let mF ← Meta.mkLambdaFVars xs (mkAppN xi ys)
         MVarId.assign F.mvarId! mF
         return #[{p.pushParentRule (.HuetProjection eq F (argnp1 - 1) mF)
                   with checked := false, mctx := ← getMCtx}]
-      ret := ret.append binding
+      ret := ret.append newProblem
     return ret)
+
+-- `F` is a metavariable
+def imitForall (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
+  setMCtx p.mctx
+  let Fty ← Meta.inferType F
+  Meta.forallTelescopeReducing Fty fun xs β => do
+    -- BinderType
+    let bty_ty ← Meta.mkFreshLevelMVar
+    let bty ← Meta.mkFreshExprMVar (mkSort bty_ty)
+    let mut lctx ← getLCtx
+    let fvarId ← mkFreshFVarId
+    lctx := lctx.mkLocalDecl fvarId "imf" bty .default
+    let newt ← withReader (fun ctx : Meta.Context => { ctx with lctx := lctx }) do
+      let newMVar ← Meta.mkFreshExprMVar β
+      Meta.mkForallFVars #[.fvar fvarId] newMVar
+    let mt ← Meta.mkLambdaFVars xs newt
+    MVarId.assign F.mvarId! mt
+    return #[{p.pushParentRule (.ImitForall eq F mt) with checked := false, mctx := ← getMCtx}]
 
 -- `F` is a metavariable, and `g` is a constant
 def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   let gty ← Meta.inferType g
-  Meta.forallTelescope Fty fun xs β => do
-    let (ys, _, β') ← Meta.forallMetaTelescope gty
+  Meta.forallTelescopeReducing Fty fun xs β => do
+    let (ys, _, β') ← Meta.forallMetaTelescopeReducing gty
     let mut p := p
     if β' != β then
       -- We need to unify their types first
-      p := {p with postponed := p.postponed.push eq}
       let β  ← Meta.mkLambdaFVars xs β
       let β' ← Meta.mkLambdaFVars xs β'
-      p := p.pushUnchecked (UnifEq.fromExprPair β β')
-    else
-      p := p.pushChecked eq
+      p := p.pushPrioritized (UnifEq.fromExprPair β β')
     -- Apply the binding to `F`
     let mt ← Meta.mkLambdaFVars xs (mkAppN g ys)
     MVarId.assign F.mvarId! mt
@@ -172,7 +182,7 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM
   let Fty ← Meta.inferType F
   let Gty ← Meta.inferType G
   -- Unify sort
-  let (typeη, samesort) ← Meta.forallTelescope Fty fun xs β => Meta.forallTelescope Gty fun ys δ => do
+  let (typeη, samesort) ← Meta.forallTelescopeReducing Fty fun xs β => Meta.forallTelescopeReducing Gty fun ys δ => do
     let sortβ ← Meta.inferType β
     let sortδ ← Meta.inferType δ
     let typeη ← Meta.mkForallFVars (xs ++ ys) sortβ
@@ -190,17 +200,17 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM
     return #[]
   -- make η and H
   let η ← Meta.mkFreshExprMVar typeη
-  let Hty ← Meta.forallTelescope Fty fun xs β => Meta.forallTelescope Gty fun ys δ => do
+  let Hty ← Meta.forallTelescopeReducing Fty fun xs β => Meta.forallTelescopeReducing Gty fun ys δ => do
     let applied := mkAppN η (xs ++ ys)
     Meta.mkForallFVars (xs ++ ys) applied
   let mH ← Meta.mkFreshExprMVar Hty
   -- Binding for `F`
-  let mtF ← Meta.forallTelescope Fty fun xs _ => do
-    let (ys, _, _) ← Meta.forallMetaTelescope Gty
+  let mtF ← Meta.forallTelescopeReducing Fty fun xs _ => do
+    let (ys, _, _) ← Meta.forallMetaTelescopeReducing Gty
     Meta.mkLambdaFVars xs (mkAppN mH (xs ++ ys))
   -- Bindings for `G`
-  let mtG ← Meta.forallTelescope Gty fun ys _ => do
-    let (xs, _, _) ← Meta.forallMetaTelescope Fty
+  let mtG ← Meta.forallTelescopeReducing Gty fun ys _ => do
+    let (xs, _, _) ← Meta.forallMetaTelescopeReducing Fty
     Meta.mkLambdaFVars ys (mkAppN mH (xs ++ ys))
   -- Unify types
   let mtFty ← Meta.inferType mtF
@@ -208,14 +218,10 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM
   let mtGty ← Meta.inferType mtG
   let geq := mtGty == Gty
   let mut p := p
-  if (feq && geq) then
-    p := p.pushChecked eq
-  else
-    if ¬ feq then
-      p := p.pushUnchecked (UnifEq.fromExprPair mtFty Fty)
-    if ¬ geq then
-      p := p.pushUnchecked (UnifEq.fromExprPair mtGty Gty)
-    p := {p with postponed := p.postponed.push eq}
+  if ¬ feq then
+    p := p.pushPrioritized (UnifEq.fromExprPair mtFty Fty)
+  if ¬ geq then
+    p := p.pushPrioritized (UnifEq.fromExprPair mtGty Gty)
   -- Assign metavariables
   MVarId.assign F.mvarId! mtF
   MVarId.assign G.mvarId! mtG
@@ -226,7 +232,7 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
   setMCtx p.mctx
   let lctx₀ ← getLCtx
   let Fty ← Meta.inferType F
-  Meta.forallTelescope Fty fun xs β => do
+  Meta.forallTelescopeReducing Fty fun xs β => do
     let ctx₁ ← read
     let indsubseqs := (List.lazySubsequences (List.range xs.size)).map List.toArray
     let mut xsset := HashSet.empty
@@ -237,6 +243,7 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
     -- This action may modify mctx, so it should be run with
     --   "withoutModifyingMCtx"
     fun isub => withReader (fun _ => ctx₁) <| do
+      -- debug
       setMCtx p.mctx
       -- `i < n`
       if isub.size == xs.size then
@@ -255,7 +262,7 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
         MVarId.modifyLCtx newMVar.mvarId! lctx₀
         let mt ← Meta.mkLambdaFVars xs (mkAppN newMVar vars)
         MVarId.assign F.mvarId! mt
-        return {(p.pushChecked eq).pushParentRule (.Elimination eq F isub mt)
+        return {p.pushParentRule (.Elimination eq F isub mt)
                  with checked := false, mctx := ← getMCtx, elimVar := p.elimVar.insert newMVar})
       return #[res]
     return indsubseqs.map nats2binding

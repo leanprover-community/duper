@@ -89,20 +89,15 @@ def interleave : LazyList α → LazyList α → LazyList α
 termination_by interleave as bs => size as + size bs
 
 -- interleave between N lists
-def interleaveN : Array (LazyList α) → LazyList α := fun x => Id.run <| do
-  let mut newarray := #[]
-  let mut inits := #[]
-  for s in x do
-    match s with
-    | nil => pure PUnit.unit
-    | cons a as => do
-      newarray := newarray.push as
-      inits := inits.push a
-    | delayed as => do
-      newarray := newarray.push as.get
-  append inits.toList.toLazy (delayed (interleaveN newarray))
-termination_by interleaveN x => (x.map size).foldr (·+·) 0 + x.size
-decreasing_by sorry
+partial def interleaveN : Array (LazyList α) → LazyList α := fun x => iNrec (Std.Queue.empty.enqueueAll x.toList)
+  where iNrec (q : Std.Queue (LazyList α)) :=
+    if let some (a, q') := q.dequeue? then
+      match a with
+      | nil => iNrec q'
+      | cons a as => cons a (iNrec (q'.enqueue as))
+      | delayed t => delayed (iNrec (q'.enqueue t.get))
+    else
+      nil
 
 -- Another type of "join" operator
 partial def interleaveω : LazyList (LazyList α) → LazyList α := fun x => iωrec 0 0 Std.Queue.empty x

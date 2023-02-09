@@ -16,45 +16,49 @@ namespace HOUnif
 --    us from assigning the metavariables that are assumed to
 --    be synthesized by typeclass resolution. It seems that
 --    `Elab.Term.synthesizeSyntheticMVarsNoPostponing` might help?)
--- 6: Whether it's safe to proceed with term unification
---    when type unification is not finished.
--- 7: Will `ListT` (Haskell "ListT done right") provide a more
---    elegant way of modelling monadic nondeterminism?
 
-inductive HeadType where
+inductive StructType where
   -- Things considered as `const`:
   -- 1. constants
   -- 2. free variables
   -- 3. metavariables not of current depth
   -- 4. literals
-  | Const : HeadType
-  | Bound : HeadType
-  | MVar  : HeadType
+  -- The first `Nat` is the number of `lambda`s
+  -- The second `Nat` is the number of `forall`s
+  | Const : Nat → Nat → StructType
+  | Bound : Nat → Nat → StructType
+  | MVar  : Nat → Nat → StructType
   -- Currently, `mdata`, `forall`, `let`
-  | Other : HeadType
+  | Other : Nat → Nat → StructType
   deriving Hashable, Inhabited, BEq, Repr
 
-instance : ToString HeadType where
-  toString (ht : HeadType) : String :=
+instance : ToString StructType where
+  toString (ht : StructType) : String :=
   match ht with
-  | .Const => "HeadType.Const"
-  | .Bound => "HeadType.Bound"
-  | .MVar  => "HeadType.MVar"
-  | .Other => "HeadType.Other"
+  | .Const l f => s!"StructType.Const {l} {f}"
+  | .Bound l f => s!"StructType.Bound {l} {f}"
+  | .MVar  l f => s!"StructType.MVar {l} {f}"
+  | .Other l f => s!"StructType.Other {l} {f}"
 
-def HeadType.isFlex : HeadType → Bool
-| Const => false
-| Bound => false
-| MVar => true
-| Other => false
+def StructType.getLambdaForall : StructType → Nat × Nat
+| Const a b => (a, b)
+| Bound a b => (a, b)
+| MVar a b  => (a, b)
+| Other a b => (a, b)
 
-def HeadType.isRigid : HeadType → Bool
-| Const => true
-| Bound => true
-| MVar => false
-| Other => false
+def StructType.isFlex : StructType → Bool
+| Const _ _ => false
+| Bound _ _ => false
+| MVar _ _  => true
+| Other _ _ => false
 
-def headInfo (e : Expr) : MetaM (Expr × HeadType) :=
+def StructType.isRigid : StructType → Bool
+| Const _ _ => true
+| Bound _ _ => true
+| MVar _ _  => false
+| Other _ _ => false
+
+def structInfo (e : Expr) : MetaM (Expr × StructType) :=
   Meta.lambdaTelescope e fun xs t => Meta.forallTelescope t fun ys b => do
     let h := Expr.getAppFn b
     if h.isFVar then
@@ -63,23 +67,46 @@ def headInfo (e : Expr) : MetaM (Expr × HeadType) :=
         if x == h then
           bound := true
       if bound then
-        return (h, .Bound)
+        return (h, .Bound xs.size ys.size)
       else
-        return (h, .Const)
+        return (h, .Const xs.size ys.size)
     else if h.isConst ∨ h.isSort ∨ h.isLit then
-      return (h, .Const)
+      return (h, .Const xs.size ys.size)
     else if h.isMVar then
       let decl := (← getMCtx).getDecl h.mvarId!
       if decl.depth != (← getMCtx).depth then
-        return (h, .Const)
+        return (h, .Const xs.size ys.size)
       else
-        return (h, .MVar)
+        return (h, .MVar xs.size ys.size)
     else
-      return (h, .Other)
+      return (h, .Other xs.size ys.size)
+
+-- Given expression `e = λ [x]. ∀ [y], body`, return
+-- 1. An expression, `λ [x] [y]. body`
+-- 2. An option expression, the sort of `body`, if `body` is not `forall ...`
+-- 3. An array
+--    `λ [x]. λ y₁ y₂ ⋯ yₖ. type(yₖ₊₁)` for `k = 0, 1, ⋯, n-1`
+def exprForallToLambda (e : Expr) (n : Nat) : MetaM (Expr × (Option Expr) × Array Expr) :=
+  Meta.lambdaTelescope e fun xs e' => Meta.forallBoundedTelescope e' n fun ys body => do
+    -- Do not unify sort if `body` begins with `forallE`
+    let sort :=
+      if let .forallE _ _ _ _ := body then
+        none
+      else
+        some (← Meta.inferType body)
+    let mut retarr := #[]
+    let mut prev := #[]
+    for y in ys do
+      let yty ← Meta.inferType y
+      retarr := retarr.push (← Meta.inferType yty)
+      retarr := retarr.push (← Meta.mkLambdaFVars (xs ++ prev) yty)
+      prev := prev.push y
+    let e' ← Meta.mkLambdaFVars (xs ++ prev) body
+    return (e', sort, retarr)
 
 partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × Bool) :=
   Meta.forallTelescope e fun xs' body => do
-    let body := body.headBeta
+    let body ← Meta.whnf body
     let fn := Expr.getAppFn body
     if let .mvar _ := fn then
       let args := Expr.getAppArgs body
@@ -92,26 +119,25 @@ partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
         let body' := mkAppN fni args
         derefNormType body' (xs ++ xs')
     else
-      let body ← Meta.etaExpand body
       let e' ← Meta.mkForallFVars (xs ++ xs') body
       return (e', false)
 
--- Dereference head and normalize
+-- Dereference head and normalize, assuming that `e` has been eta expanded
 -- Return: (processed expression, is_flex)
 partial def derefNormTerm (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × Bool) :=
   Meta.lambdaTelescope e fun xs' body => do
-    let body := body.headBeta
+    let body ← Meta.whnf body
     let fn := Expr.getAppFn body
     match fn with
     | .mvar _ => do
       let args := Expr.getAppArgs body
       let fni ← instantiateMVars fn
       if let .mvar _ := fni then
-        let body' ← Meta.etaExpand (mkAppN fni args)
+        let body' := mkAppN fni args
         let e' ← Meta.mkLambdaFVars (xs ++ xs') body'
         return (e', true)
       else
-        let body' ← Meta.etaExpand (mkAppN fni args)
+        let body' := mkAppN fni args
         derefNormTerm body' (xs ++ xs')
     | .forallE _ _ _ _  => do
       -- type can't be applied
@@ -121,7 +147,6 @@ partial def derefNormTerm (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
       let e' ← Meta.mkLambdaFVars (xs ++ xs') body
       return (e', flex)
     | _ => do
-      let body ← Meta.etaExpand body
       let e' ← Meta.mkLambdaFVars (xs ++ xs') body
       return (e', false)
 
@@ -129,13 +154,13 @@ def derefNormEq (u : UnifEq) : MetaM UnifEq := do
   let mut lhs' := u.lhs
   let mut lflex' := u.lflex
   if u.lflex then
-    let n ← derefNormTerm u.lhs
+    let n ← derefNormTerm (← Meta.etaExpand u.lhs)
     lhs' := n.fst
     lflex' := n.snd
   let mut rhs' := u.rhs
   let mut rflex' := u.rflex
   if u.rflex then
-    let n ← derefNormTerm u.rhs
+    let n ← derefNormTerm (← Meta.etaExpand u.rhs)
     rhs' := n.fst
     rflex' := n.snd
   -- avoid left-rigid right-flex
@@ -147,8 +172,11 @@ def derefNormEq (u : UnifEq) : MetaM UnifEq := do
 def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := withoutModifyingMCtx <| do
   setMCtx p.mctx
   let mut p := p
-  if p.isActiveEmpty then
-    p := {p with flexflex := p.postponed, postponed := #[], checked := false}
+  if ¬ p.prioritized.isEmpty then
+    let top := p.prioritized.back
+    let pr' := p.prioritized.pop
+    let checked ← derefNormEq top
+    return {p with prioritized := pr'.push checked, mctx := ← getMCtx, checked := false}
   if p.checked then
     return p
   let mut rigidrigid' := p.rigidrigid
@@ -164,6 +192,23 @@ def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := withoutModifyingMC
       flexflex' := flexflex'.push c
   return {p with rigidrigid := rigidrigid', flexrigid := flexrigid', flexflex := flexflex',
                  checked := true, mctx := ← getMCtx}
+
+-- This function turns `forall` into `lambda`
+-- If there is `forall`, then this is a type unification problem,
+--   and it's supposed to be prioritized
+def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array UnifProblem) := do
+  setMCtx p.mctx
+  let (lhs', lsort, larray) ← exprForallToLambda eq.lhs n
+  let (rhs', rsort, rarray) ← exprForallToLambda eq.rhs n
+  if let some lsort := lsort then
+    if let some rsort := rsort then
+      if ¬ (← Meta.isLevelDefEq lsort.sortLevel! rsort.sortLevel!) then
+        return #[]
+  let p := p.pushPrioritized (.fromExprPair lhs' rhs')
+  let neweqs := (larray.zip rarray).map (fun (a, b) => UnifEq.fromExprPair a b)
+  -- Later types depend on previous, so we push in reverse order
+  let p := p.appendUnchecked neweqs
+  return #[{p.pushParentRule (.ForallToLambda eq n) with checked := false, mctx := ← getMCtx}]
 
 -- This function takes care of `Delete`, `Fail` and `Decompose`
 -- Assumming both sides of `eq` are rigid, or both sides of `eq` are flex
@@ -189,8 +234,24 @@ def failDecompose (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) :=
     let fl := lhs'.getAppFn
     let fr := rhs'.getAppFn
     -- Rule: Fail
-    if fl != fr then
-      return #[]
+    if fl.isConst ∧ fr.isConst then
+      -- Unify the levels of the head
+      let lfl := (fl.constLevels!).toArray
+      let lfr := (fr.constLevels!).toArray
+      if lfl.size != lfr.size then
+        return #[]
+      for i in List.range lfl.size do
+        if ¬ (← Meta.isLevelDefEq lfl[i]! lfr[i]!) then
+          return #[]
+    else if fl.isSort ∧ fr.isSort then
+      -- Unify levels
+      let lfl := fl.sortLevel!
+      let lfr := fr.sortLevel!
+      if ¬ (← Meta.isLevelDefEq lfl lfr) then
+        return #[]
+    else
+      if fl != fr then
+        return #[]
     let argsl := lhs'.getAppArgs
     let argsr := rhs'.getAppArgs
     -- This can happen in, for example,
@@ -201,8 +262,12 @@ def failDecompose (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) :=
       return #[]
     let argsl ← (← argsl.mapM (Meta.mkForallFVars ts)).mapM (Meta.mkLambdaFVars xs)
     let argsr ← (← argsr.mapM (Meta.mkForallFVars ts)).mapM (Meta.mkLambdaFVars xs)
-    let neweqs := (argsl.zip argsr).map (fun (a, b) => UnifEq.fromExprPair a b)
-    return #[(p.appendUnchecked neweqs).pushParentRule (.Decompose eq)]
+    -- Later args may depend on previous args, so we push in
+    --   the reverse order.
+    let neweqs := (argsl.zip argsr).reverse.map (fun (a, b) => UnifEq.fromExprPair a b)
+    let p := (p.appendUnchecked neweqs).pushParentRule (.Decompose eq)
+    -- Does not assign ExprMVars, so no need to set `Checked = False`
+    return #[{p with mctx := ← getMCtx}]
 
 -- MetaM : mvar assignments
 -- LazyList UnifProblem : unification problems being generated
@@ -214,24 +279,29 @@ inductive UnifRuleResult
 | Succeed : UnifRuleResult
 
 -- Rules are run inside `applyRules` without `withoutModifyingMCtx`,
--- so `applyRules` should be run with `withoutModifyingMCtx`
-def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
+--   so `applyRules` should be run with `withoutModifyingMCtx`
+-- Note that we don't need to make sure the mctx is right before we
+--   run the rules, because all rules set the mctx of `p` as the current
+--   `mctx` upon entry.
+-- The argument "print" is for debugging. Only problems whose parentClause
+--   contains "print" will be printed
+def applyRules (p : UnifProblem) (print : Nat) : MetaM UnifRuleResult := do
   -- To make messages print, we set `mctx` to that of `p`'s
   setMCtx p.mctx
   let mut p := p
-  if ¬ p.checked ∨ p.isActiveEmpty then
+  if ¬ p.checked ∨ ¬ p.prioritized.isEmpty then
     p ← derefNormProblem p
   -- debug
-  if p.parentClauses.toList.contains 116 then
+  if p.parentClauses.toList.contains print then
     trace[Meta.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
   if let some (eq, p') := p.pop? then
-    let (lh, lhtype) ← headInfo eq.lhs
-    let (rh, rhtype) ← headInfo eq.rhs
-    if lhtype == .Other then
-      trace[Meta.debug] m!"applyRule :: Type `{lhtype}` of head `{lh}` of `{eq.lhs}` is `Other`"
+    let (lh, lhtype) ← structInfo eq.lhs
+    let (rh, rhtype) ← structInfo eq.rhs
+    if let .Other _ _ := lhtype then
+      trace[Meta.debug] m!"applyRule :: Type `{lhtype}` of head `{lh}` of `{eq.lhs}` is `Other` in problem {p}"
       return .NewArray #[]
-    if rhtype == .Other then
-      trace[Meta.debug] m!"applyRule :: Type `{rhtype}` of head `{rh}` of `{eq.rhs}` is `Other`"
+    if let .Other _ _ := rhtype then
+      trace[Meta.debug] m!"applyRule :: Type `{rhtype}` of head `{rh}` of `{eq.rhs}` is `Other` in problem {p}"
       return .NewArray #[]
     if eq.lflex != lhtype.isFlex then
       trace[Meta.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
@@ -243,6 +313,16 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
     if eq.lhs == eq.rhs then
       let p' := p'.pushParentRule (.Delete eq)
       return .NewArray #[p']
+    -- If both sides have `forall`, then turn `forall` into `lambda`
+    let (ll, lf) := lhtype.getLambdaForall
+    let (rl, rf) := rhtype.getLambdaForall
+    if lf != 0 ∧ rf != 0 then
+      -- Different number of lambdas
+      if ll != rl then
+        return .NewArray #[]
+      -- Same number of lambdas
+      let f2l ← forallToLambda p' eq (Nat.min lf rf)
+      return .NewArray f2l
     -- Fail, Decompose
     -- If head type are both rigid
     if ¬ eq.lflex ∧ ¬ eq.rflex then
@@ -250,27 +330,37 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
       return .NewArray urr
     -- Following: Bind
     -- Left flex, Right rigid
+    -- debug
     if eq.lflex ∧ ¬ eq.rflex then
+      -- Imitation of `forall`. We imitate `forall` one at a time
+      if lf != 0 then
+        -- rf must be `0`, otherwise we would have returned
+        --   in `if lf != 0 ∧ rf != 0 then`.
+        -- So it's too much `forall` on the `flex` side.
+        return .NewArray #[]
       let mut ret := #[]
-      if rhtype == .Const then
-        ret := ret.append (← HOUnif.imitation lh rh p' eq)
+      if rf != 0 then
+        -- lf must be `0`
+        ret := ret.append (← HOUnif.imitForall lh p eq)
+      if let .Const _ _ := rhtype then
+        ret := ret.append (← HOUnif.imitation lh rh p eq)
       if ¬ p.identVar.contains lh then
-        ret := ret.append (← HOUnif.huetProjection lh p' eq)
+        ret := ret.append (← HOUnif.huetProjection lh p eq)
       return .NewArray ret
     -- Left flex, Right flex
     -- Heads are different
     if lh != rh then
       -- Iteration for both lhs and rhs
-      let liter ← HOUnif.iteration lh p' eq false
-      let riter ← HOUnif.iteration rh p' eq false
+      let liter ← HOUnif.iteration lh p eq false
+      let riter ← HOUnif.iteration rh p eq false
       let iter := LazyList.interleave liter riter
       -- Identification
-      let mut arr ← HOUnif.identification lh rh p' eq
+      let mut arr ← HOUnif.identification lh rh p eq
       -- JP style projection
       if ¬ p.identVar.contains lh then
-        arr := arr.append (← HOUnif.jpProjection lh p' eq)
+        arr := arr.append (← HOUnif.jpProjection lh p eq)
       if ¬ p.identVar.contains rh then
-        arr := arr.append (← HOUnif.jpProjection rh p' eq)
+        arr := arr.append (← HOUnif.jpProjection rh p eq)
       return .NewLazyList (.cons (pure arr) iter)
     -- Left flex, Right flex
     -- Heads are the same
@@ -279,9 +369,9 @@ def applyRules (p : UnifProblem) : MetaM UnifRuleResult := do
       if p.elimVar.contains lh then
         return .NewArray decomp
       -- Iteration at arguments of functional type
-      let iters ← HOUnif.iteration lh p' eq true
+      let iters ← HOUnif.iteration lh p eq true
       -- Eliminations
-      let elims ← HOUnif.elimination lh p' eq
+      let elims ← HOUnif.elimination lh p eq
       return .NewLazyList (LazyList.cons (pure decomp) (LazyList.interleave elims iters))
   else
     -- No problems left
@@ -315,7 +405,10 @@ def UnifierGenerator.fromExprPair (e1 e2 : Expr) : MetaM UnifierGenerator := do
 def UnifierGenerator.isEmpty : UnifierGenerator → Bool
 | .mk q _ => q.isEmpty
 
-def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option MetavarContext × UnifierGenerator) := do
+-- The argument "print" is for debugging. Only problems whose parentClause
+-- contains "print" will be printed
+def UnifierGenerator.take (ug : UnifierGenerator) (print : Nat) :
+  MetaM (Option UnifProblem × UnifierGenerator) := Meta.withTransparency .reducible do
   let q := ug.q
   let dq := q.dequeue?
   if dq.isNone then
@@ -323,7 +416,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option MetavarContext
   let (top, q') := dq.get!
   match top with
   | .Problem up => do
-    let urr ← withoutModifyingMCtx <| applyRules up
+    let urr ← withoutModifyingMCtx <| applyRules up print
     match urr with
     -- arr : Array UnifProblem
     | .NewArray arr => do
@@ -336,7 +429,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option MetavarContext
     -- ls : LazyList (MetaM (Array UnifProblem))
     | .NewLazyList ls => pure (none, ⟨q'.enqueue (.LazyListOfProblem ls), ug.N⟩)
     -- b : Bool
-    | .Succeed => return (some up.mctx, ⟨q', ug.N⟩)
+    | .Succeed => return (some up, ⟨q', ug.N⟩)
   | .LazyListOfProblem ls =>
     match ls with
     | .cons arr ls' => do
@@ -350,3 +443,24 @@ def UnifierGenerator.take (ug : UnifierGenerator) : MetaM (Option MetavarContext
       return (none, ⟨q', ug.N + arr.size⟩)
     | .nil => pure (none, ⟨q', ug.N⟩)
     | .delayed t => pure (none, ⟨q'.enqueue (.LazyListOfProblem t.get), ug.N⟩)
+
+-- For testing
+def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) (ncont : Nat) : MetaM Bool := do
+  let mut ug ← UnifierGenerator.fromExprPair e1 e2
+  let mut cnt := 0
+  for _ in List.range nAttempt do
+    let (up, ug') ← ug.take ncont
+    ug := ug'
+    if let some up := up then
+      -- debug
+      if ¬ up.parentClauses.toList.contains ncont then
+        continue
+      let mctx := up.mctx
+      if cnt == nUnif then
+        setMCtx mctx
+        trace[Meta.Tactic] "Succeed {up}"
+        trace[Meta.Tactic] "Final: {← instantiateMVars e1}, {← instantiateMVars e2}"
+        return true
+      else
+        cnt := cnt + 1
+  return false
