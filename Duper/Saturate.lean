@@ -25,9 +25,11 @@ import Duper.Rules.SyntacticTautologyDeletion1
 import Duper.Rules.SyntacticTautologyDeletion2
 import Duper.Rules.SyntacticTautologyDeletion3
 import Duper.Rules.DestructiveEqualityResolution
+-- Boolean specific rules
+import Duper.Rules.BoolHoist
+import Duper.Rules.EqHoist
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
-import Duper.Rules.IdentBoolHoist
 
 namespace Duper
 
@@ -129,7 +131,9 @@ def inferenceRules : ProverM (List (MClause → Nat → RuleM Unit)) := do
   -- Prop specific rules
   falseElim,
   -- Higher order rules
-  argCong
+  argCong,
+  boolHoist,
+  eqHoist
 ]
 
 partial def saturate : ProverM Unit := do

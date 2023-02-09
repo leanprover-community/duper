@@ -2,10 +2,6 @@ import Lean
 
 namespace Duper
 
--- TODO: add to Lean?
-instance [Hashable α] : Hashable (Array α) where
-  hash as := as.foldl (fun r a => mixHash r (hash a)) 7
-
 /-- Positions in an expression: Counting argument numbers from the right
   e.g. `a` is at #[1] and `b` is at #[0] in `f a b` -/
 abbrev ExprPos := Array Nat

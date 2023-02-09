@@ -13,9 +13,6 @@ def MVarId.modifyLCtx (mvarId : MVarId) (lctx : LocalContext) : MetaM PUnit := d
   let mctx' := {mctx with decls := mctx.decls.insert mvarId decl'}
   modify fun s => {s with mctx := mctx'}
 
-instance [Hashable α] : Hashable (Array α) where
-  hash as := as.foldl (fun r a => mixHash r (hash a)) 7
-
 -- The following two functions are copied from Lean's
 -- standard library. The only difference is that we
 -- replace `whnf e` with `e`.

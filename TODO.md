@@ -1,14 +1,7 @@
 # TODO
 
 Inference rules:
-- perform superposition only on maximal sides of main premise literal
 - Unimplemented rules:
-  - ArgCong
-  - BoolHoist
-  - FalseElim
-    - I have identPropFalseElim and identBoolFalseElim as simplification rules, but I don't have the general
-      propFalseElim and boolFalseElim inference rules
-  - EqHoist
   - NeqHoist
   - ForallHoist
   - ExistsHoist
@@ -18,13 +11,15 @@ Inference rules:
 
 Simplification rules:
 - Semantic tautology deletion?
-- Contextual Literal Cluttering
 - Equality subsumption?
 
 Refactoring to consider:
 - Use mvars in Clause to avoid cost of conversion?
 
 Other:
+- Investigate the "nondeterminism" (behavior that changes depending on unrelated prior declarations) exhibited by ITP023_1 (duper times out on
+  ITP023_1 even if given a lot of time if ITP023_1 is the only thing declared, but can solve ITP023_1 relatively quickly if SWV573_5 is declared/
+  solved first)
 - Improve indexing functions for fingerprint indices
   - Current fingerprint function was arbitrarily copied from http://www.eprover.eu/EXPDATA/FP_INDEX/schulz_fp-index_ext.pdf. Explore whether other
     fingerprint functions would be better (in particular, functions that include more features)

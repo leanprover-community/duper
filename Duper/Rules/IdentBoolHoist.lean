@@ -3,7 +3,7 @@ import Duper.RuleM
 import Duper.Simp
 import Duper.Util.ProofReconstruction
 
--- BoolHoist          LoobHoist
+-- LoobHoist          BoolHoist
 --             C<u>
 -- -----------------------------
 -- C<⊤> ∨ u = ⊥     C<⊥> ∨ u = ⊤
@@ -17,13 +17,13 @@ open SimpResult
 
 initialize Lean.registerTraceClass `Rule.identBoolHoist
 
-theorem bool_hoist_proof (f : Prop → Prop) (e : Prop) (H : f e) : f True ∨ e = False :=
+theorem loob_hoist_proof (f : Prop → Prop) (e : Prop) (H : f e) : f True ∨ e = False :=
   @Classical.byCases e _
     (fun p => have h : e = True := by simp [p];
               Or.inl (h ▸ H))
     (fun np => by simp [np])
 
-theorem loob_hoist_proof (f : Prop → Prop) (e : Prop) (H : f e) : f False ∨ e = True :=
+theorem bool_hoist_proof (f : Prop → Prop) (e : Prop) (H : f e) : f False ∨ e = True :=
   @Classical.byCases e _
     (fun p => by simp [p])
     (fun np => have h : e = False := by simp [np];
@@ -52,9 +52,9 @@ def mkBoolHoistProof (pos : ClausePos) (sgn : Bool) (premises : List Expr)
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let mut pr := h
           if sgn then
-            pr ← Meta.mkAppM ``bool_hoist_proof #[f, e, h]
-          else
             pr ← Meta.mkAppM ``loob_hoist_proof #[f, e, h]
+          else
+            pr ← Meta.mkAppM ``bool_hoist_proof #[f, e, h]
           Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 pr
         caseProofs := caseProofs.push pr
       else
@@ -67,7 +67,7 @@ def mkBoolHoistProof (pos : ClausePos) (sgn : Bool) (premises : List Expr)
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def boolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Bool :=
+def identBoolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Bool :=
   withoutModifyingMCtx do
     let ty ← inferType e
     if ty == .sort .zero then
@@ -85,12 +85,12 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Bool :=
         let nc := c_erased.appendLits
           #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``True), Lit.fromSingleExpr e false]
         trace[Rule.identBoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
-        yieldClause nc "(identity) boolean hoist C<u> → C<⊤>"
+        yieldClause nc "identity loobHoist"
           (some (mkBoolHoistProof pos true))
         let nc := c_erased.appendLits
           #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``False), Lit.fromSingleExpr e true]
         trace[Rule.identBoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
-        yieldClause nc "(identity) boolean hoist C<u> → C<⊥>"
+        yieldClause nc "identity boolHoist"
           (some (mkBoolHoistProof pos false))
         return true
     else
@@ -100,6 +100,6 @@ def identBoolHoist : MSimpRule := fun c => do
   let c ← loadClause c
   let fold_fn := fun acc e pos => do
     match acc with
-    | false => boolHoistAtExpr e pos c
+    | false => identBoolHoistAtExpr e pos c
     | true => return true
   c.foldGreenM fold_fn false
