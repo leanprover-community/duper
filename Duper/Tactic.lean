@@ -96,7 +96,32 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
-def collectAssumptions (facts : Array Expr) : TacticM (List (Expr × Expr)) := do
+def elabFact (stx : Term) : TacticM (Array Expr) := do
+  match stx with
+  | `($id:ident) =>
+    -- Try to look up any defining equations for this identifier
+    let some expr ← Term.resolveId? id
+      | throwError "Unknown identifier {id}"
+    match ← getEqnsFor? expr.constName! (nonRec := true) with
+    | some eqns => do
+      logInfo m!"eqns {← eqns.mapM fun id => do return (← Term.resolveId? (mkIdent id))}"
+      eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq)))
+    | none =>
+      -- Identifier is not a definition
+      return #[← elabFactAux stx]
+  | _ => return #[← elabFactAux stx]
+where elabFactAux (stx : Term) : TacticM Expr :=
+  -- elaborate term as much as possible and abstract any remaining mvars:
+  Term.withoutModifyingElabMetaStateWithInfo <| withRef stx <| Term.withoutErrToSorry do
+    let e ← Term.elabTerm stx none
+    Term.synthesizeSyntheticMVars (mayPostpone := false) (ignoreStuckTC := true)
+    let e ← instantiateMVars e
+    let s ← abstractMVars e 
+    if s.paramNames.size > 0 then
+      throwError "Universe variables not supported."
+    return s.expr
+
+def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr)) := do
   let mut formulas := []
   -- Load all local decls:
   for fVarId in (← getLCtx).getFVarIds do
@@ -104,20 +129,15 @@ def collectAssumptions (facts : Array Expr) : TacticM (List (Expr × Expr)) := d
     unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
   -- load user-provided facts
-  for fact in facts do
-    let type ← inferType fact
-    if ← isProp type then
-      formulas := (type, ← mkAppM ``eq_true #[fact]) :: formulas
-    else
-      unless fact.isConst do
-        throwError "invalid fact for duper, proposition expected{indentExpr type}"
-      let declName := fact.constName!
-      let unfoldEq? ← getUnfoldEqnFor? declName (nonRec := true)
-      -- TODO: For definitions using "match", the equations are currently not usable
-      match unfoldEq? with
-      | some unfoldEq => do
-        formulas := (← inferType (mkConst unfoldEq), ← mkAppM ``eq_true #[mkConst unfoldEq]) :: formulas
-      | _ => throwError "Could not generate equation for {fact}"
+  for facts in ← facts.mapM elabFact do
+    for fact in facts do
+      let type ← inferType fact
+      if ← isProp type then
+        let fact' := (← abstractMVars fact).expr
+        formulas := (← inferType fact', ← mkAppM ``eq_true #[fact']) :: formulas
+      else
+        throwError "invalid fact for duper, proposition expected {indentExpr fact}"
+
   return formulas
 
 syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
@@ -126,7 +146,7 @@ macro_rules
 | `(tactic| duper) => `(tactic| duper [])
 
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := do
-  let formulas ← collectAssumptions (← facts.getElems.mapM (elabTerm . none))
+  let formulas ← collectAssumptions facts.getElems
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←
     ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx})
