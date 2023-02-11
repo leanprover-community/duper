@@ -14,7 +14,7 @@ private def throwApplyError {α} (mvarId : MVarId) (eType : Expr) (targetType : 
 /--
 Close the given goal using `apply e`.
 -/
-def exechoapply (mvarId : MVarId) (e : Expr) (nAttempt : Nat) (nUnif : Nat) (cont : Nat) (cfg : Meta.ApplyConfig := {}) : MetaM (List MVarId) :=
+def execdapply (mvarId : MVarId) (e : Expr) (nAttempt : Nat) (nUnif : Nat) (cont : Nat) (cfg : Meta.ApplyConfig := {}) : MetaM (List MVarId) :=
   mvarId.withContext do
     mvarId.checkNotAssigned `apply
     let targetType ← mvarId.getType
@@ -78,17 +78,17 @@ def exechoapply (mvarId : MVarId) (e : Expr) (nAttempt : Nat) (nUnif : Nat) (con
     return result
 termination_by go i => rangeNumArgs.stop - i
 
-syntax (name := hoapply) "hoapply " term " attempt " num "unifier " num "contains" num : tactic
+syntax (name := dapply) "dapply " term " attempt " num "unifier " num "contains" num : tactic
 
-@[tactic hoapply]
-def evalHoApply : Elab.Tactic.Tactic := fun stx =>
+@[tactic dapply]
+def evaldapply : Elab.Tactic.Tactic := fun stx =>
   match stx with
-  | `(tactic| hoapply $e attempt $nAttempt unifier $nunif contains $cont) => Elab.Tactic.withMainContext do
+  | `(tactic| dapply $e attempt $nAttempt unifier $nunif contains $cont) => Elab.Tactic.withMainContext do
     let mut val ← instantiateMVars (← Elab.Tactic.elabTermForApply e)
     if val.isMVar then
       Elab.Term.synthesizeSyntheticMVarsNoPostponing
       val ← instantiateMVars val
-    let mvarIds' ← exechoapply (← Elab.Tactic.getMainGoal) val nAttempt.getNat nunif.getNat cont.getNat
+    let mvarIds' ← execdapply (← Elab.Tactic.getMainGoal) val nAttempt.getNat nunif.getNat cont.getNat
     Elab.Term.synthesizeSyntheticMVarsNoPostponing
     Elab.Tactic.replaceMainGoal mvarIds'
   | _ => Elab.throwUnsupportedSyntax
@@ -98,51 +98,51 @@ def wh₁ : Nat := 3
 
 set_option trace.Meta.debug true in
 def wh₀ (f : Nat → Prop) (h : ∀ x, f x) : f wh₁ :=
-  by hoapply h attempt 5 unifier 0 contains 0
+  by dapply h attempt 5 unifier 0 contains 0
 
 -- Imitation
 set_option trace.Meta.debug true in
 def imt₀ (f : Nat → Prop) (h : ∀ x, f x) : f 3 :=
-  by hoapply h attempt 30 unifier 0 contains 0
+  by dapply h attempt 30 unifier 0 contains 0
 
 def imt₁ (f : Nat → Prop)
          (h : ∀ x y (z : Nat), f z → f (x + y))
          (k : f 0) : f (3 + b) := by
-  hoapply h attempt 30 unifier 0 contains 0
-  case a => hoapply h attempt 70 unifier 0 contains 0; exact 0; apply k; exact 0; exact 0
+  dapply h attempt 30 unifier 0 contains 0
+  case a => dapply h attempt 70 unifier 0 contains 0; exact 0; apply k; exact 0; exact 0
 
 def imt₂ (f : Nat → Prop)
           (comm : ∀ x y, f (x + y) → f (y + x))
           (h : ∀ x y z, f (x + z) → f (x + y))
           (g : f (u + v))
           : f (a + b) := by
-  hoapply h attempt 30 unifier 0 contains 0
+  dapply h attempt 30 unifier 0 contains 0
   case a =>
-    hoapply comm attempt 42 unifier 0 contains 0; hoapply h attempt 42 unifier 0 contains 0
+    dapply comm attempt 42 unifier 0 contains 0; dapply h attempt 42 unifier 0 contains 0
     case a.a => apply g
 
 -- Huet-Style Projection
 def hsp₁ (ftr : ∀ (f g : Nat → Prop) (x : Nat), f x → g x)
           (S T : Nat → Prop) (u v : Nat)
           (h   : S u) : T v := by
-  hoapply ftr attempt 100 unifier 1 contains 0
-  case a => hoapply h attempt 10 unifier 0 contains 0
+  dapply ftr attempt 100 unifier 1 contains 0
+  case a => dapply h attempt 10 unifier 0 contains 0
 
 def hsp₂ (p : Nat → Prop) (x y : Nat)
         (hp : ∀ (f : Nat → Nat → Nat), p (f x y) ∧ p (f y x))
         : p x ∧ p y := by
-  hoapply hp attempt 11 unifier 0 contains 0
+  dapply hp attempt 11 unifier 0 contains 0
 
 def hsp₃ (p : Nat → Prop) (x y : Nat)
         (hp : ∀ (f : Nat → Nat → Nat), p (f x y) ∧ p (f y x))
         : p (x + y) ∧ p (y + x) := by
-  hoapply hp attempt 300 unifier 0 contains 0
+  dapply hp attempt 300 unifier 0 contains 0
 
 def hsp₄ (done : Prop)
          (gene : ∀ (H : (Nat → Nat) → Nat → Nat), (fun F X => H F X) = (fun F X => F X) → done) :
          done := by
-  hoapply gene attempt 10 unifier 0 contains 0
-  case a => hoapply Eq.refl attempt 70 unifier 0 contains 0;
+  dapply gene attempt 10 unifier 0 contains 0
+  case a => dapply Eq.refl attempt 70 unifier 0 contains 0;
 
 opaque www : Nat → Nat → Nat := fun _ _ => 1
 opaque ww : Nat → Nat := id
@@ -154,18 +154,17 @@ def elm₁ (p : Nat → Prop)
          (a b : Nat) (h : ∀ (f : Nat → Nat → Nat), p (f a b))
          (g : ∀ (ay : Nat), p ay → False)
          : False := by
-  hoapply g attempt 10 unifier 0 contains 0
-  case a => hoapply h attempt 590 unifier 0 contains 37; exact www
+  dapply g attempt 10 unifier 0 contains 0
+  case a => dapply h attempt 590 unifier 0 contains 37; exact www
 
 #print elm₁.proof_1
 
 -- Identification
-set_option trace.Meta.debug true in
 def idt₁ (p : Nat → Prop) (x : Nat)
          (hp : ∀ (f g : Nat → Nat), p (f (g x)) ∧ p (g (f x)))
          (done : Prop)
          (hq : ∀ w, p w ∧ p w → done) : done := by
-  hoapply hq attempt 10 unifier 0 contains 0
-  case a => hoapply hp attempt 200 unifier 0 contains 38;
+  dapply hq attempt 10 unifier 0 contains 0
+  case a => dapply hp attempt 40000 unifier 700 contains 0
 
 #print idt₁.proof_1

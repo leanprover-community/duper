@@ -25,16 +25,16 @@ def MVarId.refl (mvarId : MVarId) (nAttempt : Nat) (nUnif : Nat) (cont : Nat) (i
     mvarId.assign (mkApp2 (mkConst ``Eq.refl  us) α lhs)
     Meta.getMVarsNoDelayed (.mvar mvarId)
 
-syntax (name := horefl) "horefl" " attempt " num "unifier " num "contains" num ("iteron")? : tactic
+syntax (name := drefl) "drefl" " attempt " num "unifier " num "contains" num ("iteron")? : tactic
 
 
-@[tactic horefl] def evalRefl : Elab.Tactic.Tactic := fun stx =>
+@[tactic drefl] def evalRefl : Elab.Tactic.Tactic := fun stx =>
   match stx with
-  | `(tactic| horefl attempt $nAttempt unifier $nunif contains $cont iteron) =>
+  | `(tactic| drefl attempt $nAttempt unifier $nunif contains $cont iteron) =>
       Elab.Tactic.liftMetaTactic fun mvarId => do
         let ids ← DUnif.MVarId.refl mvarId nAttempt.getNat nunif.getNat cont.getNat true
         return ids.data
-  | `(tactic| horefl attempt $nAttempt unifier $nunif contains $cont) =>
+  | `(tactic| drefl attempt $nAttempt unifier $nunif contains $cont) =>
       Elab.Tactic.liftMetaTactic fun mvarId => do
         let ids ← DUnif.MVarId.refl mvarId nAttempt.getNat nunif.getNat cont.getNat false
         return ids.data
@@ -48,7 +48,7 @@ opaque w : Nat
 
 -- Trivial
 set_option trace.Meta.debug true in
-def tri₁ : 1 = 1 := by horefl attempt 3 unifier 0 contains 0
+def tri₁ : 1 = 1 := by drefl attempt 3 unifier 0 contains 0
 
 -- Iteration
 set_option trace.Meta.debug true in
@@ -56,7 +56,7 @@ def iter₁ (done : Prop)
           (gene : ∀ (H : (Nat → Nat) → Nat → Nat) F X, H F X = F X → done) :
           done := by
   apply gene
-  case a => horefl attempt 1500 unifier 0 contains 573 iteron
+  case a => drefl attempt 1500 unifier 0 contains 573 iteron
             case F => exact ww
             case X => exact w
 
@@ -65,7 +65,7 @@ def iter₂ (done : Prop) (a : Nat)
           (gene : ∀ (F G : Nat → Nat), F a = G a → done) :
           done := by
   apply gene
-  case a => horefl attempt 4400 unifier 0 contains 1541 iteron; exact wwww
+  case a => drefl attempt 4400 unifier 0 contains 1541 iteron; exact wwww
 
 #print iter₂.proof_1
 
@@ -91,7 +91,7 @@ def pellEquation₁ (done : Prop) (q : ChNat → (Nat → Nat) → (Nat → Nat)
                   q (chadd (chmul (chmul c2 m) m) c1) (fun z => z) (fun z => z)  → done)
                   : done := by
   apply h;
-  case a => horefl attempt 160 unifier 0 contains 0
+  case a => drefl attempt 160 unifier 0 contains 0
 
 #print pellEquation₁.proof_1
 
@@ -102,7 +102,7 @@ def pellEquation₂ (done : Prop) (q : ChNat → (Nat → Nat) → (Nat → Nat)
                   q (chadd (chmul (chmul c7 m) m) c1) (fun z => z) (fun z => z)→ done)
                   : done := by
   apply h;
-  case a => horefl attempt 18000 unifier 0 contains 0
+  case a => drefl attempt 18000 unifier 0 contains 0
 
 #print pellEquation₂.proof_1
 
@@ -113,7 +113,7 @@ def pythagoreanTriple₁ (done : Prop) (q : ChNat → (Nat → Nat) → (Nat →
                        q (chmul (chadd z c2) (chadd z c2)) (fun z => z) (fun z => z) (fun z => z) → done):
                        done := by
   apply h;
-  case a => horefl attempt 6000 unifier 0 contains 0
+  case a => drefl attempt 6000 unifier 0 contains 0
 
 #print pythagoreanTriple₁.proof_1
 
@@ -126,7 +126,7 @@ namespace Dependent
 def dep₁ (done : Prop)
          (h : ∀ x, x = (1, 2).1 → done) : done := by
   apply h
-  case a => horefl attempt 54 unifier 0 contains 0
+  case a => drefl attempt 54 unifier 0 contains 0
 
 @[reducible] noncomputable def Nat.add1 := fun (x x_1 : Nat) =>
   @Nat.brecOn.{1} (fun (x : Nat) => Nat → Nat) x_1
@@ -157,9 +157,19 @@ set_option maxHeartbeats 400000
 def dep₂ (done : Prop)
          (h : ∀ x, x = Nat.add1 → done) : done := by
   apply h
-  case a => horefl attempt 160000 unifier 0 contains 0
+  case a => drefl attempt 160000 unifier 0 contains 0
 
 #print dep₂.proof_1
 
 end Dependent
 
+
+-- let binders
+
+@[reducible] def letdef₁ := let x := 2; x + x
+
+def letrefl₁ (done : Prop)
+               (lr : ∀ u, u = letdef₁ → done)
+               : done := by
+  apply lr
+  drefl attempt 60 unifier 0 contains 0

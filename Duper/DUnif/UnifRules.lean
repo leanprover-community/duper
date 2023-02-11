@@ -13,13 +13,11 @@ structure Config where
   iterationOn : Bool
 
 -- TODO
--- 3: How to deal with `mdata`?
--- 4: How to deal with `let`?
--- 5: Find out whether we need to consider metavariables of
+-- 1: How to deal with `mdata`?
+-- 2: Find out whether we need to consider metavariables of
 --    different depth to be rigid. (Anyway, we need to prevent
 --    us from assigning the metavariables that are assumed to
---    be synthesized by typeclass resolution. It seems that
---    `Elab.Term.synthesizeSyntheticMVarsNoPostponing` might help?)
+--    be synthesized by typeclass resolution)
 
 inductive StructType where
   -- Things considered as `const`:
@@ -308,7 +306,6 @@ def failDecompose (is_prio : Bool) (p : UnifProblem) (eq : UnifEq) : MetaM (Arra
 -- MetaM : mvar assignments
 -- LazyList UnifProblem : unification problems being generated
 -- Bool : True -> Succeed, False -> Fail
--- TODO : Use inductive datatype
 inductive UnifRuleResult
 | NewArray : Array UnifProblem → UnifRuleResult
 | NewLazyList : LazyList (MetaM (Array UnifProblem)) → UnifRuleResult

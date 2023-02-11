@@ -205,44 +205,6 @@ def isType (e : Expr) : RuleM Bool := do
 def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
   runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
 
-open Lean.Meta.AbstractMVars in
-open Lean.Meta in
-def abstractMVarsForall (e : Expr) : RuleM AbstractMVarsResult := do
-  let e ← instantiateMVars e
-  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
-  setNGen s.ngen
-  setMCtx s.mctx
-  let e := s.lctx.mkForall s.fvars e
-  pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
-
-open Lean.Meta.AbstractMVars in
-open Lean.Meta in
-def abstractMVarsLambdaWithIds (e : Expr) : RuleM (Expr × Array Expr) := do
-  let e ← instantiateMVars e
-  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
-  setNGen s.ngen
-  setMCtx s.mctx
-  let e := s.lctx.mkLambda s.fvars e
-
-  let sfvars := s.fvars
-  let mut fvarpos : HashMap FVarId Nat := {}
-  for i in [:sfvars.size] do
-    fvarpos := fvarpos.insert sfvars[i]!.fvarId! i
-  let mut mvars := sfvars
-  for (mid, fvar) in s.emap.toList do
-    (_, mvars) := mvars.swapAt! (fvarpos.find! fvar.fvarId!) (mkMVar mid)
-  pure (e, mvars)
-
-open Lean.Meta.AbstractMVars in
-open Lean.Meta in
-def abstractMVarsLambda (e : Expr) : RuleM AbstractMVarsResult := do
-  let e ← instantiateMVars e
-  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
-  setNGen s.ngen
-  setMCtx s.mctx
-  let e := s.lctx.mkLambda s.fvars e
-  pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
-
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
   Core.transform e (pre := fun s => do
     if (← instantiateMVars s) == (← instantiateMVars target) then

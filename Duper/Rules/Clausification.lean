@@ -3,6 +3,7 @@ import Duper.RuleM
 import Duper.Simp
 import Duper.Util.ProofReconstruction
 import Duper.Util.Misc
+import Duper.Util.AbstractMVars
 
 namespace Duper
 open Lean
@@ -379,7 +380,7 @@ where
   makeSkTerm ty b : RuleM Expr := do
     let p := mkLambda `x BinderInfo.default ty b
     let prf_pre ← mkAppM ``Skolem.some #[p]
-    let abstres ← abstractMVarsLambdaWithIds prf_pre
+    let abstres ← runMetaAsRuleM <| abstractMVarsLambdaWithIds prf_pre
     let prf := abstres.fst
     let skTy ← inferType prf
     let fvar ← mkFreshSkolem `sk skTy (fun parents => pure prf)
