@@ -57,9 +57,9 @@ def falseElimAtLit (c : MClause) (i : Nat) : RuleM Unit :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
     let eligibility ← eligibilityPreUnificationCheck c i
-    if eligibility == Eligibility.notEligible then return ()
-    if not (← isFalseLiteral lit) then return ()
-    if (not $ ← eligibilityPostUnificationCheck c i eligibility (strict := true)) then return ()
+    if eligibility == Eligibility.notEligible then return
+    if not (← isFalseLiteral lit) then return
+    if (not $ ← eligibilityPostUnificationCheck c i eligibility (strict := true)) then return
     let c := c.eraseLit i
     trace[Rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"
     yieldClause c "falseElim" $ some (mkFalseElimProof i)

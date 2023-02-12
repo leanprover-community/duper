@@ -53,7 +53,7 @@ def saturate (clauses : List (Bool × Expr × Expr)) : TacticM Unit := do
         -- EqRes
         if givenClause.2.1 == givenClause.2.2 then
           logInfo "contradiction"
-          return ()
+          return
         -- Superposition
         let posClause := myPosClause.get!
         let res ← replace givenClause.2.1 posClause.2.1 posClause.2.2
@@ -66,7 +66,7 @@ def saturate (clauses : List (Bool × Expr × Expr)) : TacticM Unit := do
       active := givenClause :: active
     | none => 
       logInfo "saturated"
-      return ()
+      return
     
 
 

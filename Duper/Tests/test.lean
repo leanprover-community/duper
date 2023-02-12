@@ -117,7 +117,6 @@ theorem test2
 
 #print test2
 
-
 theorem puzzle1 {ι : Type} (johanna : ι) (bill : ι) (peanuts : ι)
   (food : ι → Prop) (alive : ι → Prop) 
   (likes : ι → ι → Prop) (eats : ι → ι → Prop) (was_killed_by : ι → ι → Prop)
@@ -194,6 +193,7 @@ List of problems pertaining to the barber paradox:
 - General issues with using duper in larger tactic-style proofs (mdata isn't handled properly)
 -/
 
+set_option trace.Meta.debug true in
 theorem barber_paradox1 {person : Type} {person_inhabited : Inhabited person} {shaves : person → person → Prop}
   (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := 
   by duper

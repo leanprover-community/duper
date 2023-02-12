@@ -37,6 +37,20 @@ def Lean.Expr.countForalls : Expr → Nat
 def Lean.Expr.instantiateForallNoReducing (e : Expr) (ps : Array Expr) : MetaM Expr :=
   instantiateForallAux ps 0 e
 
+-- identity function
+-- This is an inproper bug fix that should be deleted later.
+--
+-- Cause of the bug:
+--   `FindInstance` causes the term to change, which will
+--   make some terms that are not considered equal
+--   during inferences of `simultaneousSuperposition` to be considered
+--   equal during the proof reconstruction of `simultaneousSuperposition`
+--   This will make proof reconstruction fail.
+--
+-- The proper way to fix this bug is to change the way we do proof
+-- reconstruction of `simultaneousSuperposition`. We should do this later.
+@[reducible] def FindInstanceTag {α : Type _} (x : α) : α := x
+
 def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
   let ty ← instantiateMVars ty
   forallTelescope ty fun xs ty' => do
@@ -61,7 +75,7 @@ def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
         match option_matching_expr with
         | some e => pure e
         | none => Meta.mkAppOptM ``default #[ty', none]
-    mkLambdaFVars xs u
+    Meta.mkAppM ``FindInstanceTag #[← mkLambdaFVars xs u]
 
 /-- Returns the arity of e -/
 partial def getArity (e : Expr) : Nat :=

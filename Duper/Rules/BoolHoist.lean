@@ -14,24 +14,24 @@ initialize Lean.registerTraceClass `Rule.boolHoist
 def boolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Unit :=
   withoutModifyingMCtx do
     if c.lits[pos.lit]!.sign && pos.pos == #[] then -- e cannot be at the top level of a positive literal
-      return ()
+      return
     if (e.getTopSymbol).isMVar then -- e cannot be variable headed
-      return ()
+      return
     if (e.isFullyAppliedLogicalSymbol) then -- e cannot be a fully applied logical symbol
-      return ()
+      return
     if not (← eligibilityNoUnificationCheck c pos.lit) then
       -- No unificaiton check rather than PreUnification check because condition 3 talks about the position being eligible in
       -- the original clause (as opposed to being eligible in the clause with respect to the substitution σ)
-      return ()
+      return
     let eType ← inferType e
     if not $ ← unify #[(eType, .sort levelZero)] then
-      return () -- Unification failed, so boolHoist cannot occur
+      return -- Unification failed, so boolHoist cannot occur
     let lit := c.lits[pos.lit]!
     let eSide ← RuleM.instantiateMVars $ lit.getSide pos.side
     let otherSide ← RuleM.instantiateMVars $ lit.getOtherSide pos.side
     let cmp ← compare eSide otherSide
     if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
-      return ()
+      return
     -- All side conditions have been met. Yield the appropriate clause
     let cErased := c.eraseLit pos.lit
     let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr e true]

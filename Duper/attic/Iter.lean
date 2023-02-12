@@ -68,6 +68,6 @@ partial def test (a : Nat) : Iter Nat :=
 #eval (Iter.take 5 (test 0)).toList
 
 
-
-def unify (cs : List (Expr × Expr)) (subst : FVarSubst) : Iter FVarSubst :=
+-- What does this function do?
+def Here.unify (cs : List (Expr × Expr)) (subst : FVarSubst) : Iter FVarSubst :=
   if cs.isEmpty then pure subst else Iter.nil

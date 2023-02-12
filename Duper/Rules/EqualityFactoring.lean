@@ -96,7 +96,7 @@ def equalityFactoringWithAllConstraints (c : MClause) (i : Nat) (j : Nat) (litsi
     let lit_j := c.lits[j]!
     if ← unify #[(Lit.getSide lit_i litside_i, Lit.getSide lit_j litside_j)] then
       match ← compare (Lit.getSide lit_i litside_i) (Lit.getOtherSide lit_i litside_i) with
-      | Comparison.LessThan => return ()
+      | Comparison.LessThan => return
       | _ =>
         if (getSelections c).isEmpty ∧ (← runMetaAsRuleM $ c.isMaximalLit (← getOrder) i) then
           if not (Level.beq lit_i.lvl lit_j.lvl) then

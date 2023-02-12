@@ -50,18 +50,18 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Unit :=
       -- If the head of e is a variable then it must be applied and the affected literal must be either
       -- e = True, e = False, or e = e' where e' is another variable headed term
       if not e.isApp then -- e is a non-applied variable and so we cannot apply eqHoist
-        return ()
+        return
       if pos.pos != #[] then
-        return () -- e is not at the top level so the affected literal cannot have the form e = ...
+        return -- e is not at the top level so the affected literal cannot have the form e = ...
       if not lit.sign then
-        return () -- The affected literal is not positive and so it cannot have the form e = ...
+        return -- The affected literal is not positive and so it cannot have the form e = ...
       let otherSide := lit.getOtherSide pos.side
       if otherSide != (mkConst ``True) && otherSide != (mkConst ``False) && not otherSide.getTopSymbol.isMVar then
-        return () -- The other side is not True, False, or variable headed, so the affected literal cannot have the required form
+        return -- The other side is not True, False, or variable headed, so the affected literal cannot have the required form
     -- Check conditions 1 and 3 (condition 2 is guaranteed by construction)
     let eligibility ← eligibilityPreUnificationCheck c pos.lit
     if eligibility == Eligibility.notEligible then
-      return ()
+      return
     -- The way we make freshVar1, freshVar2, and freshVarEquality depends on whether e itself is an equality
     let mkFreshVarsAndEquality (e : Expr) : RuleM (Expr × Expr × Expr) :=
       match e with
@@ -78,14 +78,14 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Unit :=
         return (freshVar1, freshVar2, ← mkAppM ``Eq #[freshVar1, freshVar2])
     let (freshVar1, freshVar2, freshVarEquality) ← mkFreshVarsAndEquality e 
     if not $ ← unify #[(e, freshVarEquality)] then
-      return () -- Unification failed, so eqHoist cannot occur
+      return -- Unification failed, so eqHoist cannot occur
     if not $ ← eligibilityPostUnificationCheck c pos.lit eligibility (strict := lit.sign) then
-      return ()
+      return
     let eSide ← RuleM.instantiateMVars $ lit.getSide pos.side
     let otherSide ← RuleM.instantiateMVars $ lit.getOtherSide pos.side
     let cmp ← compare eSide otherSide
     if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
-      return ()
+      return
     -- All side conditions have been met. Yield the appropriate clause
     let cErased := c.eraseLit pos.lit
     -- Need to instantiate mvars in freshVar1, freshVar2, and freshVarEquality because unification assigned to mvars in each of them

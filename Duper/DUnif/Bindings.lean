@@ -11,6 +11,8 @@ open Lean
 --    may modify the MetaM mctx arbitrarily, so they should also
 --    be run with "withoutModifyingMCtx"
 
+-- TODO: Use 'withLocalDeclD'
+
 open Duper
 
 namespace DUnif

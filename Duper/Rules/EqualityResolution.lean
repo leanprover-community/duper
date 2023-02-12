@@ -39,10 +39,10 @@ def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
     let eligibility ← eligibilityPreUnificationCheck c i
-    if eligibility == Eligibility.notEligible then return ()
+    if eligibility == Eligibility.notEligible then return
     let ableToUnify ← unify #[(lit.lhs, lit.rhs)]
-    if ¬ ableToUnify then return ()
-    if (← eligibilityPostUnificationCheck c i eligibility) then return ()
+    if ¬ ableToUnify then return
+    if (← eligibilityPostUnificationCheck c i eligibility) then return
     let c := c.eraseLit i
     yieldClause c "equality resolution" 
       (mkProof := mkEqualityResolutionProof i)

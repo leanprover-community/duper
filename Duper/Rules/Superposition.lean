@@ -33,7 +33,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
             let lit := mainParentLits[i]!
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
-              if(i == mainPremisePos.lit) then
+              if i == mainPremisePos.lit then
                 let litPos : LitPos := {side := mainPremisePos.side, pos := mainPremisePos.pos}
                 let abstrLit ← (lit.abstractAtPos! litPos)
                 let abstrExp := abstrLit.toExpr
@@ -73,9 +73,9 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
-          let eq := if sidePremiseLitSide == LitSide.rhs
-                      then ← Meta.mkAppM ``Eq.symm #[heq]
-                      else heq
+          let eq := 
+            if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
+            else heq
           let mut caseProofsMain : Array Expr := Array.mkEmpty mainParentLits.size
           for i in [:mainParentLits.size] do
             let lit := mainParentLits[i]!
@@ -108,7 +108,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
     if mainPremiseSubterm.isMVar then
-      return () -- No superposition into variables
+      return -- No superposition into variables
     
     /-
       To efficiently approximate condition 7 in https://matryoshka-project.github.io/pubs/hosup_report.pdf, if the main
@@ -116,41 +116,41 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       main premise's clause id is less than or equal to the side premise's clause id (as an arbitrary tiebreaker).
     -/
     if mainPremise.lits[mainPremisePos.lit]!.sign && mainPremisePos.pos == #[] && mainPremiseNum > sidePremiseNum then
-      return ()
+      return
 
     let sidePremiseEligibility ← eligibilityPreUnificationCheck sidePremise sidePremiseLitIdx
     let mainPremiseEligibility ← eligibilityPreUnificationCheck mainPremise mainPremisePos.lit
 
     if sidePremiseEligibility == Eligibility.notEligible || mainPremiseEligibility == Eligibility.notEligible then
-      return () -- Preunification checks determined ineligibility, so we don't need to bother with unificaiton
+      return -- Preunification checks determined ineligibility, so we don't need to bother with unificaiton
     if not $ ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)] then
-      return () -- Unification failed, so superposition cannot occur
+      return -- Unification failed, so superposition cannot occur
     let sidePremiseFinalEligibility ←
       eligibilityPostUnificationCheck sidePremise sidePremiseLitIdx sidePremiseEligibility (strict := true)
-    if not sidePremiseFinalEligibility then return ()
+    if not sidePremiseFinalEligibility then return
     let mainPremiseFinalEligibility ←
       eligibilityPostUnificationCheck mainPremise mainPremisePos.lit mainPremiseEligibility
         (strict := mainPremise.lits[mainPremisePos.lit]!.sign)
-    if not mainPremiseFinalEligibility then return ()
+    if not mainPremiseFinalEligibility then return
 
     -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
     let sidePremiseLhs ← RuleM.instantiateMVars sidePremiseLit.lhs
     let sidePremiseRhs ← RuleM.instantiateMVars sidePremiseLit.rhs
     let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs
     if sidePremiseComparison == Comparison.LessThan || sidePremiseComparison == Comparison.Equal then
-      return ()
+      return
 
     let mainPremiseLhs := mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side
     let mainPremiseRhs := mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side
     let mainPremiseComparison ← compare mainPremiseLhs mainPremiseRhs
     if mainPremiseComparison == Comparison.LessThan || mainPremiseComparison == Comparison.Equal then
-      return ()
+      return
 
     -- Checking Sup condition 9 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
-    if sidePremiseLhs.isFullyAppliedLogicalSymbol then return ()
+    if sidePremiseLhs.isFullyAppliedLogicalSymbol then return
 
     -- Checking Sup condition 10 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
-    if sidePremiseRhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then return ()
+    if sidePremiseRhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then return
 
     let mainPremiseReplaced ←
       if simultaneousSuperposition then mainPremise.mapM fun e => do replace e sidePremiseLhs sidePremiseRhs --TODO: Replace only green subterms
@@ -158,7 +158,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
 
     if mainPremiseReplaced.isTrivial then
       trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
-      return ()
+      return
       
     let restOfSidePremise ← restOfSidePremise.mapM fun e => RuleM.instantiateMVars e
     let res := MClause.append restOfSidePremise mainPremiseReplaced
@@ -211,7 +211,7 @@ def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) 
     do
       let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
       if (← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs) == Comparison.LessThan then
-        return ()
+        return
       else
         superpositionWithGivenAsMain e pos sidePremiseIdx givenClause givenClauseNum simultaneousSuperposition
     ()

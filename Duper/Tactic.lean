@@ -38,6 +38,8 @@ def getClauseInfo! (state : ProverM.State) (c : Clause) : TacticM ClauseInfo := 
     | throwError "clause info not found: {c}"
   return ci
 
+abbrev ClauseHeap := Std.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
+
 partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Nat × ClauseHeap)) : TacticM (Array Nat × ClauseHeap) := do
   Core.checkMaxHeartbeats "collectClauses"
   let info ← getClauseInfo! state c
