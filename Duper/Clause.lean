@@ -212,12 +212,13 @@ def empty : Clause := ⟨#[], #[]⟩
 def fromSingleExpr (e : Expr) : Clause :=
   Clause.mk #[] #[Lit.fromSingleExpr e]
 
-def toExpr (c : Clause) : Expr :=
-  litsToExpr c.lits.data
-where litsToExpr : List Lit → Expr
+def litsToExpr : List Lit → Expr
 | [] => mkConst ``False
 | [l] => l.toExpr
 | l :: ls => mkApp2 (mkConst ``Or) l.toExpr (litsToExpr ls)
+
+def toExpr (c : Clause) : Expr :=
+  litsToExpr c.lits.data
 
 def foldM {β : Type v} {m : Type v → Type w} [Monad m] 
     (f : β → Expr → ClausePos → m β) (init : β) (c : Clause) : m β := do

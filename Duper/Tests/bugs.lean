@@ -2,7 +2,7 @@ import Duper.TPTP
 import Duper.Tactic
 
 
-set_option maxHeartbeats 40000
+set_option maxHeartbeats 20000
 tptp COM035_5 "../TPTP-v8.0.0/Problems/COM/COM025_5.p"
   by duper
 

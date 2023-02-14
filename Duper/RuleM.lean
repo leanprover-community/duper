@@ -2,6 +2,7 @@ import Lean
 import Duper.Unif
 import Duper.MClause
 import Duper.Match
+import Duper.DUnif.UnifRules
 
 namespace Duper
 
@@ -36,6 +37,20 @@ structure State where
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
+
+end RuleM
+
+
+
+structure ClauseStream where
+  ug          : DUnif.UnifierGenerator
+  yieldClause : RuleM.RuleM (Option (Clause × RuleM.Proof))
+
+
+
+namespace RuleM
+open Lean
+open Lean.Core
 
 initialize
   registerTraceClass `Rule
@@ -263,7 +278,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarI
     proofParents := ⟨instantiatedparent, loadedClause⟩ :: proofParents
   return (c, proofParents)
 
-def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do
+def yieldClauseRet (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents), st) :=
     neutralizeMClause mc (← getLoadedClauses) { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
@@ -281,7 +296,11 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
     introducedSkolems := ← getIntroducedSkolems --TODO: neutralize MVars?
     mkProof := mkProof
   }
-  setResultClauses ((c, proof) :: (← getResultClauses))
+  return (c, proof)
+
+def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) := do
+  let cproof ← yieldClauseRet mc ruleName mkProof
+  setResultClauses (cproof :: (← getResultClauses))
 
 def compare (s t : Expr) : RuleM Comparison := do
   let ord ← getOrder

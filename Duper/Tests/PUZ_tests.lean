@@ -18,7 +18,7 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
   -- Previously: Error when reconstructing clausification
 
 tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
-  by duper -- Prover saturated (noted in TODO.md)
+  by duper -- Succeeds
 
 /-
 tptp PUZ081_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ081_8.p" -- Parsing issue

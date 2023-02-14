@@ -53,7 +53,7 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
           let yty ← withReader (fun ctx : Meta.Context => { ctx with lctx := lctx }) do
             Meta.mkFreshExprMVar (mkSort yty_ty)
           let fvarId ← mkFreshFVarId
-          lctx := lctx.mkLocalDecl fvarId s!"iter.{i}.{j}" yty .default
+          lctx := lctx.mkLocalDecl fvarId s!"iter{i}.{j}" yty .default
           let fvar := mkFVar fvarId
           ys := ys.push fvar
         -- Make Gᵢs
@@ -64,7 +64,8 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
         -- Make H
         let lastExprTy ← Meta.inferType lastExpr
         -- Assuming that β₂ contains no loose bound variables
-        let Hty : Expr := .forallE s!"iter.{i}.last" lastExprTy β₁ .default
+        let Hty : Expr ← Meta.withLocalDeclD s!"iter{i}.last" lastExprTy <| fun fv =>
+          Meta.mkForallFVars #[fv] β₁
         let mH ← Meta.mkFreshExprMVar Hty
         let mt ← Meta.mkLambdaFVars xs (mkApp mH lastExpr)
         MVarId.assign F.mvarId! mt
@@ -137,12 +138,9 @@ def imitForall (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifPro
     -- BinderType
     let bty_ty ← Meta.mkFreshLevelMVar
     let bty ← Meta.mkFreshExprMVar (mkSort bty_ty)
-    let mut lctx ← getLCtx
-    let fvarId ← mkFreshFVarId
-    lctx := lctx.mkLocalDecl fvarId "imf" bty .default
-    let newt ← withReader (fun ctx : Meta.Context => { ctx with lctx := lctx }) do
+    let newt ← Meta.withLocalDeclD "imf" bty fun fv => do
       let newMVar ← Meta.mkFreshExprMVar β
-      Meta.mkForallFVars #[.fvar fvarId] newMVar
+      Meta.mkForallFVars #[fv] newMVar
     let mt ← Meta.mkLambdaFVars xs newt
     MVarId.assign F.mvarId! mt
     return #[{p.pushParentRule (.ImitForall eq F mt) with checked := false, mctx := ← getMCtx}]

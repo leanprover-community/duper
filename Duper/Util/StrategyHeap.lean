@@ -6,13 +6,17 @@ open Std
 
 namespace Duper
 
+-- `StrategyHeap` models GivenClause Selection
+
 structure StrategyHeap (α : Type u) {β : Type} [BEq α] [Hashable α] where
-  -- Map of elements of `α`
+  -- Set of elements of `α`
   set             : HashSet α := HashSet.empty
   -- The first "Nat" is the priority
   -- The second "Nat" is the id of the clause
   heaps           : Array (BinomialHeap (Nat × α) fun c d => c.1 ≤ d.1) := #[]
   status          : β
+  -- The `Nat` in `Nat × β` is intended
+  -- to represent the selected heap from the array `heaps`
   strategy        : β → Nat × β
   deriving Inhabited
 
@@ -62,7 +66,9 @@ partial def StrategyHeap.pop? [BEq α] [Hashable α]
     else
       none
 
--- The clause heap
+-- The clause heap, for givenClause selection
+-- The size of `heaps` should be 2. The first heap is the
+--   weight heap and the second heap is the age heap
 abbrev FairAgeHeap (α : Type u) [BEq α] [Hashable α]
   := StrategyHeap α (β:=Nat)
   
@@ -72,6 +78,7 @@ abbrev FairAgeHeap.empty (α : Type u) [BEq α] [Hashable α] (fN : Nat) : FairA
   -- heap 1 : age heap
   { status := 0, heaps := #[BinomialHeap.empty, BinomialHeap.empty],
     strategy := fun b => if b == fN - 1 then (1, 0) else (0, b + 1)}
+
 
 
 -- Test

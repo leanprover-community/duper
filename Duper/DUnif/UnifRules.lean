@@ -428,26 +428,27 @@ inductive QueueElement
 deriving Inhabited
 
 structure UnifierGenerator where
-  q : Std.Queue QueueElement
+  q   : Std.Queue QueueElement
   -- Total number of problems generated
   -- This will be used to assign ids to clauses
-  N : Nat
+  N   : Nat
+  cfg : Config
 
-def UnifierGenerator.fromExprPair (e1 e2 : Expr) : MetaM UnifierGenerator := do
+def UnifierGenerator.fromExprPair (e1 e2 : Expr) (cfg : Config) : MetaM UnifierGenerator := do
   let q := Std.Queue.empty
   let unifPrb ← UnifProblem.fromExprPair e1 e2
   if let some prb := unifPrb then
     let prb := {prb.pushParentClause 0 with trackedExpr := #[e1, e2]}
-    return ⟨q.enqueue (.Problem prb), 1⟩
+    return ⟨q.enqueue (.Problem prb), 1, cfg⟩
   else
-    return ⟨q, 0⟩
+    return ⟨q, 0, cfg⟩
 
 def UnifierGenerator.isEmpty : UnifierGenerator → Bool
-| .mk q _ => q.isEmpty
+| .mk q _ _ => q.isEmpty
 
 -- The argument "print" is for debugging. Only problems whose parentClause
 -- contains "print" will be printed
-def UnifierGenerator.take (ug : UnifierGenerator) (config : Config) :
+def UnifierGenerator.take (ug : UnifierGenerator) :
   MetaM (Option UnifProblem × UnifierGenerator) := Meta.withTransparency .reducible do
   let q := ug.q
   let dq := q.dequeue?
@@ -456,7 +457,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) (config : Config) :
   let (top, q') := dq.get!
   match top with
   | .Problem up => do
-    let urr ← withoutModifyingMCtx <| applyRules up config
+    let urr ← withoutModifyingMCtx <| applyRules up ug.cfg
     match urr with
     -- arr : Array UnifProblem
     | .NewArray arr => do
@@ -465,11 +466,11 @@ def UnifierGenerator.take (ug : UnifierGenerator) (config : Config) :
       for a in arr do
         q' := q'.enqueue (.Problem (a.pushParentClause (ug.N + cnt)))
         cnt := cnt + 1
-      return (none, ⟨q', ug.N + arr.size⟩)
+      return (none, ⟨q', ug.N + arr.size, ug.cfg⟩)
     -- ls : LazyList (MetaM (Array UnifProblem))
-    | .NewLazyList ls => pure (none, ⟨q'.enqueue (.LazyListOfProblem ls), ug.N⟩)
+    | .NewLazyList ls => pure (none, ⟨q'.enqueue (.LazyListOfProblem ls), ug.N, ug.cfg⟩)
     -- b : Bool
-    | .Succeed => return (some up, ⟨q', ug.N⟩)
+    | .Succeed => return (some up, ⟨q', ug.N, ug.cfg⟩)
   | .LazyListOfProblem ls =>
     match ls with
     | .cons arr ls' => do
@@ -480,16 +481,27 @@ def UnifierGenerator.take (ug : UnifierGenerator) (config : Config) :
       for a in arr do
         q' := q'.enqueue (.Problem (a.pushParentClause (ug.N + cnt)))
         cnt := cnt + 1
-      return (none, ⟨q', ug.N + arr.size⟩)
-    | .nil => pure (none, ⟨q', ug.N⟩)
-    | .delayed t => pure (none, ⟨q'.enqueue (.LazyListOfProblem t.get), ug.N⟩)
+      return (none, ⟨q', ug.N + arr.size, ug.cfg⟩)
+    | .nil => pure (none, ⟨q', ug.N, ug.cfg⟩)
+    | .delayed t => pure (none, ⟨q'.enqueue (.LazyListOfProblem t.get), ug.N, ug.cfg⟩)
+
+def UnifierGenerator.takeWithRetry (ug : UnifierGenerator) (nRetry : Nat) :
+  MetaM (Option UnifProblem × UnifierGenerator) := do
+  let mut ug := ug
+  for _ in List.range nRetry do
+    let (ou, ug') ← ug.take
+    if let some ou := ou then
+      return (ou, ug')
+    else
+      ug := ug'
+  return (none, ug)
 
 -- For testing
 def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) (ncont : Nat) (iterOn : Bool) : MetaM Bool := do
-  let mut ug ← UnifierGenerator.fromExprPair e1 e2
+  let mut ug ← UnifierGenerator.fromExprPair e1 e2 ⟨ncont, iterOn⟩
   let mut cnt := 0
   for _ in List.range nAttempt do
-    let (up, ug') ← ug.take ⟨ncont, iterOn⟩
+    let (up, ug') ← ug.take
     ug := ug'
     if let some up := up then
       if ¬ up.parentClauses.toList.contains ncont then

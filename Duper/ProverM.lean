@@ -51,7 +51,7 @@ structure State where
   result : Result := unknown
   allClauses : HashMap Clause ClauseInfo := {}
   activeSet : ClauseSet := {} --TODO: put clause into only in allClauses?
-  passiveSet : FairAgeClauseHeap := FairAgeHeap.empty Clause 5
+  passiveSet : FairAgeClauseHeap := FairAgeHeap.empty Clause 3
   symbolPrecMap : SymbolPrecMap := HashMap.empty
   highesetPrecSymbolHasArityZero : Bool := false
   fairnessCounter : Nat := 0
