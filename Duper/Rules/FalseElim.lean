@@ -58,10 +58,10 @@ def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array Claus
     let lit := c.lits[i]!
     let eligibility ← eligibilityPreUnificationCheck c i
     if eligibility == Eligibility.notEligible then return #[]
-    let loadedAndSkolem ← getLoadedAndSkolem
+    let loaded ← getLoadedClauses
     let ug ← runMetaAsRuleM $ DUnif.UnifierGenerator.fromMetaMProcedure (isFalseLiteral lit)
     let yC := do
-      setLoadedAndSkolem loadedAndSkolem
+      setLoadedClauses loaded
       if (not $ ← eligibilityPostUnificationCheck c i eligibility (strict := true)) then return none
       let c := c.eraseLit i
       trace[Rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"

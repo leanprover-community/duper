@@ -77,10 +77,10 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
         let freshVar2 ← mkFreshExprMVar freshVarTy
         return (freshVar1, freshVar2, ← mkAppM ``Eq #[freshVar1, freshVar2])
     let (freshVar1, freshVar2, freshVarEquality) ← mkFreshVarsAndEquality e 
-    let loadedAndSkolem ← getLoadedAndSkolem
+    let loaded ← getLoadedClauses
     let ug ← unifierGenerator #[(e, freshVarEquality)]
     let yC := do
-      setLoadedAndSkolem loadedAndSkolem
+      setLoadedClauses loaded
       if not $ ← eligibilityPostUnificationCheck c pos.lit eligibility (strict := lit.sign) then
         return none
       let eSide ← RuleM.instantiateMVars $ lit.getSide pos.side

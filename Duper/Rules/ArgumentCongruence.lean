@@ -59,7 +59,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
       trace[Rule.argCong] s!"Lhs: {lit.lhs}, Level: {lit.lvl}, Type of lhs: {ty}, Telescope: {mVars}"
       let lhs := lit.lhs; let rhs := lit.rhs;
       let mut newMVars := #[]; let mut mVarTys := #[]
-      let loadedAndSkolem ← getLoadedAndSkolem
+      let loaded ← getLoadedClauses
       for m in mVars do
         newMVars := newMVars.push m
         mVarTys := mVarTys.push (← inferType m)
@@ -74,7 +74,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
         let c' := c.replaceLit! i newlit
         let ug ← unifierGenerator #[]
         let yC := do
-          setLoadedAndSkolem loadedAndSkolem
+          setLoadedClauses loaded
           yieldClauseRet c' "argument congruence" (mkProof := mkArgumentCongruenceProof i mVarTys)
         streams := streams.push ⟨ug, given, yC⟩
     return streams

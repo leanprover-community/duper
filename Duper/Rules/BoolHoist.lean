@@ -24,10 +24,10 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
       -- the original clause (as opposed to being eligible in the clause with respect to the substitution σ)
       return #[]
     let eType ← inferType e
-    let loadedAndSkolem ← getLoadedAndSkolem
+    let loaded ← getLoadedClauses
     let ug ← unifierGenerator #[(eType, .sort levelZero)]
     let yC := do
-      setLoadedAndSkolem loadedAndSkolem
+      setLoadedClauses loaded
       let lit := c.lits[pos.lit]!
       let eSide ← RuleM.instantiateMVars $ lit.getSide pos.side
       let otherSide ← RuleM.instantiateMVars $ lit.getOtherSide pos.side

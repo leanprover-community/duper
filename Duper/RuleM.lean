@@ -25,7 +25,7 @@ abbrev ProofReconstructor := List Expr → List ProofParent → Clause → MetaM
 structure Proof where
   parents : List ProofParent := []
   ruleName : String := "unknown"
-  introducedSkolems : List (FVarId × (Array Expr → MetaM Expr)) := []
+  introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
   mkProof : ProofReconstructor
 deriving Inhabited
 
@@ -34,7 +34,6 @@ structure State where
   lctx : LocalContext := {}
   loadedClauses : List (Clause × Array MVarId) := []
   resultClauses : List (Clause × Proof) := []
-  introducedSkolems : List (FVarId × (Array Expr → MetaM Expr)) := []
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -92,14 +91,6 @@ def getLoadedClauses : RuleM (List (Clause × Array MVarId)) :=
 def getResultClauses : RuleM (List (Clause × Proof)) :=
   return (← get).resultClauses
 
-def getIntroducedSkolems : RuleM (List (FVarId × (Array Expr → MetaM Expr))) :=
-  return (← get).introducedSkolems
-
-def getLoadedAndSkolem : RuleM (List (Clause × Array MVarId) × List (FVarId × (Array Expr → MetaM Expr))) := do
-  let loaded ← getLoadedClauses
-  let skolem ← getIntroducedSkolems
-  return (loaded, skolem)
-
 def getState : RuleM State :=
   return (← get)
 
@@ -115,16 +106,8 @@ def setLoadedClauses (loadedClauses : List (Clause × Array MVarId)) : RuleM Uni
 def setResultClauses (resultClauses : List (Clause × Proof)) : RuleM Unit :=
   modify fun s => { s with resultClauses := resultClauses }
 
-def setIntroducedSkolems (introducedSkolems : List (FVarId × (Array Expr → MetaM Expr))) : RuleM Unit :=
-  modify fun s => { s with introducedSkolems := introducedSkolems }
-
 def setState (s : State) : RuleM Unit :=
   modify fun _ => s
-
-def setLoadedAndSkolem (ls : List (Clause × Array MVarId) × List (FVarId × (Array Expr → MetaM Expr))) : RuleM Unit := do
-  let (loaded, skolem) := ls
-  setLoadedClauses loaded
-  setIntroducedSkolems skolem
 
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
   let s ← getMCtx
@@ -199,14 +182,13 @@ def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array 
 def forallMetaTelescopeReducing (e : Expr) (maxMVars? : Option Nat := none) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescopeReducing e maxMVars? kind
 
-def mkFreshSkolem (name : Name) (type : Expr) (mkProof : Array Expr → MetaM Expr) : RuleM Expr := do
+def mkFreshSkolem (name : Name) (type : Expr) (mkProof : Array Expr → MetaM Expr) : RuleM (Expr × (FVarId × (Array Expr → MetaM Expr))) := do
   let name := Name.mkNum name (← getLCtx).decls.size
   let (lctx, res) ← runMetaAsRuleM $ do
     Meta.withLocalDeclD name type fun x => do
       return (← getLCtx, x)
   setLCtx lctx
-  setIntroducedSkolems ((res.fvarId!, mkProof) :: (← getIntroducedSkolems))
-  return res
+  return (res, (res.fvarId!, mkProof))
 
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
   runMetaAsRuleM $ Meta.mkForallFVars xs e usedOnly usedLetOnly
@@ -297,7 +279,8 @@ def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarI
     proofParents := ⟨instantiatedparent, loadedClause⟩ :: proofParents
   return (c, proofParents)
 
-def yieldClauseRet (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM (Clause × Proof) := do
+def yieldClauseRet (mc : MClause) (ruleName : String)
+  (mkProof : Option ProofReconstructor) (isk : Array (FVarId × (Array Expr → MetaM Expr)) := #[]) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents), st) :=
     neutralizeMClause mc (← getLoadedClauses) { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
@@ -312,13 +295,14 @@ def yieldClauseRet (mc : MClause) (ruleName : String) (mkProof : Option ProofRec
   let proof := {
     parents := proofParents,  
     ruleName := ruleName,
-    introducedSkolems := ← getIntroducedSkolems --TODO: neutralize MVars?
+    introducedSkolems := isk
     mkProof := mkProof
   }
   return (c, proof)
 
-def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) := do
-  let cproof ← yieldClauseRet mc ruleName mkProof
+def yieldClause (mc : MClause) (ruleName : String)
+  (mkProof : Option ProofReconstructor) (isk : Array (FVarId × (Array Expr → MetaM Expr)) := #[]) := do
+  let cproof ← yieldClauseRet mc ruleName mkProof isk
   setResultClauses (cproof :: (← getResultClauses))
 
 def compare (s t : Expr) : RuleM Comparison := do

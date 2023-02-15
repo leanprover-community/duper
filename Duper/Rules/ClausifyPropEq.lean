@@ -88,13 +88,13 @@ def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array Cla
         let c1 := c'.appendLits #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
         let c2 := c'.appendLits #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
         trace[Rule.clausifyPropEq] "clausifyPropEq called on {lit} in {c.lits} to produce {c1.lits} and {c2.lits}"
-        let loadedAndSkolem ← getLoadedAndSkolem
+        let loaded ← getLoadedClauses
         let ug ← unifierGenerator #[]
         let yield1 := do
-          setLoadedAndSkolem loadedAndSkolem
+          setLoadedClauses loaded
           yieldClauseRet c1 "clausify Prop equality" (mkProof := some (mkC1Proof i))
         let yield2 := do
-          setLoadedAndSkolem loadedAndSkolem
+          setLoadedClauses loaded
           yieldClauseRet c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
         streams := streams.append #[ClauseStream.mk ug given yield1,
                                     ClauseStream.mk ug given yield2]

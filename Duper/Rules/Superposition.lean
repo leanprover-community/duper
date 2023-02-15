@@ -123,10 +123,10 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
 
     if sidePremiseEligibility == Eligibility.notEligible || mainPremiseEligibility == Eligibility.notEligible then
       return #[] -- Preunification checks determined ineligibility, so we don't need to bother with unificaiton
-    let loadedAndSkolem ← getLoadedAndSkolem
+    let loaded ← getLoadedClauses
     let ug ← unifierGenerator #[(mainPremiseSubterm, sidePremiseLit.lhs)]
     let yC := do
-      setLoadedAndSkolem loadedAndSkolem
+      setLoadedClauses loaded
       let sidePremiseFinalEligibility ←
         eligibilityPostUnificationCheck sidePremise sidePremiseLitIdx sidePremiseEligibility (strict := true)
       if not sidePremiseFinalEligibility then return none

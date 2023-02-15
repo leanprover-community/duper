@@ -94,10 +94,10 @@ def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat)
   withoutModifyingMCtx $ do
     let lit_i := c.lits[i]!
     let lit_j := c.lits[j]!
-    let loadedAndSkolem ← getLoadedAndSkolem
+    let loaded ← getLoadedClauses
     let ug ← unifierGenerator #[(Lit.getSide lit_i litside_i, Lit.getSide lit_j litside_j)]
     let yC := do
-      setLoadedAndSkolem loadedAndSkolem
+      setLoadedClauses loaded
       match ← compare (Lit.getSide lit_i litside_i) (Lit.getOtherSide lit_i litside_i) with
       | Comparison.LessThan => return none
       | _ =>
