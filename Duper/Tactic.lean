@@ -165,20 +165,62 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
-def elabFact (stx : Term) : TacticM (Array (Expr × Array Name)) := do
+/-- Produces definional equations for a recursor `recVal` such as
+
+  `@Nat.rec m z s (Nat.succ n) = s n (@Nat.rec m z s n)`
+  
+  The returned list contains one equation
+  for each constructor, a proof of the equation, and the contained level
+  parameters. -/
+def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Name)) := do
+  let some (.inductInfo indVal) := (← getEnv).find? recVal.getInduct
+    | throwError "Expected inductive datatype: {recVal.getInduct}"
+      
+  let expr := mkConst recVal.name (recVal.levelParams.map Level.param)
+  let res ← forallBoundedTelescope (← inferType expr) recVal.getMajorIdx fun xs _ => do
+    let expr := mkAppN expr xs
+    return ← indVal.ctors.mapM fun ctorName => do
+      let ctor ← mkAppOptM ctorName #[]
+      let (eq, proof) ← forallTelescope (← inferType ctor) fun ys _ => do
+        let ctor := mkAppN ctor ys
+        let expr := mkApp expr ctor
+        let some redExpr ← reduceRecMatcher? expr
+          | throwError "Could not reduce recursor application: {expr}"
+        let redExpr ← Core.betaReduce redExpr -- TODO: The prover should be able to beta-reduce!
+        let eq ← mkEq expr redExpr
+        let proof ← mkEqRefl expr
+        return (← mkForallFVars ys eq, ← mkLambdaFVars ys proof)
+      return (← mkForallFVars xs eq, ← mkLambdaFVars xs proof, recVal.levelParams.toArray)
+
+  return res
+
+/-- From a user-provided fact `stx`, produce a suitable fact, its proof, and a
+    list of universe parameter names-/
+def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
   match stx with
   | `($id:ident) =>
-    -- Try to look up any defining equations for this identifier
     let some expr ← Term.resolveId? id
       | throwError "Unknown identifier {id}"
-    match ← getEqnsFor? expr.constName! (nonRec := true) with
-    | some eqns => do
-      eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq)))
-    | none =>
-      -- Identifier is not a definition
-      return #[← elabFactAux stx]
+
+    match (← getEnv).find? expr.constName! with
+    | some (.recInfo val) =>
+      let facts ← addRecAsFact val
+      let facts ← facts.mapM fun (fact, proof, paramNames) => do
+        return (← instantiateMVars fact, ← instantiateMVars proof, paramNames)
+      return facts.toArray
+    | some (.defnInfo val) =>
+      let some eqns ← getEqnsFor? expr.constName! (nonRec := true)
+        | throwError "Could not generate definition equations for {expr.constName!}"
+        eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq)))
+    | some (.axiomInfo _)  => return #[← elabFactAux stx]
+    | some (.thmInfo _)    => return #[← elabFactAux stx]
+    | some (.opaqueInfo _) => throwError "Opaque constants cannot be provided as facts"
+    | some (.quotInfo _)   => throwError "Quotient constants cannot be provided as facts"
+    | some (.inductInfo _) => throwError "Inductive types cannot be provided as facts"
+    | some (.ctorInfo _)   => throwError "Constructors cannot be provided as facts"
+    | none => throwError "Unknown constant {expr.constName!}"
   | _ => return #[← elabFactAux stx]
-where elabFactAux (stx : Term) : TacticM (Expr × Array Name) :=
+where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
   -- elaborate term as much as possible and abstract any remaining mvars:
   Term.withoutModifyingElabMetaStateWithInfo <| withRef stx <| Term.withoutErrToSorry do
     let e ← Term.elabTerm stx none
@@ -187,7 +229,7 @@ where elabFactAux (stx : Term) : TacticM (Expr × Array Name) :=
     let abstres ← abstractMVars e
     let e := abstres.expr
     let paramNames := abstres.paramNames
-    return (e, paramNames)
+    return (← inferType e, e, paramNames)
 
 def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Array Name)) := do
   let mut formulas := []
@@ -198,10 +240,9 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Arr
       formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
   -- load user-provided facts
   for facts in ← facts.mapM elabFact do
-    for (fact, params) in facts do
-      let type ← inferType fact
-      if ← isProp type then
-        formulas := (← inferType fact, ← mkAppM ``eq_true #[fact], params) :: formulas
+    for (fact, proof, params) in facts do
+      if ← isProp fact then
+        formulas := (fact, ← mkAppM ``eq_true #[proof], params) :: formulas
       else
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
 
