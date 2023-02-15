@@ -1,5 +1,6 @@
 import Std.Data.BinomialHeap
 import Duper.ProverM
+import Duper.ClauseStreamHeap
 import Duper.Util.Iterate
 import Duper.RuleM
 import Duper.MClause
@@ -122,7 +123,7 @@ def applyBackwardSimpRules (givenClause : Clause) : ProverM Unit := do
     the current state's allClauses and passiveSet -/
 def backwardSimplify (givenClause : Clause) : ProverM Unit := applyBackwardSimpRules givenClause
 
-def inferenceRules : ProverM (List (MClause → Nat → RuleM Unit)) := do
+def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array ClauseStream))) := do
   return [
   equalityResolution,
   clausifyPropEq,
@@ -140,10 +141,17 @@ partial def saturate : ProverM Unit := do
   Core.withCurrHeartbeats $ iterate $
     try do
       Core.checkMaxHeartbeats "saturate"
-      let some givenClause ← chooseGivenClause
-        | do
+      -- If the passive set is empty
+      if (← getPassiveSet).isEmpty then
+        -- ForceProbe
+        runProbe ClauseStreamHeap.forceProbe
+        -- If the passive set is still empty, the the prover has saturated
+        if (← getPassiveSet).isEmpty then
           setResult saturated
           return LoopCtrl.abort
+      -- Collect inference rules and perform inference
+      let some givenClause ← chooseGivenClause
+        | throwError "saturate :: Saturation should have been checked in the beginning of the loop."
       trace[Prover.saturate] "Given clause: {givenClause}"
       let some simplifiedGivenClause ← forwardSimplify givenClause
         | return LoopCtrl.next
@@ -152,6 +160,13 @@ partial def saturate : ProverM Unit := do
       addToActive simplifiedGivenClause
       let inferenceRules ← inferenceRules
       performInferences inferenceRules simplifiedGivenClause
+      -- Probe the clauseStreamHeap
+      setQStreamSet <| ClauseStreamHeap.increaseFairnessCounter (← getQStreamSet)
+      let fairnessCounter := (← getQStreamSet).status.fairnessCounter
+      if fairnessCounter % kFair == 0 then
+        runProbe (ClauseStreamHeap.fairProbe (fairnessCounter / kFair))
+      else
+        runProbe ClauseStreamHeap.heuristicProbe
       trace[Prover.saturate] "New active Set: {(← getActiveSet).toArray}"
       return LoopCtrl.next
     catch

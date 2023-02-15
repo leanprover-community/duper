@@ -5,6 +5,7 @@ import Duper.Selection
 import Duper.SubsumptionTrie
 import Duper.Util.ClauseSubsumptionCheck
 import Duper.Util.StrategyHeap
+import Duper.Util.IdStrategyHeap
 
 namespace Duper
 namespace ProverM
@@ -52,6 +53,7 @@ structure State where
   allClauses : HashMap Clause ClauseInfo := {}
   activeSet : ClauseSet := {} --TODO: put clause into only in allClauses?
   passiveSet : FairAgeClauseHeap := FairAgeHeap.empty Clause 3
+  qStreamSet : ClauseStreamHeap ClauseStream := ClauseStreamHeap.empty ClauseStream
   symbolPrecMap : SymbolPrecMap := HashMap.empty
   highesetPrecSymbolHasArityZero : Bool := false
   fairnessCounter : Nat := 0
@@ -138,6 +140,9 @@ def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
     | throwError "Clause not found: {c}"
   return ci
 
+def getQStreamSet : ProverM (ClauseStreamHeap ClauseStream) :=
+  return (← get).qStreamSet
+
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }
 
@@ -176,6 +181,9 @@ def setLCtx (lctx : LocalContext) : ProverM Unit :=
 
 def setMCtx (mctx : MetavarContext) : ProverM Unit :=
   modify fun s => { s with mctx := mctx }
+
+def setQStreamSet (Q : ClauseStreamHeap ClauseStream) : ProverM Unit :=
+  modify fun s => { s with qStreamSet := Q }
 
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
@@ -274,14 +282,6 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Cont
   ProverM.setLCtx state.lctx
   ProverM.setMCtx state.mctx
   return res
-
-@[inline] def runInferenceRule (x : RuleM Unit) : ProverM.ProverM (List (Clause × Proof)) := do
-  let symbolPrecMap ← getSymbolPrecMap
-  let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
-  let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
-  let (_, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
-  ProverM.setLCtx state.lctx
-  return state.resultClauses
 
 @[inline] def runSimpRule (x : RuleM α) : ProverM.ProverM (α × List (Clause × Proof)) := do
   let symbolPrecMap ← getSymbolPrecMap
@@ -415,37 +415,16 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
     - Inter-simplify the clauses in resultClauses (this would change the return type but would be more faithful to how
       immediate simplification is described in http://www.cs.man.ac.uk/~korovink/my_pub/iprover_ijcar_app_2020.pdf. See table
       1 to see which rules should be used for inter-simplification) -/
-def immediateSimplification (givenClause : Clause) (resultClauses : List Clause) :
+def immediateSimplification (givenClause : Clause) (resultClause : Clause) :
   ProverM (Option Clause) := -- This is written as a ProverM rather than RuleM because subsumptionCheck depends on RuleM.lean
   runRuleM $ withoutModifyingLoadedClauses do
     let (givenMClauseMVars, givenMClause) ← RuleM.loadClauseCore givenClause
     let givenMClauseMVarIds := givenMClauseMVars.map Expr.mvarId!
-    for c in resultClauses do
-      if c != givenClause && (← subsumptionCheck (← loadClause c) givenMClause givenMClauseMVarIds) then
-        trace[ImmediateSimplification.debug] "Immediately simplified {givenClause} with {c}"
-        return some c
+    let c := resultClause
+    if c != givenClause && (← subsumptionCheck (← loadClause c) givenMClause givenMClauseMVarIds) then
+      trace[ImmediateSimplification.debug] "Immediately simplified {givenClause} with {c}"
+      return some c
     return none
-
-def performInferences (rules : List (MClause → Nat → RuleM Unit)) (c : Clause) : ProverM Unit := do
-  let mut cs : List (Clause × Proof) := []
-  let cInfo ← getClauseInfo! c
-  let cNum := cInfo.number
-  for rule in rules do
-    let curCs ← runInferenceRule do
-      let c ← loadClause c
-      rule c cNum
-    cs := cs.append curCs
-  let resultClauses := cs.map (fun (c, _) => c)
-  match ← immediateSimplification c resultClauses with
-  | some subsumingClause => -- subsumingClause subsumes c so we can remove c and only need to add subsumingClause
-    removeClause c [subsumingClause]
-    match cs.find? (fun (c, _) => c == subsumingClause) with
-    | some (subsumingClause, subsumingClauseProof) =>
-      addNewToPassive subsumingClause subsumingClauseProof (List.map (fun p => p.clause) subsumingClauseProof.parents)
-    | none => throwError "Unable to find {subsumingClause} in resultClauses"
-  | none => -- No result clause subsumes c, so add each result clause to the passive set
-    for (c, proof) in cs do
-      addNewToPassive c proof (List.map (fun p => p.clause) proof.parents)
 
 end ProverM
 end Duper

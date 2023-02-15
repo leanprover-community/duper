@@ -415,7 +415,7 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
       let elims ← DUnif.elimination lh p eq
       return .NewLazyList (LazyList.cons (pure decomp) (LazyList.interleave elims iters))
   else
-    -- No problems left
+    -- No equations left
     return .Succeed
 
 
@@ -434,11 +434,11 @@ structure UnifierGenerator where
   N   : Nat
   cfg : Config
 
-def UnifierGenerator.fromExprPair (e1 e2 : Expr) (cfg : Config) : MetaM UnifierGenerator := do
+def UnifierGenerator.fromExprPairs (l : Array (Expr × Expr)) (cfg : Config := ⟨0, false⟩) : MetaM UnifierGenerator := do
   let q := Std.Queue.empty
-  let unifPrb ← UnifProblem.fromExprPair e1 e2
+  let unifPrb ← UnifProblem.fromExprPairs l
   if let some prb := unifPrb then
-    let prb := {prb.pushParentClause 0 with trackedExpr := #[e1, e2]}
+    let prb := {prb.pushParentClause 0 with trackedExpr := l.concatMap (fun (e1, e2) => #[e1, e2])}
     return ⟨q.enqueue (.Problem prb), 1, cfg⟩
   else
     return ⟨q, 0, cfg⟩
@@ -496,11 +496,23 @@ def UnifierGenerator.takeWithRetry (ug : UnifierGenerator) (nRetry : Nat) :
       ug := ug'
   return (none, ug)
 
+-- Turning unification procedures (like `isDefEq`) that runs locally in
+-- MetaM and that produces at most one unifier into a unifier generator
+def UnifierGenerator.fromMetaMProcedure (unif : MetaM Bool) : MetaM UnifierGenerator := withoutModifyingMCtx <| do
+  let unifiable ← unif
+  if unifiable then
+    UnifierGenerator.fromExprPairs #[]
+  else
+    return ⟨Std.Queue.empty, 0, ⟨0, false⟩⟩
+
 -- For testing
 def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) (ncont : Nat) (iterOn : Bool) : MetaM Bool := do
-  let mut ug ← UnifierGenerator.fromExprPair e1 e2 ⟨ncont, iterOn⟩
+  let mut ug ← UnifierGenerator.fromExprPairs #[(e1, e2)] ⟨ncont, iterOn⟩
   let mut cnt := 0
-  for _ in List.range nAttempt do
+  for i in List.range nAttempt do
+    if ug.isEmpty then
+      trace[Meta.Tactic] "Failed after {i} attempts"
+      return false
     let (up, ug') ← ug.take
     ug := ug'
     if let some up := up then

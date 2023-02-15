@@ -3,6 +3,7 @@ import Duper.Unif
 import Duper.MClause
 import Duper.Match
 import Duper.DUnif.UnifRules
+import Duper.Util.IdStrategyHeap
 
 namespace Duper
 
@@ -41,10 +42,13 @@ abbrev RuleM := ReaderT Context $ StateRefT State CoreM
 end RuleM
 
 
-
+-- The `yieldClause` has an `Option` within it
+--   because there may be post-unification checks,
+--   which might fail.
 structure ClauseStream where
-  ug          : DUnif.UnifierGenerator
-  yieldClause : RuleM.RuleM (Option (Clause × RuleM.Proof))
+  ug                    : DUnif.UnifierGenerator
+  simplifiedGivenClause : Clause
+  yieldClause           : RuleM.RuleM (Option (Clause × RuleM.Proof))
 
 
 
@@ -91,6 +95,11 @@ def getResultClauses : RuleM (List (Clause × Proof)) :=
 def getIntroducedSkolems : RuleM (List (FVarId × (Array Expr → MetaM Expr))) :=
   return (← get).introducedSkolems
 
+def getLoadedAndSkolem : RuleM (List (Clause × Array MVarId) × List (FVarId × (Array Expr → MetaM Expr))) := do
+  let loaded ← getLoadedClauses
+  let skolem ← getIntroducedSkolems
+  return (loaded, skolem)
+
 def getState : RuleM State :=
   return (← get)
 
@@ -111,6 +120,11 @@ def setIntroducedSkolems (introducedSkolems : List (FVarId × (Array Expr → Me
 
 def setState (s : State) : RuleM Unit :=
   modify fun _ => s
+
+def setLoadedAndSkolem (ls : List (Clause × Array MVarId) × List (FVarId × (Array Expr → MetaM Expr))) : RuleM Unit := do
+  let (loaded, skolem) := ls
+  setLoadedClauses loaded
+  setIntroducedSkolems skolem
 
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
   let s ← getMCtx
@@ -203,8 +217,13 @@ def inferType (e : Expr) : RuleM Expr :=
 def instantiateMVars (e : Expr) : RuleM Expr :=
   runMetaAsRuleM $ Lean.instantiateMVars e
 
-def unify (l : Array (Expr × Expr)) : RuleM Bool := do
+-- TODO : Delete this
+-- Why we use unify in simplification rules?
+def unify (l : Array (Expr × Expr)) : RuleM Bool :=
   runMetaAsRuleM $ Meta.unify l
+
+def unifierGenerator (l : Array (Expr × Expr)) : RuleM DUnif.UnifierGenerator :=
+  runMetaAsRuleM $ DUnif.UnifierGenerator.fromMetaMProcedure (Meta.unify l)
 
 /-- Given an array of expression pairs (match_target, e), attempts to assign mvars in e to make e equal to match_target.
     Returns true and performs mvar assignments if successful, returns false and does not perform any mvar assignments otherwise -/

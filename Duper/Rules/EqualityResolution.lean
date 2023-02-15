@@ -35,22 +35,26 @@ def mkEqualityResolutionProof (i : Nat) (premises : List Expr) (parents : List P
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def equalityResolutionAtLit (c : MClause) (i : Nat) : RuleM Unit :=
+def equalityResolutionAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
     let eligibility ← eligibilityPreUnificationCheck c i
-    if eligibility == Eligibility.notEligible then return
-    let ableToUnify ← unify #[(lit.lhs, lit.rhs)]
-    if ¬ ableToUnify then return
-    if (← eligibilityPostUnificationCheck c i eligibility) then return
-    let c := c.eraseLit i
-    yieldClause c "equality resolution" 
-      (mkProof := mkEqualityResolutionProof i)
-
-def equalityResolution (c : MClause) (cNum : Nat) : RuleM Unit := do
+    if eligibility == Eligibility.notEligible then return #[]
+    let ug ← unifierGenerator #[(lit.lhs, lit.rhs)]
+    let yC := do
+      if (← eligibilityPostUnificationCheck c i eligibility) then
+        return none
+      let c := c.eraseLit i
+      some <$> yieldClauseRet c "equality resolution" 
+        (mkProof := mkEqualityResolutionProof i)
+    return #[ClauseStream.mk ug given yC]
+      
+def equalityResolution (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Prover.debug] "EqRes inferences with {c.lits}"
+  let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = false then
-      equalityResolutionAtLit c i
+      streams := streams.append (← equalityResolutionAtLit given c i)
+  return streams
 
 end Duper

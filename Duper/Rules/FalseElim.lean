@@ -12,9 +12,9 @@ initialize registerTraceClass `Rule.falseElim
 /-- Determines whether a literal has can be unified with the form `False = True` or `True = False`. If it can
     be, then the substitution necessary to achieve that match is applied (if the match is unsuccessful, then
     the MCtx remains unchanged) -/
-def isFalseLiteral (lit : Lit) : RuleM Bool := do
-  if ← unify #[(lit.lhs, mkConst ``False), (lit.rhs, mkConst ``True)] then return true
-  else if ← unify #[(lit.lhs, mkConst ``True), (lit.rhs, mkConst ``False)] then return true
+def isFalseLiteral (lit : Lit) : MetaM Bool := do
+  if ← Meta.unify #[(lit.lhs, mkConst ``False), (lit.rhs, mkConst ``True)] then return true
+  else if ← Meta.unify #[(lit.lhs, mkConst ``True), (lit.rhs, mkConst ``False)] then return true
   else return false
 
 theorem false_ne_true (h : False = True) : False := by rw [h]; exact ⟨⟩
@@ -53,23 +53,30 @@ def mkFalseElimProof (i : Nat) (premises : List Expr) (parents : List ProofParen
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def falseElimAtLit (c : MClause) (i : Nat) : RuleM Unit :=
+def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
     let eligibility ← eligibilityPreUnificationCheck c i
-    if eligibility == Eligibility.notEligible then return
-    if not (← isFalseLiteral lit) then return
-    if (not $ ← eligibilityPostUnificationCheck c i eligibility (strict := true)) then return
-    let c := c.eraseLit i
-    trace[Rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"
-    yieldClause c "falseElim" $ some (mkFalseElimProof i)
+    if eligibility == Eligibility.notEligible then return #[]
+    let loadedAndSkolem ← getLoadedAndSkolem
+    let ug ← runMetaAsRuleM $ DUnif.UnifierGenerator.fromMetaMProcedure (isFalseLiteral lit)
+    let yC := do
+      setLoadedAndSkolem loadedAndSkolem
+      if (not $ ← eligibilityPostUnificationCheck c i eligibility (strict := true)) then return none
+      let c := c.eraseLit i
+      trace[Rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"
+      yieldClauseRet c "falseElim" $ some (mkFalseElimProof i)
+    return #[⟨ug, given, yC⟩]
 
 /-- If there is a substitution σ and literal l in c such that σ(l) equates `True` and `False`, then
     falseElim yields the clause obtained by removing l from c and applying sigma to the rest of c -/
-def falseElim (c : MClause) (cNum : Nat) : RuleM Unit := do
+def falseElim (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Rule.falseElim] "Attempting to apply falseElim to {c.lits}"
+  let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign then
-      falseElimAtLit c i
+      let str ← falseElimAtLit given c i
+      streams := streams.append str
+  return streams
 
 end Duper

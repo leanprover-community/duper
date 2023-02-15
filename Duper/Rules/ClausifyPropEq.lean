@@ -76,8 +76,9 @@ def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (c :
     let r ← orCases (parentLits.map Lit.toExpr) proofCases
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def clausifyPropEq (c : MClause) (cNum : Nat) : RuleM Unit := do
+def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Rule.clausifyPropEq] "ClausifyPropEq inferences with {c.lits}"
+  let mut streams := #[]
   for i in [:c.lits.size] do
     let lit := c.lits[i]!
     if lit.sign = true && lit.ty.isProp && litSelectedOrNothingSelected c i then
@@ -87,7 +88,16 @@ def clausifyPropEq (c : MClause) (cNum : Nat) : RuleM Unit := do
         let c1 := c'.appendLits #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
         let c2 := c'.appendLits #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
         trace[Rule.clausifyPropEq] "clausifyPropEq called on {lit} in {c.lits} to produce {c1.lits} and {c2.lits}"
-        yieldClause c1 "clausify Prop equality" (mkProof := some (mkC1Proof i))
-        yieldClause c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
+        let loadedAndSkolem ← getLoadedAndSkolem
+        let ug ← unifierGenerator #[]
+        let yield1 := do
+          setLoadedAndSkolem loadedAndSkolem
+          yieldClauseRet c1 "clausify Prop equality" (mkProof := some (mkC1Proof i))
+        let yield2 := do
+          setLoadedAndSkolem loadedAndSkolem
+          yieldClauseRet c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
+        streams := streams.append #[ClauseStream.mk ug given yield1,
+                                    ClauseStream.mk ug given yield2]
+  return streams
 
 end Duper

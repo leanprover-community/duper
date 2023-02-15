@@ -108,6 +108,7 @@ theorem test1
 
 #print test1
 
+set_option trace.Meta.debug true in
 theorem test1'
 (div_self : ∀ x y z : Nat, f x ≠ f x ∨ g y ≠ g y ∨ h z ≠ h z)
 : False := by duper
@@ -363,6 +364,7 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
 #print PUZ012_1
 --###############################################################################################################################
 -- Tests that (in the current commit at least) use positive simplify reflect
+set_option maxHeartbeats 400000
 set_option trace.Rule.simplifyReflect true in
 tptp NUN004_5 "../TPTP-v8.0.0/Problems/NUN/NUN004_5.p"
   by duper

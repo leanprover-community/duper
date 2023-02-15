@@ -49,15 +49,17 @@ def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr)
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
+def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
+    let mut streams := #[]
     if ← eligibilityNoUnificationCheck c i (strict := true) then
       let ty ← inferType lit.lhs
       let (mVars, _, _) ← forallMetaTelescope ty
       trace[Rule.argCong] s!"Lhs: {lit.lhs}, Level: {lit.lvl}, Type of lhs: {ty}, Telescope: {mVars}"
       let lhs := lit.lhs; let rhs := lit.rhs;
       let mut newMVars := #[]; let mut mVarTys := #[]
+      let loadedAndSkolem ← getLoadedAndSkolem
       for m in mVars do
         newMVars := newMVars.push m
         mVarTys := mVarTys.push (← inferType m)
@@ -70,13 +72,20 @@ def argCongAtLit (c : MClause) (i : Nat) : RuleM Unit :=
                                  ty  := ← inferType newlhs
                                  lvl := Expr.sortLevel! newsort}
         let c' := c.replaceLit! i newlit
-        yieldClause c' "argument congruence"
-          (mkProof := mkArgumentCongruenceProof i mVarTys)
+        let ug ← unifierGenerator #[]
+        let yC := do
+          setLoadedAndSkolem loadedAndSkolem
+          yieldClauseRet c' "argument congruence" (mkProof := mkArgumentCongruenceProof i mVarTys)
+        streams := streams.push ⟨ug, given, yC⟩
+    return streams
 
-def argCong (c : MClause) (cNum : Nat) : RuleM Unit := do
+def argCong (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Prover.debug] "ArgCong inferences with {c.lits}"
+  let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = true then
-      argCongAtLit c i
+      let str ← argCongAtLit given c i
+      streams := streams.append str
+  return streams
 
 end Duper

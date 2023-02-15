@@ -20,6 +20,9 @@ structure StrategyHeap (α : Type u) {β : Type} [BEq α] [Hashable α] where
   strategy        : β → Nat × β
   deriving Inhabited
 
+def StrategyHeap.isEmpty [BEq α] [Hashable α]
+  (sh : StrategyHeap α (β:=β)) := sh.set.isEmpty
+
 def StrategyHeap.contains [BEq α] [Hashable α]
   (sh : StrategyHeap α (β:=β)) (x : α) := sh.set.contains x
 

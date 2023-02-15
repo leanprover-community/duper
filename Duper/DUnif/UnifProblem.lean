@@ -22,7 +22,7 @@ def UnifEq.fromExprPair (e1 e2 : Expr) : UnifEq := {lhs := e1, rhs := e2, lflex 
 -- Parent Rules
 
 inductive ParentRule where
-| FromExprPair   : Expr → Expr → ParentRule
+| FromExprPairs  : Array (Expr × Expr) → ParentRule
 | Succeed        : ParentRule
 -- Normalize, Dereference : Does not count as rule
 -- Fail : Does not produce child
@@ -43,7 +43,7 @@ inductive ParentRule where
 deriving Inhabited, BEq
 
 def ParentRule.toMessageData : ParentRule → MessageData
-| FromExprPair e1 e2 => m!"From {e1} and {e2}"
+| FromExprPairs arr => m!"From {arr}"
 | Succeed  => "Succeed"
 | Delete ue => m!"Delete {ue}"
 | OracleSucc ue => m!"OracleSucc {ue}"
@@ -128,26 +128,27 @@ def UnifProblem.format : UnifProblem → MessageData :=
 
 instance : ToMessageData UnifProblem := ⟨UnifProblem.format⟩
 
-def UnifProblem.fromExprPair (e1 e2 : Expr) : MetaM (Option UnifProblem) := do
+def UnifProblem.fromExprPairs (l : Array (Expr × Expr)) : MetaM (Option UnifProblem) := do
   -- withoutModifyingMCtx
   let mctx₀ ← getMCtx
-  let ty1 ← Meta.inferType e1
-  let sort1 ← Meta.inferType ty1
-  let ty2 ← Meta.inferType e2
-  let sort2 ← Meta.inferType ty2
   let mut flexflex := #[]
   let mut prioritized := #[]
-  if ¬ (← Meta.isExprDefEq sort1 sort2) then
-    return none
-  else
-    let unifEq := UnifEq.fromExprPair e1 e2
-    flexflex := flexflex.push unifEq
-    let unifTyEq := UnifEq.fromExprPair ty1 ty2
-    prioritized := prioritized.push unifTyEq
+  for (e1, e2) in l do
+    let ty1 ← Meta.inferType e1
+    let sort1 ← Meta.inferType ty1
+    let ty2 ← Meta.inferType e2
+    let sort2 ← Meta.inferType ty2
+    if ¬ (← Meta.isExprDefEq sort1 sort2) then
+      return none
+    else
+      let unifEq := UnifEq.fromExprPair e1 e2
+      flexflex := flexflex.push unifEq
+      let unifTyEq := UnifEq.fromExprPair ty1 ty2
+      prioritized := prioritized.push unifTyEq
   let s ← getMCtx
   setMCtx mctx₀
   return some {mctx := s, prioritized := prioritized, flexflex := flexflex, checked := false,
-               parentRules := #[.FromExprPair e1 e2].toPArray', parentClauses := .empty}
+               parentRules := #[.FromExprPairs l].toPArray', parentClauses := .empty}
 
 def UnifProblem.pushPrioritized (p : UnifProblem) (e : UnifEq) :=
   {p with prioritized := p.prioritized.push e}
