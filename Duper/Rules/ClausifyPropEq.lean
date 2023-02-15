@@ -92,10 +92,10 @@ def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array Cla
         let ug ← unifierGenerator #[]
         let yield1 := do
           setLoadedClauses loaded
-          yieldClauseRet c1 "clausify Prop equality" (mkProof := some (mkC1Proof i))
+          yieldClause c1 "clausify Prop equality" (mkProof := some (mkC1Proof i))
         let yield2 := do
           setLoadedClauses loaded
-          yieldClauseRet c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
+          yieldClause c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
         streams := streams.append #[ClauseStream.mk ug given yield1,
                                     ClauseStream.mk ug given yield2]
   return streams

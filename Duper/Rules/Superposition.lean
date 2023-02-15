@@ -170,7 +170,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       trace[Superposition.debug]
         m!"Superposition successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
         m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
-      some <$> yieldClauseRet res "superposition" mkProof
+      some <$> yieldClause res "superposition" mkProof
     return #[ClauseStream.mk ug given yC]
 
 def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)

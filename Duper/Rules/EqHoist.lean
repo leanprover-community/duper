@@ -96,7 +96,7 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
       let freshVarEquality ← RuleM.instantiateMVars freshVarEquality 
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromExpr freshVarEquality]
       trace[Rule.eqHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClauseRet newClause "eqHoist" $ some (mkEqHoistProof pos freshVar1 freshVar2)
+      yieldClause newClause "eqHoist" $ some (mkEqHoistProof pos freshVar1 freshVar2)
     return #[⟨ug, given, yC⟩]
 
 def eqHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do

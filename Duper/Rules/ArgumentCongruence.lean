@@ -75,7 +75,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
         let ug ← unifierGenerator #[]
         let yC := do
           setLoadedClauses loaded
-          yieldClauseRet c' "argument congruence" (mkProof := mkArgumentCongruenceProof i mVarTys)
+          yieldClause c' "argument congruence" (mkProof := mkArgumentCongruenceProof i mVarTys)
         streams := streams.push ⟨ug, given, yC⟩
     return streams
 

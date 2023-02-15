@@ -59,11 +59,11 @@ def elimResolvedLit : MSimpRule := fun c => do
   newLits := newLits.reverse
   refs := refs.reverse
   if (newLits.length = c.lits.size) then
-    return false
+    return none
   else
     trace[Simp.debug] "elimResolvedLit applied with the newLits: {newLits}"
-    yieldClause (MClause.mk newLits.toArray) "eliminate resolved literals"
+    let yc ← yieldClause (MClause.mk newLits.toArray) "eliminate resolved literals"
       (some (mkElimResolvedLitProof refs))
-    return true
+    return some #[yc]
 
 end Duper

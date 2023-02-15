@@ -38,7 +38,7 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
       let cErased := c.eraseLit pos.lit
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr e true]
       trace[Rule.boolHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClauseRet newClause "boolHoist" $ some (mkBoolHoistProof pos false)
+      yieldClause newClause "boolHoist" $ some (mkBoolHoistProof pos false)
     return #[⟨ug, given, yC⟩]
 
 def boolHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do

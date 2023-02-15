@@ -30,8 +30,7 @@ def equalitySubsumptionWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
 
 def forwardEqualitySubsumptionAtExpr (mainPremise : MClause) (pos : ClausePos)
   (potentialSubsumingClauses : Array Clause) (mainMVarIds : Array MVarId) :
-  RuleM Bool := do
-  withoutModifyingMCtx do
+  RuleM Bool := withoutModifyingMCtx do
     for potentialSubsumingClause in potentialSubsumingClauses do
       let (sideMClause, cToLoad) ← prepLoadClause potentialSubsumingClause
       match ← equalitySubsumptionWithPartner mainPremise mainMVarIds pos sideMClause with
@@ -69,13 +68,17 @@ def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule :
     | true => return true -- If forwardEqualitySubsumptionAtExpr ever succeeds, then we need not check further
   -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
   -- rather than just green ones
-  c.foldGreenM fold_fn false
+  let subsumed ← c.foldGreenM fold_fn false
+  if subsumed then
+    return some #[]
+  else
+    return none
 
 /-- Returns the list of clauses that givenSubsumingClause subsumes -/
 def backwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSubsumingClause => do
   -- Return Unapplicable if givenSubsumingClause is anything other than a clause with exactly one positive literal
-  if (givenSubsumingClause.lits.size != 1) then return []
-  if (!givenSubsumingClause.lits[0]!.sign) then return []
+  if (!givenSubsumingClause.lits[0]!.sign) then return #[]
+  if (givenSubsumingClause.lits.size != 1) then return #[]
 
   let potentialSubsumedClauses ← subsumptionTrie.getPotentialSubsumedClauses givenSubsumingClause
   let givenSubsumingClause ← loadClause givenSubsumingClause
@@ -96,6 +99,7 @@ def backwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMS
       let nextClauseCanBeRemoved ← nextClauseM.foldGreenM inner_fold_fn false
       if nextClauseCanBeRemoved then
         trace[Rule.equalitySubsumption] "Main clause {nextClause.lits} subsumed by {givenSubsumingClause.lits} (backward equality subsumption)"
-        return (true, nextClause :: acc)
+        return (true, acc.push nextClause)
       else return (false, acc)
-  potentialSubsumedClauses.foldlM fold_fn []
+  let subsumed ← potentialSubsumedClauses.foldlM fold_fn #[]
+  return subsumed.map (fun x => (x, none))

@@ -413,6 +413,7 @@ def clausificationStep : MSimpRule := fun c => do
     let ds ← clausificationStepLit c i 
     if ds.isEmpty then
       continue
+    let mut resultClauses := #[]
     for ⟨d, dproof, introducedSkolems⟩ in ds do
       let mkProof : ProofReconstructor := 
         fun (premises : List Expr) (parents : List ProofParent) (res : Clause) => do
@@ -446,8 +447,9 @@ def clausificationStep : MSimpRule := fun c => do
             let r ← orCases (parentLits.map Lit.toExpr) caseProofs
             let r ← Meta.mkLambdaFVars xs $ mkApp r appliedPremise
             return r
-      yieldClause ⟨c.lits.eraseIdx i ++ d.lits⟩ "clausification" mkProof introducedSkolems
-    return true
-  return false
+      let newResult ← yieldClause ⟨c.lits.eraseIdx i ++ d.lits⟩ "clausification" mkProof introducedSkolems
+      resultClauses := resultClauses.push newResult
+    return some resultClauses
+  return none
 
 end Duper

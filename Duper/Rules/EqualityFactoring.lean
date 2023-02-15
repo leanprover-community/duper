@@ -122,7 +122,7 @@ def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat)
             else -- i < j because i cannot equal j
               ((c.eraseLit j).eraseLit i).appendLits #[new_lit, c.lits[j]!]
           trace[Prover.debug] "Successfully calling equality factoring on {c.lits} to yield {modified_clause.lits}"
-          some <$> yieldClauseRet modified_clause "equality factoring" (mkProof := some (mkEqualityFactoringProof i j litside_i litside_j))
+          some <$> yieldClause modified_clause "equality factoring" (mkProof := some (mkEqualityFactoringProof i j litside_i litside_j))
         else
           return none
     return ⟨ug, given, yC⟩

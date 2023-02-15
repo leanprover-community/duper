@@ -65,7 +65,7 @@ def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array Claus
       if (not $ ← eligibilityPostUnificationCheck c i eligibility (strict := true)) then return none
       let c := c.eraseLit i
       trace[Rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"
-      yieldClauseRet c "falseElim" $ some (mkFalseElimProof i)
+      yieldClause c "falseElim" $ some (mkFalseElimProof i)
     return #[⟨ug, given, yC⟩]
 
 /-- If there is a substitution σ and literal l in c such that σ(l) equates `True` and `False`, then

@@ -77,11 +77,11 @@ def identPropFalseElim : MSimpRule := fun c => do
   refs := refs.reverse
   if (newLits.length = c.lits.size) then
     trace[Simp.identPropFalseElim] "Returning Unapplicable on {c.lits}"
-    return false
+    return none
   else
     trace[Simp.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
-    yieldClause (MClause.mk newLits.toArray) "identity prop false elimination"
+    let resultClause ← yieldClause (MClause.mk newLits.toArray) "identity prop false elimination"
       (some (mkIdentPropFalseElimProof refs))
-    return true
+    return some #[resultClause]
 
 end Duper

@@ -83,7 +83,7 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
   return some (mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))
 
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTrie) (givenMainClause : MClause)
-  (mainClauseMVarIds : Array MVarId) : RuleM Bool := do
+  (mainClauseMVarIds : Array MVarId) : RuleM (Option (Array (Clause × Proof))) := do
   let potentialPartners ← sideIdx.getMatchFromPartners e
   for (partnerClauseNum, partnerClause, partnerPos) in potentialPartners do
     let (mclause, cToLoad) ← prepLoadClause partnerClause
@@ -92,12 +92,12 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTri
     | some res =>
       -- forwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
       setLoadedClauses (cToLoad :: (← getLoadedClauses))
-      yieldClause res.1 "forward demodulation" res.2
+      let cp ← yieldClause res.1 "forward demodulation" res.2
       trace[Rule.demodulation] "Main clause: {givenMainClause.lits} at lit: {pos.lit} at expression: {e}"
       trace[Rule.demodulation] "Side clause: {partnerClause} at lit: {partnerPos.lit}"
       trace[Rule.demodulation] "Result: {res.1.lits}"
-      return true
-  return false
+      return some #[cp]
+  return none
 
 /-- Performs rewriting of positive and negative literals (demodulation) with the given clause c as the main clause. We only attempt
     to use c as the main clause (rather than attempt to use it as a side clause as well) because if we used c as a side clause, we
@@ -108,11 +108,11 @@ def forwardDemodulation (sideIdx : RootCFPTrie) : MSimpRule := fun c => do
   let cMVarIds := cMVars.map Expr.mvarId!
   let fold_fn := fun acc e pos => do
     match acc with
-    | false => forwardDemodulationAtExpr e pos sideIdx c cMVarIds
-    | true => return true -- If forwardDemodulationAtExpr ever succeeds, just return on first success
+    | some cp => return some cp -- If forwardDemodulationAtExpr ever succeeds, just return on first success
+    | none => forwardDemodulationAtExpr e pos sideIdx c cMVarIds
   -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
   -- rather than just green ones
-  c.foldGreenM fold_fn false
+  c.foldGreenM fold_fn none
 
 /- Attempts to perform backward demodulation with the given mainPremise and sidePremise. Returns true iff successful.
    Note: I am implementing Schulz's side conditions for RP and RN, but only approximately.
@@ -132,7 +132,7 @@ def forwardDemodulation (sideIdx : RootCFPTrie) : MSimpRule := fun c => do
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
 -/
 def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId) (mainPremiseSubterm : Expr)
-  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM Bool := do
+  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseLhs : LitSide) : RuleM (Option (Clause × Proof)) := do
   Core.checkMaxHeartbeats "backward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
@@ -142,32 +142,33 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
     let atTopPos := Array.isEmpty mainPremisePos.pos
     if isMaximalLit && (mainPremiseSideComparison == Comparison.GreaterThan) && atTopPos then
-      return false -- Cannot perform demodulation because Schulz's side conditions are not met
+      return none -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
-    return false -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
+    return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
-    return false -- Cannot perform demodulation because side condition 2 listed above is not met
+    return none -- Cannot perform demodulation because side condition 2 listed above is not met
   let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← RuleM.instantiateMVars sidePremiseLit.rhs
   trace[Rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
   trace[Rule.demodulation] "(Backward) Side clause (after matching): {sidePremise.lits}"
   trace[Rule.demodulation] "(Backward) Result: {mainPremiseReplaced.lits}"
-  yieldClause mainPremiseReplaced "backward demodulation" $ some $ mkDemodulationProof sidePremiseLhs mainPremisePos false
-  return true
+  let cp ← yieldClause mainPremiseReplaced "backward demodulation" (some $ mkDemodulationProof sidePremiseLhs mainPremisePos false)
+  return some cp
 
 /-- Performs rewriting of positive and negative literals (demodulation) with the given clause as the side clause. Returns the list of
     original clauses that are to be removed by backward simplification. -/
 def backwardDemodulation (mainIdx : RootCFPTrie) : BackwardMSimpRule := fun givenSideClause => do
   let givenSideClause ← loadClause givenSideClause
-  if givenSideClause.lits.size != 1 || not givenSideClause.lits[0]!.sign then return []
+  if givenSideClause.lits.size != 1 || not givenSideClause.lits[0]!.sign then return #[]
   let l := givenSideClause.lits[0]!
   let c ← compare l.lhs l.rhs
-  if (c == Incomparable || c == Equal) then return []
+  if (c == Incomparable || c == Equal) then return #[]
 
   let givenSideClauseLhs := -- givenSideClause.getSide givenSideClauseLhs is will function as the lhs of the side clause
     if c == GreaterThan then LitSide.lhs
     else LitSide.rhs
   let potentialPartners ← mainIdx.getMatchOntoPartners (Lit.getSide l givenSideClauseLhs)
-  let mut clausesToRemove := []
+  let mut result := #[]
+  let mut clausesToRemove := #[]
 
   for (partnerClauseNum, partnerClause, partnerPos) in potentialPartners do
     -- Since demodulation is a simplification rule, we shouldn't perform multiple demodulation calls with the same partner clause
@@ -178,5 +179,8 @@ def backwardDemodulation (mainIdx : RootCFPTrie) : BackwardMSimpRule := fun give
           let (mclauseMVarIds, mclause) ← loadClauseCore partnerClause
           let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
           backwardDemodulationWithPartner mclause mclauseMVarIds (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs
-    if backwardDemodulationSuccessful then clausesToRemove := partnerClause :: clausesToRemove
-  return clausesToRemove
+    if let some cp := backwardDemodulationSuccessful then
+      result := result.push (partnerClause, some cp)
+      clausesToRemove := clausesToRemove.push partnerClause
+
+  return result

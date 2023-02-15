@@ -47,7 +47,7 @@ def equalityResolutionAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Ar
       if (← eligibilityPostUnificationCheck c i eligibility) then
         return none
       let c := c.eraseLit i
-      some <$> yieldClauseRet c "equality resolution" 
+      some <$> yieldClause c "equality resolution" 
         (mkProof := mkEqualityResolutionProof i)
     return #[ClauseStream.mk ug given yC]
       

@@ -243,7 +243,7 @@ def addNewToPassive (c : Clause) (proof : Proof) (generatingAncestors : List Cla
   | some ci =>
     if (ci.wasSimplified) then pure () -- No need to add c to the passive set because it would just be simplified away later
     else if(ci.isOrphan) then -- We've seen c before, but we should readd it because it was only removed as an orphan (and wasn't simplified away)
-      trace[Prover.saturate] "Readding prior orphan to the passive set: {c}"
+      trace[Prover.saturate] "Reading prior orphan to the passive set: {c}"
       -- Update c's generating ancestors and orphan status because it has been added to the passiveSet by new ancestors
       let ci := {ci with generatingAncestors := generatingAncestors, isOrphan := false}
       setAllClauses ((← getAllClauses).insert c ci)
@@ -283,13 +283,13 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Cont
   ProverM.setMCtx state.mctx
   return res
 
-@[inline] def runSimpRule (x : RuleM α) : ProverM.ProverM (α × List (Clause × Proof)) := do
+@[inline] def runSimpRule (x : RuleM α) : ProverM.ProverM α := do
   let symbolPrecMap ← getSymbolPrecMap
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
   let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
   let (res, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
   ProverM.setLCtx state.lctx
-  return (res, state.resultClauses)
+  return res
 
 def addToActive (c : Clause) : ProverM Unit := do
   let cInfo ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found

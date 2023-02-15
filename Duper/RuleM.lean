@@ -33,7 +33,6 @@ structure State where
   mctx : MetavarContext := {}
   lctx : LocalContext := {}
   loadedClauses : List (Clause × Array MVarId) := []
-  resultClauses : List (Clause × Proof) := []
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -41,13 +40,13 @@ abbrev RuleM := ReaderT Context $ StateRefT State CoreM
 end RuleM
 
 
--- The `yieldClause` has an `Option` within it
+-- The `postUnification` has an `Option` within it
 --   because there may be post-unification checks,
 --   which might fail.
 structure ClauseStream where
   ug                    : DUnif.UnifierGenerator
   simplifiedGivenClause : Clause
-  yieldClause           : RuleM.RuleM (Option (Clause × RuleM.Proof))
+  postUnification           : RuleM.RuleM (Option (Clause × RuleM.Proof))
 
 
 
@@ -88,12 +87,6 @@ def getMCtx : RuleM MetavarContext :=
 def getLoadedClauses : RuleM (List (Clause × Array MVarId)) :=
   return (← get).loadedClauses
 
-def getResultClauses : RuleM (List (Clause × Proof)) :=
-  return (← get).resultClauses
-
-def getState : RuleM State :=
-  return (← get)
-
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
   modify fun s => { s with mctx := mctx }
 
@@ -102,9 +95,6 @@ def setLCtx (lctx : LocalContext) : RuleM Unit :=
 
 def setLoadedClauses (loadedClauses : List (Clause × Array MVarId)) : RuleM Unit :=
   modify fun s => { s with loadedClauses := loadedClauses }
-
-def setResultClauses (resultClauses : List (Clause × Proof)) : RuleM Unit :=
-  modify fun s => { s with resultClauses := resultClauses }
 
 def setState (s : State) : RuleM Unit :=
   modify fun _ => s
@@ -279,7 +269,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarI
     proofParents := ⟨instantiatedparent, loadedClause⟩ :: proofParents
   return (c, proofParents)
 
-def yieldClauseRet (mc : MClause) (ruleName : String)
+def yieldClause (mc : MClause) (ruleName : String)
   (mkProof : Option ProofReconstructor) (isk : Array (FVarId × (Array Expr → MetaM Expr)) := #[]) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents), st) :=
@@ -299,11 +289,6 @@ def yieldClauseRet (mc : MClause) (ruleName : String)
     mkProof := mkProof
   }
   return (c, proof)
-
-def yieldClause (mc : MClause) (ruleName : String)
-  (mkProof : Option ProofReconstructor) (isk : Array (FVarId × (Array Expr → MetaM Expr)) := #[]) := do
-  let cproof ← yieldClauseRet mc ruleName mkProof isk
-  setResultClauses (cproof :: (← getResultClauses))
 
 def compare (s t : Expr) : RuleM Comparison := do
   let ord ← getOrder

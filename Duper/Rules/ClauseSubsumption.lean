@@ -25,7 +25,11 @@ def forwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule := 
           return (true, true)
         else return (false, false)
     | true => return true
-  potentialSubsumingClauses.foldlM fold_fn false
+  let isSubsumed ← potentialSubsumingClauses.foldlM fold_fn false
+  if isSubsumed then
+    return some #[]
+  else
+    return none
 
 /-- Returns the list of clauses that givenSubsumingClause subsumes -/
 def backwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSimpRule := fun givenSubsumingClause => do
@@ -39,6 +43,7 @@ def backwardClauseSubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMSim
         let nextClauseMVarIds := nextClauseMVars.map Expr.mvarId!
         if ← subsumptionCheck givenSubsumingClause nextClauseM nextClauseMVarIds then
           trace[Rule.clauseSubsumption] "Backward subsumption: removed {nextClause.lits} because it was subsumed by {givenSubsumingClause.lits}"
-          return (true, (nextClause :: acc))
+          return (true, acc.push nextClause)
         else return (false, acc)
-  potentialSubsumedClauses.foldlM fold_fn []
+  let clausesToRemove ← potentialSubsumedClauses.foldlM fold_fn #[]
+  return clausesToRemove.map (fun x => (x, none))

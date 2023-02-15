@@ -817,7 +817,7 @@ def boolSimp : MSimpRule := fun c => do
         | none => return acc -- If no bool simp rule can be applied, then return the original clause unchanged
   let (c', proofOpt) ← c.foldGreenM fold_fn (c, none)
   match proofOpt with
-  | none => return false -- No substitutions were performed, so we don't need to yield any clause and we can return false
+  | none => return none -- No substitutions were performed, so we don't need to yield any clause and we can return false
   | some proof =>
-    yieldClause c' "bool simp" $ some proof
-    return true
+    let cp ← yieldClause c' "bool simp" $ some proof
+    return some #[cp]

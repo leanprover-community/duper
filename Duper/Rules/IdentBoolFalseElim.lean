@@ -73,10 +73,10 @@ def identBoolFalseElim : MSimpRule := fun c => do
   newLits := newLits.reverse
   refs := refs.reverse
   if (newLits.length = c.lits.size) then
-    return false
+    return none
   else
-    yieldClause (MClause.mk newLits.toArray) "identity boolean false elimination"
+    let resultClause ← yieldClause (MClause.mk newLits.toArray) "identity boolean false elimination"
       (some (mkIdentBoolFalseElimProof refs))
-    return true
+    return some #[resultClause]
 
 end Duper

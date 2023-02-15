@@ -41,15 +41,14 @@ def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : List Expr) (paren
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM Bool :=
+def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM (Option (Clause × Proof)) :=
   withoutModifyingMCtx do
     let lit := c.lits[i]!
     if ← unify #[(lit.lhs, lit.rhs)] then
-      yieldClause (c.eraseLit i) "destructive equality resolution"
+      some <$> yieldClause (c.eraseLit i) "destructive equality resolution"
         (some (mkDestructiveEqualtiyResolutionProof i))
-      return true
     else
-      return false -- Cannot apply destructive equality resolution to this literal,
+      return none -- Cannot apply destructive equality resolution to this literal,
                    -- but it may still be possible to apply it to a different literal in the clause
 
 def destructiveEqualityResolution : MSimpRule := fun c => do
@@ -57,6 +56,6 @@ def destructiveEqualityResolution : MSimpRule := fun c => do
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = false ∧ (is_var c.lits[i]!.lhs ∨ is_var c.lits[i]!.rhs) then
       match ← destructiveEqualityResolutionAtLit c i with
-      | true => return true
-      | false => continue
-  return false
+      | some cp => return some #[cp]
+      | none => continue
+  return none

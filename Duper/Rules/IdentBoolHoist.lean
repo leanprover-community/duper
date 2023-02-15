@@ -67,7 +67,7 @@ def mkBoolHoistProof (pos : ClausePos) (sgn : Bool) (premises : List Expr)
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def identBoolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Bool :=
+def identBoolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM (Option (Array (Clause × Proof))) :=
   withoutModifyingMCtx do
     let ty ← inferType e
     if ty == .sort .zero then
@@ -77,7 +77,7 @@ def identBoolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Bool
       let is_false := e == (mkConst ``False)
       let is_top_positive := p.size == 0 ∧ c.lits[l]!.sign
       if is_true ∨ is_false ∨ is_top_positive then
-        return false
+        return none
       else
         trace[Rule.identBoolHoist] m!"BoolHoist at literal {l}, side {s}, position {p} in clause {c.lits.map Lit.toExpr}"
         let litl := c.lits[l]!
@@ -85,21 +85,20 @@ def identBoolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM Bool
         let nc := c_erased.appendLits
           #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``True), Lit.fromSingleExpr e false]
         trace[Rule.identBoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
-        yieldClause nc "identity loobHoist"
+        let cp1 ← yieldClause nc "identity loobHoist"
           (some (mkBoolHoistProof pos true))
         let nc := c_erased.appendLits
           #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``False), Lit.fromSingleExpr e true]
         trace[Rule.identBoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
-        yieldClause nc "identity boolHoist"
-          (some (mkBoolHoistProof pos false))
-        return true
+        let cp2 ← yieldClause nc "identity boolHoist" (some (mkBoolHoistProof pos false))
+        return some #[cp1, cp2]
     else
-      return false
+      return none
 
 def identBoolHoist : MSimpRule := fun c => do
   let c ← loadClause c
   let fold_fn := fun acc e pos => do
     match acc with
-    | false => identBoolHoistAtExpr e pos c
-    | true => return true
-  c.foldGreenM fold_fn false
+    | some res => return some res
+    | none => identBoolHoistAtExpr e pos c
+  c.foldGreenM fold_fn none

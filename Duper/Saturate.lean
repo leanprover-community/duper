@@ -92,6 +92,7 @@ def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) :
     | Unapplicable => continue
   return Unapplicable
 
+-- debug
 partial def forwardSimpLoop (givenClause : Clause) : ProverM (Option Clause) := do
   Core.checkMaxHeartbeats "forwardSimpLoop"
   let activeSet ← getActiveSet
@@ -123,6 +124,8 @@ def applyBackwardSimpRules (givenClause : Clause) : ProverM Unit := do
     the current state's allClauses and passiveSet -/
 def backwardSimplify (givenClause : Clause) : ProverM Unit := applyBackwardSimpRules givenClause
 
+-- The first `Clause` is the given clause
+-- The second `MClause` is a loaded clause
 def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array ClauseStream))) := do
   return [
   equalityResolution,

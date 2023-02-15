@@ -30,16 +30,19 @@ end SimpResult
 
 open SimpResult
 
-abbrev MSimpRule := Clause → RuleM Bool
+abbrev MSimpRule := Clause → RuleM (Option (Array (Clause × Proof)))
 -- Returns true iff simplification rule was applied.
 -- - The clause will be replaced by all clauses introduced via `yieldClause`.
 -- - If `yieldClause` was not called, the clause will be removed.
+-- Note: Here the `Option` cannot be concatenated with `Array`, refer to
+--   `MSimpRule.toSimpRule`
 
 abbrev SimpRule := Clause → ProverM (SimpResult Clause)
 
-abbrev BackwardMSimpRule := Clause → RuleM (List Clause)
+abbrev BackwardMSimpRule := Clause → RuleM (Array (Clause × Option (Clause × Proof)))
 /-
-Returns the list of clauses that are to be removed by simplification
+  The `List Clause` are clauses to be removed
+  The `List (Clause × Proof)` are the result clauses
   - Clauses that are to be removed will be replaced by clauses introduced via `yieldClause`
   - An important invariant is that the i-th clause produced via `yieldClause` must have been produced by the i-th clause in the result list.
     This invariant ensures that we can figure out the correct set of generatingAncestors for each new clause.
@@ -48,15 +51,14 @@ Returns the list of clauses that are to be removed by simplification
 abbrev BackwardSimpRule := Clause → ProverM Unit
 
 def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
-  let (res, cs) ← runSimpRule (rule givenClause)
+  let res ← runSimpRule (rule givenClause)
   match res with
-  | false => 
-    if ¬ cs.isEmpty then throwError "Simp rule returned failure, but produced clauses {cs.map Prod.fst}"
+  | none => 
     return Unapplicable
-  | true => do
+  | some cs => do
     trace[RemoveClause.debug] "About to remove {givenClause} because it was simplified away to produce {cs.map (fun x => x.1)}"
     removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated clauses
-    match cs with
+    match cs.data with
     | List.nil => return Removed
     | (c, proof) :: restCs =>
       match (← getAllClauses).find? givenClause with
@@ -73,28 +75,20 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
 
 def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSimpRule :=
   fun givenClause => do
-  let (clausesToRemove, cs) ← runSimpRule do
+  let backwardSimpRes ← runSimpRule do
     withoutModifyingMCtx do
       rule givenClause
-  /-
-    We have as an invariant that the i-th clause we remove has the generating ancestors of the i-th clause that we add via `yieldClause`.
-    So to figure out what the generatingAncestors should be when we call `addNewToPassive`, we can look at the corresponding generating
-    ancestors from clausesToRemove.
-  -/
-  let mut generatingAncestorsList : List (List Clause) := []
-  -- It is important that we remove each clause in clausesToRemove before readding the newly generated clauses
-  for c in clausesToRemove do
-    trace[RemoveClause.debug] "About to remove {c} because it was simplified away to produce {cs.map (fun x => x.1)}"
+  let mut generatingAncestorsArray : Array (List Clause) := #[]
+  -- It is important that we remove each clause in clausesToRemove before reading the newly generated clauses
+  for (c, _) in backwardSimpRes do
+    trace[RemoveClause.debug] "About to remove {c} because it was simplified away"
     removeClause c [givenClause] -- givenClause must be protected when we remove c and its descendants because givenClause was used to eliminate c
     match (← getAllClauses).find? c with
-    | some ci => generatingAncestorsList := ci.generatingAncestors :: generatingAncestorsList
+    | some ci => generatingAncestorsArray := generatingAncestorsArray.push ci.generatingAncestors
     | none => throwError "Could not find {c} in all clauses"
-  generatingAncestorsList := generatingAncestorsList.reverse -- Putting generatingAncestorsList in the right order for the next loop
-  for (c, proof) in cs do
-    match generatingAncestorsList with
-    | generatingAncestors :: restGeneratingAncestorsList =>
-      addNewToPassive c proof generatingAncestors -- Add each yielded clause to the passive set
-      generatingAncestorsList := restGeneratingAncestorsList
-    | List.nil => throwError "Number of removed clauses in {clausesToRemove} did not match with number of clauses generated"
+  -- TODO : Modify the procedure (from backwardClauseSubsumption and equalitySubsumption) so that we check `=` instead of `<`
+  for (generatingAncestors, _, ocp) in generatingAncestorsArray.zip backwardSimpRes do
+    if let some (c, proof) := ocp then
+      addNewToPassive c proof generatingAncestors
 
 end Duper
