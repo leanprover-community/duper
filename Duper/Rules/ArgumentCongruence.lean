@@ -26,8 +26,8 @@ def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr)
         let pj := lit
         let cjl := cj.lhs
         let pjl ← Meta.mkAppM' pj.lhs newMVars
-        let able_to_unify ← Meta.unify #[(cjl, pjl)]
-        if able_to_unify then
+        let able_to_match ← Meta.performMatch #[(cjl, pjl)] #[]
+        if able_to_match then
           trace[Rule.argCong] m!"lhs of conclusion: {cjl}, lhs of parent: {pjl}"
           let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
             let mut pr := h

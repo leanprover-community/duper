@@ -44,7 +44,7 @@ def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : List Expr) (paren
 def destructiveEqualityResolutionAtLit (c : MClause) (i : Nat) : RuleM (Option (Clause × Proof)) :=
   withoutModifyingMCtx do
     let lit := c.lits[i]!
-    if ← unify #[(lit.lhs, lit.rhs)] then
+    if ← fastUnify #[(lit.lhs, lit.rhs)] then
       some <$> yieldClause (c.eraseLit i) "destructive equality resolution"
         (some (mkDestructiveEqualtiyResolutionProof i))
     else

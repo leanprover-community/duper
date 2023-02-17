@@ -13,5 +13,5 @@ tptp COM035_5 "../TPTP-v8.0.0/Problems/COM/COM025_5.p"
 set_option trace.Meta.debug true in
 example : ((∀ (A : Type) (f : Nat → A) (x : Nat), f x = f x) = True) := by duper
 
-tptp SYN007 "../TPTP-v8.0.0/Problems/SYN/SYN007+1.014.p"
-  by duper
+universe u
+theorem test : Nonempty PUnit.{u} := inferInstance

@@ -151,8 +151,7 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
   trace[Rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
   trace[Rule.demodulation] "(Backward) Side clause (after matching): {sidePremise.lits}"
   trace[Rule.demodulation] "(Backward) Result: {mainPremiseReplaced.lits}"
-  let cp ← yieldClause mainPremiseReplaced "backward demodulation" (some $ mkDemodulationProof sidePremiseLhs mainPremisePos false)
-  return some cp
+  some <$> yieldClause mainPremiseReplaced "backward demodulation" (some $ mkDemodulationProof sidePremiseLhs mainPremisePos false)
 
 /-- Performs rewriting of positive and negative literals (demodulation) with the given clause as the side clause. Returns the list of
     original clauses that are to be removed by backward simplification. -/
@@ -173,13 +172,13 @@ def backwardDemodulation (mainIdx : RootCFPTrie) : BackwardMSimpRule := fun give
   for (partnerClauseNum, partnerClause, partnerPos) in potentialPartners do
     -- Since demodulation is a simplification rule, we shouldn't perform multiple demodulation calls with the same partner clause
     if clausesToRemove.contains partnerClause then continue
-    let backwardDemodulationSuccessful ←
+    let backwardDemodulationRes ←
       withoutModifyingLoadedClauses do
         withoutModifyingMCtx do
           let (mclauseMVarIds, mclause) ← loadClauseCore partnerClause
           let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
           backwardDemodulationWithPartner mclause mclauseMVarIds (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs
-    if let some cp := backwardDemodulationSuccessful then
+    if let some cp := backwardDemodulationRes then
       result := result.push (partnerClause, some cp)
       clausesToRemove := clausesToRemove.push partnerClause
 

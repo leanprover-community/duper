@@ -418,6 +418,9 @@ example (A : Type) (x : A) : (∃ x : A, x = x) := by duper
 example (x : Type u) (f g : Type u → Type v) (H : f = g) : f x = g x :=
   by duper
 
+example (x y z : Type u) (f g : Type u → Type u → Type u → Type v) (H : f = g) : f x y z = g x y z :=
+  by duper
+
 tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
   by duper
 

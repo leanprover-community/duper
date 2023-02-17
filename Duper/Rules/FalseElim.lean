@@ -13,8 +13,8 @@ initialize registerTraceClass `Rule.falseElim
     be, then the substitution necessary to achieve that match is applied (if the match is unsuccessful, then
     the MCtx remains unchanged) -/
 def isFalseLiteral (lit : Lit) : MetaM Bool := do
-  if ← Meta.unify #[(lit.lhs, mkConst ``False), (lit.rhs, mkConst ``True)] then return true
-  else if ← Meta.unify #[(lit.lhs, mkConst ``True), (lit.rhs, mkConst ``False)] then return true
+  if ← Meta.fastUnify #[(lit.lhs, mkConst ``False), (lit.rhs, mkConst ``True)] then return true
+  else if ← Meta.fastUnify #[(lit.lhs, mkConst ``True), (lit.rhs, mkConst ``False)] then return true
   else return false
 
 theorem false_ne_true (h : False = True) : False := by rw [h]; exact ⟨⟩

@@ -151,7 +151,7 @@ partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
 
 -- Dereference head and normalize, assuming that `e` has been eta expanded
 -- Return: (processed expression, is_flex)
-partial def derefNormTerm (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × Bool) :=
+@[inline] partial def derefNormTerm (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × Bool) :=
   Meta.lambdaTelescope e fun xs' body => do
     let body ← Meta.whnf body
     let fn := Expr.getAppFn body
@@ -177,7 +177,7 @@ partial def derefNormTerm (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
       let e' ← Meta.mkLambdaFVars (xs ++ xs') body
       return (e', false)
 
-def derefNormEq (u : UnifEq) : MetaM UnifEq := do
+@[inline] def derefNormEq (u : UnifEq) : MetaM UnifEq := do
   let mut lhs' := u.lhs
   let mut lflex' := u.lflex
   if u.lflex then

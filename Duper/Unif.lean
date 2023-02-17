@@ -3,7 +3,7 @@ import Lean
 open Lean
 open Lean.Meta
 
-partial def Lean.Meta.unify (l : Array (Expr × Expr)) : MetaM Bool := do
+partial def Lean.Meta.fastUnify (l : Array (Expr × Expr)) : MetaM Bool := do
   Core.checkMaxHeartbeats "unify"
   let state ← saveState
   try
@@ -56,7 +56,7 @@ where
       if f == g
       then
         if tt.size == ss.size
-        then unify (tt.zip ss)
+        then fastUnify (tt.zip ss)
         else return false
       else return false
   unifyFlexFlex (s t : Expr) : MetaM Bool := do
