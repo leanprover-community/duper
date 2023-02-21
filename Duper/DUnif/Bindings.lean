@@ -211,10 +211,10 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM
         let same ← Meta.isLevelDefEq lβ lδ
         return (typeη, same)
       else
-        trace[Meta.debug] "identification : {sortδ} is not a sort"
+        trace[DUnif.debug] "identification : {sortδ} is not a sort"
         return (typeη, false)
     else
-      trace[Meta.debug] "identification : {sortβ} is not a sort"
+      trace[DUnif.debug] "identification : {sortβ} is not a sort"
       return (typeη, false)
   if ¬ samesort then
     return #[]

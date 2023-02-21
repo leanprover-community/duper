@@ -141,8 +141,8 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
 ]
 
 partial def saturate : ProverM Unit := do
-  Core.withCurrHeartbeats $ iterate $
-    try do
+  Core.withCurrHeartbeats $ try
+    while true do
       Core.checkMaxHeartbeats "saturate"
       -- If the passive set is empty
       if (← getPassiveSet).isEmpty then
@@ -151,13 +151,13 @@ partial def saturate : ProverM Unit := do
         -- If the passive set is still empty, the the prover has saturated
         if (← getPassiveSet).isEmpty then
           setResult saturated
-          return LoopCtrl.abort
+          break
       -- Collect inference rules and perform inference
       let some givenClause ← chooseGivenClause
         | throwError "saturate :: Saturation should have been checked in the beginning of the loop."
       trace[Prover.saturate] "Given clause: {givenClause}"
       let some simplifiedGivenClause ← forwardSimplify givenClause
-        | return LoopCtrl.next
+        | continue
       trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause}"
       backwardSimplify simplifiedGivenClause
       addToActive simplifiedGivenClause
@@ -171,11 +171,11 @@ partial def saturate : ProverM Unit := do
       else
         runProbe ClauseStreamHeap.heuristicProbe
       trace[Prover.saturate] "New active Set: {(← getActiveSet).toArray}"
-      return LoopCtrl.next
+      continue
     catch
     | Exception.internal emptyClauseExceptionId _  =>
       setResult ProverM.Result.contradiction
-      return LoopCtrl.abort
+      return
     | e =>
       -- trace[Timeout.debug] "Active set at timeout: {(← getActiveSet).toArray}"
       trace[Timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"

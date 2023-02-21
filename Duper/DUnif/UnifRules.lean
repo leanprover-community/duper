@@ -169,7 +169,7 @@ partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
     | .forallE _ _ _ _  => do
       -- type can't be applied
       if body.getAppArgs.size != 0 then
-        trace[Meta.debug] "Type {fn} is applied to arguments in {body}"
+        trace[DUnif.debug] "Type {fn} is applied to arguments in {body}"
       let (body, flex) ← derefNormType fn
       let e' ← Meta.mkLambdaFVars (xs ++ xs') body
       return (e', flex)
@@ -326,20 +326,20 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
     p ← derefNormProblem p
   -- debug
   if p.parentClauses.toList.contains config.contains then
-    trace[Meta.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
+    trace[DUnif.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
   let is_prio : Bool := ¬ p.prioritized.isEmpty
   if let some (eq, p') := p.pop? then
     let (lh, lhtype) ← structInfo eq.lhs
     let (rh, rhtype) ← structInfo eq.rhs
     if let .Other _ _ := lhtype then
-      trace[Meta.debug] m!"applyRule :: Type of head is `Other`"
+      trace[DUnif.debug] m!"applyRule :: Type of head is `Other`"
     if let .Other _ _ := rhtype then
-      trace[Meta.debug] m!"applyRule :: Type of head is `Other`"
+      trace[DUnif.debug] m!"applyRule :: Type of head is `Other`"
     if eq.lflex != lhtype.isFlex then
-      trace[Meta.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
+      trace[DUnif.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
       return .NewArray #[]
     if eq.rflex != rhtype.isFlex then
-      trace[Meta.debug] m!"applyRule :: Flex-rigid-cache mismatch in rhs of {eq}"
+      trace[DUnif.debug] m!"applyRule :: Flex-rigid-cache mismatch in rhs of {eq}"
       return .NewArray #[]
     -- Delete
     if eq.lhs == eq.rhs then

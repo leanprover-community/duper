@@ -101,7 +101,7 @@ def wh₀ (f : Nat → Prop) (h : ∀ x, f x) : f wh₁ :=
   by dapply h attempt 5 unifier 0 contains 0
 
 -- Imitation
-set_option trace.Meta.debug true in
+set_option trace.DUnif.debug true in
 def imt₀ (f : Nat → Prop) (h : ∀ x, f x) : f 3 :=
   by dapply h attempt 30 unifier 0 contains 0
 

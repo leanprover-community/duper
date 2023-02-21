@@ -47,11 +47,11 @@ opaque ww : Nat → Nat := id
 opaque w : Nat
 
 -- Trivial
-set_option trace.Meta.debug true in
+set_option trace.DUnif.debug true in
 def tri₁ : 1 = 1 := by drefl attempt 3 unifier 0 contains 0
 
 -- Iteration
-set_option trace.Meta.debug true in
+set_option trace.DUnif.debug true in
 def iter₁ (done : Prop)
           (gene : ∀ (H : (Nat → Nat) → Nat → Nat) F X, H F X = F X → done) :
           done := by
@@ -60,7 +60,7 @@ def iter₁ (done : Prop)
             case F => exact ww
             case X => exact w
 
-set_option trace.Meta.debug true in
+set_option trace.DUnif.debug true in
 def iter₂ (done : Prop) (a : Nat)
           (gene : ∀ (F G : Nat → Nat), F a = G a → done) :
           done := by

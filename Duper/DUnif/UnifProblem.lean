@@ -3,6 +3,8 @@ open Lean
 
 namespace Duper
 
+initialize Lean.registerTraceClass `DUnif.debug
+
 -- Always avoid left-rigid right-flex
 structure UnifEq where
   lhs : Expr
