@@ -370,6 +370,11 @@ where
     let newmvar ← mkFreshExprMVar ty
     return (mkApp (mkAppN fvar abstres.snd) newmvar, isk)
 
+-- Important: We return `Array ClausificationResult` instead of
+--   `Option (Array ClausificationResult)` because whenever a literal
+--   can be clausified, the result is always a non-empty list.
+-- So, to check whether clausification succeeded, we only need
+--   to check whether the returned list is empty.
 def clausificationStepLit (c : MClause) (i : Nat) : RuleM (Array ClausificationResult) := do
   let l := c.lits[i]!
   if not l.ty.isProp then return #[]

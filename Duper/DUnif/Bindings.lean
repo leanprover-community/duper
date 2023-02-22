@@ -263,7 +263,6 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
     -- This action may modify mctx, so it should be run with
     --   "withoutModifyingMCtx"
     fun isub => withReader (fun _ => ctx₁) <| do
-      -- debug
       setMCtx p.mctx
       -- `i < n`
       if isub.size == xs.size then

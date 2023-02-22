@@ -49,9 +49,9 @@ partial def IdStrategyHeap.deleteMinFromHeapN
       let Q' := {oh with heaps := (oh.heaps.swapAt! n heap').snd}
       let id := σ'.2.1
       if oh.map.contains id then
-        Q'.deleteMinFromHeapN n
-      else
         some (σ', Q'.erase id)
+      else
+        Q'.deleteMinFromHeapN n
     | none => none
   | none =>
     panic!"IdStrategyHeap.deleteMinFromHeapN :: The id of selected heap >= number of heaps"

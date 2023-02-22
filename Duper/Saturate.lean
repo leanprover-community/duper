@@ -92,7 +92,6 @@ def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) :
     | Unapplicable => continue
   return Unapplicable
 
--- debug
 partial def forwardSimpLoop (givenClause : Clause) : ProverM (Option Clause) := do
   Core.checkMaxHeartbeats "forwardSimpLoop"
   let activeSet ← getActiveSet
