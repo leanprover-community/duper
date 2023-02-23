@@ -373,7 +373,6 @@ tptp ITP209_2 "../TPTP-v8.0.0/Problems/ITP/ITP209_2.p"
 
 --###############################################################################################################################
 -- Example from super
-
 theorem super_test (p q : i → i → Prop) (a b c d : i) :
   (∀x y z, p x y ∧ p y z → p x z) →
   (∀x y z, q x y ∧ q y z → q x z) →
@@ -396,6 +395,8 @@ theorem two_add_two_eq_four : 2 + 2 = 4 := by simp
 theorem test_duper_with_fact : 1 + 1 = 2 := by duper [one_add_one_eq_two]
 theorem test_duper_with_facts : 1 + 1 + 1 + 1 = 4 := by duper [one_add_one_eq_two, two_add_two_eq_four, add_assoc]
 
+--###############################################################################################################################
+-- Tests that were previously in bugs.lean
 example (f : Prop → Nat) :
   f (∀ (x : Nat), x ≠ Nat.zero) = f False := by duper
 
