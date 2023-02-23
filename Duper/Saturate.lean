@@ -165,7 +165,6 @@ partial def saturate : ProverM Unit :=
     let startTime ← IO.monoMsNow
     while true do
       Core.checkMaxHeartbeats "saturate"
-      -- 30s time limit
       checkSaturationTimeout startTime
       -- Debugging facility
       cnt := cnt + 1
