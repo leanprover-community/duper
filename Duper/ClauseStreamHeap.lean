@@ -15,14 +15,10 @@ namespace Duper
 open ProverM
 open RuleM
 
-
-
 def kUnifRetry := 40
 def kFair := 70
 def kBest := 7
 def kRetry := 20
-
-
 
 @[inline] def ProverM.runMetaAsProverM (x : MetaM α) : ProverM α := do
   let lctx ← getLCtx
@@ -31,7 +27,6 @@ def kRetry := 20
     x
   ProverM.setMCtx state.mctx
   return res
-
 
 -- Clause Streams
 
@@ -153,11 +148,8 @@ def ClauseStreamHeap.forceProbe {σ} [OptionMStream ProverM σ ClauseProof]
     Q := Q'
   return (collectedClauses, Q)
 
-
-
 -- Here `c` is `simplifiedGivenClause`
--- Note: This function is responsible for adding results of inference
---   rules to the passive set.
+-- Note: This function is responsible for adding results of inference rules to the passive set.
 def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
   let (given, c, proof) := cp
   match ← immediateSimplification given c with

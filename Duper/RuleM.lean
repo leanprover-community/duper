@@ -39,16 +39,13 @@ abbrev RuleM := ReaderT Context $ StateRefT State CoreM
 
 end RuleM
 
-
 -- The `postUnification` has an `Option` within it
 --   because there may be post-unification checks,
 --   which might fail.
 structure ClauseStream where
   ug                    : DUnif.UnifierGenerator
   simplifiedGivenClause : Clause
-  postUnification           : RuleM.RuleM (Option (Clause × RuleM.Proof))
-
-
+  postUnification       : RuleM.RuleM (Option (Clause × RuleM.Proof))
 
 namespace RuleM
 open Lean

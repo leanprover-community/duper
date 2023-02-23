@@ -80,9 +80,7 @@ abbrev FairAgeHeap.empty (α : Type u) [BEq α] [Hashable α] (fN : Nat) : FairA
   -- heap 0 : weight heap
   -- heap 1 : age heap
   { status := 0, heaps := #[BinomialHeap.empty, BinomialHeap.empty],
-    strategy := fun b => if b == fN - 1 then (1, 0) else (0, b + 1)}
-
-
+    strategy := fun b => if b == fN then (1, 0) else (0, b + 1)}
 
 -- Test
 private def heap₁ := Id.run <| do
