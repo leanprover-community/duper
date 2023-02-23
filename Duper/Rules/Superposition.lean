@@ -9,6 +9,14 @@ open Lean
 
 initialize registerTraceClass `Superposition.debug
 
+register_option simultaneousSuperposition : Bool := {
+  defValue := true
+  descr := "Whether we perform simultaneous superposition"
+}
+
+def getSimultaneousSuperposition (opts : Options) : Bool :=
+  simultaneousSuperposition.get opts
+
 def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
   (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
@@ -209,7 +217,8 @@ def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (
 def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (given : Clause) (givenClause : MClause)
   (givenClauseNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Prover.debug] "Superposition inferences with {givenClause.lits}"
-  let simultaneousSuperposition := true -- TODO: Make this an option that can be passed into duper
+  let opts ← getOptions
+  let simultaneousSuperposition := getSimultaneousSuperposition opts
   let mut streams := #[]
   -- With given clause as side premise:
   for i in [:givenClause.lits.size] do

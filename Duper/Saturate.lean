@@ -139,10 +139,36 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
   eqHoist
 ]
 
-partial def saturate : ProverM Unit := do
+register_option maxSaturationTime : Nat := {
+  defValue := 45
+  descr := "Time limit for saturation procedure, in s"
+}
+
+def getMaxSaturationTime (opts : Options) : Nat :=
+  maxSaturationTime.get opts * 1000
+
+def throwSaturateTimeout (max : Nat): CoreM Unit := do
+  let msg := s!"Saturation procedure timed out, maximum time {max / 1000}s has been reached"
+  throw <| Exception.error (← getRef) (MessageData.ofFormat (Std.Format.text msg))
+
+def checkSaturationTimeout (startTime : Nat) : CoreM Unit := do
+  let currentTime ← IO.monoMsNow
+  let opts ← getOptions
+  let max := getMaxSaturationTime opts
+  if currentTime - startTime > max then
+    throwSaturateTimeout max
+
+partial def saturate : ProverM Unit :=
   Core.withCurrHeartbeats $ try
+    -- Debugging facility
+    let mut cnt := 0
+    let startTime ← IO.monoMsNow
     while true do
       Core.checkMaxHeartbeats "saturate"
+      -- 30s time limit
+      checkSaturationTimeout startTime
+      -- Debugging facility
+      cnt := cnt + 1
       -- If the passive set is empty
       if (← getPassiveSet).isEmpty then
         -- ForceProbe
