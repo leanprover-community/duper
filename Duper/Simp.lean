@@ -86,7 +86,6 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSi
     match (← getAllClauses).find? c with
     | some ci => generatingAncestorsArray := generatingAncestorsArray.push ci.generatingAncestors
     | none => throwError "Could not find {c} in all clauses"
-  -- TODO : Modify the procedure (from backwardClauseSubsumption and equalitySubsumption) so that we check `=` instead of `<`
   for (generatingAncestors, _, ocp) in generatingAncestorsArray.zip backwardSimpRes do
     if let some (c, proof) := ocp then
       addNewToPassive c proof generatingAncestors

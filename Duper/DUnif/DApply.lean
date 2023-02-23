@@ -109,7 +109,9 @@ def imt₁ (f : Nat → Prop)
          (h : ∀ x y (z : Nat), f z → f (x + y))
          (k : f 0) : f (3 + b) := by
   dapply h attempt 30 unifier 0 contains 0
-  case a => dapply h attempt 70 unifier 0 contains 0; exact 0; apply k; exact 0; exact 0
+  case a => dapply h attempt 70 unifier 0 contains 0;
+            case a => apply k;
+            exact 0; exact 0
 
 def imt₂ (f : Nat → Prop)
           (comm : ∀ x y, f (x + y) → f (y + x))
@@ -118,8 +120,9 @@ def imt₂ (f : Nat → Prop)
           : f (a + b) := by
   dapply h attempt 30 unifier 0 contains 0
   case a =>
-    dapply comm attempt 42 unifier 0 contains 0; dapply h attempt 42 unifier 0 contains 0
-    case a.a => apply g
+    dapply comm attempt 42 unifier 0 contains 0;
+    case a => dapply h attempt 42 unifier 0 contains 0;
+              case a => dapply g attempt 42 unifier 0 contains 0
 
 -- Huet-Style Projection
 def hsp₁ (ftr : ∀ (f g : Nat → Prop) (x : Nat), f x → g x)
@@ -155,7 +158,7 @@ def elm₁ (p : Nat → Prop)
          (g : ∀ (ay : Nat), p ay → False)
          : False := by
   dapply g attempt 10 unifier 0 contains 0
-  case a => dapply h attempt 590 unifier 0 contains 37; exact www
+  case a => dapply h attempt 590 unifier 0 contains 0; exact www
 
 #print elm₁.proof_1
 
@@ -165,6 +168,6 @@ def idt₁ (p : Nat → Prop) (x : Nat)
          (done : Prop)
          (hq : ∀ w, p w ∧ p w → done) : done := by
   dapply hq attempt 10 unifier 0 contains 0
-  case a => dapply hp attempt 40000 unifier 700 contains 0
+  case a => dapply hp attempt 40000 unifier 700 contains 0; exact www
 
 #print idt₁.proof_1

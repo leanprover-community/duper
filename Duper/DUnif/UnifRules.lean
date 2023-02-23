@@ -1,6 +1,7 @@
 import Lean
 import Duper.DUnif.UnifProblem
 import Duper.DUnif.Bindings
+import Duper.DUnif.Oracles
 import Duper.Util.LazyList
 import Duper.Util.Misc
 open Lean
@@ -242,6 +243,7 @@ def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array Unif
 -- If the head is unequal and number of arguments are equal, return `none`
 -- If the head is equal and number of arguments are equal, return `none`
 def failDecompose (is_prio : Bool) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
+  setMCtx p.mctx
   Meta.lambdaTelescope eq.lhs fun xs t => Meta.forallTelescope t fun ts lhs' => do
     -- apply the right-hand-side to `xs`
     let mut p := p
@@ -360,6 +362,10 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
     if ¬ eq.lflex ∧ ¬ eq.rflex then
       let urr ← failDecompose is_prio p' eq
       return .NewArray urr
+    -- Following: OracleSucc
+    -- Instantiation oracle: One of `lhs` or `rhs` is a metavariable
+    if let some up ← oracleInst p' eq then
+      return .NewArray #[up]
     -- Following: Bind
     -- Left flex, Right rigid
     if eq.lflex ∧ ¬ eq.rflex then

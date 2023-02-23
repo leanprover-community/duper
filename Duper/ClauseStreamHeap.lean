@@ -19,6 +19,7 @@ def kUnifRetry := 40
 def kFair := 70
 def kBest := 7
 def kRetry := 20
+def forceProbeRetry := 500
 
 @[inline] def ProverM.runMetaAsProverM (x : MetaM α) : ProverM α := do
   let lctx ← getLCtx
@@ -140,12 +141,14 @@ def ClauseStreamHeap.forceProbe {σ} [OptionMStream ProverM σ ClauseProof]
   (Q : ClauseStreamHeap σ) : ProverM (Array ClauseProof × ClauseStreamHeap σ) := do
   let mut collectedClauses := #[]
   let mut Q := Q
-  while collectedClauses.size == 0 do
+  let mut iter := 0
+  while collectedClauses.size == 0 ∧ Q.size != 0 ∧ iter < forceProbeRetry do
     let (clauses, Q') ← Q.fairProbe Q.size
     if clauses.size != 0 then
       collectedClauses := clauses
       break
     Q := Q'
+    iter := iter + 1
   return (collectedClauses, Q)
 
 -- Here `c` is `simplifiedGivenClause`

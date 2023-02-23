@@ -52,12 +52,12 @@ def tri₁ : 1 = 1 := by drefl attempt 3 unifier 0 contains 0
 
 -- Iteration
 set_option trace.DUnif.debug true in
+set_option oracleInstOn false in
 def iter₁ (done : Prop)
           (gene : ∀ (H : (Nat → Nat) → Nat → Nat) F X, H F X = F X → done) :
           done := by
   apply gene
-  case a => drefl attempt 1500 unifier 0 contains 573 iteron
-            case F => exact ww
+  case a => drefl attempt 1500 unifier 0 contains 0 iteron
             case X => exact w
 
 set_option trace.DUnif.debug true in
@@ -154,6 +154,7 @@ def dep₁ (done : Prop)
     x
 
 set_option maxHeartbeats 400000
+set_option oracleInstOn false in
 def dep₂ (done : Prop)
          (h : ∀ x, x = Nat.add1 → done) : done := by
   apply h

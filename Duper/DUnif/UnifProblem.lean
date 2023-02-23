@@ -21,6 +21,8 @@ instance : ToMessageData UnifEq := ⟨UnifEq.toMessageData⟩
 
 def UnifEq.fromExprPair (e1 e2 : Expr) : UnifEq := {lhs := e1, rhs := e2, lflex := true, rflex := true}
 
+def UnifEq.swapSide (ue : UnifEq) : UnifEq := {lhs := ue.rhs, rhs := ue.lhs, lflex := ue.rflex, rflex := ue.lflex}
+
 -- Parent Rules
 
 inductive ParentRule where
@@ -33,6 +35,8 @@ inductive ParentRule where
 | OracleFail     : UnifEq → ParentRule
 | Decompose      : UnifEq → ParentRule
 | ForallToLambda : UnifEq → Nat → ParentRule
+-- Oracles
+| OracleInst     : UnifEq → ParentRule
 -- Bindings
 | Iteration      : UnifEq → Expr → (argn: Nat) → (narg : Nat) → Expr → ParentRule
 | JPProjection   : UnifEq → Expr → (arg : Nat) → Expr → ParentRule
@@ -52,6 +56,7 @@ def ParentRule.toMessageData : ParentRule → MessageData
 | OracleFail ue => m!"OracleFail {ue}"
 | Decompose ue => m!"Decompose {ue}"
 | ForallToLambda ue n => m!"ForallToLambda {ue} for {n} binders"
+| OracleInst ue => m!"OracleInst {ue}"
 | Iteration ue F i argn b => m!"Iteration for {F} at {i} with extra {argn} args in {ue} binding {b}"
 | JPProjection ue F i b => m!"JPProjection for {F} at {i} in {ue} binding {b}"
 | HuetProjection ue F i b => m!"HuetProjection for {F} at {i} in {ue} binding {b}"

@@ -56,7 +56,6 @@ structure State where
   qStreamSet : ClauseStreamHeap ClauseStream := ClauseStreamHeap.empty ClauseStream
   symbolPrecMap : SymbolPrecMap := HashMap.empty
   highesetPrecSymbolHasArityZero : Bool := false
-  fairnessCounter : Nat := 0
   mainPremiseIdx : RootCFPTrie := {}
   supSidePremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
@@ -120,9 +119,6 @@ def getSymbolPrecMap : ProverM SymbolPrecMap :=
 def getHighesetPrecSymbolHasArityZero : ProverM Bool :=
   return (← get).highesetPrecSymbolHasArityZero
 
-def getFairnessCounter : ProverM Nat :=
-  return (← get).fairnessCounter
-
 def getMainPremiseIdx : ProverM RootCFPTrie :=
   return (← get).mainPremiseIdx
 
@@ -160,9 +156,6 @@ def setSymbolPrecMap (symbolPrecMap : SymbolPrecMap) : ProverM Unit :=
 
 def setHighesetPrecSymbolHasArityZero (highesetPrecSymbolHasArityZero : Bool) : ProverM Unit :=
   modify fun s => { s with highesetPrecSymbolHasArityZero := highesetPrecSymbolHasArityZero }
-
-def setFairnessCounter (fairnessCounter : Nat) : ProverM Unit :=
-  modify fun s => { s with fairnessCounter := fairnessCounter }
 
 def setSupSidePremiseIdx (supSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with supSidePremiseIdx := supSidePremiseIdx }

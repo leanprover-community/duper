@@ -140,34 +140,55 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
 ]
 
 register_option maxSaturationTime : Nat := {
-  defValue := 45
+  defValue := 500
   descr := "Time limit for saturation procedure, in s"
 }
 
 def getMaxSaturationTime (opts : Options) : Nat :=
   maxSaturationTime.get opts * 1000
 
-def throwSaturateTimeout (max : Nat): CoreM Unit := do
+def logSaturationTimeout (max : Nat) : CoreM Unit := do
   let msg := s!"Saturation procedure timed out, maximum time {max / 1000}s has been reached"
-  throw <| Exception.error (← getRef) (MessageData.ofFormat (Std.Format.text msg))
+  logInfo msg
 
 def checkSaturationTimeout (startTime : Nat) : CoreM Unit := do
   let currentTime ← IO.monoMsNow
   let opts ← getOptions
   let max := getMaxSaturationTime opts
   if currentTime - startTime > max then
-    throwSaturateTimeout max
+    logSaturationTimeout max
 
-partial def saturate : ProverM Unit :=
+register_option maxSaturationIteration : Nat := {
+  defValue := 500000
+  descr := "Limit for number of iterations in the saturation loop"
+}
+
+def getMaxSaturationIteration (opts : Options) : Nat :=
+  maxSaturationIteration.get opts
+
+def throwSaturationIterout (max : Nat) : CoreM Unit := do
+  let msg := s!"Saturation procedure exceeded iteration limit {max}"
+  throw <| Exception.error (← getRef) (MessageData.ofFormat (Std.Format.text msg))
+
+def checkSaturationIterout (iter : Nat) : CoreM Unit := do
+  let opts ← getOptions
+  let maxiter := getMaxSaturationIteration opts
+  if iter > maxiter then
+    throwSaturationIterout maxiter
+
+def checkSaturationTerminationCriterion (iter : Nat) : ProverM Unit := do
+  -- Check whether maxheartbeat has been reached
+  Core.checkMaxHeartbeats "saturate"
+  -- Check whether maxiteration has been reached
+  checkSaturationIterout iter
+
+partial def saturate : ProverM Unit := do
+  let startTime ← IO.monoMsNow
   Core.withCurrHeartbeats $ try
-    -- Debugging facility
-    let mut cnt := 0
-    let startTime ← IO.monoMsNow
+    let mut iter := 0
     while true do
-      Core.checkMaxHeartbeats "saturate"
-      checkSaturationTimeout startTime
-      -- Debugging facility
-      cnt := cnt + 1
+      iter := iter + 1
+      checkSaturationTerminationCriterion iter
       -- If the passive set is empty
       if (← getPassiveSet).isEmpty then
         -- ForceProbe
@@ -202,6 +223,7 @@ partial def saturate : ProverM Unit :=
       return
     | e =>
       -- trace[Timeout.debug] "Active set at timeout: {(← getActiveSet).toArray}"
+      checkSaturationTimeout startTime
       trace[Timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
       trace[Timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
       trace[Timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
