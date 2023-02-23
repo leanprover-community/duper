@@ -169,6 +169,10 @@ partial def saturate : ProverM Unit :=
       checkSaturationTimeout startTime
       -- Debugging facility
       cnt := cnt + 1
+      -- show time
+      if cnt % 100 == 0 then
+        logInfo s!"Time = {(← IO.monoMsNow) - startTime}"
+        logInfo s!"loop count = {cnt}"
       -- If the passive set is empty
       if (← getPassiveSet).isEmpty then
         -- ForceProbe

@@ -4,6 +4,7 @@ import Duper.Fingerprint
 import Duper.Selection
 import Duper.SubsumptionTrie
 import Duper.Util.ClauseSubsumptionCheck
+import Duper.Util.StrategyHeap
 import Duper.Util.IdStrategyHeap
 
 namespace Duper
@@ -35,7 +36,7 @@ structure ClauseInfo where
 (isOrphan : Bool)
 
 abbrev ClauseSet := HashSet Clause
-abbrev ClauseHeap := BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
+abbrev FairAgeClauseHeap := StrategyHeap Clause (β:=Nat)
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -51,12 +52,10 @@ structure State where
   result : Result := unknown
   allClauses : HashMap Clause ClauseInfo := {}
   activeSet : ClauseSet := {} --TODO: put clause into only in allClauses?
-  passiveSet : ClauseSet := {}
+  passiveSet : FairAgeClauseHeap := FairAgeHeap.empty Clause 5
   qStreamSet : ClauseStreamHeap ClauseStream := ClauseStreamHeap.empty ClauseStream
   symbolPrecMap : SymbolPrecMap := HashMap.empty
   highesetPrecSymbolHasArityZero : Bool := false
-  passiveSetAgeHeap : ClauseHeap := BinomialHeap.empty
-  passiveSetWeightHeap : ClauseHeap := BinomialHeap.empty
   fairnessCounter : Nat := 0
   mainPremiseIdx : RootCFPTrie := {}
   supSidePremiseIdx : RootCFPTrie := {}
@@ -112,7 +111,7 @@ def getAllClauses : ProverM (HashMap Clause ClauseInfo) :=
 def getActiveSet : ProverM ClauseSet :=
   return (← get).activeSet
 
-def getPassiveSet : ProverM ClauseSet :=
+def getPassiveSet : ProverM FairAgeClauseHeap :=
   return (← get).passiveSet
 
 def getSymbolPrecMap : ProverM SymbolPrecMap :=
@@ -120,12 +119,6 @@ def getSymbolPrecMap : ProverM SymbolPrecMap :=
 
 def getHighesetPrecSymbolHasArityZero : ProverM Bool :=
   return (← get).highesetPrecSymbolHasArityZero
-
-def getPassiveSetAgeHeap : ProverM ClauseHeap :=
-  return (← get).passiveSetAgeHeap
-
-def getPassiveSetWeightHeap : ProverM ClauseHeap :=
-  return (← get).passiveSetWeightHeap
 
 def getFairnessCounter : ProverM Nat :=
   return (← get).fairnessCounter
@@ -159,7 +152,7 @@ def setActiveSet (activeSet : ClauseSet) : ProverM Unit :=
 def setAllClauses (allClauses : HashMap Clause ClauseInfo) : ProverM Unit :=
   modify fun s => { s with allClauses := allClauses }
 
-def setPassiveSet (passiveSet : ClauseSet) : ProverM Unit :=
+def setPassiveSet (passiveSet : FairAgeClauseHeap) : ProverM Unit :=
   modify fun s => { s with passiveSet := passiveSet }
 
 def setSymbolPrecMap (symbolPrecMap : SymbolPrecMap) : ProverM Unit :=
@@ -167,12 +160,6 @@ def setSymbolPrecMap (symbolPrecMap : SymbolPrecMap) : ProverM Unit :=
 
 def setHighesetPrecSymbolHasArityZero (highesetPrecSymbolHasArityZero : Bool) : ProverM Unit :=
   modify fun s => { s with highesetPrecSymbolHasArityZero := highesetPrecSymbolHasArityZero }
-
-def setPassiveSetAgeHeap (passiveSetAgeHeap : ClauseHeap) : ProverM Unit :=
-  modify fun s => { s with passiveSetAgeHeap := passiveSetAgeHeap }
-
-def setPassiveSetWeightHeap (passiveSetWeightHeap : ClauseHeap) : ProverM Unit :=
-  modify fun s => { s with passiveSetWeightHeap := passiveSetWeightHeap }
 
 def setFairnessCounter (fairnessCounter : Nat) : ProverM Unit :=
   modify fun s => { s with fairnessCounter := fairnessCounter }
@@ -205,30 +192,11 @@ def throwEmptyClauseException : ProverM α :=
 
 partial def chooseGivenClause : ProverM (Option Clause) := do
   Core.checkMaxHeartbeats "chooseGivenClause"
-  -- Decide which heap to choose from
-  let mut fc ← getFairnessCounter
-  let (getHeap, setHeap) ←
-    if fc ≥ 5 then
-      fc := 0 -- Reset fairness counter
-      trace[Prover.debug] "Clause selected by age ({fc})"
-      pure (getPassiveSetAgeHeap, setPassiveSetAgeHeap)
-    else
-      fc := fc + 1 -- Increment fairness counter
-      trace[Prover.debug] "Clause selected by weight ({fc})"
-      pure (getPassiveSetWeightHeap, setPassiveSetWeightHeap)
-  -- Extract clause from heap
-  let some (c, h) := (← getHeap).deleteMin
-    | return none
-  setHeap h
-  -- If selected clause is no longer in passive set, restart (without changing the fairness counter)
-  if not $ (← getPassiveSet).contains c.2 then
-    trace[Prover.debug] "Clause {c.2} no longer in passive set, choosing new clause"
-    return (← chooseGivenClause)
-  -- Remove clause from passive
-  setPassiveSet $ (← getPassiveSet).erase c.2
-  -- Update fairness counter
-  setFairnessCounter fc
-  return c.2
+  if let some (clause, heap) := (← getPassiveSet).pop? then
+    setPassiveSet heap
+    return (some clause)
+  else
+    return none
 
 /-- Given a clause c and a list of ancestors, markAsDescendantToGeneratingAncestors adds c to each generating ancestor's list of descendants -/
 def markAsDescendantToGeneratingAncestors (c : Clause) (generatingAncestors : List Clause) : ProverM Unit := do
@@ -280,24 +248,18 @@ def addNewToPassive (c : Clause) (proof : Proof) (generatingAncestors : List Cla
       let ci := {ci with generatingAncestors := generatingAncestors, isOrphan := false}
       setAllClauses ((← getAllClauses).insert c ci)
       markAsDescendantToGeneratingAncestors c generatingAncestors -- For each generating ancestor of c, add c as a descendant of said ancestor
-      setPassiveSet $ (← getPassiveSet).insert c
-      setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
-      setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
+      setPassiveSet $ (← getPassiveSet).insert c #[c.weight, ci.number]
     else pure () -- c exists in allClauses and is not an orphan, so it has already been produced and can safely be ignored
   | none =>
     trace[Prover.saturate] "New passive clause: {c}"
     let ci ← addNewClause c proof generatingAncestors
-    setPassiveSet $ (← getPassiveSet).insert c
-    setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
-    setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
+    setPassiveSet $ (← getPassiveSet).insert c #[c.weight, ci.number]
 
 /-- Takes a clause that was generated by preprocessing clausification and re-adds it to the passive set and its associated heaps -/
 def addClausifiedToPassive (c : Clause) : ProverM Unit := do
   match (← getAllClauses).find? c with
   | some ci =>
-    setPassiveSet $ (← getPassiveSet).insert c
-    setPassiveSetAgeHeap $ (← getPassiveSetAgeHeap).insert (ci.number, c)
-    setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
+    setPassiveSet $ (← getPassiveSet).insert c #[c.weight, ci.number]
   | none => throwError "Unable to find information for clausified clause {c}"
 
 def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do

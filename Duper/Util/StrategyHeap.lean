@@ -54,20 +54,23 @@ partial def StrategyHeap.pop? [BEq α] [Hashable α]
     have : Inhabited (StrategyHeap α) := ⟨sh⟩
     panic!"The id of selected heap >= number of heaps"
   else
-    if let some (x, h') := go hid sh.heaps[hid]! sh.set then
+    if let some (x, h') := go sh.heaps[hid]! sh.set then
       (x, {sh with set := sh.set.erase x,
                    heaps := (sh.heaps.swapAt! hid h').2,
                    status := status'})
     else
       none
-  where go id heap set :=
-    if let some (x, h') := heap.deleteMin then
-      if set.contains x.2 then
-        some (x.2, h')
+  where go heap set := Id.run <| do
+    let mut heap := heap
+    while true do
+      if let some (x, h') := heap.deleteMin then
+        if set.contains x.2 then
+          return some (x.2, h')
+        else
+          heap := h'
       else
-        go id h' set
-    else
-      none
+        break
+    return none
 
 -- The clause heap, for givenClause selection
 -- The size of `heaps` should be 2. The first heap is the
