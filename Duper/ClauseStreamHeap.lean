@@ -152,8 +152,7 @@ def ClauseStreamHeap.forceProbe {σ} [OptionMStream ProverM σ ClauseProof]
   return (collectedClauses, Q)
 
 -- Here `c` is `simplifiedGivenClause`
--- Note: This function is responsible for adding results of inference
---   rules to the passive set.
+-- Note: This function is responsible for adding results of inference rules to the passive set.
 def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
   let (given, c, proof) := cp
   match ← immediateSimplification given c with
@@ -192,8 +191,7 @@ def ProverM.performInferences (rules : List (Clause → MClause → Nat → Rule
   setQStreamSet Q
 
 -- Run probe in ProverM
---   Take clause and proof from the stream, and run
---   `postProcessInferenceResult`
+--   Take clause and proof from the stream, and run `postProcessInferenceResult`
 def ProverM.runProbe
   (probe : ClauseStreamHeap ClauseStream → ProverM (Array ClauseProof × ClauseStreamHeap ClauseStream)) := do
   let Q ← getQStreamSet

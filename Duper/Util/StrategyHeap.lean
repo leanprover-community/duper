@@ -7,17 +7,11 @@ open Std
 namespace Duper
 
 -- `StrategyHeap` models GivenClause Selection
-
 structure StrategyHeap (α : Type u) {β : Type} [BEq α] [Hashable α] where
-  -- Set of elements of `α`
-  set             : HashSet α := HashSet.empty
-  -- The first "Nat" is the priority
-  -- The second "Nat" is the id of the clause
+  set             : HashSet α := HashSet.empty -- Set of elements of `α`
   weightheap      : BinomialHeap (Nat × α) fun c d => c.1 ≤ d.1 := BinomialHeap.empty
   ageheap         : BinomialHeap (Nat × α) fun c d => c.1 ≤ d.1 := BinomialHeap.empty
   status          : β
-  -- The `Nat` in `Nat × β` is intended
-  -- to represent the selected heap from the array `heaps`
   strategy        : β → Bool × β
   deriving Inhabited
 
