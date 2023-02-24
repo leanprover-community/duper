@@ -19,6 +19,7 @@ structure Config where
 --    different depth to be rigid. (Anyway, we need to prevent
 --    us from assigning the metavariables that are assumed to
 --    be synthesized by typeclass resolution)
+-- 3: Propositional extensionality
 
 inductive StructType where
   -- Things considered as `const`:
@@ -74,7 +75,8 @@ def projName! : Expr → Name
   | .proj n _ _ => n
   | _          => panic! "proj expression expected"
 
-def structInfo (e : Expr) : MetaM (Expr × StructType) :=
+def structInfo (p : UnifProblem) (e : Expr) : MetaM (Expr × StructType) := do
+  setMCtx p.mctx
   Meta.lambdaTelescope e fun xs t => Meta.forallTelescope t fun ys b => do
     let h := Expr.getAppFn b
     if h.isFVar then
@@ -265,6 +267,8 @@ def failDecompose (is_prio : Bool) (p : UnifProblem) (eq : UnifEq) : MetaM (Arra
     let fr := rhs'.getAppFn
     -- Rule: Fail
     if fl.isConst ∧ fr.isConst then
+      if fl.constName! != fr.constName! then
+        return #[]
       -- Unify the levels of the head
       let lfl := (fl.constLevels!).toArray
       let lfr := (fr.constLevels!).toArray
@@ -321,18 +325,18 @@ inductive UnifRuleResult
 -- The argument "print" is for debugging. Only problems whose parentClause
 --   contains "print" will be printed
 def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
-  -- To make messages print, we set `mctx` to that of `p`'s
-  setMCtx p.mctx
   let mut p := p
   if ¬ p.checked ∨ ¬ p.prioritized.isEmpty then
     p ← derefNormProblem p
   -- debug
+  -- To make messages print, we set `mctx` to that of `p`'s
+  setMCtx p.mctx
   if p.parentClauses.toList.contains config.contains then
     trace[DUnif.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
   let is_prio : Bool := ¬ p.prioritized.isEmpty
   if let some (eq, p') := p.pop? then
-    let (lh, lhtype) ← structInfo eq.lhs
-    let (rh, rhtype) ← structInfo eq.rhs
+    let (lh, lhtype) ← structInfo p eq.lhs
+    let (rh, rhtype) ← structInfo p eq.rhs
     if let .Other _ _ := lhtype then
       trace[DUnif.debug] m!"applyRule :: Type of head is `Other`"
     if let .Other _ _ := rhtype then
@@ -440,6 +444,7 @@ structure UnifierGenerator where
   N   : Nat
   cfg : Config
 
+-- mctx is not modified. Refer to `UnifProblem.fromExprPairs`
 def UnifierGenerator.fromExprPairs (l : Array (Expr × Expr)) (cfg : Config := ⟨0, false⟩) : MetaM UnifierGenerator := do
   let q := Std.Queue.empty
   let unifPrb ← UnifProblem.fromExprPairs l
@@ -448,6 +453,17 @@ def UnifierGenerator.fromExprPairs (l : Array (Expr × Expr)) (cfg : Config := �
     return ⟨q.enqueue (.Problem prb), 1, cfg⟩
   else
     return ⟨q, 0, cfg⟩
+
+-- If the original unifiergenerator represents a unification
+-- problem `u`, then after accepting `l = eq₁, eq₂, ..., eqₖ` it becomes
+-- the unification problem `u ∨ (eq₁ ∧ eq₂ ∧ ⋯ ∧ eqₖ)`
+def UnifierGenerator.acceptExprPairs (l : Array (Expr × Expr)) (ug : UnifierGenerator) : MetaM UnifierGenerator := do
+  let unifPrb ← UnifProblem.fromExprPairs l
+  if let some prb := unifPrb then
+    let prb := {prb.pushParentClause 0 with trackedExpr := l.concatMap (fun (e1, e2) => #[e1, e2])}
+    return {ug with q := ug.q.enqueue (.Problem prb)}
+  else
+    return ug
 
 def UnifierGenerator.isEmpty : UnifierGenerator → Bool
 | .mk q _ _ => q.isEmpty
@@ -497,6 +513,7 @@ def UnifierGenerator.takeWithRetry (ug : UnifierGenerator) (nRetry : Nat) :
   for _ in List.range nRetry do
     let (ou, ug') ← ug.take
     if let some ou := ou then
+      trace[DUnif.result] "Produced unifier : {ou}"
       return (ou, ug')
     else
       ug := ug'

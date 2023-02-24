@@ -171,3 +171,7 @@ def idt₁ (p : Nat → Prop) (x : Nat)
   case a => dapply hp attempt 40000 unifier 700 contains 0; exact www
 
 #print idt₁.proof_1
+
+-- Negative tests
+def neg₁ (h : True) : False :=
+  by dapply h attempt 10 unifier 0 contains 0

@@ -192,7 +192,7 @@ def fastUnify (l : Array (Expr × Expr)) : RuleM Bool :=
   runMetaAsRuleM $ Meta.fastUnify l
 
 def unifierGenerator (l : Array (Expr × Expr)) : RuleM DUnif.UnifierGenerator :=
-  runMetaAsRuleM $ DUnif.UnifierGenerator.fromMetaMProcedure (Meta.fastUnify l)
+  runMetaAsRuleM $ DUnif.UnifierGenerator.fromExprPairs l
 
 /-- Given an array of expression pairs (match_target, e), attempts to assign mvars in e to make e equal to match_target.
     Returns true and performs mvar assignments if successful, returns false and does not perform any mvar assignments otherwise -/

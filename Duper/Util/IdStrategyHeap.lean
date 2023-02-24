@@ -20,9 +20,9 @@ abbrev OptionMStream m [Monad m] stream value := MStream m stream (Option value)
 --   each stream a `id`.
 structure IdStrategyHeap (σ : Type w) {β : Type v} where
   -- Map of `id` to clause heap
-  map            : HashMap Nat σ := HashMap.empty
+  map            : HashMap Nat (Array Nat × σ) := HashMap.empty
   -- The first `Nat` is the precedence, and the second `Nat` is the `id`
-  heaps          : Array (BinomialHeap (Nat × Nat × σ) fun c d => c.1 ≤ d.1) := #[]
+  heaps          : Array (BinomialHeap (Nat × Nat) fun c d => c.1 ≤ d.1) := #[]
   nextId         : Nat
   status         : β
   deriving Inhabited
@@ -37,50 +37,36 @@ def IdStrategyHeap.contains (oh : IdStrategyHeap σ (β:=β)) (id : Nat) := oh.m
 def IdStrategyHeap.erase (oh : IdStrategyHeap σ (β:=β)) (id : Nat) : IdStrategyHeap σ (β:=β) :=
   {oh with map := oh.map.erase id}
 
--- !!! Temporarily delete the minimal element from heap `n`
-partial def IdStrategyHeap.deleteMinFromHeapN
-  (oh : IdStrategyHeap σ (β:=β)) (n : Nat) : Option ((Nat × Nat × σ) × IdStrategyHeap σ (β:=β)) :=
+-- Delete the minimal element from heap `n`
+partial def IdStrategyHeap.deleteMinFrom
+  (oh : IdStrategyHeap σ (β:=β)) (n : Nat) : Option ((Array Nat × σ) × IdStrategyHeap σ (β:=β)) :=
   let heap := oh.heaps[n]?
   match heap with
   | some heap =>
     let res := heap.deleteMin
     match res with
     | some (σ', heap') =>
-      let Q' := {oh with heaps := (oh.heaps.swapAt! n heap').snd}
-      let id := σ'.2.1
-      if oh.map.contains id then
-        some (σ', Q'.erase id)
+      let Q' := {oh with heaps := oh.heaps.set! n heap'}
+      let id := σ'.2
+      if let some res := oh.map.find? id then
+        some (res, Q'.erase id)
       else
-        Q'.deleteMinFromHeapN n
+        Q'.deleteMinFrom n
     | none => none
   | none =>
-    panic!"IdStrategyHeap.deleteMinFromHeapN :: The id of selected heap >= number of heaps"
+    panic!"IdStrategyHeap.deleteMinFrom :: The id of selected heap >= number of heaps"
 
 def IdStrategyHeap.insert
   (oh : IdStrategyHeap σ (β:=β)) (x : σ) (ns : Array Nat) : IdStrategyHeap σ (β:=β) :=
   let nextId := oh.nextId
-  let map' := oh.map.insert nextId x
+  let map' := oh.map.insert nextId (ns, x)
   if ns.size != oh.heaps.size then
     have : Inhabited (IdStrategyHeap σ (β:=β)) := ⟨oh⟩
     panic! "IdStrategyHeap.insert :: Size of heap array is not equal to size of input precedence array"
   else
     let zipped := oh.heaps.zip ns
-    let heaps' := zipped.map (fun (heap, prec) => heap.insert (prec, nextId, x))
+    let heaps' := zipped.map (fun (heap, prec) => heap.insert (prec, nextId))
     {oh with map := map', heaps := heaps', nextId := nextId + 1}
-
--- Insert an element to a specific heap in `heaps`
--- This is useful when we pop an element from one heap of `heaps` to examine it
-def IdStrategyHeap.insertToHeapN
-  (oh : IdStrategyHeap σ (β:=β)) (n : Nat) (elem : Nat × Nat × σ) : IdStrategyHeap σ (β:=β) :=
-  let heap := oh.heaps[n]?
-  match heap with
-  | some heap =>
-    let heap' := heap.insert elem
-    {oh with heaps := (oh.heaps.swapAt! n heap').snd}
-  | none =>
-    have : Inhabited (IdStrategyHeap σ (β:=β)) := ⟨oh⟩
-    panic!"IdStrategyHeap.insertToHeapN :: The id of selected heap >= number of heaps"
-
 
 
 -- Status of the stream heap
@@ -90,6 +76,12 @@ def IdStrategyHeap.insertToHeapN
 structure ClauseStreamHeapStatus where
   nProbed : HashMap Nat Nat := HashMap.empty
   fairnessCounter : Nat     := 0
+
+def ClauseStreamHeapStatus.insertNProbed (cshs : ClauseStreamHeapStatus)
+  (id : Nat) (nProbed : Nat) := {cshs with nProbed := cshs.nProbed.insert id nProbed}
+
+def ClauseStreamHeapStatus.eraseNProbed (cshs : ClauseStreamHeapStatus)
+  (id : Nat) := {cshs with nProbed := cshs.nProbed.erase id}
 
 -- The stream heap, for interleaving between inference and unification
 -- The size of `heaps` should be 2. The first heap is the
@@ -106,3 +98,39 @@ def ClauseStreamHeap.increaseFairnessCounter (Q : ClauseStreamHeap σ) :=
 abbrev ClauseStreamHeap.empty σ : ClauseStreamHeap σ :=
   { map := HashMap.empty, heaps := #[BinomialHeap.empty, BinomialHeap.empty],
     nextId := 0, status := ⟨HashMap.empty, 0⟩ }
+
+def ClauseStreamHeap.insertWithNProbed
+  (csh : ClauseStreamHeap σ) (x : σ) (ns : Array Nat) (nProbed : Nat) : ClauseStreamHeap σ :=
+  let nextId := csh.nextId
+  let map' := csh.map.insert nextId (ns, x)
+  if ns.size != csh.heaps.size then
+    have : Inhabited (ClauseStreamHeap σ) := ⟨csh⟩
+    panic! "IdStrategyHeap.insert :: Size of heap array is not equal to size of input precedence array"
+  else
+    let zipped := csh.heaps.zip ns
+    let heaps' := zipped.map (fun (heap, prec) => heap.insert (prec, nextId))
+    {csh with map := map', heaps := heaps', nextId := nextId + 1,
+              status := csh.status.insertNProbed nextId nProbed}
+
+def ClauseStreamHeap.eraseWithNProbed (csh : ClauseStreamHeap σ) (id : Nat) :=
+  {csh with map := csh.map.erase id, status := csh.status.eraseNProbed id}
+
+-- Delete the minimal element from heap `n`, with "nProbed"
+partial def ClauseStreamHeap.deleteMinWithNProbed
+  (oh : ClauseStreamHeap σ) (n : Nat) : Option ((Nat × Array Nat × σ) × ClauseStreamHeap σ) :=
+  let heap := oh.heaps[n]?
+  match heap with
+  | some heap =>
+    let res := heap.deleteMin
+    match res with
+    | some (σ', heap') =>
+      let Q' := {oh with heaps := oh.heaps.set! n heap'}
+      let id := σ'.2
+      if let some res := oh.map.find? id then
+        let nProbed := oh.status.nProbed.find! id
+        some ((nProbed, res), ClauseStreamHeap.eraseWithNProbed Q' id)
+      else
+        ClauseStreamHeap.deleteMinWithNProbed Q' n
+    | none => none
+  | none =>
+    panic!"ClauseStreamHeap.deleteMinWithNProbed :: The id of selected heap >= number of heaps"

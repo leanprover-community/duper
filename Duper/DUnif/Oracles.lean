@@ -14,6 +14,7 @@ def getOracleInstOn (opts : Options) : Bool :=
   oracleInstOn.get opts
 
 def oracleInst (p : UnifProblem) (eq : UnifEq) : MetaM (Option UnifProblem) := do
+  setMCtx p.mctx
   let opts ← getOptions
   let mut mvarId : MVarId := Inhabited.default
   if ¬ getOracleInstOn opts then

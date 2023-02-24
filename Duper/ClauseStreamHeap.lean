@@ -15,11 +15,23 @@ namespace Duper
 open ProverM
 open RuleM
 
-def kUnifRetry := 40
+def kUnifRetry := 10
 def kFair := 70
 def kBest := 7
-def kRetry := 20
-def forceProbeRetry := 500
+-- Since `kUnifRetry` has been  `10`, `kRetry` don't need to be too large
+def kRetry := 2
+
+register_option forceProbeRetry : Nat := {
+  defValue := 500
+  descr := "Iteration limit for forceProbe"
+}
+
+def getForceProbeRetry (opts : Options) : Nat :=
+  forceProbeRetry.get opts
+
+def logForceProbeRetry (max : Nat) : CoreM Unit := do
+  let msg := s!"forceProbe exceeded iteration limit {max}"
+  logInfo msg
 
 @[inline] def ProverM.runMetaAsProverM (x : MetaM α) : ProverM α := do
   let lctx ← getLCtx
@@ -61,35 +73,29 @@ instance : OptionMStream ProverM ClauseStream ClauseProof where
 
 def penalty (c : Clause) : ProverM Nat := pure 1
 
+def updateWeight (α? : Option ClauseProof) (weight : Nat) (nProbed : Nat) : ProverM Nat := do
+  if let some (clause, _) := α? then
+    return weight + (← penalty clause) * Nat.max 1 (nProbed - 64)
+  else
+    return weight + Nat.max 2 (nProbed - 16)
+
 -- Following `Making Higher-Order Superposition Work`
--- But returns the modified heap along with `maybe_clause`
-  -- If `id` is `none`, then this is a new stream, and `weight` should be `0`
-  -- If `id` is `some ?`, then this is a clause popped from the heap, and
-  --   `id` is its id.
+--   Extract an `Option Clause` from the stream.
+--   Add the rest of the stream to the heap.
 def ClauseStreamHeap.extractClause {σ} [OptionMStream ProverM σ ClauseProof]
-  (Q : ClauseStreamHeap σ) (s : σ) (id : Option Nat) (weight : Nat) : ProverM (Option ClauseProof × ClauseStreamHeap σ) := do
+  (Q : ClauseStreamHeap σ) (nProbed : Nat) (precs : Array Nat) (s : σ) : ProverM (Option ClauseProof × ClauseStreamHeap σ) := do
+  have : Inhabited σ := ⟨s⟩
   let next? ← MStream.next? s
   if let some (α?, stream') := next? then
-    let nProbed :=
-      if let some id := id then
-        Q.status.nProbed.find! id
-      else if weight != 0 then
-        panic! "extractClause :: id is not given, but weight is not 0"
-      else 0
-    let mut weight := weight
-    if let some (clause, _) := α? then
-      weight := weight + (← penalty clause) * Nat.max 1 (nProbed - 64)
-    else
-      weight := weight + Nat.max 2 (nProbed - 16)
-    let Q' :=
-      if let some id := id then
-        -- Only need to insert to weight heap, i.e., heap 0
-        Q.insertToHeapN 0 (weight, id, stream')
-      else
-        let nextId := Q.nextId
-        Q.insert stream' #[weight, nextId]
+    -- If this stream is not empty, extract clause from the
+    -- stream and add it back to the heap
+    let weight₀ := precs[0]!
+    let weight ← updateWeight α? weight₀ nProbed
+    let precs' := precs.set! 0 weight
+    let Q' := Q.insertWithNProbed stream' precs' (nProbed + 1)
     return (α?, Q')
   else
+    -- If this stream is already empty, then do nothing
     return (none, Q)
 
 def ClauseStreamHeap.heuristicProbe {σ} [OptionMStream ProverM σ ClauseProof]
@@ -102,9 +108,9 @@ def ClauseStreamHeap.heuristicProbe {σ} [OptionMStream ProverM σ ClauseProof]
     let mut maybeClause := none
     while j < kRetry ∧ ¬ Q.isEmpty do
       -- Delete min from weight heap
-      let res := Q.deleteMinFromHeapN 0
-      if let some ((prec, id, stream), Q') := res then
-        let (mc, Q') ← ClauseStreamHeap.extractClause Q' stream (some id) prec
+      let res := Q.deleteMinWithNProbed 0
+      if let some ((nProbed, precs, stream), Q') := res then
+        let (mc, Q') ← ClauseStreamHeap.extractClause Q' nProbed precs stream
         if let some mc := mc then
           maybeClause := some mc
           Q := Q'
@@ -123,15 +129,15 @@ def ClauseStreamHeap.fairProbe {σ} [OptionMStream ProverM σ ClauseProof]
   let mut oldestStream := #[]
   let mut Q := Q
   for _ in List.range nOldest do
-    -- Delete min from weight heap
-    let res := Q.deleteMinFromHeapN 0
+    -- Delete min from age heap
+    let res := Q.deleteMinWithNProbed 1
     if let some (str, Q') := res then
       oldestStream := oldestStream.push str
       Q := Q'
     else
       break
-  for (prec, id, stream) in oldestStream do
-    let (mc, Q') ← ClauseStreamHeap.extractClause Q stream (some id) prec
+  for (nProbed, precs, stream) in oldestStream do
+    let (mc, Q') ← ClauseStreamHeap.extractClause Q nProbed precs stream
     if let some mc := mc then
       collectedClauses := collectedClauses.push mc
     Q := Q'
@@ -141,14 +147,20 @@ def ClauseStreamHeap.forceProbe {σ} [OptionMStream ProverM σ ClauseProof]
   (Q : ClauseStreamHeap σ) : ProverM (Array ClauseProof × ClauseStreamHeap σ) := do
   let mut collectedClauses := #[]
   let mut Q := Q
+  -- Check whether forceProbeRetry is exceeded
   let mut iter := 0
-  while collectedClauses.size == 0 ∧ Q.size != 0 ∧ iter < forceProbeRetry do
+  let maxiter := getForceProbeRetry (← getOptions)
+  while collectedClauses.size == 0 ∧ Q.size != 0 do
     let (clauses, Q') ← Q.fairProbe Q.size
     if clauses.size != 0 then
       collectedClauses := clauses
       break
     Q := Q'
+    -- Check whether forceProbeRetry is exceeded
     iter := iter + 1
+    if iter >= maxiter then
+      logForceProbeRetry maxiter
+      return (#[], Q)
   return (collectedClauses, Q)
 
 -- Here `c` is `simplifiedGivenClause`
@@ -185,7 +197,7 @@ def ProverM.performInferences (rules : List (Clause → MClause → Nat → Rule
     cs := cs.append curStreams
   let mut Q ← getQStreamSet
   for stream in cs do
-    let (mc, Q') ← Q.extractClause stream none 0
+    let (mc, Q') ← Q.extractClause 0 #[0, Q.nextId] stream
     Q := Q'
     if let some clauseProof := mc then
       postProcessInferenceResult clauseProof
