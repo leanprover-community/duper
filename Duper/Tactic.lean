@@ -38,14 +38,22 @@ def getClauseInfo! (state : ProverM.State) (c : Clause) : TacticM ClauseInfo := 
     | throwError "clause info not found: {c}"
   return ci
 
-partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Nat × ClauseHeap)) : TacticM (Array Nat × ClauseHeap) := do
+partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (HashSet Nat × ClauseHeap × HashMap Name Level)) :
+    TacticM (HashSet Nat × ClauseHeap × HashMap Name Level) := do
   Core.checkMaxHeartbeats "collectClauses"
   let info ← getClauseInfo! state c
   if acc.1.contains info.number then return acc -- No need to recall collectClauses on c because we've already collected c
   let mut acc := acc
   -- recursive calls
-  acc := (acc.1.push info.number, acc.2.insert (info.number, c))
+  acc := (acc.1.insert info.number, acc.2.1.insert (info.number, c), acc.2.2)
   for proofParent in info.proof.parents do
+    for (paramName, paramSubst) in proofParent.clause.paramNames.zip proofParent.paramSubst do
+      let paramSubst:= paramSubst.replace fun l =>
+        match l with
+        | .param n => acc.2.2.find? n
+        | _ => none
+      acc := (acc.1, acc.2.1, acc.2.2.insert paramName paramSubst)
+
     acc ← collectClauses state proofParent.clause acc
   return acc
 
@@ -90,9 +98,16 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   return proof
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
-  let l := (← collectClauses state Clause.empty (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
+  let collection ← collectClauses state Clause.empty ({}, Std.BinomialHeap.empty, {})
+  let l := collection.2.1.toList.eraseDups.map Prod.snd
   trace[Meta.debug] "{l}"
   let proof ← mkProof state l
+  let proof := proof.replaceLevel fun l =>
+    match l with
+    | .param n => collection.2.2.find? n
+    | _ => none
+  logInfo m!"{proof}"
+
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
@@ -102,7 +117,7 @@ def elabFact (stx : Term) : TacticM (Array Expr) := do
     -- Try to look up any defining equations for this identifier
     let some expr ← Term.resolveId? id
       | throwError "Unknown identifier {id}"
-    match ← getEqnsFor? expr.constName! (nonRec := true) with
+    match ← getEqnsFor? expr.constName! (nonRec := true) with -- TODO: use mkSimpleEqThm
     | some eqns => do
       logInfo m!"eqns {← eqns.mapM fun id => do return (← Term.resolveId? (mkIdent id))}"
       eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq)))
@@ -111,30 +126,29 @@ def elabFact (stx : Term) : TacticM (Array Expr) := do
       return #[← elabFactAux stx]
   | _ => return #[← elabFactAux stx]
 where elabFactAux (stx : Term) : TacticM Expr :=
-  -- elaborate term as much as possible and abstract any remaining mvars:
-  Term.withoutModifyingElabMetaStateWithInfo <| withRef stx <| Term.withoutErrToSorry do
+  -- elaborate term as much as possible:
+  withRef stx <| Term.withoutErrToSorry do
     let e ← Term.elabTerm stx none
     Term.synthesizeSyntheticMVars (mayPostpone := false) (ignoreStuckTC := true)
     let e ← instantiateMVars e
-    let s ← abstractMVars e 
-    if s.paramNames.size > 0 then
-      throwError "Universe variables not supported."
-    return s.expr
+    return e
 
-def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr)) := do
+def collectAssumptions (facts : Array Term) : TacticM (List (Clause × Expr)) := do
   let mut formulas := []
   -- Load all local decls:
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
-      formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
+      formulas := (Clause.fromSingleExpr (← instantiateMVars ldecl.type), ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
   -- load user-provided facts
   for facts in ← facts.mapM elabFact do
     for fact in facts do
       let type ← inferType fact
       if ← isProp type then
-        let fact' := (← abstractMVars fact).expr
-        formulas := (← inferType fact', ← mkAppM ``eq_true #[fact']) :: formulas
+        IO.println s!"Hello {fact}"
+        let s ← abstractMVars fact
+        let fact' := s.expr
+        formulas := (Clause.fromSingleExpr (paramNames := s.paramNames) (← inferType fact'), ← mkAppM ``eq_true #[fact']) :: formulas
       else
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
 
@@ -149,9 +163,11 @@ def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := do
   let formulas ← collectAssumptions facts.getElems
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←
-    ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx})
+    ProverM.run (s := {lctx := ← getLCtx, mctx := ← getMCtx}) do
+      for (c, proof) in formulas do
+        let mkProof := fun _ _ _ => pure proof
+        addNewToPassive c {ruleName := "assumption", mkProof := mkProof} []
       ProverM.saturateNoPreprocessingClausification
-      formulas
   return state
 
 @[tactic duper]

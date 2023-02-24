@@ -454,7 +454,7 @@ def clausificationStep : MSimpRule := fun c => do
                   if j == i then
                     let resLeft := resLits.toList.take (c.lits.size - 1)
                     let resRight := resLits.toList.drop (c.lits.size - 1)
-                    let resRight' := (Clause.mk #[] resRight.toArray).toForallExpr
+                    let resRight' := (Clause.mk #[] #[] resRight.toArray).toForallExpr
                     let resLits' := (resLeft.map Lit.toExpr).toArray.push resRight'
                     let dproof ← match dproof with
                     | none => Meta.mkSorry resRight' true

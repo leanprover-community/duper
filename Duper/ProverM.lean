@@ -291,18 +291,6 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
     setPassiveSetWeightHeap $ (← getPassiveSetWeightHeap).insert (c.weight, c)
   | none => throwError "Unable to find information for clausified clause {c}"
 
-def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
-  let c := Clause.fromSingleExpr e
-  let mkProof := fun _ _ _ => pure proof
-  addNewToPassive c {ruleName := "assumption", mkProof := mkProof} []
-
-def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 
-    CoreM (α × State) := do
-  ProverM.run (s := s) (ctx := ctx) do
-    for (e, proof) in es do
-      addExprAssumptionToPassive e proof
-    x
-
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
   let symbolPrecMap ← getSymbolPrecMap
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
@@ -344,7 +332,9 @@ def addToActive (c : Clause) : ProverM Unit := do
           else if(sel.contains pos.lit) then true
           else if(sel == []) then not canNeverBeMaximal
           else false
-        if eligible then idx.insert e (cNum, c, pos)
+        if eligible then
+          trace[Prover.saturate] "Add side premsi index: {e}"
+          idx.insert e (cNum, c, pos)
         else return idx
       idx
   setSupSidePremiseIdx idx
@@ -368,7 +358,9 @@ def addToActive (c : Clause) : ProverM Unit := do
           else if(sel.contains pos.lit) then true
           else if(sel == []) then not canNeverBeMaximal
           else false
-        if eligible then idx.insert e (cNum, c, pos)
+        if eligible then
+          trace[Prover.saturate] "ADD INDEX {e}"
+          idx.insert e (cNum, c, pos)
         else return idx
       idx
   setMainPremiseIdx idx

@@ -190,6 +190,7 @@ end Lit
 -- !!!!!!!!!!!!!!!!! We keep an invariant !!!!!!!!!!!!!!!!
 --               `p : c.toForallExpr` 
 structure Clause :=
+(paramNames : Array Name) -- names of level parameters
 (bVarTypes : Array Expr)
 (lits : Array Lit)
 deriving Inhabited, BEq, Hashable
@@ -207,10 +208,10 @@ instance : ToMessageData ClausePos := ⟨ClausePos.format⟩
 
 namespace Clause
 
-def empty : Clause := ⟨#[], #[]⟩
+def empty : Clause := ⟨#[], #[], #[]⟩
 
-def fromSingleExpr (e : Expr) : Clause :=
-  Clause.mk #[] #[Lit.fromSingleExpr e]
+def fromSingleExpr (e : Expr) (paramNames : Array Name := #[]) (bVarTypes : Array Expr := #[]) : Clause :=
+  Clause.mk paramNames bVarTypes #[Lit.fromSingleExpr e]
 
 def toExpr (c : Clause) : Expr :=
   litsToExpr c.lits.data
@@ -236,9 +237,9 @@ def toForallExpr (c : Clause) : Expr :=
 def toLambdaExpr (c : Clause) : Expr :=
   c.bVarTypes.foldr (fun ty b => mkLambda Name.anonymous BinderInfo.default ty b) c.toExpr
 
-def fromForallExpr (e : Expr) : Clause :=
+def fromForallExpr (e : Expr) (paramNames : Array Name := #[]) : Clause :=
   let (bvarTypes, e) := deForall e
-  ⟨bvarTypes.toArray, (litsFromExpr e).toArray⟩
+  ⟨paramNames, bvarTypes.toArray, (litsFromExpr e).toArray⟩
 where
   deForall : Expr → List Expr × Expr
   | .forallE bn ty body bi => let (l, e) := deForall body; (ty::l, e)

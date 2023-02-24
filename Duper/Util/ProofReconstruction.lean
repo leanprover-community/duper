@@ -12,7 +12,7 @@ initialize Lean.registerTraceClass `InstantiatePremises
 -- `xs` is usually obtained by `Meta.forallTelescope c.toForallExpr fun xs body =>`
 def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) : 
     MetaM (List (Array Lit) × List Expr) := do
-  let mut parentsLits := [] -- Initializing with capacity 2 because most inference and simplification rules have at most two parents
+  let mut parentsLits := []
   let mut appliedPremises := []
   for (parent, premise) in List.zip parents premises do
     let finstantiatedparent_pre ← parent.expr.instantiateForallNoReducing xs

@@ -117,7 +117,7 @@ def gfpf (e : Expr) (pos : ExprPos) : FingerprintFeatureValue :=
     else N
   | some e' =>
     if e'.isMVar then A
-    else F e.getTopSymbol
+    else A -- F e.getTopSymbol -- TODO: Use top symbol here
 
 def getFingerprint (e : Expr) : Fingerprint :=
   fingerprintFeatures.map (fun pos => gfpf e pos)

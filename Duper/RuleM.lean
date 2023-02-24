@@ -16,6 +16,7 @@ deriving Inhabited
 structure ProofParent where
   expr : Expr
   clause : Clause
+  paramSubst : Array Level
 
 /-- Takes: Proofs of the parent clauses, ProofParent information, the target clause -/
 abbrev ProofReconstructor := List Expr → List ProofParent → Clause → MetaM Expr
@@ -27,10 +28,18 @@ structure Proof where
   mkProof : ProofReconstructor
 deriving Inhabited
 
+structure LoadedClause where
+  /-- The loaded clause -/
+  clause : Clause
+  /-- LMVars representing the clause's universe parameters -/
+  lmVarIds : Array LMVarId
+  /-- MVars representing the clause's variables -/
+  mVarIds : Array MVarId
+
 structure State where
   mctx : MetavarContext := {}
   lctx : LocalContext := {}
-  loadedClauses : List (Clause × Array MVarId) := []
+  loadedClauses : List LoadedClause := []
   resultClauses : List (Clause × Proof) := []
   introducedSkolems : List (FVarId × (Array Expr → MetaM Expr)) := []
 deriving Inhabited
@@ -67,7 +76,7 @@ def getContext : RuleM Context :=
 def getMCtx : RuleM MetavarContext :=
   return (← get).mctx
 
-def getLoadedClauses : RuleM (List (Clause × Array MVarId)) :=
+def getLoadedClauses : RuleM (List LoadedClause) :=
   return (← get).loadedClauses
 
 def getResultClauses : RuleM (List (Clause × Proof)) :=
@@ -85,7 +94,7 @@ def setMCtx (mctx : MetavarContext) : RuleM Unit :=
 def setLCtx (lctx : LocalContext) : RuleM Unit :=
   modify fun s => { s with lctx := lctx }
 
-def setLoadedClauses (loadedClauses : List (Clause × Array MVarId)) : RuleM Unit :=
+def setLoadedClauses (loadedClauses : List LoadedClause) : RuleM Unit :=
   modify fun s => { s with loadedClauses := loadedClauses }
 
 def setResultClauses (resultClauses : List (Clause × Proof)) : RuleM Unit :=
@@ -202,6 +211,9 @@ def isProof (e : Expr) : RuleM Bool := do
 def isType (e : Expr) : RuleM Bool := do
   runMetaAsRuleM $ Meta.isType e
 
+def mkFreshLevelMVar : RuleM Level := do
+  runMetaAsRuleM $ Meta.mkFreshLevelMVar
+
 def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
   runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
 
@@ -254,8 +266,10 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
 -- `m = c.instantiateRev mVars`
 -- `m ≝ mkAppN c.toForallExpr mVars`
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
-  let (mVars, bis, e) ← forallMetaTelescope c.toForallExpr
-  setLoadedClauses ((c, mVars.map Expr.mvarId!) :: (← getLoadedClauses))
+  let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
+  let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
+  let (mVars, bis, e) ← forallMetaTelescope e
+  setLoadedClauses (⟨c, us.map Level.mvarId!, mVars.map Expr.mvarId!⟩ :: (← getLoadedClauses))
   return (mVars, .fromExpr e)
 
 def loadClause (c : Clause) : RuleM MClause := do
@@ -266,13 +280,15 @@ def loadClause (c : Clause) : RuleM MClause := do
     would be added to loadedClauses if `loadClause c` were called, but does not actually change the set of
     loaded clauses. The purpose of this function is to process a clause and turn it into an MClause while delaying
     the decision of whether to actually load it -/
-def prepLoadClause (c : Clause) : RuleM (MClause × (Clause × Array MVarId)) := do
-  let (mVars, bis, e) ← forallMetaTelescope c.toForallExpr
-  return (.fromExpr e, (c, mVars.map Expr.mvarId!))
+def prepLoadClause (c : Clause) : RuleM (MClause × LoadedClause) := do
+  let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
+  let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
+  let (mVars, bis, e) ← forallMetaTelescope e
+  return (.fromExpr e, ⟨c, us.map Level.mvarId!, mVars.map Expr.mvarId!⟩)
 
 open Lean.Meta.AbstractMVars in
 open Lean.Meta in
-def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarId)) :
+def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) :
   M (Clause × List ProofParent) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
@@ -282,10 +298,23 @@ def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarI
   let cst ← get
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := cst.lctx.mkForall cst.fvars fec
-  let c := Clause.fromForallExpr abstec
+  let c := Clause.fromForallExpr abstec (paramNames := cst.paramNames)
   -- process loadedClause
   let mut proofParents : List ProofParent := []
-  for (loadedClause, mvarIds) in loadedClauses do
+  for ⟨loadedClause, lmvarIds, mvarIds⟩ in loadedClauses do
+
+    let paramNameMap : HashMap Name LMVarId := HashMap.ofList (loadedClause.paramNames.zip lmvarIds).toList
+    -- lmvards instantiations tell us
+    -- - how to instantiate lmvars to make this inference possible
+    -- - or what the new names are in the child clause
+
+    -- unassigned lmvarIds tell us that the instantiation of these mvars does not matter for the proof. 
+
+    -- loadedClause.paramNames  old names in parent clause
+    
+    -- cst.paramNames  new names in child clause
+    -- lst.paramNames  new names in parent clause (incl child names)
+
     set cst
     -- Add `mdata` to protect the body from `getAppArgs`
     -- The inner part will no longer be used, it is almost dummy, except that it makes the type check
@@ -293,12 +322,22 @@ def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarI
     let mprotectedparent := Expr.mdata .empty loadedClause.toLambdaExpr
     -- `minstantiatedparent = (fun [vars] => parent[vars]) mvars[umvars] ≝ parent[mvars[umvars]]`
     let minstantiatedparent := mkAppN mprotectedparent (mvarIds.map mkMVar)
+    let minstantiatedparent := minstantiatedparent.replaceLevel fun level => 
+      match level with
+      | .param name => (paramNameMap.find? name).map Level.mvar
+      | _ => none
     -- `finstantiatedparent = (fun [vars] => parent[vars]) mvars[fvars]`
     let finstantiatedparent ← AbstractMVars.abstractExprMVars minstantiatedparent
     let lst ← get
     -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
     let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
-    proofParents := ⟨instantiatedparent, loadedClause⟩ :: proofParents
+    let paramSubst ← lmvarIds.mapM fun lmvarId => do
+      let some level ← getLevelMVarAssignment? lmvarId
+        | let some level := lst.lmap.find? lmvarId
+            | panic "All LevelMVars should be assigned at this point"
+          return level
+      return level
+    proofParents := ⟨instantiatedparent, loadedClause, paramSubst⟩ :: proofParents
   return (c, proofParents)
 
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor) : RuleM Unit := do

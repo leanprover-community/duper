@@ -143,6 +143,7 @@ partial def saturate : ProverM Unit := do
       let some givenClause ← chooseGivenClause
         | do
           setResult saturated
+          trace[Prover.saturate] "saturated"
           return LoopCtrl.abort
       trace[Prover.saturate] "Given clause: {givenClause}"
       let some simplifiedGivenClause ← forwardSimplify givenClause

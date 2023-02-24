@@ -104,12 +104,15 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
   (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide)
   (givenIsMain : Bool) (simultaneousSuperposition : Bool) : RuleM Unit := do
   Core.checkMaxHeartbeats "superposition"
+  trace[Prover.saturate] "SUP {mainPremise.toExpr} WITH {sidePremise.toExpr}"
   withoutModifyingMCtx $ do
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
+    trace[Prover.saturate] "check 1 {mainPremiseSubterm}"
     if mainPremiseSubterm.isMVar then
       return () -- No superposition into variables
     
+    trace[Prover.saturate] "check 2"
     /-
       To efficiently approximate condition 7 in https://matryoshka-project.github.io/pubs/hosup_report.pdf, if the main
       premise literal is positive and the main premise subterm is directly below the equality, then we require that the
@@ -121,8 +124,11 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
     let sidePremiseEligibility ← eligibilityPreUnificationCheck sidePremise sidePremiseLitIdx
     let mainPremiseEligibility ← eligibilityPreUnificationCheck mainPremise mainPremisePos.lit
 
+    trace[Prover.saturate] "check 3"
     if sidePremiseEligibility == Eligibility.notEligible || mainPremiseEligibility == Eligibility.notEligible then
       return () -- Preunification checks determined ineligibility, so we don't need to bother with unificaiton
+    
+    trace[Prover.saturate] "unify {mainPremiseSubterm} and {sidePremiseLit.lhs}"
     if not $ ← unify #[(mainPremiseSubterm, sidePremiseLit.lhs)] then
       return () -- Unification failed, so superposition cannot occur
     let sidePremiseFinalEligibility ←
@@ -157,7 +163,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       else mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
 
     if mainPremiseReplaced.isTrivial then
-      trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
+      trace[Prover.saturate] "trivial: {mainPremiseReplaced.lits}"
       return ()
       
     let restOfSidePremise ← restOfSidePremise.mapM fun e => RuleM.instantiateMVars e
@@ -165,7 +171,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
     let mkProof :=
       if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain
       else mkSuperpositionProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain
-    trace[Superposition.debug]
+    trace[Prover.saturate]
       m!"Superposition successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
       m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
     yieldClause res "superposition" mkProof
@@ -174,6 +180,9 @@ def superpositionWithGivenAsSide (mainPremiseIdx : RootCFPTrie) (sidePremise : M
   (sidePremiseSide : LitSide) (simultaneousSuperposition : Bool) : RuleM Unit := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
+  trace[Prover.saturate] "sidePremiseLit.lhs: {sidePremiseLit.lhs}"
+  trace[Prover.saturate] "potentialPartners: {potentialPartners}"
+  trace[Prover.saturate] "index: {mainPremiseIdx.root.printElems}"
   for (mainClauseNum, mainClause, mainPos) in potentialPartners do
     withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
