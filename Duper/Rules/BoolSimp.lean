@@ -15,7 +15,7 @@ initialize Lean.registerTraceClass `Rule.boolSimp
 
 /-
   Rules 1 through 15 are from Leo-III. Rules 16 through 22 and 25 through 27 are from "Superposition with
-  First-Class Booleans and Inprocessing Clausification." Rules 23 and 24 were made just for duper.
+  First-Class Booleans and Inprocessing Clausification." Rules 23, 24, and 28 were made just for duper.
 -/
 inductive BoolSimpRule
   | rule1 -- s ∨ s ↦ s
@@ -53,6 +53,7 @@ inductive BoolSimpRule
   | rule25 -- (s1 → s2 → ... → sn → v) ↦ True if there exists i and j such that si = ¬sj
   | rule26 -- (s1 → s2 → ... → sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
   | rule27 -- (s1 ∧ s2 ∧ ... ∧ sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
+  | rule28 -- s1 ↔ s2 ↦ s1 = s2
 
 open BoolSimpRule
 
@@ -93,6 +94,7 @@ def BoolSimpRule.format (boolSimpRule : BoolSimpRule) : MessageData :=
   | rule25 => m!"rule25"
   | rule26 => m!"rule26"
   | rule27 => m!"rule27"
+  | rule28 => m!"rule28"
 
 instance : ToMessageData BoolSimpRule := ⟨BoolSimpRule.format⟩
 
@@ -188,6 +190,7 @@ theorem rule24Theorem (f : Prop → Prop) : (∃ p : Prop, f p) = (f True ∨ f 
     | inr f_false =>
       have h2 : ∃ p : Prop, f p := Exists.intro False f_false
       exact h h2
+theorem rule28Theorem (p1 : Prop) (p2 : Prop) : (p1 ↔ p2) = (p1 = p2) := by simp
 
 partial def mkRule25Theorem (e : Expr) (counter : Nat) (i : Nat) (j : Nat) : MetaM Expr := do
   match e.consumeMData with
@@ -548,6 +551,12 @@ partial def applyRule27 (e : Expr) : RuleM (Option (Nat × Nat)) := do
     return none
   | _ => return none
 
+/-- s1 ↔ s2 ↦ s1 = s2 -/
+def applyRule28 (e : Expr) : Option Expr :=
+  match e with
+  | Expr.app (Expr.app (Expr.const ``Iff _) e1) e2 => some $ mkApp3 (mkConst ``Eq [levelOne]) (mkSort levelZero) e1 e2
+  | _ => none
+
 /-- Returns the rule theorem corresponding to boolSimpRule with the first argument applied.
 
     Note that this function assumes that `boolSimpRule` has already been shown to be applicable to `originalExp` so
@@ -697,6 +706,10 @@ def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) (i
     match ijOpt with
     | some (i, j) => do Meta.mkAppM ``eq_true #[← mkRule27Theorem originalExp i j]
     | none => throwError "rule27 requires indices that were not passed into getBoolSimpRuleTheorem"
+  | rule28 => -- s1 ↔ s2 ↦ s1 = s2
+    match originalExp.consumeMData with
+    | Expr.app (Expr.app (Expr.const ``Iff _) e1) e2 => return mkApp2 (mkConst ``rule28Theorem) e1 e2
+    | _ => throwError "Invalid originalExpr {originalExp} for rule28"
 
 def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (ijOpt : Option (Nat × Nat)) (premises : List Expr)
   (parents : List ProofParent) (c : Clause) : MetaM Expr :=
@@ -755,7 +768,8 @@ def applyRulesList1 : List ((Expr → (Option Expr)) × BoolSimpRule) := [
   (applyRule19, rule19),
   (applyRule20, rule20),
   (applyRule21, rule21),
-  (applyRule22, rule22)
+  (applyRule22, rule22),
+  (applyRule28, rule28)
 ]
 
 /-- The list of rules that do require the RuleM monad -/

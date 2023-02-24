@@ -29,6 +29,7 @@ import Duper.Rules.DestructiveEqualityResolution
 -- Boolean specific rules
 import Duper.Rules.BoolHoist
 import Duper.Rules.EqHoist
+import Duper.Rules.NeHoist
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
 
@@ -136,7 +137,8 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
   -- Higher order rules
   argCong,
   boolHoist,
-  eqHoist
+  eqHoist,
+  neHoist
 ]
 
 register_option maxSaturationTime : Nat := {

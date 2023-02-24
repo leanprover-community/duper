@@ -1,6 +1,7 @@
 import Duper.Tactic
 import Duper.TPTP
 
+-- Note: These tests only effectively test boolSimp when identBoolHoist is disabled
 set_option trace.Rule.boolSimp true
 
 theorem boolSimpRule1Test (p : Prop) (h : (p ∨ p ∨ p ∨ p) = q) : p = q :=
@@ -109,4 +110,7 @@ theorem boolSimpRule26Test (a b c shared x y z r : Prop) (h : (a → b → share
   by duper
 
 theorem boolSimpRule27Test (a b c shared x y z r : Prop) (h : ((a ∧ b ∧ shared ∧ c) → (x ∨ shared ∨ y ∨ z)) = r) : r :=
+  by duper
+
+theorem boolSimpRule28Test (p q r : Prop) (h : (p ↔ r) = (q ↔ r)) : p = q :=
   by duper
