@@ -1,6 +1,5 @@
 import Lean
 import Duper.ProverM
-import Duper.Util.Iterate
 import Duper.RuleM
 import Duper.MClause
 import Duper.Simp

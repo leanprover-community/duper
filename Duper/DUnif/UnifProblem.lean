@@ -1,4 +1,5 @@
 import Lean
+import Duper.Util.MessageData
 open Lean
 
 namespace Duper
@@ -50,7 +51,7 @@ inductive ParentRule where
 deriving Inhabited, BEq
 
 def ParentRule.toMessageData : ParentRule → MessageData
-| FromExprPairs arr => m!"From {arr}"
+| FromExprPairs arr => .compose m!"From " (Duper.ArrayToMessageData arr Duper.ExprPairToMessageData)
 | Succeed  => "Succeed"
 | Delete ue => m!"Delete {ue}"
 | OracleSucc ue => m!"OracleSucc {ue}"

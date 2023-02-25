@@ -199,7 +199,7 @@ partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
   else 
     return {lhs := lhs', lflex := lflex', rhs := rhs', rflex := rflex'}
 
-def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := withoutModifyingMCtx <| do
+def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := do
   setMCtx p.mctx
   let mut p := p
   if ¬ p.prioritized.isEmpty then
@@ -317,11 +317,10 @@ inductive UnifRuleResult
 | NewLazyList : LazyList (MetaM (Array UnifProblem)) → UnifRuleResult
 | Succeed : UnifRuleResult
 
--- Rules are run inside `applyRules` without `withoutModifyingMCtx`,
---   so `applyRules` should be run with `withoutModifyingMCtx`
--- Note that we don't need to make sure the mctx is right before we
---   run the rules, because all rules set the mctx of `p` as the current
---   `mctx` upon entry.
+
+-- All rules set the `mctx` as the `mctx` of problem `p` upon entry, and
+--   might modify the `mctx`. So, `applyRules` should be run with
+--   `withoutModifyingMCtx`
 -- The argument "print" is for debugging. Only problems whose parentClause
 --   contains "print" will be printed
 def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
@@ -370,6 +369,9 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
     -- Instantiation oracle: One of `lhs` or `rhs` is a metavariable
     if let some up ← oracleInst p' eq then
       return .NewArray #[up]
+    -- OccursCheck oracle: One of `lhs` or `rhs` is a metavariable
+    if (← oracleOccurs p' eq) then
+      return .NewArray #[]
     -- Following: Bind
     -- Left flex, Right rigid
     if eq.lflex ∧ ¬ eq.rflex then

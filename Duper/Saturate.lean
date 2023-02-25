@@ -1,7 +1,6 @@
 import Std.Data.BinomialHeap
 import Duper.ProverM
 import Duper.ClauseStreamHeap
-import Duper.Util.Iterate
 import Duper.RuleM
 import Duper.MClause
 import Duper.Simp

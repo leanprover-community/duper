@@ -152,7 +152,6 @@ opaque ww : Nat → Nat := id
 opaque w : Nat
 
 -- Elimination
-
 def elm₁ (p : Nat → Prop) 
          (a b : Nat) (h : ∀ (f : Nat → Nat → Nat), p (f a b))
          (g : ∀ (ay : Nat), p ay → False)
@@ -168,7 +167,7 @@ def idt₁ (p : Nat → Prop) (x : Nat)
          (done : Prop)
          (hq : ∀ w, p w ∧ p w → done) : done := by
   dapply hq attempt 10 unifier 0 contains 0
-  case a => dapply hp attempt 40000 unifier 700 contains 0; exact www
+  case a => dapply hp attempt 10000 unifier 700 contains 0; exact www
 
 #print idt₁.proof_1
 

@@ -1,5 +1,6 @@
 import Lean
 import Duper.DUnif.UnifProblem
+import Duper.Util.OccursCheck
 
 open Lean
 namespace Duper
@@ -10,16 +11,15 @@ register_option oracleInstOn : Bool := {
            "instantiate a side of the equation if it's a metavariable"
 }
 
-def getOracleInstOn (opts : Options) : Bool :=
-  oracleInstOn.get opts
+def getOracleInstOn : CoreM Bool := do
+  let opts ← getOptions
+  return oracleInstOn.get opts
 
 def oracleInst (p : UnifProblem) (eq : UnifEq) : MetaM (Option UnifProblem) := do
   setMCtx p.mctx
-  let opts ← getOptions
   let mut mvarId : MVarId := Inhabited.default
-  if ¬ getOracleInstOn opts then
+  if ¬ (← getOracleInstOn) then
     return none
-  setMCtx p.mctx
   let mut eq := eq
   if let .mvar id := eq.rhs.eta then
     eq := eq.swapSide
@@ -29,9 +29,35 @@ def oracleInst (p : UnifProblem) (eq : UnifEq) : MetaM (Option UnifProblem) := d
       mvarId := id
     else
       return none
-  let (_, s) := Lean.Meta.AbstractMVars.abstractExprMVars eq.rhs { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
-  if s.emap.contains mvarId then
-    return none
-  else
+  -- We do not use Lean's occurs check here, because the occurs check
+  --   does not consider metavariables in the type of metavariables
+  if (← mustNotOccursCheck mvarId eq.rhs) then
     mvarId.assign eq.rhs
     return some {p.pushParentRule (.OracleInst eq) with checked := false, mctx := ← getMCtx}
+  else
+    return none
+
+register_option oracleOccursOn : Bool := {
+  defValue := true
+  descr := "Whether to use the occurs check oracle, which is the generalization" ++
+           " of first-order occurs check to dependent type theory. It only checks metavariables" ++
+           " which will always be in the term even after β-reduction and further metavariable instantiations."
+}
+
+def getOracleOccursOn : CoreM Bool := do
+  let opts ← getOptions
+  return oracleOccursOn.get opts
+
+-- true  : fail
+-- false : not fail
+def oracleOccurs (p : UnifProblem) (eq : UnifEq) : MetaM Bool := do
+  setMCtx p.mctx
+  if ¬ (← getOracleOccursOn) then
+    return false
+  if let .mvar id := eq.rhs.eta then
+    mustOccursCheck id eq.lhs
+  else
+    if let .mvar id := eq.lhs.eta then
+      mustOccursCheck id eq.rhs
+    else
+      return false

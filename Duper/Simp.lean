@@ -1,7 +1,6 @@
 import Duper.ProverM
 import Duper.RuleM
 import Duper.MClause
-import Duper.Util.Iterate
 
 namespace Duper
 open RuleM

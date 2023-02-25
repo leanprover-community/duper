@@ -50,6 +50,12 @@ opaque w : Nat
 set_option trace.DUnif.debug true in
 def tri₁ : 1 = 1 := by drefl attempt 3 unifier 0 contains 0
 
+def tri₂ (done : Prop)
+         (gene : ∀ r (b : Nat → Nat), r = b r → done) : done := by
+  apply gene;
+  case a => drefl attempt 500 unifier 0 contains 0 iteron; exact 1
+#print tri₂.proof_1
+
 -- Iteration
 set_option trace.DUnif.debug true in
 set_option oracleInstOn false in
@@ -154,11 +160,11 @@ def dep₁ (done : Prop)
     x
 
 set_option maxHeartbeats 400000
-set_option oracleInstOn false in
+set_option oracleInstOn false
 def dep₂ (done : Prop)
          (h : ∀ x, x = Nat.add1 → done) : done := by
   apply h
-  case a => drefl attempt 160000 unifier 0 contains 0
+  case a => drefl attempt 120000 unifier 0 contains 0
 
 #print dep₂.proof_1
 
@@ -169,8 +175,22 @@ end Dependent
 
 @[reducible] def letdef₁ := let x := 2; x + x
 
-def letrefl₁ (done : Prop)
-               (lr : ∀ u, u = letdef₁ → done)
-               : done := by
+def letrefl₁  (done : Prop)
+              (lr : ∀ u, u = letdef₁ → done)
+              : done := by
   apply lr
   drefl attempt 60 unifier 0 contains 0
+
+
+-- Negative tests
+set_option trace.DUnif.debug true in
+def neg₁ (done : Prop) (f : Nat → Nat)
+         (h : ∀ x, x = f x → done) : done := by
+  apply h
+  case a => drefl attempt 10 unifier 0 contains 0
+
+set_option trace.DUnif.debug true in
+def neg₂ (done : Prop) (f : Nat → Nat) (g : Nat → Nat →  Nat)
+         (h : ∀ x y, g x y = g y (f x) → done) : done := by
+  apply h
+  case a => drefl attempt 10 unifier 0 contains 0
