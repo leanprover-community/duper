@@ -15,11 +15,9 @@ namespace Duper
 open ProverM
 open RuleM
 
-def kUnifRetry := 10
 def kFair := 70
-def kBest := 7
--- Since `kUnifRetry` has been  `10`, `kRetry` don't need to be too large
-def kRetry := 2
+def kBest := 3
+def kRetry := 40
 
 register_option forceProbeRetry : Nat := {
   defValue := 500
@@ -52,7 +50,7 @@ def ClauseStream.takeAsProverM (cs : ClauseStream)
   -- No more unification problem left
   if cs.ug.isEmpty then
     return none
-  let (opu, ug') ← ProverM.runMetaAsProverM (cs.ug.takeWithRetry kUnifRetry)
+  let (opu, ug') ← ProverM.runMetaAsProverM (cs.ug.takeWithRetry kRetry)
   if let some u := opu then
     let symbolPrecMap ← getSymbolPrecMap
     let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
@@ -104,22 +102,14 @@ def ClauseStreamHeap.heuristicProbe {σ} [OptionMStream ProverM σ ClauseProof]
   let mut Q := Q
   let mut collectedClauses := #[]
   while i < kBest ∧ ¬ Q.isEmpty do
-    let mut j := 0
-    let mut maybeClause := none
-    while j < kRetry ∧ ¬ Q.isEmpty do
-      -- Delete min from weight heap
-      let res := Q.deleteMinWithNProbed 0
-      if let some ((nProbed, precs, stream), Q') := res then
-        let (mc, Q') ← ClauseStreamHeap.extractClause Q' nProbed precs stream
-        if let some mc := mc then
-          maybeClause := some mc
-          Q := Q'
-          break
-        else
-          Q := Q'
-      j := j + 1
-    if let some mc := maybeClause then
-      collectedClauses := collectedClauses.push mc
+    let res := Q.deleteMinWithNProbed 0
+    if let some ((nProbed, precs, stream), Q') := res then
+      let (mc, Q') ← ClauseStreamHeap.extractClause Q' nProbed precs stream
+      if let some mc := mc then
+        collectedClauses := collectedClauses.push mc
+        Q := Q'
+      else
+        Q := Q'
     i := i + 1
   return (collectedClauses, Q)
 

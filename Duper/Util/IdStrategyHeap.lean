@@ -34,11 +34,11 @@ def IdStrategyHeap.size (oh : IdStrategyHeap σ (β:=β)) := oh.map.size
 def IdStrategyHeap.contains (oh : IdStrategyHeap σ (β:=β)) (id : Nat) := oh.map.contains id
 
 -- We can only erase `id` from the stream
-def IdStrategyHeap.erase (oh : IdStrategyHeap σ (β:=β)) (id : Nat) : IdStrategyHeap σ (β:=β) :=
+private def IdStrategyHeap.erase (oh : IdStrategyHeap σ (β:=β)) (id : Nat) : IdStrategyHeap σ (β:=β) :=
   {oh with map := oh.map.erase id}
 
 -- Delete the minimal element from heap `n`
-partial def IdStrategyHeap.deleteMinFrom
+private partial def IdStrategyHeap.deleteMinFrom
   (oh : IdStrategyHeap σ (β:=β)) (n : Nat) : Option ((Array Nat × σ) × IdStrategyHeap σ (β:=β)) :=
   let heap := oh.heaps[n]?
   match heap with
@@ -56,7 +56,7 @@ partial def IdStrategyHeap.deleteMinFrom
   | none =>
     panic!"IdStrategyHeap.deleteMinFrom :: The id of selected heap >= number of heaps"
 
-def IdStrategyHeap.insert
+private def IdStrategyHeap.insert
   (oh : IdStrategyHeap σ (β:=β)) (x : σ) (ns : Array Nat) : IdStrategyHeap σ (β:=β) :=
   let nextId := oh.nextId
   let map' := oh.map.insert nextId (ns, x)
@@ -92,14 +92,14 @@ def ClauseStreamHeapStatus.eraseNProbed (cshs : ClauseStreamHeapStatus)
 -- `σ` is the type of the clause stream
 abbrev ClauseStreamHeap σ := IdStrategyHeap σ (β:=ClauseStreamHeapStatus)
 
-def ClauseStreamHeap.increaseFairnessCounter (Q : ClauseStreamHeap σ) :=
+@[inline] def ClauseStreamHeap.increaseFairnessCounter (Q : ClauseStreamHeap σ) :=
   { Q with status := {Q.status with fairnessCounter := Q.status.fairnessCounter + 1}}
 
 abbrev ClauseStreamHeap.empty σ : ClauseStreamHeap σ :=
   { map := HashMap.empty, heaps := #[BinomialHeap.empty, BinomialHeap.empty],
     nextId := 0, status := ⟨HashMap.empty, 0⟩ }
 
-def ClauseStreamHeap.insertWithNProbed
+@[inline] def ClauseStreamHeap.insertWithNProbed
   (csh : ClauseStreamHeap σ) (x : σ) (ns : Array Nat) (nProbed : Nat) : ClauseStreamHeap σ :=
   let nextId := csh.nextId
   let map' := csh.map.insert nextId (ns, x)
@@ -112,25 +112,24 @@ def ClauseStreamHeap.insertWithNProbed
     {csh with map := map', heaps := heaps', nextId := nextId + 1,
               status := csh.status.insertNProbed nextId nProbed}
 
-def ClauseStreamHeap.eraseWithNProbed (csh : ClauseStreamHeap σ) (id : Nat) :=
+@[inline] def ClauseStreamHeap.eraseWithNProbed (csh : ClauseStreamHeap σ) (id : Nat) :=
   {csh with map := csh.map.erase id, status := csh.status.eraseNProbed id}
 
 -- Delete the minimal element from heap `n`, with "nProbed"
-partial def ClauseStreamHeap.deleteMinWithNProbed
-  (oh : ClauseStreamHeap σ) (n : Nat) : Option ((Nat × Array Nat × σ) × ClauseStreamHeap σ) :=
-  let heap := oh.heaps[n]?
-  match heap with
-  | some heap =>
-    let res := heap.deleteMin
-    match res with
-    | some (σ', heap') =>
-      let Q' := {oh with heaps := oh.heaps.set! n heap'}
-      let id := σ'.2
-      if let some res := oh.map.find? id then
-        let nProbed := oh.status.nProbed.find! id
-        some ((nProbed, res), ClauseStreamHeap.eraseWithNProbed Q' id)
-      else
-        ClauseStreamHeap.deleteMinWithNProbed Q' n
-    | none => none
-  | none =>
+@[inline] partial def ClauseStreamHeap.deleteMinWithNProbed
+  (oh : ClauseStreamHeap σ) (n : Nat) : Option ((Nat × Array Nat × σ) × ClauseStreamHeap σ) := Id.run <| do
+  if let some heap := oh.heaps[n]? then
+    let mut heap := heap
+    while true do
+      if let some (σ', heap') := heap.deleteMin then
+        heap := heap'
+        let id := σ'.2
+        if let some res := oh.map.find? id then
+          let nProbed := oh.status.nProbed.find! id
+          let Q' := {oh with heaps := oh.heaps.set! n heap'}
+          return some ((nProbed, res), ClauseStreamHeap.eraseWithNProbed Q' id)
+        else
+          break
+    return none
+  else
     panic!"ClauseStreamHeap.deleteMinWithNProbed :: The id of selected heap >= number of heaps"
