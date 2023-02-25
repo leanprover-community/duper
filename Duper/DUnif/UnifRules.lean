@@ -240,7 +240,7 @@ def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array Unif
   let p := p.appendPrioritized neweqs.reverse
   return #[{p.pushParentRule (.ForallToLambda eq n) with checked := false, mctx := ← getMCtx}]
 
--- This function takes care of `Delete`, `Fail` and `Decompose`
+-- This function takes care of `Fail` and `Decompose`, and `Delete` of constant pair with level mvars
 -- Assumming both sides of `eq` are rigid, or both sides of `eq` are flex
 -- If the head is unequal and number of arguments are equal, return `none`
 -- If the head is equal and number of arguments are equal, return `none`
@@ -346,7 +346,8 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
     if eq.rflex != rhtype.isFlex then
       trace[DUnif.debug] m!"applyRule :: Flex-rigid-cache mismatch in rhs of {eq}"
       return .NewArray #[]
-    -- Delete
+    -- Delete, except for term pairs containing constants with
+    --   unifiable but unequal level mvars
     if eq.lhs == eq.rhs then
       let p' := p'.pushParentRule (.Delete eq)
       return .NewArray #[p']
