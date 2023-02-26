@@ -7,6 +7,17 @@ namespace Duper
 initialize Lean.registerTraceClass `DUnif.debug
 initialize Lean.registerTraceClass `DUnif.result
 
+register_option dUnifDbgOn : Bool := {
+  defValue := false
+  -- This might be important because the debugging facilities
+  --   may slow down the unification procedure
+  descr := "Whether to turn on debugging functionalities in dependently typed unification"
+}
+
+@[inline] def getDUnifDbgOn : CoreM Bool := do
+  let opts ← getOptions
+  return dUnifDbgOn.get opts
+
 -- Always avoid left-rigid right-flex
 structure UnifEq where
   lhs : Expr
@@ -137,28 +148,6 @@ def UnifProblem.format : UnifProblem → MessageData :=
 
 instance : ToMessageData UnifProblem := ⟨UnifProblem.format⟩
 
-def UnifProblem.fromExprPairs (l : Array (Expr × Expr)) : MetaM (Option UnifProblem) := do
-  -- withoutModifyingMCtx
-  let mctx₀ ← getMCtx
-  let mut flexflex := #[]
-  let mut prioritized := #[]
-  for (e1, e2) in l do
-    let ty1 ← Meta.inferType e1
-    let sort1 ← Meta.inferType ty1
-    let ty2 ← Meta.inferType e2
-    let sort2 ← Meta.inferType ty2
-    if ¬ (← Meta.isExprDefEq sort1 sort2) then
-      return none
-    else
-      let unifEq := UnifEq.fromExprPair e1 e2
-      flexflex := flexflex.push unifEq
-      let unifTyEq := UnifEq.fromExprPair ty1 ty2
-      prioritized := prioritized.push unifTyEq
-  let s ← getMCtx
-  setMCtx mctx₀
-  return some {mctx := s, prioritized := prioritized, flexflex := flexflex, checked := false,
-               parentRules := #[.FromExprPairs l].toPArray', parentClauses := .empty}
-
 def UnifProblem.pushPrioritized (p : UnifProblem) (e : UnifEq) :=
   {p with prioritized := p.prioritized.push e}
 
@@ -190,15 +179,60 @@ def UnifProblem.pushChecked (p : UnifProblem) (e : UnifEq) (isprio : Bool) :=
   else
     {p with flexflex := p.flexflex.push e}
 
-def UnifProblem.pushParentRule (p : UnifProblem) (pr : ParentRule) :=
+@[inline] def UnifProblem.pushParentRule (p : UnifProblem) (pr : ParentRule) :=
   {p with parentRules := p.parentRules.push pr}
 
-def UnifProblem.dropParentRulesButLast (p : UnifProblem) (n : Nat) :=
+@[inline] def UnifProblem.pushParentRuleIfDbgOn (p : UnifProblem) (pr : ParentRule) : CoreM UnifProblem := do
+  if (← getDUnifDbgOn) then
+    return p.pushParentRule pr
+  else
+    return p
+
+@[inline] def UnifProblem.dropParentRulesButLast (p : UnifProblem) (n : Nat) :=
   let len := p.parentRules.size
   {p with parentRules := (p.parentRules.toArray.extract (len - n) len).toPArray'}
 
-def UnifProblem.pushParentClause (p : UnifProblem) (c : Nat) :=
+@[inline] def UnifProblem.pushParentClause (p : UnifProblem) (c : Nat) :=
   {p with parentClauses := p.parentClauses.push c}
+
+@[inline] def UnifProblem.pushParentClauseIfDbgOn (p : UnifProblem) (c : Nat) : CoreM UnifProblem := do
+  if (← getDUnifDbgOn) then
+    return p.pushParentClause c
+  else
+    return p
+
+@[inline] def UnifProblem.appendTrackedExpr (p : UnifProblem) (tr : Array Expr) : UnifProblem :=
+  {p with trackedExpr := p.trackedExpr.append tr}
+
+@[inline] def UnifProblem.pushTrackedExprIfDbgOn (p : UnifProblem) (tr : Array Expr) : CoreM UnifProblem := do
+  if (← getDUnifDbgOn) then
+    return p.appendTrackedExpr tr
+  else
+    return p
+
+def UnifProblem.fromExprPairs (l : Array (Expr × Expr)) : MetaM (Option UnifProblem) := do
+  -- withoutModifyingMCtx
+  let mctx₀ ← getMCtx
+  let mut flexflex := #[]
+  let mut prioritized := #[]
+  for (e1, e2) in l do
+    let ty1 ← Meta.inferType e1
+    let sort1 ← Meta.inferType ty1
+    let ty2 ← Meta.inferType e2
+    let sort2 ← Meta.inferType ty2
+    if ¬ (← Meta.isExprDefEq sort1 sort2) then
+      return none
+    else
+      let unifEq := UnifEq.fromExprPair e1 e2
+      flexflex := flexflex.push unifEq
+      let unifTyEq := UnifEq.fromExprPair ty1 ty2
+      prioritized := prioritized.push unifTyEq
+  let s ← getMCtx
+  setMCtx mctx₀
+  let p : UnifProblem :=
+    {mctx := s, prioritized := prioritized, flexflex := flexflex, checked := false,
+      parentRules := .empty, parentClauses := .empty}
+  return some (← p.pushParentRuleIfDbgOn (.FromExprPairs l))
 
 -- The selection function                         -- prioritized : Bool
 def UnifProblem.pop? (p : UnifProblem) : Option (UnifEq × UnifProblem) := Id.run <| do

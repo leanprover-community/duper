@@ -96,6 +96,8 @@ def evaldapply : Elab.Tactic.Tactic := fun stx =>
 -- whnf test
 def wh₁ : Nat := 3
 
+set_option dUnifDbgOn true
+
 set_option trace.Meta.Tactic true in
 def wh₀ (f : Nat → Prop) (h : ∀ x, f x) : f wh₁ :=
   by dapply h attempt 5 unifier 0 contains 0

@@ -69,7 +69,7 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
         let mH ← Meta.mkFreshExprMVar Hty
         let mt ← Meta.mkLambdaFVars xs (mkApp mH lastExpr)
         MVarId.assign F.mvarId! mt
-        return #[{p.pushParentRule (.Iteration eq F (argnp1 - 1) i mt)
+        return #[{(← p.pushParentRuleIfDbgOn (.Iteration eq F (argnp1 - 1) i mt))
                    with checked := false, mctx := ← getMCtx}]
       )
       -- Get rid of metavariables in `xys`
@@ -97,7 +97,7 @@ def jpProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifP
         p := p.pushPrioritized (.fromExprPair βabst αabst)
       let t ← Meta.mkLambdaFVars xs xi
       MVarId.assign F.mvarId! t
-      ret := ret.push {p.pushParentRule (.JPProjection eq F (argnp1 - 1) t)
+      ret := ret.push {(← p.pushParentRuleIfDbgOn (.JPProjection eq F (argnp1 - 1) t))
                         with checked := false, mctx := ← getMCtx}
       setMCtx s₀
     return ret)
@@ -125,7 +125,7 @@ def huetProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array Uni
         -- Apply the binding to `F`
         let mF ← Meta.mkLambdaFVars xs (mkAppN xi ys)
         MVarId.assign F.mvarId! mF
-        return #[{p.pushParentRule (.HuetProjection eq F (argnp1 - 1) mF)
+        return #[{(← p.pushParentRuleIfDbgOn (.HuetProjection eq F (argnp1 - 1) mF))
                   with checked := false, mctx := ← getMCtx}]
       ret := ret.append newProblem
     return ret)
@@ -143,7 +143,7 @@ def imitForall (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifPro
       Meta.mkForallFVars #[fv] newMVar
     let mt ← Meta.mkLambdaFVars xs newt
     MVarId.assign F.mvarId! mt
-    return #[{p.pushParentRule (.ImitForall eq F mt) with checked := false, mctx := ← getMCtx}]
+    return #[{(← p.pushParentRuleIfDbgOn (.ImitForall eq F mt)) with checked := false, mctx := ← getMCtx}]
 
 -- `F` is a metavariable
 def imitProj (F : Expr) (nLam : Nat) (iTy : Expr) (oTy : Expr) (name : Name) (idx : Nat) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
@@ -163,7 +163,7 @@ def imitProj (F : Expr) (nLam : Nat) (iTy : Expr) (oTy : Expr) (name : Name) (id
     let projTerm := Expr.proj name idx innerMVar
     let mt ← Meta.mkLambdaFVars xs (mkAppN projTerm (ys.extract nLam ys.size))
     MVarId.assign F.mvarId! mt
-    return #[{p.pushParentRule (.ImitProj eq F idx mt) with checked := false, mctx := ← getMCtx}]
+    return #[{(← p.pushParentRuleIfDbgOn (.ImitProj eq F idx mt)) with checked := false, mctx := ← getMCtx}]
 
 -- `F` is a metavariable, and `g` is a constant
 def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
@@ -181,7 +181,7 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Arr
     -- Apply the binding to `F`
     let mt ← Meta.mkLambdaFVars xs (mkAppN g ys)
     MVarId.assign F.mvarId! mt
-    return #[{p.pushParentRule (.Imitation eq F g mt) with checked := false, mctx := ← getMCtx}]
+    return #[{(← p.pushParentRuleIfDbgOn (.Imitation eq F g mt)) with checked := false, mctx := ← getMCtx}]
 
 -- Both `F` and `G` are metavariables
 -- Proposal
@@ -245,7 +245,7 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM
   -- Assign metavariables
   MVarId.assign F.mvarId! mtF
   MVarId.assign G.mvarId! mtG
-  return #[{p.pushParentRule (.Identification eq F G mtF mtG)
+  return #[{(← p.pushParentRuleIfDbgOn (.Identification eq F G mtF mtG))
             with checked := false, mctx := ← getMCtx, identVar := p.identVar.insert mH}]
 
 def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
@@ -281,7 +281,7 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
         MVarId.modifyLCtx newMVar.mvarId! lctx₀
         let mt ← Meta.mkLambdaFVars xs (mkAppN newMVar vars)
         MVarId.assign F.mvarId! mt
-        return {p.pushParentRule (.Elimination eq F isub mt)
+        return {(← p.pushParentRuleIfDbgOn (.Elimination eq F isub mt))
                  with checked := false, mctx := ← getMCtx, elimVar := p.elimVar.insert newMVar})
       return #[res]
     return indsubseqs.map nats2binding

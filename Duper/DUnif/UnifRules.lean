@@ -238,7 +238,7 @@ def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array Unif
   let neweqs := (larray.zip rarray).map (fun (a, b) => UnifEq.fromExprPair a b)
   -- Later types depend on previous, so we push in reverse order
   let p := p.appendPrioritized neweqs.reverse
-  return #[{p.pushParentRule (.ForallToLambda eq n) with checked := false, mctx := ← getMCtx}]
+  return #[{(← p.pushParentRuleIfDbgOn (.ForallToLambda eq n)) with checked := false, mctx := ← getMCtx}]
 
 -- This function takes care of `Fail` and `Decompose`, and `Delete` of constant pair with level mvars
 -- Assumming both sides of `eq` are rigid, or both sides of `eq` are flex
@@ -305,7 +305,7 @@ def failDecompose (is_prio : Bool) (p : UnifProblem) (eq : UnifEq) : MetaM (Arra
     -- Later args may depend on previous args, so we push in
     --   the reverse order.
     let neweqs := (argsl.zip argsr).reverse.map (fun (a, b) => UnifEq.fromExprPair a b)
-    p := (p.appendUnchecked neweqs is_prio).pushParentRule (.Decompose eq)
+    p ← (p.appendUnchecked neweqs is_prio).pushParentRuleIfDbgOn (.Decompose eq)
     -- Does not assign ExprMVars, so no need to set `Checked = False`
     return #[{p with mctx := ← getMCtx}]
 
@@ -330,7 +330,8 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
   -- debug
   -- To make messages print, we set `mctx` to that of `p`'s
   setMCtx p.mctx
-  if p.parentClauses.toList.contains config.contains then
+  -- If `dUnifDbg` is off, then we can't check `contains` because we don't push parent clause
+  if ¬ (← getDUnifDbgOn) ∨ p.parentClauses.toList.contains config.contains then
     trace[DUnif.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
   let is_prio : Bool := ¬ p.prioritized.isEmpty
   if let some (eq, p') := p.pop? then
@@ -349,7 +350,7 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
     -- Delete, except for term pairs containing constants with
     --   unifiable but unequal level mvars
     if eq.lhs == eq.rhs then
-      let p' := p'.pushParentRule (.Delete eq)
+      let p' ← p'.pushParentRuleIfDbgOn (.Delete eq)
       return .NewArray #[p']
     -- If both sides have `forall`, then turn `forall` into `lambda`
     let (ll, lf) := lhtype.getLambdaForall
@@ -452,7 +453,7 @@ def UnifierGenerator.fromExprPairs (l : Array (Expr × Expr)) (cfg : Config := �
   let q := Std.Queue.empty
   let unifPrb ← UnifProblem.fromExprPairs l
   if let some prb := unifPrb then
-    let prb := {prb.pushParentClause 0 with trackedExpr := l.concatMap (fun (e1, e2) => #[e1, e2])}
+    let prb ← (← prb.pushParentClauseIfDbgOn 0).pushTrackedExprIfDbgOn (l.concatMap (fun (e1, e2) => #[e1, e2]))
     return ⟨q.enqueue (.Problem prb), 1, cfg⟩
   else
     return ⟨q, 0, cfg⟩
@@ -463,7 +464,7 @@ def UnifierGenerator.fromExprPairs (l : Array (Expr × Expr)) (cfg : Config := �
 def UnifierGenerator.acceptExprPairs (l : Array (Expr × Expr)) (ug : UnifierGenerator) : MetaM UnifierGenerator := do
   let unifPrb ← UnifProblem.fromExprPairs l
   if let some prb := unifPrb then
-    let prb := {prb.pushParentClause 0 with trackedExpr := l.concatMap (fun (e1, e2) => #[e1, e2])}
+    let prb ← (← prb.pushParentClauseIfDbgOn 0).pushTrackedExprIfDbgOn (l.concatMap (fun (e1, e2) => #[e1, e2]))
     return {ug with q := ug.q.enqueue (.Problem prb)}
   else
     return ug
@@ -489,7 +490,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) :
       let mut q' := q'
       let mut cnt := 0
       for a in arr do
-        q' := q'.enqueue (.Problem (a.pushParentClause (ug.N + cnt)))
+        q' := q'.enqueue (.Problem (← a.pushParentClauseIfDbgOn (ug.N + cnt)))
         cnt := cnt + 1
       return (none, ⟨q', ug.N + arr.size, ug.cfg⟩)
     -- ls : LazyList (MetaM (Array UnifProblem))
@@ -504,7 +505,7 @@ def UnifierGenerator.take (ug : UnifierGenerator) :
       let arr ← withoutModifyingMCtx arr
       let mut cnt := 0
       for a in arr do
-        q' := q'.enqueue (.Problem (a.pushParentClause (ug.N + cnt)))
+        q' := q'.enqueue (.Problem (← a.pushParentClauseIfDbgOn (ug.N + cnt)))
         cnt := cnt + 1
       return (none, ⟨q', ug.N + arr.size, ug.cfg⟩)
     | .nil => pure (none, ⟨q', ug.N, ug.cfg⟩)
@@ -542,7 +543,9 @@ def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) (ncont : Nat) (iterOn :
     let (up, ug') ← ug.take
     ug := ug'
     if let some up := up then
-      if ¬ up.parentClauses.toList.contains ncont then
+      -- if `dUnifDbg` is off, then we do not push
+      -- parent clause, and we can't check `contains`
+      if (← getDUnifDbgOn) ∧ ¬ up.parentClauses.toList.contains ncont then
         continue
       let mctx := up.mctx
       if cnt == nUnif then

@@ -33,7 +33,7 @@ def oracleInst (p : UnifProblem) (eq : UnifEq) : MetaM (Option UnifProblem) := d
   --   does not consider metavariables in the type of metavariables
   if (← mustNotOccursCheck mvarId eq.rhs) then
     mvarId.assign eq.rhs
-    return some {p.pushParentRule (.OracleInst eq) with checked := false, mctx := ← getMCtx}
+    return some {(← p.pushParentRuleIfDbgOn (.OracleInst eq)) with checked := false, mctx := ← getMCtx}
   else
     return none
 

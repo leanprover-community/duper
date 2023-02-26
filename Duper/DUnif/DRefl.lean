@@ -76,6 +76,8 @@ def iter₂ (done : Prop) (a : Nat)
 #print iter₂.proof_1
 
 
+set_option dUnifDbgOn true
+
 -- ChurchNumeral
 namespace ChNum
 
@@ -159,8 +161,9 @@ def dep₁ (done : Prop)
         f)
     x
 
-set_option maxHeartbeats 400000
-set_option oracleInstOn false
+set_option maxHeartbeats 400000 in
+set_option oracleInstOn false in
+set_option dUnifDbgOn false in
 def dep₂ (done : Prop)
          (h : ∀ x, x = Nat.add1 → done) : done := by
   apply h

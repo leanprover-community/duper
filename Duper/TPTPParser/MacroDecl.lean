@@ -218,6 +218,9 @@ partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topTyp
       | Name.str _ "=>" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
       | Name.str _ "|" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
       | Name.str _ "<=>" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | Name.str _ "<~>" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | Name.str _ "~|" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
+      | Name.str _ "~&" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
       | _ => Macro.throwError s!"Unsupported bexpOp: {conn.raw[0].getKind}"
   | `(thf_term| $t1:thf_term $conn:eqOp $t2:thf_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
