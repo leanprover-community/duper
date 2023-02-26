@@ -5,10 +5,10 @@ import Duper.Tactic
 
 BEGIN_TPTP PUZ012_1'
 tff(box_type,type,
-    box: $tType ).
+    box: 🍉tType ).
 
 tff(fruit_type,type,
-    fruit: $tType ).
+    fruit: 🍉tType ).
 
 tff(boxa_type,type,
     boxa: box ).
@@ -29,16 +29,16 @@ tff(oranges_type,type,
     oranges: fruit ).
 
 tff(equal_fruits_type,type,
-    equal_fruits: ( fruit * fruit ) > $o ).
+    equal_fruits: ( fruit * fruit ) > 🍉o ).
 
 tff(equal_boxes_type,type,
-    equal_boxes: ( box * box ) > $o ).
+    equal_boxes: ( box * box ) > 🍉o ).
 
 tff(contains_type,type,
-    contains: ( box * fruit ) > $o ).
+    contains: ( box * fruit ) > 🍉o ).
 
 tff(label_type,type,
-    label: ( box * fruit ) > $o ).
+    label: ( box * fruit ) > 🍉o ).
 
 tff(reflexivity_for_fruits,axiom,
     ! [X: fruit] : equal_fruits(X,X) ).

@@ -14,17 +14,26 @@ declare_syntax_cat thf_term
 declare_syntax_cat thf_atomic_type
 
 syntax thf_arguments := "(" thf_term,* ")"
-syntax rawIdent thf_arguments ? : thf_term
+syntax:120 rawIdent thf_arguments ? : thf_term
 syntax:max "(" thf_term ")" : thf_term
 
 -- Higher-order Application
 syntax defined_term := "🍉" noWs ident
 syntax:max defined_term : thf_term
 syntax:80 thf_term:80 "@" thf_term:81 : thf_term
-syntax bexpOp := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<="
-syntax:60 thf_term:60 bexpOp thf_term:60 : thf_term
+syntax bexpOp := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<=" <|> "<~>" <|> "~|" <|> "~&"
+syntax:60 thf_term:60 bexpOp thf_term:61 : thf_term
+
+-- <infix_equality>       ::= =
+-- <infix_inequality>     ::= !=
+-- <defined_infix_pred>   ::= <infix_equality>
+-- <thf_infix_unary>      ::= <thf_unitary_term> <infix_inequality>
+--                            <thf_unitary_term>
+-- <thf_defined_infix>    ::= <thf_unitary_term> <defined_infix_pred>
+--                            <thf_unitary_term>
+
 syntax eqOp := "=" <|> "!="
-syntax:65 thf_term:65 eqOp thf_term:65 : thf_term
+syntax:75 thf_term:90 eqOp thf_term:90 : thf_term
 syntax:70 "~" thf_term:70 : thf_term
 
 syntax annotation := "," rawIdent

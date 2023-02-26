@@ -437,3 +437,9 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
   have inhabited_wolf : Inhabited wolf := sorry
   duper
   -- If these instances are not provided, duper will fail
+
+tptp SEU123 "../TPTP-v8.0.0/Problems/SEU/SEU123+1.p"
+  by duper
+
+tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
+  by duper

@@ -10,6 +10,8 @@ namespace TPTP
 def explicitBinder : Parser := Term.explicitBinder false
 
 axiom iota : Type
+private axiom iotaInhabited : iota
+noncomputable instance : Inhabited iota := ⟨iotaInhabited⟩
 
 def processThfDefinedType (ty : Syntax) : MacroM Syntax := do
   match ty with
@@ -69,6 +71,7 @@ partial def processThfType (stx : Syntax) : MacroM Syntax := do
       fun v acc => do
         let (v, v_ty) ← match v with
         | `(thf_variable| $v:ident) =>
+          -- throw Error?
           pure (v, (← `(_) : Syntax))
         | `(thf_variable| $v:ident : $v_ty:thf_type) =>
           pure (v, ← processThfType v_ty)
@@ -79,29 +82,32 @@ partial def processThfType (stx : Syntax) : MacroM Syntax := do
       ty
   | _ => Macro.throwError s!"Unsupported thf_type: {stx}"
 
-partial def processThfTerm (stx : Syntax) : MacroM Syntax := do
+partial def processThfTerm (stx : Syntax) (is_untyped : Bool) : MacroM Syntax := do
   match stx with
   | `(thf_term| $d:defined_term) => processThfDefinedTerm d
-  | `(thf_term| ( $t:thf_term ) ) => processThfTerm t
+  | `(thf_term| ( $t:thf_term ) ) => processThfTerm t is_untyped
   | `(thf_term| ~ $t:thf_term ) =>
-    let t ← processThfTerm t
+    let t ← processThfTerm t is_untyped
     `(¬ $t)
   | `(thf_term| $t₁:thf_term @ $t₂:thf_term) => do
-    let t₁ ← processThfTerm t₁
-    let t₂ ← processThfTerm t₂
+    let t₁ ← processThfTerm t₁ is_untyped
+    let t₂ ← processThfTerm t₂ is_untyped
     `(($t₁ $t₂))
   | `(thf_term| $t₁:thf_term $conn:bexpOp $t₂:thf_term ) => do
-    let t₁ ← processThfTerm t₁
-    let t₂ ← processThfTerm t₂
+    let t₁ ← processThfTerm t₁ is_untyped
+    let t₂ ← processThfTerm t₂ is_untyped
     match conn.raw[0].getKind with
     | Name.str _ "&" => `($t₁ ∧ $t₂)
     | Name.str _ "=>" => `($t₁ → $t₂)
     | Name.str _ "|"=> `($t₁ ∨ $t₂)
     | Name.str _ "<=>" => `($t₁ ↔ $t₂)
+    | Name.str _ "<~>" => `(¬ ($t₁ ↔ $t₂))
+    | Name.str _ "~|" => `(¬ ($t₁ ∨ $t₂))
+    | Name.str _ "~&" => `(¬ ($t₁ ∧ $t₂))
     | _ => Macro.throwError s!"Unsupported bexpOp: {conn.raw[0].getKind}"
   | `(thf_term| $t₁:thf_term $conn:eqOp $t₂:thf_term ) => do
-    let t₁ ← processThfTerm t₁
-    let t₂ ← processThfTerm t₂
+    let t₁ ← processThfTerm t₁ is_untyped
+    let t₂ ← processThfTerm t₂ is_untyped
     match conn.raw[0].getKind with
     | Name.str _ "=" => `($t₁ = $t₂)
     | Name.str _ "!=" => `($t₁ ≠ $t₂)
@@ -110,19 +116,24 @@ partial def processThfTerm (stx : Syntax) : MacroM Syntax := do
     let ts : Array Syntax ← match args with
     | some args =>
       ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
-          fun arg => processThfTerm arg
+          fun arg => processThfTerm arg is_untyped
     | none => pure #[]
     let ts := mkNode ``many ts
     let ts := mkNode ``Term.app #[f, ts]
     `($ts)
   | `(thf_term| $q:quantifier [ $vs,* ] : $body) => do
-    let body ← processThfTerm body
+    let body ← processThfTerm body is_untyped
     let vs : Array Syntax := vs
     vs.foldrM
       fun v acc => do
         let (v, ty) ← match v with
-        | `(thf_variable| $v:ident) => 
-          pure (v, (← `(_) : Syntax))
+        | `(thf_variable| $v:ident) =>
+          if is_untyped then
+            let iotaTypeSyntax ← `(TPTP.iota)
+            pure (v, iotaTypeSyntax.raw)
+          else
+            -- throw Error?
+            pure (v, (← `(_) : Syntax))
         | `(thf_variable| $v:ident : $ty:thf_type) =>
           pure (v, ← processThfType ty)
         | _ => Macro.throwError s!"Unsupported thf_variable: {v}"
@@ -176,7 +187,7 @@ def getVars (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
 partial def processCnfTerm (stx : Syntax) : MacroM Syntax := do
   let vars ← getVars stx
   let iotaTypeSyntax ← `(TPTP.iota)
-  let unquantifiedRes ← processThfTerm stx
+  let unquantifiedRes ← processThfTerm stx true
   let quantifiedRes ← vars.foldlM
     (fun acc (var : TSyntax `ident) => `(∀ ($var : $iotaTypeSyntax), $acc)) unquantifiedRes
   return quantifiedRes
@@ -260,7 +271,7 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
   let hyps ← s.raw[0].getArgs.mapM fun input => do
     match input with
     | `(TPTP_input| tff($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
-      let term ← processThfTerm term
+      let term ← processThfTerm term false
       let name := (mkIdent $ name.getId.appendBefore "h")
       if role.getId == `conjecture then
         `(explicitBinder| ($name : ¬ $term))
@@ -270,7 +281,7 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
       let ty ← processThfType ty
       `(explicitBinder| ($name : $ty))
     | `(TPTP_input| thf($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
-      let term ← processThfTerm term
+      let term ← processThfTerm term false
       let name := (mkIdent $ name.getId.appendBefore "h")
       if role.getId == `conjecture then
         `(explicitBinder| ($name : ¬ $term))
@@ -288,7 +299,7 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
         `(explicitBinder| ($name : $term))
     | `(TPTP_input| fof($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
       -- Although tff differs from fof, I think that processThfTerm will do what we want for fof terms
-      let term ← processThfTerm term
+      let term ← processThfTerm term true
       let name := (mkIdent $ name.getId.appendBefore "h")
       if role.getId == `conjecture then
         `(explicitBinder| ($name : ¬ $term))
