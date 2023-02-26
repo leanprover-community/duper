@@ -17,8 +17,23 @@ def loadTptp (path : System.FilePath) : CommandElabM Syntax := do
   let lines ← IO.FS.lines path
   let lines := lines.filter fun l => ¬ l.startsWith "%"
   let s := String.join lines.toList
+  let s := s.replace "$" "🍉"
   trace[Meta.debug] "{s}"
   parseMyType s
+
+partial def resolveInclude (leadingPath : System.FilePath) : Syntax → CommandElabM Syntax
+|`(TPTP_file| $[$f]*) => do
+  let mut result := #[]
+  for stx in f do
+    match ← resolveInclude leadingPath stx with
+    |`(TPTP_file| $[$g]*) => result := result.append g
+    |`(TPTP_input| include( $ ).) => throwError "resolveInclude :: include is not resolved in {stx}"
+    | other => result := result.push other
+  `(TPTP_file| $[$result]*)
+|`(TPTP_input| include( $sqstr ).) => do
+  let path := leadingPath / (Lean.Syntax.getSingleQuotedStr sqstr)
+  loadTptp path
+| other => return other
 
 syntax (name := tptpKind) "tptp " ident strLit term : command
 
@@ -28,6 +43,9 @@ syntax (name := tptpKind) "tptp " ident strLit term : command
     match Syntax.isStrLit? file with
     | some file =>
         let fstx ← loadTptp file
-        elabCommand (← `(BEGIN_TPTP $name $fstx END_TPTP $proof))
+        let components := (⟨file⟩ : System.FilePath).components
+        let leadingPath := System.mkFilePath (components.take (components.length - 3))
+        let fstxResolved ← resolveInclude leadingPath fstx
+        elabCommand (← `(BEGIN_TPTP $name $fstxResolved END_TPTP $proof))
     | _ => throwError "Expected strLit: {file}"
   | _ => throwError "Failed to parse tptp command"

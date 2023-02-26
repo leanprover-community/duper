@@ -9,58 +9,63 @@ namespace TPTP
 
 declare_syntax_cat TPTP_file
 
-declare_syntax_cat tff_type
-declare_syntax_cat tff_term
-declare_syntax_cat tff_atomic_type
+declare_syntax_cat thf_type
+declare_syntax_cat thf_term
+declare_syntax_cat thf_atomic_type
 
-syntax tff_arguments := "(" tff_term,* ")"
-syntax rawIdent tff_arguments ? : tff_term
-syntax:max "(" tff_term ")" : tff_term
+syntax thf_arguments := "(" thf_term,* ")"
+syntax rawIdent thf_arguments ? : thf_term
+syntax:max "(" thf_term ")" : thf_term
 
-syntax prop_binary_connective := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<="
-syntax:60 tff_term:60 prop_binary_connective tff_term:60 : tff_term
-syntax non_prop_binary_connective := "=" <|> "!="
-syntax:65 tff_term:65 non_prop_binary_connective tff_term:65 : tff_term
-syntax:70 "~" tff_term:70 : tff_term
+-- Higher-order Application
+syntax defined_term := "🍉" noWs ident
+syntax:max defined_term : thf_term
+syntax:80 thf_term:80 "@" thf_term:81 : thf_term
+syntax bexpOp := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<="
+syntax:60 thf_term:60 bexpOp thf_term:60 : thf_term
+syntax eqOp := "=" <|> "!="
+syntax:65 thf_term:65 eqOp thf_term:65 : thf_term
+syntax:70 "~" thf_term:70 : thf_term
 
-syntax tff_annotation := "," rawIdent
+syntax annotation := "," rawIdent
 
-syntax defined_type := "$" noWs ident
-syntax defined_type : tff_atomic_type
-syntax rawIdent : tff_atomic_type
-syntax tff_atomic_type : tff_type
-syntax:max "(" tff_type ")" : tff_type
+syntax defined_type := "🍉" noWs ident
+syntax:max defined_type : thf_atomic_type
+syntax rawIdent : thf_atomic_type
+syntax thf_atomic_type : thf_type
+syntax:max "(" thf_type ")" : thf_type
 
-def tffXProdArgsParser := sepBy1 (categoryParser `tff_atomic_type 0) "*"
-syntax tff_xprod_args := tffXProdArgsParser
+def tffXProdArgsParser := sepBy1 (categoryParser `thf_atomic_type 0) "*"
+syntax thf_xprod_args := tffXProdArgsParser
 
---tff_mapping_type
+--thf_mapping_type
 /-
-  Note: In real TPTP syntax, the below line should be: tff_atomic_type > tff_atomic_type : tff_type.
-  However, this is infeasible because Lean's parser can't reliably identify tff_atomic_types due
+  Note: In real TPTP syntax, the below line should be: tff_atomic_type > tff_atomic_type : thf_type.
+  However, this is infeasible because Lean's parser can't reliably identify thf_atomic_types due
   to an issue with how Lean's built-in antiquotations and our defined_type category conflict with each
   other. So writing the below syntax is a workaround.
 -/
-syntax tff_type ">" tff_type : tff_type
-syntax "(" tff_xprod_args ")" ">" tff_atomic_type : tff_type
+syntax:120 thf_type:121 ">" thf_type:120 : thf_type
+syntax "(" thf_xprod_args ")" ">" thf_atomic_type : thf_type
 
---tff_type_arguments are needed because <type_functor>(<tff_type_arguments>) is a tff_atomic_type
-syntax tff_type_arguments := "(" tff_atomic_type,* ")"
-syntax rawIdent tff_type_arguments : tff_atomic_type
+--thf_type_arguments are needed because <type_functor>(<thf_type_arguments>) is a thf_atomic_type
+syntax thf_type_arguments := "(" thf_atomic_type,* ")"
+syntax rawIdent thf_type_arguments : thf_atomic_type
 
-syntax fof_quantifier := "!" <|> "?"
-syntax tff_variable := rawIdent (":" tff_atomic_type) ?
-syntax:70 fof_quantifier "[" tff_variable,* "]" ":" tff_term:70 : tff_term
+syntax quantifier := "!" <|> "?" <|> "^"
+syntax thf_variable := rawIdent (":" thf_type) ?
+syntax:70 quantifier "[" thf_variable,* "]" ":" thf_term:70 : thf_term
 
-syntax tf1_quantifier := "!>"
-syntax tf1_quantifier "[" tff_variable,* "]" ":" tff_type : tff_type --tf1_quantified_type
+syntax th1_quantifier := "!>"
+syntax th1_quantifier "[" thf_variable,* "]" ":" thf_type : thf_type --tf1_quantified_type
 
 declare_syntax_cat TPTP_input
-syntax "tff" "(" rawIdent "," rawIdent "," tff_term tff_annotation ? ")" "." : TPTP_input
-syntax "tff" "(" rawIdent "," &"type" "," rawIdent ":" tff_type tff_annotation ? ")" "." : TPTP_input
-
-syntax "cnf" "(" rawIdent "," rawIdent "," tff_term tff_annotation ? ")" "." : TPTP_input
-syntax "fof" "(" rawIdent "," rawIdent "," tff_term tff_annotation ? ")" "." : TPTP_input
+syntax "tff" "(" rawIdent "," rawIdent "," thf_term annotation ? ")" "." : TPTP_input
+syntax "tff" "(" rawIdent "," &"type" "," rawIdent ":" thf_type annotation ? ")" "." : TPTP_input
+syntax "thf" "(" rawIdent "," rawIdent "," thf_term annotation ? ")" "." : TPTP_input
+syntax "thf" "(" rawIdent "," &"type" "," rawIdent ":" thf_type annotation ? ")" "." : TPTP_input
+syntax "cnf" "(" rawIdent "," rawIdent "," thf_term annotation ? ")" "." : TPTP_input
+syntax "fof" "(" rawIdent "," rawIdent "," thf_term annotation ? ")" "." : TPTP_input
 syntax "include" "(" sqstr ")" "." : TPTP_input
 
 syntax TPTP_input * : TPTP_file

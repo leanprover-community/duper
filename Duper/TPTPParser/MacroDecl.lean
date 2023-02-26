@@ -11,116 +11,128 @@ def explicitBinder : Parser := Term.explicitBinder false
 
 axiom iota : Type
 
-def processTffDefinedType (ty : Syntax) : MacroM Syntax := do
-  if ty.isAntiquot then
-    match ty.getAntiquotTerm.getId with
-    | `i => return ← `(TPTP.iota)
-    | `o => return ← `(Prop)
-    | `tType => return ← `(Type)
-    | _ => Macro.throwError s!"Unsupported tff_defined_type: {ty}"
-  else Macro.throwError s!"{ty} is not a defined type"
+def processThfDefinedType (ty : Syntax) : MacroM Syntax := do
+  match ty with
+  | `(defined_type|🍉$id) =>
+    match id.getId with
+    | `i => `(TPTP.iota)
+    | `o => `(Prop)
+    | `tType => `(Type)
+    | _ => Macro.throwError s!"Unsupported thf_defined_type: {ty}"
+  | _ => Macro.throwError s!"{ty} is not a defined type"
 
-partial def processTffAtomicType (stx : Syntax) : MacroM Syntax := do
-  if stx.isAntiquot then processTffDefinedType stx
-  else
-    match stx with
-    | `(tff_type| $ty:tff_atomic_type) => processTffAtomicType ty
-    | `(tff_atomic_type| $ty:ident) => pure ty
-    | `(tff_atomic_type| $ty:defined_type) => processTffDefinedType ty
-    | `(tff_atomic_type| $f:ident $args:tff_type_arguments) => do
-      let ts ←
-        pure $ ← ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
-                  fun arg => processTffAtomicType arg
-      let ts := mkNode ``many ts
-      let ts := mkNode ``Term.app #[f, ts]
-      return ← `($ts)
-    | _ => Macro.throwError s!"Unsupported tff_atomic_type: {stx}"
+def processThfDefinedTerm (term : Syntax) : MacroM Syntax := do
+  match term with
+  | `(defined_term|🍉$id) =>
+    match id.getId with
+    | `true => `(True)
+    | `false => `(False)
+    | _ => Macro.throwError s!"Unsupported thf_defined_term: {term}"
+  | _ => Macro.throwError s!"{term} is not a defined term" 
 
-partial def processTffTerm (stx : Syntax) : MacroM Syntax := do
+partial def processThfAtomicType (stx : Syntax) : MacroM Syntax := do
   match stx with
-  | `(tff_term| ( $t:tff_term ) ) => processTffTerm t
-  | `(tff_term| ~ $t:tff_term ) =>
-    let t ← processTffTerm t
+  | `(thf_type| $ty:thf_atomic_type) => processThfAtomicType ty
+  | `(thf_atomic_type| $ty:ident) => pure ty
+  | `(thf_atomic_type| $ty:defined_type) => processThfDefinedType ty
+  | `(thf_atomic_type| $f:ident $args:thf_type_arguments) => do
+    let ts ←
+      pure $ ← ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
+                fun arg => processThfAtomicType arg
+    let ts := mkNode ``many ts
+    let ts := mkNode ``Term.app #[f, ts]
+    `($ts)
+  | _ => Macro.throwError s!"Unsupported thf_atomic_type: {stx}"
+
+partial def processThfType (stx : Syntax) : MacroM Syntax := do
+  match stx with
+  | `(thf_type| ( $t:thf_type ) ) => processThfType t
+  | `(thf_type| $ty:thf_atomic_type) =>
+    processThfAtomicType ty
+  | `(thf_type| $arg:thf_type > $ret:thf_type) =>
+    -- Although the current parser syntax has thf_type > thf_type, this pattern should
+    -- only appear in TPTP files when both arg and ret are of the category thf_atomic_type
+    let ret ← processThfType ret
+    let arg ← processThfType arg
+    `($arg → $ret)
+  | `(thf_type| ( $args:thf_xprod_args ) > $ret:thf_atomic_type) =>
+    let ret ← processThfAtomicType ret
+    let args : Array Syntax := @Syntax.SepArray.mk "*" args.raw[0].getArgs
+    let stx ← args.foldrM (fun (a acc : Syntax) => do
+      let a ← processThfAtomicType a
+      `($a → $acc)) ret
+    return stx
+  | `(thf_type| $q:th1_quantifier [ $vs,* ] : $ty) =>
+    let ty ← processThfType ty
+    let vs : Array Syntax := vs
+    vs.foldrM
+      fun v acc => do
+        let (v, v_ty) ← match v with
+        | `(thf_variable| $v:ident) =>
+          pure (v, (← `(_) : Syntax))
+        | `(thf_variable| $v:ident : $v_ty:thf_type) =>
+          pure (v, ← processThfType v_ty)
+        | _ => Macro.throwError s!"Unsupported thf_variable: {v} when trying to process a tf1_quantified_type"
+        match q.raw[0].getKind with
+        | Name.str _ "!>" => `(∀ ($v : $v_ty), $acc)
+        | _ => Macro.throwError s!"Unsupported th1_quantifier: {q.raw[0].getKind}"
+      ty
+  | _ => Macro.throwError s!"Unsupported thf_type: {stx}"
+
+partial def processThfTerm (stx : Syntax) : MacroM Syntax := do
+  match stx with
+  | `(thf_term| $d:defined_term) => processThfDefinedTerm d
+  | `(thf_term| ( $t:thf_term ) ) => processThfTerm t
+  | `(thf_term| ~ $t:thf_term ) =>
+    let t ← processThfTerm t
     `(¬ $t)
-  | `(tff_term| $t₁:tff_term $conn:prop_binary_connective $t₂:tff_term ) => do
-    let t₁ ← processTffTerm t₁
-    let t₂ ← processTffTerm t₂
+  | `(thf_term| $t₁:thf_term @ $t₂:thf_term) => do
+    let t₁ ← processThfTerm t₁
+    let t₂ ← processThfTerm t₂
+    `(($t₁ $t₂))
+  | `(thf_term| $t₁:thf_term $conn:bexpOp $t₂:thf_term ) => do
+    let t₁ ← processThfTerm t₁
+    let t₂ ← processThfTerm t₂
     match conn.raw[0].getKind with
     | Name.str _ "&" => `($t₁ ∧ $t₂)
     | Name.str _ "=>" => `($t₁ → $t₂)
     | Name.str _ "|"=> `($t₁ ∨ $t₂)
     | Name.str _ "<=>" => `($t₁ ↔ $t₂)
-    | _ => Macro.throwError s!"Unsupported prop_binary_connective: {conn.raw[0].getKind}"
-  | `(tff_term| $t₁:tff_term $conn:non_prop_binary_connective $t₂:tff_term ) => do
-    let t₁ ← processTffTerm t₁
-    let t₂ ← processTffTerm t₂
+    | _ => Macro.throwError s!"Unsupported bexpOp: {conn.raw[0].getKind}"
+  | `(thf_term| $t₁:thf_term $conn:eqOp $t₂:thf_term ) => do
+    let t₁ ← processThfTerm t₁
+    let t₂ ← processThfTerm t₂
     match conn.raw[0].getKind with
     | Name.str _ "=" => `($t₁ = $t₂)
     | Name.str _ "!=" => `($t₁ ≠ $t₂)
-    | _ => Macro.throwError s!"Unsupported non_prop_binary_connective: {conn.raw[0].getKind}"
-  | `(tff_term| $f:ident $args:tff_arguments ?) => do
+    | _ => Macro.throwError s!"Unsupported eqOp: {conn.raw[0].getKind}"
+  | `(thf_term| $f:ident $args:thf_arguments ?) => do
     let ts : Array Syntax ← match args with
     | some args =>
-      pure $ ← ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
-                fun arg => processTffTerm arg
+      ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
+          fun arg => processThfTerm arg
     | none => pure #[]
     let ts := mkNode ``many ts
     let ts := mkNode ``Term.app #[f, ts]
-    return ← `($ts)
-  | `(tff_term| $q:fof_quantifier [ $vs,* ] : $body) => do
-    let body ← processTffTerm body
+    `($ts)
+  | `(thf_term| $q:quantifier [ $vs,* ] : $body) => do
+    let body ← processThfTerm body
     let vs : Array Syntax := vs
-    return ← vs.foldrM
+    vs.foldrM
       fun v acc => do
         let (v, ty) ← match v with
-        | `(tff_variable| $v:ident) => 
+        | `(thf_variable| $v:ident) => 
           pure (v, (← `(_) : Syntax))
-        | `(tff_variable| $v:ident : $ty:tff_atomic_type) =>
-          pure (v, ← processTffAtomicType ty)
-        | _ => Macro.throwError s!"Unsupported tff_variable: {v}"
+        | `(thf_variable| $v:ident : $ty:thf_type) =>
+          pure (v, ← processThfType ty)
+        | _ => Macro.throwError s!"Unsupported thf_variable: {v}"
         match q.raw[0].getKind with
         | Name.str _ "!" => `(∀ ($v : $ty), $acc)
         | Name.str _ "?" => `(Exists fun ($v : $ty) => $acc)
-        | _ => Macro.throwError s!"Unsupported fof_quantifier: {q.raw[0].getKind}"
+        | Name.str _ "^" => `(fun ($v : $ty) => $acc)
+        | _ => Macro.throwError s!"Unsupported quantifier: {q.raw[0].getKind}"
       body
-  | _ => Macro.throwError s!"Unsupported tff_term: {stx}"
-
-partial def processTffType (stx : Syntax) : MacroM Syntax := do
-  if stx.isAntiquot then processTffAtomicType stx
-  else
-    match stx with
-    | `(tff_type| ( $t:tff_type ) ) => processTffType t
-    | `(tff_type| $ty:tff_atomic_type) =>
-      processTffAtomicType ty
-    | `(tff_type| $arg:tff_type > $ret:tff_type) =>
-      -- Although the current parser syntax has tff_type > tff_type, this pattern should
-      -- only appear in TPTP files when both arg and ret are of the category tff_atomic_type
-      let ret ← processTffAtomicType ret
-      let arg ← processTffAtomicType arg
-      return ← `($arg → $ret)
-    | `(tff_type| ( $args:tff_xprod_args ) > $ret:tff_atomic_type) =>
-      let ret ← processTffAtomicType ret
-      let args : Array Syntax := @Syntax.SepArray.mk "*" args.raw[0].getArgs
-      let stx ← args.foldrM (fun (a acc : Syntax) => do
-        let a ← processTffAtomicType a
-        `($a → $acc)) ret
-      return stx
-    | `(tff_type| $q:tf1_quantifier [ $vs,* ] : $ty) =>
-      let ty ← processTffType ty
-      let vs : Array Syntax := vs
-      return ← vs.foldrM
-        fun v acc => do
-          let (v, v_ty) ← match v with
-          | `(tff_variable| $v:ident) =>
-            pure (v, (← `(_) : Syntax))
-          | `(tff_variable| $v:ident : $v_ty:tff_atomic_type) =>
-            pure (v, ← processTffAtomicType v_ty)
-          | _ => Macro.throwError s!"Unsupported tff_variable: {v} when trying to process a tf1_quantified_type"
-          match q.raw[0].getKind with
-          | Name.str _ "!>" => `(∀ ($v : $v_ty), $acc)
-          | _ => Macro.throwError s!"Unsupported tf1_quantifier: {q.raw[0].getKind}"
-        ty
-    | _ => Macro.throwError s!"Unsupported tff_type: {stx}"
+  | _ => Macro.throwError s!"Unsupported thf_term: {stx}"
 
 /-- Determines whether an identifier is a variable by checking whether the first character is capital -/
 def isVar (stx : TSyntax `ident) : MacroM Bool := do
@@ -132,20 +144,20 @@ def isVar (stx : TSyntax `ident) : MacroM Bool := do
     may return lists in which the same variable appears multiple times. -/
 partial def getVarsHelper (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
   match stx with
-  | `(tff_term| ( $t:tff_term )) => getVarsHelper t
-  | `(tff_term| ~ $t:tff_term ) => getVarsHelper t
-  | `(tff_term| $t1:tff_term $conn:prop_binary_connective $t2:tff_term ) =>
+  | `(thf_term| ( $t:thf_term )) => getVarsHelper t
+  | `(thf_term| ~ $t:thf_term ) => getVarsHelper t
+  | `(thf_term| $t1:thf_term $conn:bexpOp $t2:thf_term ) =>
     return (← getVarsHelper t1).append (← getVarsHelper t2)
-  | `(tff_term| $t1:tff_term $conn:non_prop_binary_connective $t2:tff_term ) =>
+  | `(thf_term| $t1:thf_term $conn:eqOp $t2:thf_term ) =>
     return (← getVarsHelper t1).append (← getVarsHelper t2)
-  | `(tff_term| $f:ident $args:tff_arguments ?) =>
+  | `(thf_term| $f:ident $args:thf_arguments ?) =>
     match args with
     | none =>
       if (← isVar f) then return [f]
       else return []
     | some args =>
       let args := ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax)
-      let argsVars ← args.mapM (fun arg => return ← getVarsHelper arg)
+      let argsVars ← args.mapM (fun arg => getVarsHelper arg)
       let argsVars := argsVars.foldl
         (fun acc varList => varList.append acc) []
       if (← isVar f) then return f :: argsVars
@@ -164,9 +176,9 @@ def getVars (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
 partial def processCnfTerm (stx : Syntax) : MacroM Syntax := do
   let vars ← getVars stx
   let iotaTypeSyntax ← `(TPTP.iota)
-  let unquantifiedRes ← processTffTerm stx
+  let unquantifiedRes ← processThfTerm stx
   let quantifiedRes ← vars.foldlM
-    (fun acc (var : TSyntax `ident) => return ← `(∀ ($var : $iotaTypeSyntax), $acc)) unquantifiedRes
+    (fun acc (var : TSyntax `ident) => `(∀ ($var : $iotaTypeSyntax), $acc)) unquantifiedRes
   return quantifiedRes
 
 /-- Note: This function is only meant to be used for fof/cnf formats (tff files declare their own symbols).
@@ -179,14 +191,15 @@ partial def processCnfTerm (stx : Syntax) : MacroM Syntax := do
     of the symbol in the overall formula.
 
     The topType argument is used to keep track of what the overall type of stx is supposed to be. -/
-partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `tff_type)
+partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `thf_type)
   (stx : Syntax) : MacroM (List (TSyntax `TPTP.explicitBinder)) := do
   match stx with
-  | `(tff_term| ( $t:tff_term )) => getNonVarSymbols acc topType t
-  | `(tff_term| ~ $t:tff_term ) =>
+  | `(thf_term|🍉$id:ident) => return .nil
+  | `(thf_term| ( $t:thf_term )) => getNonVarSymbols acc topType t
+  | `(thf_term| ~ $t:thf_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else getNonVarSymbols acc (← `(Prop)) t
-  | `(tff_term| $t1:tff_term $conn:prop_binary_connective $t2:tff_term ) =>
+  | `(thf_term| $t1:thf_term $conn:bexpOp $t2:thf_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else
       match conn.raw[0].getKind with
@@ -194,15 +207,15 @@ partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topTyp
       | Name.str _ "=>" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
       | Name.str _ "|" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
       | Name.str _ "<=>" => getNonVarSymbols (← getNonVarSymbols acc (← `(Prop)) t1) (← `(Prop)) t2
-      | _ => Macro.throwError s!"Unsupported prop_binary_connective: {conn.raw[0].getKind}"
-  | `(tff_term| $t1:tff_term $conn:non_prop_binary_connective $t2:tff_term ) =>
+      | _ => Macro.throwError s!"Unsupported bexpOp: {conn.raw[0].getKind}"
+  | `(thf_term| $t1:thf_term $conn:eqOp $t2:thf_term ) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else
       match conn.raw[0].getKind with
       | Name.str _ "=" => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
       | Name.str _ "!=" => getNonVarSymbols (← getNonVarSymbols acc (← `(TPTP.iota)) t1) (← `(TPTP.iota)) t2
-      | _ => Macro.throwError s!"Unsupported non_prop_binary_connective: {conn.raw[0].getKind}"
-  | `(tff_term| $f:ident $args:tff_arguments ?) =>
+      | _ => Macro.throwError s!"Unsupported eqOp: {conn.raw[0].getKind}"
+  | `(thf_term| $f:ident $args:thf_arguments ?) =>
     match args with
     | none =>
       if (← isVar f) then return acc
@@ -216,7 +229,7 @@ partial def getNonVarSymbols (acc : List (TSyntax `TPTP.explicitBinder)) (topTyp
         getNonVarSymbols acc (← `(TPTP.iota)) arg) acc
       if (← isVar f) then return acc
       else return (← `(explicitBinder| ($f : $fType))) :: acc
-  | `(tff_term| $q:fof_quantifier [ $vs,* ] : $body) =>
+  | `(thf_term| $q:quantifier [ $vs,* ] : $body) =>
     if topType != (← `(Prop)) then Macro.throwError s!"Error: cnf/fof term: {stx} is supposed to have type {topType}"
     else getNonVarSymbols acc (← `(Prop)) body
   | _ => Macro.throwError s!"Unsupported cnf/fof term: {stx}"
@@ -225,13 +238,17 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
   let nonVarSymbols : List (TSyntax `TPTP.explicitBinder) ← s.raw[0].getArgs.foldlM
     fun acc input => do
       match input with
-      | `(TPTP_input| tff($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+      | `(TPTP_input| tff($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
         return acc -- Only need to retrieve symbols from cnf and fof files
-      | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:tff_type $annotation:tff_annotation ?).) =>
+      | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:thf_type $annotation:annotation ?).) =>
         return acc -- Only need to retrieve symbols from cnf and fof files
-      | `(TPTP_input| cnf($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+      | `(TPTP_input| thf($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
+        return acc
+      | `(TPTP_input| thf($n:ident,type,$name:ident : $ty:thf_type $annotation:annotation ?).) =>
+        return acc -- Only need to retrieve symbols from cnf and fof files
+      | `(TPTP_input| cnf($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
         getNonVarSymbols acc (← `(Prop)) term
-      | `(TPTP_input| fof($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+      | `(TPTP_input| fof($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
         getNonVarSymbols acc (← `(Prop)) term
       | _ => Macro.throwError s!"Unsupported TPTP_input: {input}"
     []
@@ -242,33 +259,43 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
       else binder :: acc) []
   let hyps ← s.raw[0].getArgs.mapM fun input => do
     match input with
-    | `(TPTP_input| tff($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
-      let term ← processTffTerm term
+    | `(TPTP_input| tff($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
+      let term ← processThfTerm term
       let name := (mkIdent $ name.getId.appendBefore "h")
       if role.getId == `conjecture then
-        return ← `(explicitBinder| ($name : ¬ $term))
+        `(explicitBinder| ($name : ¬ $term))
       else
-        return ← `(explicitBinder| ($name : $term))
-    | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:tff_type $annotation:tff_annotation ?).) =>
-      let ty ← processTffType ty
-      return ← `(explicitBinder| ($name : $ty))
-    | `(TPTP_input| cnf($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
+        `(explicitBinder| ($name : $term))
+    | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:thf_type $annotation:annotation ?).) =>
+      let ty ← processThfType ty
+      `(explicitBinder| ($name : $ty))
+    | `(TPTP_input| thf($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
+      let term ← processThfTerm term
+      let name := (mkIdent $ name.getId.appendBefore "h")
+      if role.getId == `conjecture then
+        `(explicitBinder| ($name : ¬ $term))
+      else
+        `(explicitBinder| ($name : $term))
+    | `(TPTP_input| thf($n:ident,type,$name:ident : $ty:thf_type $annotation:annotation ?).) =>
+      let ty ← processThfType ty
+      `(explicitBinder| ($name : $ty))
+    | `(TPTP_input| cnf($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
       let term ← processCnfTerm term
       let name := (mkIdent $ name.getId.appendBefore "h")
       if role.getId == `conjecture then
-        return ← `(explicitBinder| ($name : ¬ $term))
+        `(explicitBinder| ($name : ¬ $term))
       else
-        return ← `(explicitBinder| ($name : $term))
-    | `(TPTP_input| fof($name:ident,$role,$term:tff_term $annotation:tff_annotation ?).) =>
-      -- Although tff differs from fof, I think that processTffTerm will do what we want for fof terms
-      let term ← processTffTerm term
+        `(explicitBinder| ($name : $term))
+    | `(TPTP_input| fof($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
+      -- Although tff differs from fof, I think that processThfTerm will do what we want for fof terms
+      let term ← processThfTerm term
       let name := (mkIdent $ name.getId.appendBefore "h")
       if role.getId == `conjecture then
-        return ← `(explicitBinder| ($name : ¬ $term))
+        `(explicitBinder| ($name : ¬ $term))
       else
-        return ← `(explicitBinder| ($name : $term))
+        `(explicitBinder| ($name : $term))
     | _ => Macro.throwError s!"Unsupported TPTP_input: {input}"
   let hyps := mkNode ``many (nonVarSymbols.toArray.append hyps)
   let spec ← `(Term.typeSpec| : False)
   let sig := mkNode ``Command.declSig #[hyps,spec]
-  return ← `(theorem $name $sig := $proof)
+  `(theorem $name $sig := $proof)
