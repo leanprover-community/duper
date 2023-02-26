@@ -7,7 +7,8 @@ open RuleM
 open SimpResult
 open Lean
 
-def mkElimResolvedLitProof (refs : List (Option Nat)) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
+def mkElimResolvedLitProof (refs : List (Option Nat)) (premises : List Expr) (parents: List ProofParent) (newVarIndices : List Nat)
+  (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs

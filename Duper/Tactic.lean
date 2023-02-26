@@ -78,7 +78,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
     lctx := lctx.mkLetDecl fvarId userName ty skdef
   let proof ← withLCtx lctx (← getLocalInstances) do
     trace[Meta.debug] "Reconstructing proof for #{info.number}: {c}, Rule Name: {info.proof.ruleName}"
-    let newProof ← info.proof.mkProof parents info.proof.parents c
+    let newProof ← info.proof.mkProof parents info.proof.parents info.proof.newVarIndices c
     trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
     if cs == [] then return newProof
     let proof ←

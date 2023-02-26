@@ -13,7 +13,8 @@ def is_var (e : Expr) : Bool :=
   | Expr.bvar _ => true
   | _ => false
 
-def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
+def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : List Expr) (parents: List ProofParent) (newVarIndices : List Nat)
+  (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs

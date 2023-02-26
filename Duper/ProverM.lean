@@ -257,7 +257,7 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
 
 def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
   let c := Clause.fromSingleExpr e
-  let mkProof := fun _ _ _ => pure proof
+  let mkProof := fun _ _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof} []
 
 def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 

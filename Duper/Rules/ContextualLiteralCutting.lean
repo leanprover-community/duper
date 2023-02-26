@@ -12,7 +12,7 @@ open Comparison
 initialize Lean.registerTraceClass `Rule.contextualLiteralCutting
 
 def mkContextualLiteralCuttingProof (negatedLitMainIdx : Nat) (assignment : List (Nat × Bool)) (isForward : Bool) (premises : List Expr)
-  (parents : List ProofParent) (c : Clause) : MetaM Expr :=
+  (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs

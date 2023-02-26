@@ -13,7 +13,7 @@ open Comparison
 initialize Lean.registerTraceClass `Rule.demodulation
 
 def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) (isForward : Bool)
-  (premises : List Expr) (parents : List ProofParent) (c : Clause) : MetaM Expr :=
+  (premises : List Expr) (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs

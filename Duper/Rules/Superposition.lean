@@ -18,7 +18,7 @@ def getSimultaneousSuperposition (opts : Options) : Bool :=
   simultaneousSuperposition.get opts
 
 def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
-  (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
+  (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -66,7 +66,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
     return proof
 
 def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool)
-  (premises : List Expr) (parents: List ProofParent) (c : Clause) : MetaM Expr := do
+  (premises : List Expr) (parents: List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs

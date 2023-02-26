@@ -18,7 +18,7 @@ theorem eq_hoist_proof (x y : α) (f : Prop → Prop) (h : f (x = y)) : f False 
     exact Or.inl $ x_eq_y_false ▸ h
 
 def mkEqHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : List Expr)
-  (parents : List ProofParent) (c : Clause) : MetaM Expr :=
+  (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -62,23 +62,14 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
     let eligibility ← eligibilityPreUnificationCheck c pos.lit
     if eligibility == Eligibility.notEligible then
       return #[]
-    -- The way we make freshVar1, freshVar2, and freshVarEquality depends on whether e itself is an equality
-    let mkFreshVarsAndEquality (e : Expr) : RuleM (Expr × Expr × Expr) :=
-      match e with
-      | Expr.app (Expr.app (Expr.app (Expr.const ``Eq lvls) ty) _) _ => do
-        -- If e is an equality, then we can directly read the correct lvls and ty
-        let freshVar1 ← mkFreshExprMVar ty
-        let freshVar2 ← mkFreshExprMVar ty
-        return (freshVar1, freshVar2, mkApp3 (mkConst ``Eq lvls) ty freshVar1 freshVar2)
-      | _ => do
-        -- If e is not an equality, the best we can do is generate an arbitrary equality and leave the rest to unification
-        let freshVar1 ← mkFreshExprMVar none
-        let freshVarTy ← inferType freshVar1 
-        let freshVar2 ← mkFreshExprMVar freshVarTy
-        return (freshVar1, freshVar2, ← mkAppM ``Eq #[freshVar1, freshVar2])
-    let (freshVar1, freshVar2, freshVarEquality) ← mkFreshVarsAndEquality e 
-    let loaded ← getLoadedClauses
+    -- Make freshVars and freshVarEquality
+    let freshVar1 ← mkFreshExprMVar none
+    let freshVarTy ← inferType freshVar1
+    let freshVar2 ← mkFreshExprMVar freshVarTy
+    let freshVarEquality ← mkAppM ``Eq #[freshVar1, freshVar2]
+    -- Perform unification
     let ug ← unifierGenerator #[(e, freshVarEquality)]
+    let loaded ← getLoadedClauses
     let yC := do
       setLoadedClauses loaded
       if not $ ← eligibilityPostUnificationCheck c pos.lit eligibility (strict := lit.sign) then

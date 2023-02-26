@@ -477,11 +477,10 @@ def applyRule22 (e : Expr) : Option Expr := do
 /-- ∀ p : Prop, f(p) ↦ f(True) ∧ f(False) -/
 def applyRule23 (e : Expr) : RuleM (Option Expr) := do
   match e with
-  | Expr.forallE name t b _ =>
+  | Expr.forallE _ t b _ =>
     if t.isProp && (← inferType e).isProp then
-      let bFunction := Expr.lam name (mkSort levelZero) b BinderInfo.default
-      let bTrue ← RuleM.runMetaAsRuleM $ whnf $ mkApp bFunction (mkConst ``True)
-      let bFalse ← RuleM.runMetaAsRuleM $ whnf $ mkApp bFunction (mkConst ``False)
+      let bTrue := b.instantiate1 (mkConst ``True)
+      let bFalse := b.instantiate1 (mkConst ``False)
       mkAppM ``And #[bTrue, bFalse]
     else return none
   | _ => return none
@@ -712,7 +711,7 @@ def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) (i
     | _ => throwError "Invalid originalExpr {originalExp} for rule28"
 
 def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (ijOpt : Option (Nat × Nat)) (premises : List Expr)
-  (parents : List ProofParent) (c : Clause) : MetaM Expr :=
+  (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs

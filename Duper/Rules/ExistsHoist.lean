@@ -8,22 +8,25 @@ open Lean
 open RuleM
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.neHoist
+initialize Lean.registerTraceClass `Rule.existsHoist
 
-theorem ne_hoist_proof (x y : α) (f : Prop → Prop) (h : f (x ≠ y)) : f True ∨ x = y := by
-  by_cases x_eq_y : x = y
-  . exact Or.inr x_eq_y
-  . rename ¬x = y => x_ne_y
-    have x_ne_y_true := eq_true x_ne_y
-    exact Or.inl $ x_ne_y_true ▸ h
+theorem exists_hoist_proof (x : α) (y : α → Prop) (f : Prop → Prop) (h : f (∃ z : α, y z)) : f True ∨ y x = False := by
+  by_cases z_hyp : ∃ z : α, y z
+  . exact Or.inl (eq_true z_hyp ▸ h)
+  . simp at z_hyp
+    exact Or.inr (eq_false (z_hyp x))
 
-def mkNeHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : List Expr)
+def mkExistsHoistProof (pos : ClausePos) (freshVar2 : Expr) (premises : List Expr)
   (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
+
+    let [freshVar1Idx] := newVarIndices
+      | throwError "Wrong number of number of newVarIndices"
+    let freshVar1 := xs[xs.size - freshVar1Idx - 1]!
 
     let mut caseProofs := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
@@ -34,7 +37,7 @@ def mkNeHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : Li
           let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr
           let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
-          let lastTwoClausesProof ← Meta.mkAppM ``ne_hoist_proof #[freshVar1, freshVar2, abstrLam, h]
+          let lastTwoClausesProof ← Meta.mkAppM ``exists_hoist_proof #[freshVar1, freshVar2, abstrLam, h]
           Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoClausesProof
         else
           let idx := if i ≥ pos.lit then i - 1 else i
@@ -43,7 +46,7 @@ def mkNeHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : Li
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
+def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     let lit := c.lits[pos.lit]!
     if e.getTopSymbol.isMVar then -- Check condition 4
@@ -62,14 +65,15 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
     let eligibility ← eligibilityPreUnificationCheck c pos.lit
     if eligibility == Eligibility.notEligible then
       return #[]
-    -- Make freshVars, freshVarInequality, and freshVarEquality
+    -- Make freshVars, freshVarExistsExpr and newLitLhs
     let freshVar1 ← mkFreshExprMVar none
-    let freshVarTy ← inferType freshVar1
-    let freshVar2 ← mkFreshExprMVar freshVarTy
-    let freshVarInequality ← mkAppM ``Ne #[freshVar1, freshVar2]
-    let freshVarEquality ← mkAppM ``Eq #[freshVar1, freshVar2]
+    let freshVar1Ty ← inferType freshVar1
+    let freshVar2Ty := Expr.forallE .anonymous freshVar1Ty (mkSort levelZero) BinderInfo.default -- freshVar1Ty → Prop 
+    let freshVar2 ← mkFreshExprMVar freshVar2Ty
+    let freshVarExistsExpr ← mkAppM ``Exists #[freshVar2]
+    let newLitLhs := .app freshVar2 freshVar1
     -- Perform unification
-    let ug ← unifierGenerator #[(e, freshVarInequality)]
+    let ug ← unifierGenerator #[(e, freshVarExistsExpr)]
     let loaded ← getLoadedClauses
     let yC := do
       setLoadedClauses loaded
@@ -82,17 +86,16 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
-      -- Need to instantiate mvars in freshVar1, freshVar2, and freshVarEquality because unification assigned to mvars in each of them
-      let freshVar1 ← RuleM.instantiateMVars freshVar1
+      -- Need to instantiate mvars in freshVar2 and newLit because unification assigned to mvars in both of them
       let freshVar2 ← RuleM.instantiateMVars freshVar2
-      let freshVarEquality ← RuleM.instantiateMVars freshVarEquality 
-      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromExpr freshVarEquality]
-      trace[Rule.neHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClause newClause "neHoist" $ some (mkNeHoistProof pos freshVar1 freshVar2)
+      let newLitLhs ← RuleM.instantiateMVars newLitLhs
+      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
+      trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
+      yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos freshVar2)) (freshMVarIds := [freshVar1.mvarId!])
     return #[⟨ug, given, yC⟩]
 
-def neHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def existsHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   let fold_fn := fun streams e pos => do
-    let str ← neHoistAtExpr e.consumeMData pos given c
+    let str ← existsHoistAtExpr e.consumeMData pos given c
     return streams.append str
   c.foldGreenM fold_fn #[]

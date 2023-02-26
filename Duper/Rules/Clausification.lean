@@ -421,7 +421,7 @@ def clausificationStep : MSimpRule := fun c => do
     let mut resultClauses := #[]
     for ⟨d, dproof, introducedSkolems⟩ in ds do
       let mkProof : ProofReconstructor := 
-        fun (premises : List Expr) (parents : List ProofParent) (res : Clause) => do
+        fun (premises : List Expr) (parents : List ProofParent) (newVarIndices : List Nat) (res : Clause) => do
           Meta.forallTelescope res.toForallExpr fun xs body => do
             let resLits := res.lits.map (fun l => Lit.map (fun e => e.instantiateRev xs) l)
             let (parentLits, appliedPremise) ← instantiatePremises parents premises xs

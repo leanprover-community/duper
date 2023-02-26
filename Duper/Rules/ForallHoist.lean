@@ -8,16 +8,17 @@ open Lean
 open RuleM
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.neHoist
+initialize Lean.registerTraceClass `Rule.forallHoist
 
-theorem ne_hoist_proof (x y : α) (f : Prop → Prop) (h : f (x ≠ y)) : f True ∨ x = y := by
-  by_cases x_eq_y : x = y
-  . exact Or.inr x_eq_y
-  . rename ¬x = y => x_ne_y
-    have x_ne_y_true := eq_true x_ne_y
-    exact Or.inl $ x_ne_y_true ▸ h
+-- Note: ForallHoist is not currently enabled because the current code is not successfully finding unifications for forall expressions
 
-def mkNeHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : List Expr)
+theorem forall_hoist_proof (x : α) (y : α → Prop) (f : Prop → Prop) (h : f (∀ z : α, y z)) : f False ∨ y x = True := by
+  by_cases y_always_true : ∀ z : α, y z
+  . exact Or.inr (eq_true (y_always_true x))
+  . rename ¬∀ (z : α), y z => y_not_always_true
+    exact Or.inl (eq_false y_not_always_true ▸ h)
+
+def mkForallHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : List Expr)
   (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
@@ -34,7 +35,7 @@ def mkNeHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : Li
           let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr
           let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
-          let lastTwoClausesProof ← Meta.mkAppM ``ne_hoist_proof #[freshVar1, freshVar2, abstrLam, h]
+          let lastTwoClausesProof ← Meta.mkAppM ``forall_hoist_proof #[freshVar1, freshVar2, abstrLam, h]
           Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoClausesProof
         else
           let idx := if i ≥ pos.lit then i - 1 else i
@@ -43,7 +44,7 @@ def mkNeHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : Li
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
+def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     let lit := c.lits[pos.lit]!
     if e.getTopSymbol.isMVar then -- Check condition 4
@@ -62,14 +63,23 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
     let eligibility ← eligibilityPreUnificationCheck c pos.lit
     if eligibility == Eligibility.notEligible then
       return #[]
-    -- Make freshVars, freshVarInequality, and freshVarEquality
-    let freshVar1 ← mkFreshExprMVar none
-    let freshVarTy ← inferType freshVar1
-    let freshVar2 ← mkFreshExprMVar freshVarTy
-    let freshVarInequality ← mkAppM ``Ne #[freshVar1, freshVar2]
-    let freshVarEquality ← mkAppM ``Eq #[freshVar1, freshVar2]
+    /-
+      Note: In https://matryoshka-project.github.io/pubs/hosup_report.pdf, the specification of ForallHoist would have us unify `e`
+      with `.forallE _ α y _` (where `α` is a fresh MVar and `y` is a freshMVar with type `α → Prop`) and produce a conclusion with
+      the additional literal `y x = True` (where `x` is a freshMVar with type `α`). We cannot do this exactly because in Lean, the body
+      of a forall expression is taken to be the final type (in this case `Prop`) rather than a function that takes in `α` and outputs
+      the final type.
+
+      To deal with this, we instead unify `e` with `.forallE _ α y _` (where `α` is a fresh MVar and `y` is a freshMVar with type `Prop`)
+      and produce a conclusion with the additional literal `(whnf $ .app (.lam _ α y _) x) = True` (where `x` is a freshMVar with type `α`).
+    -/
+    let freshVar1 ← mkFreshExprMVar none -- This corresponds to `x` in the above discussion
+    let freshVarTy ← inferType freshVar1 -- This corresponds to `α` in the above discussion
+    let freshVar2 ← mkFreshExprMVar (mkSort levelZero) -- This corresponds to `y` in the above discussion (note that its type is `Prop`)
+    let freshVarForallExpr := .forallE .anonymous freshVarTy freshVar2 BinderInfo.default
+    let newLitLhs := .app (.lam .anonymous freshVarTy freshVar2 BinderInfo.default) freshVar1
     -- Perform unification
-    let ug ← unifierGenerator #[(e, freshVarInequality)]
+    let ug ← unifierGenerator #[(e, freshVarForallExpr)]
     let loaded ← getLoadedClauses
     let yC := do
       setLoadedClauses loaded
@@ -82,17 +92,18 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
-      -- Need to instantiate mvars in freshVar1, freshVar2, and freshVarEquality because unification assigned to mvars in each of them
+      -- Need to instantiate mvars in freshVar1, freshVar2, and newLit because unification assigned to mvars in each of them
       let freshVar1 ← RuleM.instantiateMVars freshVar1
       let freshVar2 ← RuleM.instantiateMVars freshVar2
-      let freshVarEquality ← RuleM.instantiateMVars freshVarEquality 
-      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromExpr freshVarEquality]
-      trace[Rule.neHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClause newClause "neHoist" $ some (mkNeHoistProof pos freshVar1 freshVar2)
+      let newLitLhs ← RuleM.instantiateMVars newLitLhs
+      let newLitLhs ← RuleM.runMetaAsRuleM $ Meta.whnf newLitLhs -- newLitLhs probably has the form (λ x, stuff) x, so perform the application
+      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]
+      trace[Rule.forallHoist] "Created {newClause.lits} from {c.lits}"
+      yieldClause newClause "forallHoist" $ some (mkForallHoistProof pos freshVar1 freshVar2)
     return #[⟨ug, given, yC⟩]
 
-def neHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def forallHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   let fold_fn := fun streams e pos => do
-    let str ← neHoistAtExpr e.consumeMData pos given c
+    let str ← forallHoistAtExpr e.consumeMData pos given c
     return streams.append str
   c.foldGreenM fold_fn #[]

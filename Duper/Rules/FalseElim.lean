@@ -20,7 +20,8 @@ def isFalseLiteral (lit : Lit) : MetaM Bool := do
 theorem false_ne_true (h : False = True) : False := by rw [h]; exact ⟨⟩
 theorem true_ne_false (h : True = False) : False := by rw [← h]; exact ⟨⟩
 
-def mkFalseElimProof (i : Nat) (premises : List Expr) (parents : List ProofParent) (c : Clause) : MetaM Expr :=
+def mkFalseElimProof (i : Nat) (premises : List Expr) (parents : List ProofParent) (newVarIndices : List Nat)
+  (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs

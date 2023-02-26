@@ -19,14 +19,16 @@ structure ProofParent where
   expr : Expr
   clause : Clause
 
-/-- Takes: Proofs of the parent clauses, ProofParent information, the target clause -/
-abbrev ProofReconstructor := List Expr → List ProofParent → Clause → MetaM Expr
+/-- Takes: Proofs of the parent clauses, ProofParent information, the indices of new variables
+    (which will be turned into bvars in the clause) introduced by the rule, and the target clause -/
+abbrev ProofReconstructor := List Expr → List ProofParent → List Nat → Clause → MetaM Expr
 
 structure Proof where
   parents : List ProofParent := []
   ruleName : String := "unknown"
   introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
   mkProof : ProofReconstructor
+  newVarIndices : List Nat := []
 deriving Inhabited
 
 structure State where
@@ -237,8 +239,8 @@ def prepLoadClause (c : Clause) : RuleM (MClause × (Clause × Array MVarId)) :=
 
 open Lean.Meta.AbstractMVars in
 open Lean.Meta in
-def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarId)) :
-  M (Clause × List ProofParent) := do
+def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarId)) (freshMVarIds : List MVarId := []) :
+  M (Clause × List ProofParent × List Nat) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
   let ec := c.toExpr
@@ -264,26 +266,31 @@ def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarI
     -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
     let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
     proofParents := ⟨instantiatedparent, loadedClause⟩ :: proofParents
-  return (c, proofParents)
+  -- Also return the bvars (represented as Nats) that correspond to the freshMVars
+  let mvarMap := cst.emap -- cst.emap maps MVarIds to the free variables they have been replaced with
+  let freshFVars := freshMVarIds.map (fun freshMVarId => mvarMap.find! freshMVarId)
+  let newVarIndices := freshFVars.map (fun freshFVar => Option.get! $ cst.fvars.getIdx? freshFVar)
+  return (c, proofParents, newVarIndices)
 
-def yieldClause (mc : MClause) (ruleName : String)
-  (mkProof : Option ProofReconstructor) (isk : Array (FVarId × (Array Expr → MetaM Expr)) := #[]) : RuleM (Clause × Proof) := do
+def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
+  (isk : Array (FVarId × (Array Expr → MetaM Expr)) := #[]) (freshMVarIds : List MVarId := []) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
-  let ((c, proofParents), st) :=
-    neutralizeMClause mc (← getLoadedClauses) { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  let ((c, proofParents, newVarIndices), st) :=
+    neutralizeMClause mc (← getLoadedClauses) freshMVarIds { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   setNGen st.ngen
   setMCtx st.mctx
   
   let mkProof := match mkProof with
   | some mkProof => mkProof
-  | none => fun _ _ _ => 
+  | none => fun _ _ _ _ =>
     -- TODO: Remove sorry!?
     Lean.Meta.mkSorry c.toForallExpr (synthetic := true)
   let proof := {
     parents := proofParents,  
     ruleName := ruleName,
-    introducedSkolems := isk
-    mkProof := mkProof
+    introducedSkolems := isk,
+    mkProof := mkProof,
+    newVarIndices := newVarIndices
   }
   return (c, proof)
 
