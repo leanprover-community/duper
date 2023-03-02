@@ -65,7 +65,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
     let proof ← Meta.mkLambdaFVars xs $ mkApp r appliedSidePremise
     return proof
 
-def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool)
+def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) (poses : Array ClausePos)
   (premises : List Expr) (parents: List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
@@ -75,6 +75,11 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
     let sideParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
     let appliedMainPremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
     let appliedSidePremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
+
+    -- processing `poses`
+    let mut poseses : Array (Array LitPos) := (Array.mk <| List.range mainParentLits.size).map (fun _ => #[])
+    for ⟨lit, side, pos⟩ in poses do
+      poseses := poseses.set! lit (poseses[lit]!.push ⟨side, pos⟩)
 
     let mut caseProofsSide := Array.mkEmpty sideParentLits.size
     for j in [:sideParentLits.size] do
@@ -89,7 +94,7 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
             let lit := mainParentLits[i]!
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
-              let abstr ← Lean.Meta.abstractAtExpr lit.toExpr $ eqLit.getSide sidePremiseLitSide
+              let abstr := (lit.mapByPos Expr.abstractAtPoses! poseses[i]!).toExpr
               let abstr := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstr
               let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,eq], h]
               Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
@@ -162,18 +167,24 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       -- Checking Sup condition 10 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
       if sidePremiseRhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then return none
   
-      let mainPremiseReplaced ←
-        if simultaneousSuperposition then mainPremise.mapM fun e => do replace e sidePremiseLhs sidePremiseRhs --TODO: Replace only green subterms
-        else mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
+      let mut mainPremiseReplaced : MClause := Inhabited.default
+      let mut poses : Array ClausePos := #[]
+      if simultaneousSuperposition then
+        let mainPremise ← mainPremise.mapM RuleM.instantiateMVars
+        let sidePremiseLhs ← RuleM.instantiateMVars sidePremiseLhs
+        (mainPremiseReplaced, poses) := mainPremise.mapWithPos <|
+          Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs --TODO: Replace only green subterms
+      else
+        mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
   
       if mainPremiseReplaced.isTrivial then
         trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
         return none
-        
+  
       let restOfSidePremise ← restOfSidePremise.mapM fun e => RuleM.instantiateMVars e
       let res := MClause.append restOfSidePremise mainPremiseReplaced
       let mkProof :=
-        if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain
+        if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain poses
         else mkSuperpositionProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain
       trace[Superposition.debug]
         m!"Superposition successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++

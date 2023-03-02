@@ -64,7 +64,30 @@ def fromExpr : Expr → Lit
 | e@(_) => dbg_trace "Lit.fromExpr :: Unexpected Expression: {e}"; Lit.fromSingleExpr e
 
 def map (f : Expr → Expr) (l : Lit) :=
+  -- Should we really map into `ty`?
   {l with ty := f l.ty, lhs := f l.lhs, rhs := f l.rhs}
+
+def mapWithPos (f : Expr → Expr × Array ExprPos) (l : Lit) :=
+  let (l', lposes) := f l.lhs
+  let (r', rposes) := f l.rhs
+  -- Does not map into `ty`
+  let lit' := {l with lhs := l', rhs := r'}
+  let lp' := lposes.map (fun p => LitPos.mk .lhs p)
+  let rp' := rposes.map (fun p => LitPos.mk .rhs p)
+  (lit', lp' ++ rp')
+
+def mapByPos (f : Expr → Array ExprPos → Expr) (l : Lit) (poses : Array LitPos) := Id.run <| do
+  let mut lposes := #[]
+  let mut rposes := #[]
+  for ⟨side, pos⟩ in poses do
+    if side == .lhs then
+      lposes := lposes.push pos
+    else
+      rposes := rposes.push pos
+  -- Does not map into `ty`
+  let l' := f l.lhs lposes
+  let r' := f l.rhs rposes
+  return {l with lhs := l', rhs := r'}
 
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (l : Lit) : m Lit := do
   return {l with ty := ← f l.ty, lhs := ← f l.lhs, rhs := ← f l.rhs}

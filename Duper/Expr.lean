@@ -89,6 +89,44 @@ partial def replaceAtPos! (e : Expr) (pos : ExprPos) (replacement : Expr) [Monad
   | some res => return res
   | none => throwError "replaceAtPos error: Invalid position {pos} given for expression {e}"
 
+-- Return [t₂/t₁]e, along with positions where the green subterm is replaced
+partial def replaceGreenWithPos (t₁ t₂ e : Expr) : Expr × (Array ExprPos) :=
+  let (e, poses) := go e
+  (e, poses.map (fun x => x.reverse))
+where go e :=
+  if e == t₁ then
+    (t₂, #[#[]])
+  else
+    match e with
+    | .mdata _ b       => let (b, ps) := go b; (e.updateMData! b, ps)
+    | .app _ _         =>
+      let f := e.getAppFn
+      let fcon := f.consumeMData
+      if fcon.isBVar || fcon.isFVar || fcon.isConst || fcon.isSort then
+        let rets := e.getAppArgs.map go
+        let len := rets.size
+        let args := rets.map (fun x => x.fst)
+        let poses := rets.mapIdx (fun i poses => poses.snd.map (fun pos => pos.push (len - 1 - i)))
+        (mkAppN f args, poses.concatMap id)
+      else
+        (e, #[])
+    | e                => (e, #[])
+
+-- Return [t₂/t₁]e, along with positions where the term is replaced
+-- TODO !!
+partial def replaceWithPos (t₁ t₂ e : Expr) : Expr :=
+  if e == t₁ then
+    t₂
+  else
+    match e with
+    | .forallE _ d b _ => let d := replaceWithPos t₁ t₂ d; let b := replaceWithPos t₁ t₂ b; e.updateForallE! d b
+    | .lam _ d b _     => let d := replaceWithPos t₁ t₂ d; let b := replaceWithPos t₁ t₂ b; e.updateLambdaE! d b
+    | .mdata _ b       => let b := replaceWithPos t₁ t₂ b; e.updateMData! b
+    | .letE _ t v b _  => let t := replaceWithPos t₁ t₂ t; let v := replaceWithPos t₁ t₂ v; let b := replaceWithPos t₁ t₂ b; e.updateLet! t v b
+    | .app f a         => let f := replaceWithPos t₁ t₂ f; let a := replaceWithPos t₁ t₂ a; e.updateApp! f a
+    | .proj _ _ b      => let b := replaceWithPos t₁ t₂ b; e.updateProj! b
+    | e                => e
+
 /-- An incomplete implementation of Meta.kabstract that uses and ExprPos list to indicate position rather than
     Occurrences. abstractAtPosHelper! assumes that e consists only of applications up to the given ExprPos.
     Implementing abstractAtPosHelper! as "replaceAtPos! e pos (mkBVar 0)" doesn't work because of how
@@ -112,6 +150,35 @@ private partial def abstractAtPosHelper! (e : Expr) (pos : List Nat) : MetaM Exp
     ExprPos is given, we don't need to pass in Meta.kabstract's second argument p -/
 partial def abstractAtPos! (e : Expr) (pos : ExprPos) : MetaM Expr := do
   abstractAtPosHelper! e pos.data
+
+private partial def abstractAtPosesHelper! (e : Expr) (poses : Array (List Nat)) : Id Expr := do
+  if poses.size == 0 then
+    return e
+  match e with
+  | e'@(.app ..) => do
+    let fn := e'.getAppFn
+    let args := e'.getAppArgs
+    let len := args.size
+    let mut poseses : Array (Array (List Nat)) := (Array.mk (List.range len)).map (fun _ => #[])
+    for pos in poses do
+      match pos with
+      | .nil => return (mkBVar 0)
+      | List.cons i restPos =>
+        if i >= len then
+          panic! s!"abstractAtPosesHelper :: Index {i} greater or equal to length {len}"
+        poseses := poseses.set! (len - 1 - i) (poseses[len - 1 - i]!.push restPos)
+    let args' ← (args.zip poseses).mapM (fun (e, poses) => abstractAtPosesHelper! e poses)
+    return mkAppN fn args'
+  | .mdata _ e' => let e'' := abstractAtPosesHelper! e' poses; return e'.updateMData! e''
+  | _ => do
+    for pos in poses do
+      match pos with
+      | .nil => return (mkBVar 0)
+      | List.cons .. => panic! s!"abstractAtPosesHelper :: Invalid position {pos} for expression {e} given to abstractAtPos"
+    return e
+
+partial def abstractAtPoses! (e : Expr) (poses : Array ExprPos) : Expr :=
+  Id.run <| abstractAtPosesHelper! e (poses.map (fun x => x.data))
 
 /-
   Note: this function may require revision to be more similar to Zipperposition's ho_weight function once we actually

@@ -116,12 +116,12 @@ tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
 #print axioms KRS003_1
 
 tptp COM001_1 "../TPTP-v8.0.0/Problems/COM/COM001_1.p"
-  by duper -- Time: 309ms May 8
+  by duper -- Time: 73ms March 2
 
 #print axioms COM001_1
 
 tptp COM002_1 "../TPTP-v8.0.0/Problems/COM/COM002_1.p"
-  by duper -- Time: 711ms May 8
+  by duper -- Time: 296ms March 2
 
 #print axioms COM002_1
 
@@ -131,7 +131,7 @@ tptp COM002_2 "../TPTP-v8.0.0/Problems/COM/COM002_2.p"
 #print axioms COM002_2
 
 tptp COM003_1 "../TPTP-v8.0.0/Problems/COM/COM003_1.p"
-  by duper -- Either deterministic timeout or premature saturation depending on duper's configurations
+  by duper -- Fail to synthesize 'Inhabited algorithm'
 
 /- Configurations that lead to COM003_1 achieving premature saturation include:
     - Having Order.lean consider variable names
@@ -146,41 +146,40 @@ variables are instead known variables of the form 'sk.XX'
 -/
 
 tptp HWV039_3 "../TPTP-v8.0.0/Problems/HWV/HWV039_3.p"
-  by duper -- Deterministic timeout (duper previously could solve this, but only because a parsing bug in tptp resulted in the wrong problem being made)
+  by duper -- Number of lines 4435 in TPTP problem exceeded line number limit 4000
 
 tptp PHI044_1 "../TPTP-v8.0.0/Problems/PHI/PHI044_1.p"
-  by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
+  by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
-  by duper -- Time: 444ms May 8
+  by duper -- Time: 130ms March 2
 
 #print axioms PUZ012_1
 
 tptp PUZ018_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ018_1.p"
-  by duper -- Succeeds
-  -- Previously: (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
+  by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
-  by duper -- Contradiction found but failed to synthesize type "Inhabited grain"
+  by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ130_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ130_1.p"
-  by duper -- Time: 61ms May 8
+  by duper -- Time: 11ms March 2
 
 #print axioms PUZ130_1
 
 tptp PUZ131_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ131_1.p"
-  by duper -- Time: 76ms May 8
+  by duper -- Time: 22ms March 2
 
 #print axioms PUZ131_1
 
 tptp PUZ134_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ134_2.p"
-  by duper -- Contradiction found but failed to synthesize type "Inhabited ?α"
+  by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ135_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_1.p"
-  by duper -- (deterministic) timeout at 'superposition', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
+  by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ135_2 "../TPTP-v8.0.0/Problems/PUZ/PUZ135_2.p"
-  by duper -- Deterministic timeout (previously made an erroneous proof due to bug in destructiveEqualityResolution)
+  by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ139_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ139_1.p"
   by duper -- Succeeds

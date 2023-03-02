@@ -9,7 +9,7 @@ open Lean.Elab.Command
 namespace TPTP
 
 register_option maxTPTPProblemLines : Nat := {
-  defValue := 10000
+  defValue := 4000
   descr := "Line number limit (with comments stripped) for TPTP problems"
 }
 

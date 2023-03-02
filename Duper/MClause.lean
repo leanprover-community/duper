@@ -38,6 +38,15 @@ def replaceLit? (c : MClause) (idx : Nat) (l : Lit) : Option MClause :=
 def replaceLit! (c : MClause) (idx : Nat) (l : Lit) : MClause :=
   ⟨c.lits.set! idx l⟩
 
+def map (f : Expr → Expr) (c : MClause) : MClause :=
+  ⟨c.lits.map (fun l => l.map f)⟩
+
+def mapWithPos (f : Expr → Expr × Array ExprPos) (c : MClause) : MClause × Array ClausePos :=
+  let mapres := c.lits.map (fun l => l.mapWithPos f)
+  let c' := ⟨mapres.map (fun x => x.fst)⟩
+  let cps := mapres.mapIdx (fun i x => x.snd.map (fun p => ClausePos.mk i p.side p.pos))
+  (c', cps.concatMap id)
+
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (c : MClause) : m MClause := do
   return ⟨← c.lits.mapM (fun l => l.mapM f)⟩
 
