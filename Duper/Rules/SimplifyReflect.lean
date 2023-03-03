@@ -130,7 +130,8 @@ def forwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRu
       if c.lits[pos.lit]!.sign then return none -- Can only perform positive simplify reflect at negative literals
       -- To find potential side clauses for the current literal, we search for clauses that subsume curLitButPositive
       let curLitButPositive := {c.lits[pos.lit]! with sign := true}
-      let potentialSideClauses ← subsumptionTrie.getPotentialSubsumingClauses ⟨#[], #[curLitButPositive]⟩
+      -- Temporarily use `Clause`, don't need to suppply universe parameters
+      let potentialSideClauses ← subsumptionTrie.getPotentialSubsumingClauses ⟨#[], #[], #[curLitButPositive]⟩
       /-
         The lit c[pos.lit] can be expressed as u[p ← σ(s)] ≠ u[p ← σ(t)] if and only if the following holds:
         1. c[pos.lit].sign is false
@@ -171,7 +172,8 @@ def forwardNegativeSimplifyReflectWithPartner (mainPremise : MClause) (mainPremi
 def forwardNegativeSimplifyReflectAtLit (subsumptionTrie : SubsumptionTrie) (mainPremise : MClause)
   (mainPremiseMVarIds : Array MVarId) (mainPremiseLit : Nat) : RuleM (Option (Array (Clause × Proof))) := do
   let curLitButNegative := {mainPremise.lits[mainPremiseLit]! with sign := false}
-  let potentialSideClauses ← subsumptionTrie.getPotentialSubsumingClauses ⟨#[], #[curLitButNegative]⟩
+  -- Temporarily use `Clause`, don't need to suppply universe parameters
+  let potentialSideClauses ← subsumptionTrie.getPotentialSubsumingClauses ⟨#[], #[], #[curLitButNegative]⟩
   for sidePremise in potentialSideClauses do
     match ← forwardNegativeSimplifyReflectWithPartner mainPremise mainPremiseMVarIds sidePremise mainPremiseLit LitSide.lhs with
     | none =>
@@ -198,7 +200,8 @@ def backwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
   -- Return Unapplicable if givenSideClause is anything other than a clause with exactly one positive literal
   if (givenSideClause.lits.size != 1 || !givenSideClause.lits[0]!.sign) then return #[]
   -- To find potential main clauses for the given side clause, we search for clauses that would be subsumed by sideClauseButNegative
-  let sideClauseButNegative := ⟨#[], #[{givenSideClause.lits[0]! with sign := false}]⟩
+  -- Temporarily use `Clause`, don't need to suppply universe parameters
+  let sideClauseButNegative := ⟨#[], #[], #[{givenSideClause.lits[0]! with sign := false}]⟩
   let potentialMainClauses ← subsumptionTrie.getPotentialSubsumedClauses sideClauseButNegative
   let givenSideClause ← loadClause givenSideClause
   let mut results := #[]
@@ -246,7 +249,8 @@ def backwardNegativeSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
   -- Return Unapplicable if givenSideClause is anything other than a clause with exactly one negative literal
   if (givenSideClause.lits.size != 1 || givenSideClause.lits[0]!.sign) then return #[]
   -- To find potential main clauses for the given side clause, we search for clauses that would be subsumed by sideClauseButPositive
-  let sideClauseButPositive := ⟨#[], #[{givenSideClause.lits[0]! with sign := true}]⟩
+  -- Temporarily use `Clause`, don't need to suppply universe parameters
+  let sideClauseButPositive := ⟨#[], #[], #[{givenSideClause.lits[0]! with sign := true}]⟩
   let potentialMainClauses ← subsumptionTrie.getPotentialSubsumedClauses sideClauseButPositive
   let givenSideClause ← loadClause givenSideClause
   let mut results := #[]

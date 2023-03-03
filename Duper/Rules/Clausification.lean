@@ -435,7 +435,9 @@ def clausificationStep : MSimpRule := fun c => do
                 if j == i then
                   let resLeft := resLits.toList.take (c.lits.size - 1)
                   let resRight := resLits.toList.drop (c.lits.size - 1)
-                  let resRight' := (Clause.mk #[] resRight.toArray).toForallExpr
+                  -- Temporaryly use `Clause` to construct the expected type
+                  -- So we don't need to supply universe parameters
+                  let resRight' := (Clause.mk #[] #[] resRight.toArray).toForallExpr
                   let resLits' := (resLeft.map Lit.toExpr).toArray.push resRight'
                   let dproof ← dproof h
                   if not (← Meta.isDefEq (← Meta.inferType dproof) resRight') then

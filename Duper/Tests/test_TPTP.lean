@@ -146,7 +146,7 @@ variables are instead known variables of the form 'sk.XX'
 -/
 
 tptp HWV039_3 "../TPTP-v8.0.0/Problems/HWV/HWV039_3.p"
-  by duper -- Number of lines 4435 in TPTP problem exceeded line number limit 4000
+  by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PHI044_1 "../TPTP-v8.0.0/Problems/PHI/PHI044_1.p"
   by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
@@ -160,7 +160,7 @@ tptp PUZ018_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ018_1.p"
   by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
 
 tptp PUZ031_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p"
-  by duper -- (deterministic) timeout at 'whnf', maximum number of heartbeats (200000) has been reached (use 'set_option maxHeartbeats <num>' to set the limit)
+  by duper -- failed to synthesize Inhabited snail
 
 tptp PUZ130_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ130_1.p"
   by duper -- Time: 11ms March 2

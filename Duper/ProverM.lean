@@ -256,7 +256,8 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
   | none => throwError "Unable to find information for clausified clause {c}"
 
 def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
-  let c := Clause.fromSingleExpr e
+  -- Universe TODO -- debug !!!
+  let c := Clause.fromSingleExpr #[] e
   let mkProof := fun _ _ _ _ => pure proof
   addNewToPassive c {ruleName := "assumption", mkProof := mkProof} []
 

@@ -18,6 +18,7 @@ deriving Inhabited
 structure ProofParent where
   expr : Expr
   clause : Clause
+  paramSubst : Array Level
 
 /-- Takes: Proofs of the parent clauses, ProofParent information, the indices of new variables
     (which will be turned into bvars in the clause) introduced by the rule, and the target clause -/
@@ -31,10 +32,18 @@ structure Proof where
   newVarIndices : List Nat := []
 deriving Inhabited
 
+structure LoadedClause where
+  -- The loaded clause
+  clause   : Clause
+  -- Level MVars
+  lmVarIds : Array LMVarId
+  -- MVars
+  mVarIds  : Array MVarId
+
 structure State where
   mctx : MetavarContext := {}
   lctx : LocalContext := {}
-  loadedClauses : List (Clause × Array MVarId) := []
+  loadedClauses : List LoadedClause := []
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -83,7 +92,7 @@ def getContext : RuleM Context :=
 def getMCtx : RuleM MetavarContext :=
   return (← get).mctx
 
-def getLoadedClauses : RuleM (List (Clause × Array MVarId)) :=
+def getLoadedClauses : RuleM (List LoadedClause) :=
   return (← get).loadedClauses
 
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
@@ -92,7 +101,7 @@ def setMCtx (mctx : MetavarContext) : RuleM Unit :=
 def setLCtx (lctx : LocalContext) : RuleM Unit :=
   modify fun s => { s with lctx := lctx }
 
-def setLoadedClauses (loadedClauses : List (Clause × Array MVarId)) : RuleM Unit :=
+def setLoadedClauses (loadedClauses : List LoadedClause) : RuleM Unit :=
   modify fun s => { s with loadedClauses := loadedClauses }
 
 def setState (s : State) : RuleM Unit :=
@@ -155,6 +164,9 @@ def runMetaAsRuleM (x : MetaM α) : RuleM α := do
 
 def mkFreshExprMVar (type? : Option Expr) (kind := MetavarKind.natural) (userName := Name.anonymous) : RuleM Expr := do
   runMetaAsRuleM $ Meta.mkFreshExprMVar type? kind userName
+
+def mkFreshLevelMVar : RuleM Level := do
+  runMetaAsRuleM $ Meta.mkFreshLevelMVar
 
 def mkAppM (constName : Name) (xs : Array Expr) :=
   runMetaAsRuleM $ Meta.mkAppM constName xs
@@ -221,8 +233,10 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
 -- `m = c.instantiateRev mVars`
 -- `m ≝ mkAppN c.toForallExpr mVars`
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
-  let (mVars, bis, e) ← forallMetaTelescope c.toForallExpr
-  setLoadedClauses ((c, mVars.map Expr.mvarId!) :: (← getLoadedClauses))
+  let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
+  let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
+  let (mVars, bis, e) ← forallMetaTelescope e
+  setLoadedClauses (⟨c, us.map Level.mvarId!, mVars.map Expr.mvarId!⟩ :: (← getLoadedClauses))
   return (mVars, .fromExpr e)
 
 def loadClause (c : Clause) : RuleM MClause := do
@@ -233,13 +247,15 @@ def loadClause (c : Clause) : RuleM MClause := do
     would be added to loadedClauses if `loadClause c` were called, but does not actually change the set of
     loaded clauses. The purpose of this function is to process a clause and turn it into an MClause while delaying
     the decision of whether to actually load it -/
-def prepLoadClause (c : Clause) : RuleM (MClause × (Clause × Array MVarId)) := do
-  let (mVars, bis, e) ← forallMetaTelescope c.toForallExpr
-  return (.fromExpr e, (c, mVars.map Expr.mvarId!))
+def prepLoadClause (c : Clause) : RuleM (MClause × LoadedClause) := do
+  let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
+  let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
+  let (mVars, bis, e) ← forallMetaTelescope e
+  return (.fromExpr e, ⟨c, us.map Level.mvarId!, mVars.map Expr.mvarId!⟩)
 
 open Lean.Meta.AbstractMVars in
 open Lean.Meta in
-def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarId)) (freshMVarIds : List MVarId := []) :
+def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMVarIds : List MVarId := []) :
   M (Clause × List ProofParent × List Nat) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
@@ -249,10 +265,9 @@ def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarI
   let cst ← get
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := cst.lctx.mkForall cst.fvars fec
-  let c := Clause.fromForallExpr abstec
   -- process loadedClause
   let mut proofParents : List ProofParent := []
-  for (loadedClause, mvarIds) in loadedClauses do
+  for ⟨loadedClause, lmvarIds, mvarIds⟩ in loadedClauses do
     set cst
     -- Add `mdata` to protect the body from `getAppArgs`
     -- The inner part will no longer be used, it is almost dummy, except that it makes the type check
@@ -265,7 +280,17 @@ def neutralizeMClause (c : MClause) (loadedClauses : List (Clause × Array MVarI
     let lst ← get
     -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
     let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
-    proofParents := ⟨instantiatedparent, loadedClause⟩ :: proofParents
+    let paramSubst := lmvarIds.map (fun x =>
+      match lst.lmap.find? x with
+      | some res => res
+      | none => panic! s!"neutralizeMClause :: unknown level parameter {Level.mvar x}")
+    proofParents := ⟨instantiatedparent, loadedClause, paramSubst⟩ :: proofParents
+  -- Deal with universe varialbes differently from metavariables :
+  --   Vanished mvars are not put into clause, while vanished level
+  --   variables are put into the clause. This is because mvars vanish
+  --   frequently, and if we put all vanished mvars into clauses, it will
+  --   make an unbearably long list of binders.
+  let c := Clause.fromForallExpr cst.paramNames abstec
   -- Also return the bvars (represented as Nats) that correspond to the freshMVars
   let mvarMap := cst.emap -- cst.emap maps MVarIds to the free variables they have been replaced with
   let freshFVars := freshMVarIds.map (fun freshMVarId => mvarMap.find! freshMVarId)

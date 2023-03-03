@@ -117,8 +117,10 @@ where elabFactAux (stx : Term) : TacticM Expr :=
     let e ← Term.elabTerm stx none
     Term.synthesizeSyntheticMVars (mayPostpone := false) (ignoreStuckTC := true)
     let e ← instantiateMVars e
-    let e := (← abstractMVars e).expr
-    return e
+    let abstres ← abstractMVars e
+    let e := abstres.expr
+    let us ← abstres.paramNames.mapM fun _ => mkFreshLevelMVar
+    return e.instantiateLevelParamsArray abstres.paramNames us
 
 def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr)) := do
   let mut formulas := []

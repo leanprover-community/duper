@@ -29,10 +29,17 @@ where
     if s == t then return true else
     s.withApp fun f ss => t.withApp fun g tt =>
       match f, g with
-      | Expr.fvar .., Expr.fvar .. =>
-        unifyRigidRigid s t
-      | Expr.const .., Expr.const .. =>
-        unifyRigidRigid s t
+      | Expr.fvar fid, Expr.fvar gid =>
+        if fid == gid then
+          unifyArgs ss tt
+        else
+          return false
+      | Expr.const fname flvls, Expr.const gname glvls => do
+        if fname == gname &&
+          (← (flvls.zip glvls).allM (fun (flvl, glvl) => isLevelDefEq flvl glvl)) then
+          unifyArgs ss tt
+        else
+          return false
       | Expr.mvar mVarId .., Expr.fvar .. =>
         unifyFlexRigid s t
       | Expr.mvar mVarId .., Expr.const .. =>
@@ -45,20 +52,17 @@ where
         unifyFlexFlex s t
       -- Adding cases involving forallE (treating it similar to Expr.const)
       | Expr.forallE .., Expr.forallE .. =>
-        unifyRigidRigid s t
+        return s == t
       | Expr.mvar .., Expr.forallE .. =>
         unifyFlexRigid s t
       | Expr.forallE .., Expr.mvar .. =>
         unifyFlexRigid t s
       | _, _ => return false
-  unifyRigidRigid (s t : Expr) : MetaM Bool := do
-    s.withApp fun f ss => t.withApp fun g tt =>
-      if f == g
-      then
-        if tt.size == ss.size
-        then fastUnify (tt.zip ss)
-        else return false
-      else return false
+  unifyArgs (ss tt : Array Expr) : MetaM Bool := do
+    if tt.size == ss.size then
+      fastUnify (tt.zip ss)
+    else
+      return false
   unifyFlexFlex (s t : Expr) : MetaM Bool := do
     s.withApp fun f ss => t.withApp fun g tt => do
       if tt.isEmpty && ss.isEmpty
