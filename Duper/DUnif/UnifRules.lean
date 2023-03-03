@@ -517,7 +517,9 @@ def UnifierGenerator.takeWithRetry (ug : UnifierGenerator) (nRetry : Nat) :
   for _ in List.range nRetry do
     let (ou, ug') ← ug.take
     if let some ou := ou then
-      trace[DUnif.result] "Produced unifier : {ou}"
+      withoutModifyingMCtx <| do
+        setMCtx ou.mctx
+        trace[DUnif.result] "Produced unifier : {ou}"
       return (ou, ug')
     else
       ug := ug'

@@ -106,7 +106,6 @@ def elabFact (stx : Term) : TacticM (Array Expr) := do
       | throwError "Unknown identifier {id}"
     match ← getEqnsFor? expr.constName! (nonRec := true) with
     | some eqns => do
-      logInfo m!"eqns {← eqns.mapM fun id => do return (← Term.resolveId? (mkIdent id))}"
       eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq)))
     | none =>
       -- Identifier is not a definition
@@ -118,6 +117,7 @@ where elabFactAux (stx : Term) : TacticM Expr :=
     let e ← Term.elabTerm stx none
     Term.synthesizeSyntheticMVars (mayPostpone := false) (ignoreStuckTC := true)
     let e ← instantiateMVars e
+    let e := (← abstractMVars e).expr
     return e
 
 def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr)) := do
