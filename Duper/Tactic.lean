@@ -118,10 +118,7 @@ where elabFactAux (stx : Term) : TacticM Expr :=
     let e ← Term.elabTerm stx none
     Term.synthesizeSyntheticMVars (mayPostpone := false) (ignoreStuckTC := true)
     let e ← instantiateMVars e
-    let s ← abstractMVars e 
-    if s.paramNames.size > 0 then
-      throwError "Universe variables not supported."
-    return s.expr
+    return e
 
 def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr)) := do
   let mut formulas := []
@@ -135,8 +132,7 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr)) := d
     for fact in facts do
       let type ← inferType fact
       if ← isProp type then
-        let fact' := (← abstractMVars fact).expr
-        formulas := (← inferType fact', ← mkAppM ``eq_true #[fact']) :: formulas
+        formulas := (← inferType fact, ← mkAppM ``eq_true #[fact]) :: formulas
       else
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
 
@@ -147,7 +143,7 @@ syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
 macro_rules
 | `(tactic| duper) => `(tactic| duper [])
 
-def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := do
+def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←

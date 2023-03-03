@@ -17,6 +17,18 @@ end Duper
 namespace Lean.Expr
 open Duper
 
+-- To support universe levels, we strip universe levels to allow fingerprint
+-- function to identify constants with uninstantiated universe levels
+def stripLevels : Expr → Expr
+| .const name _ => .const name []
+| .app fn arg => .app (stripLevels fn) (stripLevels arg)
+| .lam name ty b info => .lam name (stripLevels ty) (stripLevels b) info
+| .forallE name ty b info => .forallE name (stripLevels ty) (stripLevels b) info
+| .letE name ty v b nd => .letE name (stripLevels ty) (stripLevels v) (stripLevels b) nd
+| .mdata data e => .mdata data (stripLevels e)
+| .proj name idx struct => .proj name idx (stripLevels struct)
+| e => e
+
 partial def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
     (f : β → Expr → ExprPos → m β) (init : β) (e : Expr)
     (pos : ExprPos := ExprPos.empty) (_ : Inhabited β := ⟨init⟩) : m β :=
