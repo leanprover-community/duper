@@ -16,7 +16,9 @@ structure Context where
 deriving Inhabited
 
 structure ProofParent where
+  -- Instantiated parent
   expr : Expr
+  -- Loaded clause
   clause : Clause
   paramSubst : Array Level
 
@@ -25,7 +27,6 @@ structure SkolemInfo where
   expr : Expr
   -- The `fvarId` of the skolem constant
   fvarId : FVarId
-  paramNames : Array Name
 
 
 /-- Takes: Proofs of the parent clauses, ProofParent information, the indices of new variables
@@ -191,13 +192,13 @@ def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array 
 def forallMetaTelescopeReducing (e : Expr) (maxMVars? : Option Nat := none) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescopeReducing e maxMVars? kind
 
-def mkFreshSkolem (name : Name) (type : Expr) (proof : Expr) (paramNames : Array Name) : RuleM SkolemInfo := do
+def mkFreshSkolem (name : Name) (type : Expr) (proof : Expr) : RuleM SkolemInfo := do
   let name := Name.mkNum name (← getLCtx).decls.size
   let (lctx, res) ← runMetaAsRuleM $ do
     Meta.withLocalDeclD name type fun x => do
       return (← getLCtx, x)
   setLCtx lctx
-  return ⟨proof, res.fvarId!, paramNames⟩
+  return ⟨proof, res.fvarId!⟩
 
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
   runMetaAsRuleM $ Meta.mkForallFVars xs e usedOnly usedLetOnly
@@ -290,11 +291,8 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMV
     -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
     let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
     -- Make sure that levels are abstracted
-    let _ ← AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvarIds.data.map Level.mvar)
-    let paramSubst := lmvarIds.map (fun x =>
-      match lst.lmap.find? x with
-      | some res => res
-      | none => panic! s!"neutralizeMClause :: unknown level parameter {Level.mvar x}")
+    let lvarSubstWithExpr ← AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvarIds.data.map Level.mvar)
+    let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
     proofParents := ⟨instantiatedparent, loadedClause, paramSubst⟩ :: proofParents
   -- Deal with universe variables differently from metavariables :
   --   Vanished mvars are not put into clause, while vanished level

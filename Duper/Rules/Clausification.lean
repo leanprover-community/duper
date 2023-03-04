@@ -364,11 +364,13 @@ where
   makeSkTerm ty b : RuleM (Expr × SkolemInfo) := do
     let p := mkLambda `x BinderInfo.default ty b
     let prf_pre ← mkAppM ``Skolem.some #[p]
-    -- Warning : We do not have full support for skolems with universe levels
-    let (prf, mids, lnames, lmids) ← runMetaAsRuleM <| abstractMVarsLambdaWithIds prf_pre
-    let prftmp := prf.instantiateLevelParamsArray lnames (← lmids.mapM (fun _ => mkFreshLevelMVar))
-    let skTy ← inferType prftmp
-    let isk ← mkFreshSkolem `sk skTy prf lnames
+    let (prf, mids, lnames, _) ← runMetaAsRuleM <| abstractMVarsLambdaWithIds prf_pre
+    -- Warning : We do not support skolems with universe levels
+    if lnames.size != 0 then
+      throwError s!"Clausification :: Skolem constants with universe is not " ++
+                 s!"supported. Error occurred when constructing skolem for {p}"
+    let skTy ← inferType prf
+    let isk ← mkFreshSkolem `sk skTy prf
     let fvar := Expr.fvar isk.fvarId
     let newmvar ← mkFreshExprMVar ty
     return (mkApp (mkAppN fvar mids) newmvar, isk)

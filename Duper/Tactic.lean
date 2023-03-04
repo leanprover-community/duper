@@ -40,7 +40,7 @@ def getClauseInfo! (state : ProverM.State) (c : Clause) : MetaM ClauseInfo := do
 
 abbrev ClauseHeap := Std.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 
-partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Nat × ClauseHeap)) : TacticM (Array Nat × ClauseHeap) := do
+partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Nat × ClauseHeap)) : MetaM (Array Nat × ClauseHeap) := do
   Core.checkMaxHeartbeats "collectClauses"
   let info ← getClauseInfo! state c
   if acc.1.contains info.number then return acc -- No need to recall collectClauses on c because we've already collected c
@@ -51,50 +51,107 @@ partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Na
     acc ← collectClauses state proofParent.clause acc
   return acc
 
-partial def mkProof (state : ProverM.State) : List Clause → MetaM Expr
-| [] => panic! "empty clause list"
-| c :: cs => do
-  Core.checkMaxHeartbeats "mkProof"
+-- Map from clause `id` to Array of request of levels
+abbrev LevelRequests := HashMap Nat (HashMap (Array Level) Nat)
+
+partial def collectLevelRequests (state : ProverM.State) (c : Clause)
+  (lvls : Array Level) (acc : LevelRequests) : MetaM LevelRequests := do
+  Core.checkMaxHeartbeats "collectLevelRequests"
   let info ← getClauseInfo! state c
-  let newTarget := c.toForallExpr
-  let mut parents := []
-  for parent in info.proof.parents do
-    let number := (← getClauseInfo! state parent.clause).number
-    parents := ((← getLCtx).findFromUserName? (Name.mkNum `clause number)).get!.toExpr :: parents
-  parents := parents.reverse
-  -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
-  let mut lctx ← getLCtx
-  let mut skdefs : List Expr := []
-  if let some ⟨skProof, fvarId, paramNames⟩ := info.proof.introducedSkolems then
+  if let some set := acc.find? info.number then
+    if set.contains lvls then
+      return acc
+  let mut acc := acc
+  let lvlset :=
+    match acc.find? info.number with
+    | some set => set
+    | none     => HashMap.empty
+  acc := acc.insert info.number (lvlset.insert lvls lvlset.size)
+  for proofParent in info.proof.parents do
+    let lvls' := proofParent.paramSubst.map
+      (fun lvl => lvl.instantiateParams c.paramNames.data lvls.data)
+    acc ← collectLevelRequests state proofParent.clause lvls' acc
+  return acc
+
+partial def mkSkProof (state : ProverM.State) : List Clause → MetaM Expr → MetaM Expr
+| [], mexpr => mexpr
+| c :: cs, mexpr => do
+  Core.checkMaxHeartbeats "mkSkProof"
+  let info ← getClauseInfo! state c
+  if let some ⟨skProof, fvarId⟩ := info.proof.introducedSkolems then
     trace[Print_Proof] "Reconstructing skolem, fvar = {mkFVar fvarId}"
     let ty := (state.lctx.get! fvarId).type
     trace[Meta.debug] "Reconstructing skolem, type = {ty}"
     let userName := (state.lctx.get! fvarId).userName
     trace[Print_Proof] "Reconstructed skloem, userName = {userName}"
-    let skdef := skProof
-    trace[Meta.debug] "Reconstructed skolem definition: {skdef}"
-    trace[Meta.debug] "Reconstructed skolem definition, toString: {toString skdef}"
-    skdefs := skdef :: skdefs
-    lctx := lctx.mkLetDecl fvarId userName ty skdef
-  let proof ← withLCtx lctx (← getLocalInstances) do
+    trace[Meta.debug] "Reconstructed skolem definition: {skProof}"
+    let lctx ← getLCtx
+    let lctx' := lctx.mkLetDecl fvarId userName ty skProof
+    withLCtx lctx' (← getLocalInstances) do
+      mkLambdaFVars (usedLetOnly := false) #[mkFVar fvarId] (← mkSkProof state cs mexpr)
+  else
+    mkSkProof state cs mexpr
+
+-- `Nat` is the id of the clause
+-- `Array Level` is the requested levels for the clause
+-- `Expr` is the fvarId corresponding to the proof for the clause in the current `lctx`
+abbrev ConstructedClauses := HashMap (Nat × Array Level) Expr
+
+partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
+  List Clause → ConstructedClauses → MetaM (Expr × ConstructedClauses)
+| [], _ => panic! "mkClauseProof :: empty clause list"
+| c :: cs, ctrc => do
+  Core.checkMaxHeartbeats "mkClauseProof"
+  let info ← getClauseInfo! state c
+  let newTarget := c.toForallExpr
+  let lvlreqs := reqs.find! info.number
+  -- let mut parentss := #[]
+  let mut remainingProofConsCode : ConstructedClauses → MetaM (Expr × ConstructedClauses) :=
+    mkClauseProofHelper state reqs cs
+  for (req, reqid) in lvlreqs.toList do
+    let mut parents : Array Expr := #[]
+    let mut instantiatedProofParents := #[]
+    for parent in info.proof.parents do
+      let parentInfo ← getClauseInfo! state parent.clause
+      let parentNumber := parentInfo.number
+      let instantiatedParentParamSubst := parent.paramSubst.map (fun lvl => lvl.instantiateParams c.paramNames.data req.data)
+      let parentPrfFvar := ctrc.find! (parentNumber, instantiatedParentParamSubst)
+      parents := parents.push parentPrfFvar
+      let instPP := {parent with paramSubst := instantiatedParentParamSubst}
+      instantiatedProofParents := instantiatedProofParents.push instPP
+    -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
+    let instCLits := c.lits.map (fun l => l.map (fun e => e.instantiateLevelParamsArray c.paramNames req))
+    let instC := {c with lits := instCLits}
     trace[Meta.debug] "Reconstructing proof for #{info.number}: {c}, Rule Name: {info.proof.ruleName}"
-    let newProof ← info.proof.mkProof parents info.proof.parents info.proof.newVarIndices c
+    let newProof ← info.proof.mkProof parents.data instantiatedProofParents.data info.proof.newVarIndices instC
     trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
-    if cs == [] then return newProof
-    let proof ←
-      withLetDecl (Name.mkNum `clause info.number) newTarget newProof fun g => do
-        let remainingProof ← mkProof state cs
-        let mut remainingProof ← mkLambdaFVars (usedLetOnly := false) #[g] remainingProof
-        if let some ⟨_, fvarId, _⟩ := info.proof.introducedSkolems then
-          remainingProof ← mkLambdaFVars (usedLetOnly := false) #[mkFVar fvarId] remainingProof
-        return remainingProof
-    return proof
-  return proof
+    if cs == [] then return (newProof, ctrc)
+    remainingProofConsCode := fun ctrc =>
+      withLetDecl (Name.mkNum (Name.mkNum `clause info.number) reqid) newTarget newProof fun g => do
+        let ctrc' := ctrc.insert (info.number, req) g
+        let (remainingProof, ctrc') ← remainingProofConsCode ctrc'
+        let rexpr ← mkLambdaFVars (usedLetOnly := false) #[g] remainingProof
+        return (rexpr, ctrc')
+  remainingProofConsCode ctrc
+
+partial def mkClauseProof (state : ProverM.State) (cs : List Clause) : MetaM Expr := do
+  let cs := Array.mk cs
+  let cslen := cs.size
+  if cslen == 0 then
+    throwError "mkClauseProof :: Empty Clause List"
+  -- The final empty clause
+  let emptyClause := cs[cslen - 1]!
+  -- Other clauses
+  let zeroLvlsForEmptyClause := emptyClause.paramNames.map (fun _ => Level.zero)
+  let reqs ← collectLevelRequests state emptyClause zeroLvlsForEmptyClause HashMap.empty
+  let (e, _) ← mkClauseProofHelper state reqs cs.data HashMap.empty
+  return e
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
   let l := (← collectClauses state Clause.empty (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
   trace[Meta.debug] "{l}"
-  let proof ← mkProof state l
+  -- First make proof for skolems, then make proof for clauses
+  let proof ← mkSkProof state l (mkClauseProof state l)
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
