@@ -14,9 +14,9 @@ initialize
 
 namespace Lean.Elab.Tactic
 
-partial def printProof (state : ProverM.State) : TacticM Unit := do
+partial def printProof (state : ProverM.State) : MetaM Unit := do
   Core.checkMaxHeartbeats "printProof"
-  let rec go c (hm : Array (Nat × Clause) := {}) : TacticM (Array (Nat × Clause)) := do
+  let rec go c (hm : Array (Nat × Clause) := {}) : MetaM (Array (Nat × Clause)) := do
     let info ← getClauseInfo! c
     if hm.contains (info.number, c) then return hm
     let mut hm := hm.push (info.number, c)
@@ -28,12 +28,12 @@ partial def printProof (state : ProverM.State) : TacticM Unit := do
     return hm
   let _ ← go Clause.empty
 where 
-  getClauseInfo! (c : Clause) : TacticM ClauseInfo := do
+  getClauseInfo! (c : Clause) : MetaM ClauseInfo := do
     let some ci := state.allClauses.find? c
       | throwError "clause info not found: {c}"
     return ci
 
-def getClauseInfo! (state : ProverM.State) (c : Clause) : TacticM ClauseInfo := do
+def getClauseInfo! (state : ProverM.State) (c : Clause) : MetaM ClauseInfo := do
   let some ci := state.allClauses.find? c
     | throwError "clause info not found: {c}"
   return ci
@@ -51,7 +51,7 @@ partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Na
     acc ← collectClauses state proofParent.clause acc
   return acc
 
-partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
+partial def mkProof (state : ProverM.State) : List Clause → MetaM Expr
 | [] => panic! "empty clause list"
 | c :: cs => do
   Core.checkMaxHeartbeats "mkProof"
@@ -65,13 +65,13 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
   -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
   let mut lctx ← getLCtx
   let mut skdefs : List Expr := []
-  for (fvarId, mkSkProof) in info.proof.introducedSkolems do
+  if let some ⟨skProof, fvarId, paramNames⟩ := info.proof.introducedSkolems then
     trace[Print_Proof] "Reconstructing skolem, fvar = {mkFVar fvarId}"
     let ty := (state.lctx.get! fvarId).type
     trace[Meta.debug] "Reconstructing skolem, type = {ty}"
     let userName := (state.lctx.get! fvarId).userName
     trace[Print_Proof] "Reconstructed skloem, userName = {userName}"
-    let skdef ← mkSkProof parents.toArray
+    let skdef := skProof
     trace[Meta.debug] "Reconstructed skolem definition: {skdef}"
     trace[Meta.debug] "Reconstructed skolem definition, toString: {toString skdef}"
     skdefs := skdef :: skdefs
@@ -85,7 +85,7 @@ partial def mkProof (state : ProverM.State) : List Clause → TacticM Expr
       withLetDecl (Name.mkNum `clause info.number) newTarget newProof fun g => do
         let remainingProof ← mkProof state cs
         let mut remainingProof ← mkLambdaFVars (usedLetOnly := false) #[g] remainingProof
-        for (fvarId, _) in info.proof.introducedSkolems do
+        if let some ⟨_, fvarId, _⟩ := info.proof.introducedSkolems then
           remainingProof ← mkLambdaFVars (usedLetOnly := false) #[mkFVar fvarId] remainingProof
         return remainingProof
     return proof

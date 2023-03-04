@@ -6,6 +6,7 @@ def List.subsequences (xs : List α) :=
   | nil => [nil]
   | cons a as => List.subsequences as ++ map (List.cons a) (List.subsequences as)
 
+-- TODO : Do not use this function
 def MVarId.modifyLCtx (mvarId : MVarId) (lctx : LocalContext) : MetaM PUnit := do
   let decl ← mvarId.getDecl
   let decl' := {decl with lctx := lctx}
@@ -24,6 +25,10 @@ private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) 
     | _                => throwError "invalid instantiateForallNoReducing, too many parameters"
   else
     return e
+
+def Lean.getParamLevelName! : Level → Name
+| .param name => name
+| e           => panic! s!"Lean.getLevelParamName! :: Level {e} is not a parameter level."
 
 def Lean.Expr.countLambdas : Expr → Nat
 | lam _ _ b _  => countLambdas b + 1

@@ -197,38 +197,38 @@ theorem clausify_prop_inequality2 {p : Prop} {q : Prop} (h : p ≠ q) : p = True
 structure ClausificationResult where
   resultClause      : MClause
   proof             : Expr → MetaM Expr
-  introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
+  introducedSkolems : Option SkolemInfo := none
 
 def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationResult) :=
   match sign, e with
   | false, Expr.const ``True _ =>
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``true_neq_false #[premise]
-    return #[⟨MClause.mk #[], pr, #[]⟩]
+    return #[⟨MClause.mk #[], pr, none⟩]
   | true, Expr.const ``False _ =>
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``false_neq_true #[premise]
-    return #[⟨MClause.mk #[], pr, #[]⟩]
+    return #[⟨MClause.mk #[], pr, none⟩]
   | true, Expr.app (Expr.const ``Not _) e =>
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_not #[premise]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr e false], pr, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr e false], pr, none⟩]
   | false, Expr.app (Expr.const ``Not _) e => 
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_not_false #[premise]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr e true], pr, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr e true], pr, none⟩]
   | true, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂ =>
     let pr₁ : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_and_left #[premise]
     let pr₂ : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_and_right #[premise]
     /- e₂ and pr₂ are placed first in the list because "∧" is right-associative. So if we decompose "a ∧ b ∧ c ∧ d... = True" we want
        "b ∧ c ∧ d... = True" to be the first clause (which will return to Saturate's simpLoop to receive further clausification) -/
-    return #[⟨MClause.mk #[Lit.fromSingleExpr e₂], pr₂, #[]⟩, ⟨MClause.mk #[Lit.fromSingleExpr e₁], pr₁, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr e₂], pr₂, none⟩, ⟨MClause.mk #[Lit.fromSingleExpr e₁], pr₁, none⟩]
   | true, Expr.app (Expr.app (Expr.const ``Or _) e₁) e₂ =>
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_or #[premise]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr e₁, Lit.fromSingleExpr e₂], pr, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr e₁, Lit.fromSingleExpr e₂], pr, none⟩]
   | true, Expr.forallE _ ty b _ => do
     if (← inferType ty).isProp
     then
       if b.hasLooseBVars then
         throwError "Types depending on props are not supported" 
       let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_imp #[premise]
-      return #[⟨MClause.mk #[Lit.fromSingleExpr ty false, Lit.fromSingleExpr b], pr, #[]⟩]
+      return #[⟨MClause.mk #[Lit.fromSingleExpr ty false, Lit.fromSingleExpr b], pr, none⟩]
     else
       -- Hack. Add literal ((mvar ≠ mvar) = True) to the conclusion.
       --
@@ -269,7 +269,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         return ← Meta.mkAppOptM ``Or.inl #[none, ← Meta.mkAppM ``Eq #[mvarNE, mkConst ``True], left_part_of_or]
       let mvar ← mkFreshExprMVar ty
       let mvarNE ← mkAppM ``Ne #[mvar, mvar]
-      return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 mvar, Lit.fromSingleExpr $ mvarNE], pr, #[]⟩]
+      return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 mvar, Lit.fromSingleExpr $ mvarNE], pr, none⟩]
   | true, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     let (skTerm, isk) ← makeSkTerm ty b
     let pr : Expr → MetaM Expr := fun premise => do
@@ -279,16 +279,16 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       let mvar ← Meta.mkFreshExprMVar  ty
       return ← Meta.mkAppM ``eq_true
         #[← Meta.mkAppM ``Skolem.spec #[mvar, ← Meta.mkAppM ``of_eq_true #[premise]]]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr, #[isk]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr, some isk⟩]
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_and_false #[premise]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr, none⟩]
   | false, Expr.app (Expr.app (Expr.const ``Or _) e₁) e₂ =>
     let pr₁ : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_or_false_left #[premise]
     let pr₂ : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_or_false_right #[premise]
     /- e₂ and pr₂ are placed first in the list because "∨" is right-associative. So if we decompose "a ∨ b ∨ c ∨ d... = False" we want
        "b ∨ c ∨ d... = False" to be the first clause (which will return to Saturate's simpLoop to receive further clausification) -/
-    return #[⟨MClause.mk #[Lit.fromSingleExpr e₂ false], pr₂, #[]⟩, ⟨MClause.mk #[Lit.fromSingleExpr e₁ false], pr₁, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr e₂ false], pr₂, none⟩, ⟨MClause.mk #[Lit.fromSingleExpr e₁ false], pr₁, none⟩]
   | false, Expr.forallE _ ty b _ => do
     if (← inferType ty).isProp
     then
@@ -299,8 +299,8 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         Meta.mkAppM ``clausify_imp_false_left #[premise]
       let pr₂ : Expr → MetaM Expr := fun premise =>
         Meta.mkAppM ``clausify_imp_false_right #[premise]
-      return #[⟨MClause.mk #[Lit.fromSingleExpr ty], pr₁, #[]⟩,
-               ⟨MClause.mk #[Lit.fromSingleExpr b false], pr₂, #[]⟩]
+      return #[⟨MClause.mk #[Lit.fromSingleExpr ty], pr₁, none⟩,
+               ⟨MClause.mk #[Lit.fromSingleExpr b false], pr₂, none⟩]
     else
       let (skTerm, isk) ← makeSkTerm ty (mkNot b)
       let pr : Expr → MetaM Expr := fun premise => do
@@ -310,7 +310,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         let mvar ← Meta.mkFreshExprMVar ty
         Meta.mkAppM ``eq_true
           #[← Meta.mkAppM ``Skolem.spec #[mvar, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
-      return #[⟨MClause.mk #[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr, #[isk]⟩]
+      return #[⟨MClause.mk #[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr, some isk⟩]
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     -- Hack. Add literal ((mvar ≠ mvar) = True). Similar to ```true, Expr.forallE```
     let pr : Expr → MetaM Expr := fun premise => do
@@ -322,30 +322,30 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       return ← Meta.mkAppOptM ``Or.inl #[none, ← Meta.mkAppM ``Eq #[mvarNE, mkConst ``True], left_part_of_or]
     let mvar ← mkFreshExprMVar ty
     let mvarNE ← mkAppM ``Ne #[mvar, mvar]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr (b.instantiate1 mvar) false, Lit.fromSingleExpr $ mvarNE], pr, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr (b.instantiate1 mvar) false, Lit.fromSingleExpr $ mvarNE], pr, none⟩]
   | true, Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl]) ty) e₁) e₂  =>
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``of_eq_true #[premise]
-    return #[⟨MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, #[]⟩]
+    return #[⟨MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, none⟩]
   | false, Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl]) ty) e₁) e₂  =>
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``not_of_eq_false #[premise] 
-    return #[⟨MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, #[]⟩]
+    return #[⟨MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, none⟩]
   | true, Expr.app (Expr.app (Expr.app (Expr.const ``Ne [lvl]) ty) e₁) e₂  =>
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``of_eq_true #[premise]
-    return #[⟨MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, #[]⟩]
+    return #[⟨MClause.mk #[{sign := false, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, none⟩]
   | false, Expr.app (Expr.app (Expr.app (Expr.const ``Ne [lvl]) ty) e₁) e₂  =>
     --This case is saying if the clause is (e_1 ≠ e_2) = False, then we can turn that into e_1 = e_2
     let pr : Expr → MetaM Expr := fun premise => Meta.mkAppM ``of_not_eq_false #[premise]
-    return #[⟨MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, #[]⟩]
+    return #[⟨MClause.mk #[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, none⟩]
   | true, Expr.app (Expr.app (Expr.const ``Iff _) e₁) e₂ =>
     let pr1 : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_iff1 #[premise]
     let pr2 : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_iff2 #[premise]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr e₁ true, Lit.fromSingleExpr e₂ false], pr1, #[]⟩,
-      ⟨MClause.mk #[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ true], pr2, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr e₁ true, Lit.fromSingleExpr e₂ false], pr1, none⟩,
+      ⟨MClause.mk #[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ true], pr2, none⟩]
   | false, Expr.app (Expr.app (Expr.const ``Iff _) e₁) e₂ =>
     let pr1 : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_not_iff1 #[premise]
     let pr2 : Expr → MetaM Expr := fun premise => Meta.mkAppM ``clausify_not_iff2 #[premise]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr1, #[]⟩,
-      ⟨MClause.mk #[Lit.fromSingleExpr e₁ true, Lit.fromSingleExpr e₂ true], pr2, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr1, none⟩,
+      ⟨MClause.mk #[Lit.fromSingleExpr e₁ true, Lit.fromSingleExpr e₂ true], pr2, none⟩]
   | _, _ => do
     trace[Simp.debug] "### clausificationStepE is unapplicable with e = {e} and sign = {sign}"
     return #[]
@@ -360,15 +360,18 @@ where
   -- We don't need to construct `sk_spec` explicitly. We
   --   can directly use `Skolem.spec` and leave the job of unification
   --   to Lean
-  makeSkTerm ty b : RuleM (Expr × (FVarId × (Array Expr → MetaM Expr))) := do
+  -- Note: Proof reconstruction of skolems is independent of proof reconstruction of clauses.
+  makeSkTerm ty b : RuleM (Expr × SkolemInfo) := do
     let p := mkLambda `x BinderInfo.default ty b
     let prf_pre ← mkAppM ``Skolem.some #[p]
-    let abstres ← runMetaAsRuleM <| abstractMVarsLambdaWithIds prf_pre
-    let prf := abstres.fst
-    let skTy ← inferType prf
-    let (fvar, isk) ← mkFreshSkolem `sk skTy (fun parents => pure prf)
+    -- Warning : We do not have full support for skolems with universe levels
+    let (prf, mids, lnames, lmids) ← runMetaAsRuleM <| abstractMVarsLambdaWithIds prf_pre
+    let prftmp := prf.instantiateLevelParamsArray lnames (← lmids.mapM (fun _ => mkFreshLevelMVar))
+    let skTy ← inferType prftmp
+    let isk ← mkFreshSkolem `sk skTy prf lnames
+    let fvar := Expr.fvar isk.fvarId
     let newmvar ← mkFreshExprMVar ty
-    return (mkApp (mkAppN fvar abstres.snd) newmvar, isk)
+    return (mkApp (mkAppN fvar mids) newmvar, isk)
 
 -- Important: We return `Array ClausificationResult` instead of
 --   `Option (Array ClausificationResult)` because whenever a literal
@@ -407,8 +410,8 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (Array ClausificationR
       Meta.mkAppM ``clausify_prop_inequality1 #[premise]
     let pr2 : Expr → MetaM Expr := fun premise => do
       Meta.mkAppM ``clausify_prop_inequality2 #[premise]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr l.lhs false, Lit.fromSingleExpr l.rhs false], pr1, #[]⟩,
-             ⟨MClause.mk #[Lit.fromSingleExpr l.lhs true, Lit.fromSingleExpr l.rhs true], pr2, #[]⟩]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr l.lhs false, Lit.fromSingleExpr l.rhs false], pr1, none⟩,
+             ⟨MClause.mk #[Lit.fromSingleExpr l.lhs true, Lit.fromSingleExpr l.rhs true], pr2, none⟩]
 -- TODO: True/False on left-hand side?
 
 -- TODO: generalize combination of `orCases` and `orIntro`?

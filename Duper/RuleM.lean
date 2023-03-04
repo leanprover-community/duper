@@ -20,6 +20,14 @@ structure ProofParent where
   clause : Clause
   paramSubst : Array Level
 
+structure SkolemInfo where
+  -- The `proof` of the skolem constant
+  expr : Expr
+  -- The `fvarId` of the skolem constant
+  fvarId : FVarId
+  paramNames : Array Name
+
+
 /-- Takes: Proofs of the parent clauses, ProofParent information, the indices of new variables
     (which will be turned into bvars in the clause) introduced by the rule, and the target clause -/
 abbrev ProofReconstructor := List Expr → List ProofParent → List Nat → Clause → MetaM Expr
@@ -27,7 +35,7 @@ abbrev ProofReconstructor := List Expr → List ProofParent → List Nat → Cla
 structure Proof where
   parents : List ProofParent := []
   ruleName : String := "unknown"
-  introducedSkolems : Array (FVarId × (Array Expr → MetaM Expr)) := #[]
+  introducedSkolems : Option SkolemInfo := none
   mkProof : ProofReconstructor
   newVarIndices : List Nat := []
 deriving Inhabited
@@ -183,13 +191,13 @@ def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array 
 def forallMetaTelescopeReducing (e : Expr) (maxMVars? : Option Nat := none) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescopeReducing e maxMVars? kind
 
-def mkFreshSkolem (name : Name) (type : Expr) (mkProof : Array Expr → MetaM Expr) : RuleM (Expr × (FVarId × (Array Expr → MetaM Expr))) := do
+def mkFreshSkolem (name : Name) (type : Expr) (proof : Expr) (paramNames : Array Name) : RuleM SkolemInfo := do
   let name := Name.mkNum name (← getLCtx).decls.size
   let (lctx, res) ← runMetaAsRuleM $ do
     Meta.withLocalDeclD name type fun x => do
       return (← getLCtx, x)
   setLCtx lctx
-  return (res, (res.fvarId!, mkProof))
+  return ⟨proof, res.fvarId!, paramNames⟩
 
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
   runMetaAsRuleM $ Meta.mkForallFVars xs e usedOnly usedLetOnly
@@ -268,7 +276,8 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMV
   -- process loadedClause
   let mut proofParents : List ProofParent := []
   for ⟨loadedClause, lmvarIds, mvarIds⟩ in loadedClauses do
-    set cst
+    -- Restore exprmvars, but does not restore level mvars
+    set {(← get) with lctx := cst.lctx, mctx := cst.mctx, fvars := cst.fvars, emap := cst.emap}
     -- Add `mdata` to protect the body from `getAppArgs`
     -- The inner part will no longer be used, it is almost dummy, except that it makes the type check
     -- `mprotectedparent = fun [vars] => parent[vars]`
@@ -287,7 +296,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMV
       | some res => res
       | none => panic! s!"neutralizeMClause :: unknown level parameter {Level.mvar x}")
     proofParents := ⟨instantiatedparent, loadedClause, paramSubst⟩ :: proofParents
-  -- Deal with universe varialbes differently from metavariables :
+  -- Deal with universe variables differently from metavariables :
   --   Vanished mvars are not put into clause, while vanished level
   --   variables are put into the clause. This is because mvars vanish
   --   frequently, and if we put all vanished mvars into clauses, it will
@@ -300,7 +309,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMV
   return (c, proofParents, newVarIndices)
 
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
-  (isk : Array (FVarId × (Array Expr → MetaM Expr)) := #[]) (freshMVarIds : List MVarId := []) : RuleM (Clause × Proof) := do
+  (isk : Option SkolemInfo := none) (freshMVarIds : List MVarId := []) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents, newVarIndices), st) :=
     neutralizeMClause mc (← getLoadedClauses) freshMVarIds { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
