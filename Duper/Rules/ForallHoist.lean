@@ -10,21 +10,23 @@ open SimpResult
 
 initialize Lean.registerTraceClass `Rule.forallHoist
 
--- Note: ForallHoist is not currently enabled because the current code is not successfully finding unifications for forall expressions
-
-theorem forall_hoist_proof (x : α) (y : α → Prop) (f : Prop → Prop) (h : f (∀ z : α, y z)) : f False ∨ y x = True := by
+theorem forall_hoist_proof {y : α → Prop} (x : α) (f : Prop → Prop) (h : f (∀ z : α, y z)) : f False ∨ y x = True := by
   by_cases y_always_true : ∀ z : α, y z
   . exact Or.inr (eq_true (y_always_true x))
   . rename ¬∀ (z : α), y z => y_not_always_true
     exact Or.inl (eq_false y_not_always_true ▸ h)
 
-def mkForallHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : List Expr)
+def mkForallHoistProof (pos : ClausePos) (premises : List Expr)
   (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
+
+    let [freshVar1Idx] := newVarIndices
+      | throwError "Wrong number of number of newVarIndices"
+    let freshVar1 := xs[freshVar1Idx]! -- TODO: This is wrong if freshVar1 doesn't appear in the body of y
 
     let mut caseProofs := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
@@ -35,14 +37,26 @@ def mkForallHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises 
           let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr
           let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
-          let lastTwoClausesProof ← Meta.mkAppM ``forall_hoist_proof #[freshVar1, freshVar2, abstrLam, h]
-          Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoClausesProof
+          let lastTwoLitsProof ← Meta.mkAppM ``forall_hoist_proof #[freshVar1, abstrLam, h]
+          let lastTwoLits := cLits.toList.drop (c.lits.size - 2)
+          let lastTwoLitsAsExpr := (Clause.mk #[] #[] lastTwoLits.toArray).toForallExpr
+          if not (← Meta.isDefEq (← Meta.inferType lastTwoLitsProof) lastTwoLitsAsExpr) then
+            throwError "Error when reconstructing forallHoist. Expected type: {lastTwoLitsAsExpr}, but got type: {← Meta.inferType lastTwoLitsProof}"
+          Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoLitsProof
         else
           let idx := if i ≥ pos.lit then i - 1 else i
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
       caseProofs := caseProofs.push pr
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
+
+/-- Returns the dependent forall and lambda expressions -/
+def mkForallAndLambda (freshVar1Ty : Expr) : MetaM (Expr × Expr) :=
+  Meta.withLocalDeclD `_ freshVar1Ty fun fvar => do
+    let newMVar ← Meta.mkFreshExprMVar (mkSort levelZero)
+    let forallExpr ← Meta.mkForallFVars #[fvar] newMVar
+    let lambdaExpr ← Meta.mkLambdaFVars #[fvar] newMVar
+    return (forallExpr, lambdaExpr)
 
 def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
@@ -63,21 +77,10 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
     let eligibility ← eligibilityPreUnificationCheck c pos.lit
     if eligibility == Eligibility.notEligible then
       return #[]
-    /-
-      Note: In https://matryoshka-project.github.io/pubs/hosup_report.pdf, the specification of ForallHoist would have us unify `e`
-      with `.forallE _ α y _` (where `α` is a fresh MVar and `y` is a freshMVar with type `α → Prop`) and produce a conclusion with
-      the additional literal `y x = True` (where `x` is a freshMVar with type `α`). We cannot do this exactly because in Lean, the body
-      of a forall expression is taken to be the final type (in this case `Prop`) rather than a function that takes in `α` and outputs
-      the final type.
-
-      To deal with this, we instead unify `e` with `.forallE _ α y _` (where `α` is a fresh MVar and `y` is a freshMVar with type `Prop`)
-      and produce a conclusion with the additional literal `(whnf $ .app (.lam _ α y _) x) = True` (where `x` is a freshMVar with type `α`).
-    -/
-    let freshVar1 ← mkFreshExprMVar none -- This corresponds to `x` in the above discussion
-    let freshVarTy ← inferType freshVar1 -- This corresponds to `α` in the above discussion
-    let freshVar2 ← mkFreshExprMVar (mkSort levelZero) -- This corresponds to `y` in the above discussion (note that its type is `Prop`)
-    let freshVarForallExpr := .forallE .anonymous freshVarTy freshVar2 BinderInfo.default
-    let newLitLhs := .app (.lam .anonymous freshVarTy freshVar2 BinderInfo.default) freshVar1
+    let freshVar1 ← mkFreshExprMVar none
+    let freshVar1Ty ← inferType freshVar1
+    let (freshVarForallExpr, freshVarLambdaExpr) ← runMetaAsRuleM $ mkForallAndLambda freshVar1Ty
+    let newLitLhs ← runMetaAsRuleM $ Meta.whnf (.app freshVarLambdaExpr freshVar1)
     -- Perform unification
     let ug ← unifierGenerator #[(e, freshVarForallExpr)]
     let loaded ← getLoadedClauses
@@ -93,13 +96,11 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
       -- Need to instantiate mvars in freshVar1, freshVar2, and newLit because unification assigned to mvars in each of them
-      let freshVar1 ← RuleM.instantiateMVars freshVar1
-      let freshVar2 ← RuleM.instantiateMVars freshVar2
       let newLitLhs ← RuleM.instantiateMVars newLitLhs
       let newLitLhs ← RuleM.runMetaAsRuleM $ Meta.whnf newLitLhs -- newLitLhs probably has the form (λ x, stuff) x, so perform the application
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]
       trace[Rule.forallHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClause newClause "forallHoist" $ some (mkForallHoistProof pos freshVar1 freshVar2)
+      yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (freshMVarIds := [freshVar1.mvarId!])
     return #[⟨ug, given, yC⟩]
 
 def forallHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do

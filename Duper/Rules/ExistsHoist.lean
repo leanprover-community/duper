@@ -10,14 +10,14 @@ open SimpResult
 
 initialize Lean.registerTraceClass `Rule.existsHoist
 
-theorem exists_hoist_proof (x : α) (y : α → Prop) (f : Prop → Prop) (h : f (∃ z : α, y z)) : f True ∨ y x = False := by
+theorem exists_hoist_proof {y : α → Prop} (x : α) (f : Prop → Prop) (h : f (∃ z : α, y z)) : f True ∨ y x = False := by
   by_cases z_hyp : ∃ z : α, y z
   . exact Or.inl (eq_true z_hyp ▸ h)
   . simp at z_hyp
     exact Or.inr (eq_false (z_hyp x))
 
-def mkExistsHoistProof (pos : ClausePos) (freshVar2 : Expr) (premises : List Expr)
-  (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
+def mkExistsHoistProof (pos : ClausePos) (premises : List Expr) (parents : List ProofParent)
+  (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
@@ -26,7 +26,7 @@ def mkExistsHoistProof (pos : ClausePos) (freshVar2 : Expr) (premises : List Exp
 
     let [freshVar1Idx] := newVarIndices
       | throwError "Wrong number of number of newVarIndices"
-    let freshVar1 := xs[xs.size - freshVar1Idx - 1]!
+    let freshVar1 := xs[freshVar1Idx]! -- TODO: This is wrong if freshVar1 doesn't appear in the body of y
 
     let mut caseProofs := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
@@ -37,8 +37,12 @@ def mkExistsHoistProof (pos : ClausePos) (freshVar2 : Expr) (premises : List Exp
           let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr
           let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
-          let lastTwoClausesProof ← Meta.mkAppM ``exists_hoist_proof #[freshVar1, freshVar2, abstrLam, h]
-          Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoClausesProof
+          let lastTwoLitsProof ← Meta.mkAppM ``exists_hoist_proof #[freshVar1, abstrLam, h]
+          let lastTwoLits := cLits.toList.drop (c.lits.size - 2)
+          let lastTwoLitsAsExpr := (Clause.mk #[] #[] lastTwoLits.toArray).toForallExpr
+          if not (← Meta.isDefEq (← Meta.inferType lastTwoLitsProof) lastTwoLitsAsExpr) then
+            throwError "Error when reconstructing existsHoist. Expected type: {lastTwoLitsAsExpr}, but got type: {← Meta.inferType lastTwoLitsProof}"
+          Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoLitsProof
         else
           let idx := if i ≥ pos.lit then i - 1 else i
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
@@ -87,11 +91,10 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
       -- Need to instantiate mvars in freshVar2 and newLit because unification assigned to mvars in both of them
-      let freshVar2 ← RuleM.instantiateMVars freshVar2
       let newLitLhs ← RuleM.instantiateMVars newLitLhs
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
       trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos freshVar2)) (freshMVarIds := [freshVar1.mvarId!])
+      yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (freshMVarIds := [freshVar1.mvarId!])
     return #[⟨ug, given, yC⟩]
 
 def existsHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
