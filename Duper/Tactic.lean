@@ -103,7 +103,6 @@ partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
 | c :: cs, ctrc => do
   Core.checkMaxHeartbeats "mkClauseProof"
   let info ← getClauseInfo! state c
-  let newTarget := c.toForallExpr
   let lvlreqs := reqs.find! info.number
   -- let mut parentss := #[]
   let mut remainingProofConsCode : ConstructedClauses → MetaM (Expr × ConstructedClauses) :=
@@ -122,8 +121,16 @@ partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
     -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
     let instCLits := c.lits.map (fun l => l.map (fun e => e.instantiateLevelParamsArray c.paramNames req))
     let instC := {c with lits := instCLits}
-    trace[Meta.debug] "Reconstructing proof for #{info.number}: {c}, Rule Name: {info.proof.ruleName}"
-    let newProof ← info.proof.mkProof parents.data instantiatedProofParents.data info.proof.newVarIndices instC
+    trace[Meta.debug] "Reconstructing proof for #{info.number}: {instC}, Rule Name: {info.proof.ruleName}"
+    let newProof ← (do
+      let prf ← info.proof.mkProof parents.data instantiatedProofParents.data info.proof.newVarIndices instC
+      if info.proof.ruleName != "assumption" then
+        return prf
+      else
+        -- If the rule is "assumption", then there is no proofparent and
+        --   we have to manually instantiate the universe mvars
+        return prf.instantiateLevelParamsArray c.paramNames req)
+    let newTarget := instC.toForallExpr
     trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
     if cs == [] then return (newProof, ctrc)
     remainingProofConsCode := fun ctrc =>
@@ -155,7 +162,7 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
-def elabFact (stx : Term) : TacticM (Array Expr) := do
+def elabFact (stx : Term) : TacticM (Array (Expr × Array Name)) := do
   match stx with
   | `($id:ident) =>
     -- Try to look up any defining equations for this identifier
@@ -168,7 +175,7 @@ def elabFact (stx : Term) : TacticM (Array Expr) := do
       -- Identifier is not a definition
       return #[← elabFactAux stx]
   | _ => return #[← elabFactAux stx]
-where elabFactAux (stx : Term) : TacticM Expr :=
+where elabFactAux (stx : Term) : TacticM (Expr × Array Name) :=
   -- elaborate term as much as possible and abstract any remaining mvars:
   Term.withoutModifyingElabMetaStateWithInfo <| withRef stx <| Term.withoutErrToSorry do
     let e ← Term.elabTerm stx none
@@ -176,22 +183,22 @@ where elabFactAux (stx : Term) : TacticM Expr :=
     let e ← instantiateMVars e
     let abstres ← abstractMVars e
     let e := abstres.expr
-    let us ← abstres.paramNames.mapM fun _ => mkFreshLevelMVar
-    return e.instantiateLevelParamsArray abstres.paramNames us
+    let paramNames := abstres.paramNames
+    return (e, paramNames)
 
-def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr)) := do
+def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Array Name)) := do
   let mut formulas := []
   -- Load all local decls:
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
-      formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId]) :: formulas
+      formulas := (← instantiateMVars ldecl.type, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
   -- load user-provided facts
   for facts in ← facts.mapM elabFact do
-    for fact in facts do
+    for (fact, params) in facts do
       let type ← inferType fact
       if ← isProp type then
-        formulas := (← inferType fact, ← mkAppM ``eq_true #[fact]) :: formulas
+        formulas := (← inferType fact, ← mkAppM ``eq_true #[fact], params) :: formulas
       else
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
 

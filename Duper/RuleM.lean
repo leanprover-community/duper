@@ -21,6 +21,7 @@ structure ProofParent where
   -- Loaded clause
   clause : Clause
   paramSubst : Array Level
+deriving Inhabited
 
 structure SkolemInfo where
   -- The `proof` of the skolem constant
@@ -34,7 +35,7 @@ structure SkolemInfo where
 abbrev ProofReconstructor := List Expr → List ProofParent → List Nat → Clause → MetaM Expr
 
 structure Proof where
-  parents : List ProofParent := []
+  parents : List ProofParent
   ruleName : String := "unknown"
   introducedSkolems : Option SkolemInfo := none
   mkProof : ProofReconstructor
@@ -268,7 +269,9 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMV
   M (Clause × List ProofParent × List Nat) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
-  let ec := c.toExpr
+  -- We need to instantiate mvars because currently Lean's
+  --   `abstractMVars` does not deal with level mvars correctly.
+  let ec ← Lean.instantiateMVars c.toExpr
   -- `fec = concl[fvars]`
   let fec ← AbstractMVars.abstractExprMVars ec
   let cst ← get
@@ -286,12 +289,17 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMV
     -- `minstantiatedparent = (fun [vars] => parent[vars]) mvars[umvars] ≝ parent[mvars[umvars]]`
     let minstantiatedparent := mkAppN mprotectedparent (mvarIds.map mkMVar)
     -- `finstantiatedparent = (fun [vars] => parent[vars]) mvars[fvars]`
+    -- In this following `AbstractMVars`, there are no universe metavariables
     let finstantiatedparent ← AbstractMVars.abstractExprMVars minstantiatedparent
     let lst ← get
     -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
     let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
     -- Make sure that levels are abstracted
-    let lvarSubstWithExpr ← AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvarIds.data.map Level.mvar)
+    let lmvars := lmvarIds.map Level.mvar
+    -- We need to instantiate level mvars because currently Lean's
+    --   `abstractMVars` does not deal with level mvars correctly.
+    let lmvarsInst ← lmvars.mapM instantiateLevelMVars
+    let lvarSubstWithExpr ← AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvarsInst.data)
     let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
     proofParents := ⟨instantiatedparent, loadedClause, paramSubst⟩ :: proofParents
   -- Deal with universe variables differently from metavariables :
@@ -312,6 +320,9 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
   let ((c, proofParents, newVarIndices), st) :=
     neutralizeMClause mc (← getLoadedClauses) freshMVarIds { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   setNGen st.ngen
+  -- This is redundant because the `mctx` won't change
+  -- We should not reset `lctx` because fvars introduced by
+  --   `AbstractMVars` are local to it
   setMCtx st.mctx
   
   let mkProof := match mkProof with

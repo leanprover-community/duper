@@ -255,17 +255,13 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
     setPassiveSet $ (← getPassiveSet).insert c c.weight ci.number
   | none => throwError "Unable to find information for clausified clause {c}"
 
-def addExprAssumptionToPassive (e : Expr) (proof : Expr) : ProverM Unit := do
-  -- Universe TODO -- debug !!!
-  let c := Clause.fromSingleExpr #[] e
-  let mkProof := fun _ _ _ _ => pure proof
-  addNewToPassive c {ruleName := "assumption", mkProof := mkProof} []
-
-def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr)) (ctx : Context := {}) (s : State := {}) : 
+def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name)) (ctx : Context := {}) (s : State := {}) : 
     CoreM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
-    for (e, proof) in es do
-      addExprAssumptionToPassive e proof
+    for (e, proof, paramNames) in es do
+      let c := Clause.fromSingleExpr paramNames e
+      let mkProof := fun _ _ _ _ => pure proof
+      addNewToPassive c {parents := [], ruleName := "assumption", mkProof := mkProof} []
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
