@@ -139,9 +139,9 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
   argCong,
   boolHoist,
   eqHoist,
-  neHoist
-  -- existsHoist, (to be uncommented once the issue with quantifiers like "∃ x : Nat, 0 = 0" are resolved)
-  -- forallHoist  (to be uncommented once the issue with quantifiers like "∀ x : Nat, 0 = 0" are resolved)
+  neHoist,
+  existsHoist,
+  forallHoist
 ]
 
 register_option maxSaturationTime : Nat := {

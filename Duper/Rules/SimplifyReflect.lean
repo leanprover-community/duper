@@ -47,7 +47,7 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i h
           else -- i > mainPremisePos.lit, so we have to adjust for the off-by-one error by giving orIntro `i - 1` rather than `i`
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) (i - 1) h
-        caseProofs := caseProofs.push $ pr
+        caseProofs := caseProofs.push pr
       let r ← orCases (mainParentLits.map Lit.toExpr) caseProofs
       Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
     let proof ← Meta.mkLambdaFVars xs $ mkApp proof appliedSidePremise
@@ -157,11 +157,8 @@ def forwardNegativeSimplifyReflectWithPartner (mainPremise : MClause) (mainPremi
     let matchSuccess ← -- Try to match lhs of sidePremise to mainPremiseLhs of mainPremise and rhs of sidePremise to other side of main premise
       RuleM.performMatch #[(mainPremiseLit.lhs, sidePremiseLit.lhs), (mainPremiseLit.rhs, sidePremiseLit.rhs)] mainPremiseMVarIds
     if matchSuccess then
-      let mut mainPremiseLitsExceptSimplifiedLit : List Lit := []
-      for i in [:mainPremise.lits.size] do
-        if i = mainPremiseLitIdx then continue
-        else mainPremiseLitsExceptSimplifiedLit := mainPremise.lits[i]! :: mainPremiseLitsExceptSimplifiedLit
-      let res := MClause.mk mainPremiseLitsExceptSimplifiedLit.toArray.reverse
+      let mut mainPremiseLitsExceptSimplifiedLit := mainPremise.lits.extract 0 (mainPremiseLitIdx - 1) ++ mainPremise.lits.extract mainPremiseLitIdx mainPremise.lits.size
+      let res := MClause.mk mainPremiseLitsExceptSimplifiedLit
       trace[Rule.simplifyReflect] "(forward negative): Main clause: {mainPremise.lits}, side clause: {sidePremise.lits}, res: {res.lits}"
       let cp ← yieldClause res
         "forward negative simplify reflect"
@@ -228,11 +225,8 @@ def backwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
               RuleM.performMatch #[(mainClauseLit.lhs.getAtPos! pos.pos, sideClauseLit.lhs),
                                   (mainClauseLit.rhs.getAtPos! pos.pos, sideClauseLit.rhs)] mclauseMVarIds
             if matchSuccess then
-              let mut mainClauseLitsExceptSimplifiedLit : List Lit := []
-              for i in [:mainClause.lits.size] do
-                if i = pos.lit then continue
-                else mainClauseLitsExceptSimplifiedLit := mainClause.lits[i]! :: mainClauseLitsExceptSimplifiedLit
-              let res := MClause.mk mainClauseLitsExceptSimplifiedLit.toArray
+              let mainClauseLitsExceptSimplifiedLit := mainClause.lits.extract 0 (pos.lit - 1) ++ mainClause.lits.extract pos.lit mainClause.lits.size
+              let res := MClause.mk mainClauseLitsExceptSimplifiedLit
               trace[Rule.simplifyReflect] "Backward positive simplify reflect with givenSideClause: {givenSideClause.lits} and main clause: {mainClause.lits}"
               trace[Rule.simplifyReflect] "Result: {res.lits}"
               let cp ← yieldClause res "backward positive simplify reflect" $ some $ mkPositiveSimplifyReflectProof pos false

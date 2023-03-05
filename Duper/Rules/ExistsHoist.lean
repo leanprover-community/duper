@@ -25,7 +25,7 @@ def mkExistsHoistProof (pos : ClausePos) (premises : List Expr) (parents : List 
     let appliedPremise := appliedPremises[0]!
 
     let [freshVar1Idx] := newVarIndices
-      | throwError "Wrong number of number of newVarIndices"
+      | throwError "mkExistsHoistProof :: Wrong number of number of newVarIndices"
     let freshVar1 := xs[freshVar1Idx]! -- TODO: This is wrong if freshVar1 doesn't appear in the body of y
 
     let mut caseProofs := Array.mkEmpty parentLits.size
@@ -94,7 +94,7 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let newLitLhs ← RuleM.instantiateMVars newLitLhs
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
       trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (freshMVarIds := [freshVar1.mvarId!])
+      yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (freshMVarIds := [freshVar1.mvarId!]) (includeMVars := [freshVar1])
     return #[⟨ug, given, yC⟩]
 
 def existsHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do

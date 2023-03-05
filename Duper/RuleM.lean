@@ -265,7 +265,8 @@ def prepLoadClause (c : Clause) : RuleM (MClause × LoadedClause) := do
 
 open Lean.Meta.AbstractMVars in
 open Lean.Meta in
-def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMVarIds : List MVarId := []) :
+def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause)
+  (freshMVarIds : List MVarId) (includeMVars : List Expr) :
   M (Clause × List ProofParent × List Nat) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
@@ -274,6 +275,10 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMV
   let ec ← Lean.instantiateMVars c.toExpr
   -- `fec = concl[fvars]`
   let fec ← AbstractMVars.abstractExprMVars ec
+  -- Abstract metavariables in expressions whose metavariables must
+  --   be included in the abstraction procedure
+  for includeMVar in includeMVars do
+    let _ ← AbstractMVars.abstractExprMVars includeMVar
   let cst ← get
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := cst.lctx.mkForall cst.fvars fec
@@ -315,10 +320,10 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (freshMV
   return (c, proofParents, newVarIndices)
 
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
-  (isk : Option SkolemInfo := none) (freshMVarIds : List MVarId := []) : RuleM (Clause × Proof) := do
+  (isk : Option SkolemInfo := none) (freshMVarIds : List MVarId := []) (includeMVars : List Expr := []) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents, newVarIndices), st) :=
-    neutralizeMClause mc (← getLoadedClauses) freshMVarIds { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+    neutralizeMClause mc (← getLoadedClauses) freshMVarIds includeMVars { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   setNGen st.ngen
   -- This is redundant because the `mctx` won't change
   -- We should not reset `lctx` because fvars introduced by

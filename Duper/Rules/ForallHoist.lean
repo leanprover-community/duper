@@ -25,7 +25,7 @@ def mkForallHoistProof (pos : ClausePos) (premises : List Expr)
     let appliedPremise := appliedPremises[0]!
 
     let [freshVar1Idx] := newVarIndices
-      | throwError "Wrong number of number of newVarIndices"
+      | throwError "mkForallHoistProof :: Wrong number of number of newVarIndices"
     let freshVar1 := xs[freshVar1Idx]! -- TODO: This is wrong if freshVar1 doesn't appear in the body of y
 
     let mut caseProofs := Array.mkEmpty parentLits.size
@@ -100,7 +100,7 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let newLitLhs ← RuleM.runMetaAsRuleM $ Meta.whnf newLitLhs -- newLitLhs probably has the form (λ x, stuff) x, so perform the application
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]
       trace[Rule.forallHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (freshMVarIds := [freshVar1.mvarId!])
+      yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (freshMVarIds := [freshVar1.mvarId!]) (includeMVars := [freshVar1])
     return #[⟨ug, given, yC⟩]
 
 def forallHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do

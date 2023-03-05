@@ -425,7 +425,6 @@ set_option trace.Print_Proof true in
 theorem existsHoistTest5 (f : Prop → Nat)
   (h : ∀ x : Nat, ∃ y : Nat, f ((∃ z : Nat, z = x) ∧ (∃ z : Nat, z = y)) ≠ f True) : False := by duper
 
-/- Note: These tests currently fail because they contain quantifier bodies that do not have the quantified variable
 set_option trace.Print_Proof true in
 set_option trace.Rule.existsHoist true in
 theorem existsHoistTest6 (f : Prop → Nat) : ∀ y : Nat, f (∃ x : Nat, 0 = 0) = f True := by duper
@@ -433,7 +432,7 @@ theorem existsHoistTest6 (f : Prop → Nat) : ∀ y : Nat, f (∃ x : Nat, 0 = 0
 set_option trace.Print_Proof true in
 set_option trace.Rule.existsHoist true in
 theorem existsHoistTest7 (f : Prop → Nat) : ∀ y : Nat, f (∃ x : Nat, y = y) = f True := by duper
--/
+
 
 set_option trace.Print_Proof true in
 theorem forallHoistTest1 (f : Prop → Nat) : f (∀ (x : Nat), x ≠ Nat.zero) = f False := by duper
@@ -446,9 +445,6 @@ set_option trace.Print_Proof true in
 theorem forallHoistTest3 (f : Prop → Nat)
   (h : ∃ x : Nat, f (∀ y : Nat, x = y) ≠ f False) : False := by duper
 
-/-
-Note: These tests succeed when identBoolHoist is disabled and forallHoist and existsHoist are enabled. But these tests
-have proof reconstruction errors when identBoolHoist is enabled. I haven't looked into the cause of that yet.
 set_option trace.Print_Proof true in
 theorem forallHoistTest4 (f : Prop → Nat)
   (h : ∀ x : Nat, ∀ y : Nat, f (∀ z : Nat, x = z ↔ y = z) ≠ f False) : False := by duper
@@ -456,18 +452,7 @@ theorem forallHoistTest4 (f : Prop → Nat)
 set_option trace.Print_Proof true in
 theorem forallHoistTest5 (f : Prop → Nat)
   (h : ∀ x : Nat, ∃ y : Nat, f (∀ z : Nat, x = z ∧ y = z) ≠ f False) : False := by duper
--/
 
-/-
-This test causes forallHoist to yield a bad clause because it contains implications in places forallHoist can attempt to replace
-forall expressions. Right now, because implications (which are forall expressions quantifying over props whose variables do not
-appear in the body) are not handled properly, this test causes the error:
-PANIC at Lean.HashMap.find! Lean.Data.HashMap:182:14: key is not in the map PANIC at Option.get! Init.Data.Option.BasicAux:16:14: value is none
-This is from the Option.get! used to define newVarIndices at the end of neutralizeMClause
-
-tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
-  by duper
--/
 
 --###############################################################################################################################
 -- Tests that were previously in bugs.lean
@@ -515,5 +500,6 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
 tptp SEU123 "../TPTP-v8.0.0/Problems/SEU/SEU123+1.p"
   by duper
 
+set_option trace.Print_Proof true in
 tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
   by duper
