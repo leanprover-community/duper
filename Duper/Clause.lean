@@ -67,6 +67,12 @@ def map (f : Expr → Expr) (l : Lit) :=
   -- Should we really map into `ty`?
   {l with ty := f l.ty, lhs := f l.lhs, rhs := f l.rhs}
 
+def instantiateLevelParamsArray (l : Lit) (paramNames : Array Name) (levels : Array Level) :=
+  {l with lvl := l.lvl.instantiateParams paramNames.data levels.data
+          ty := l.ty.instantiateLevelParamsArray paramNames levels
+          lhs := l.lhs.instantiateLevelParamsArray paramNames levels
+          rhs := l.rhs.instantiateLevelParamsArray paramNames levels}
+
 def mapWithPos (f : Expr → Expr × Array ExprPos) (l : Lit) :=
   let (l', lposes) := f l.lhs
   let (r', rposes) := f l.rhs

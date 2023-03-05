@@ -445,8 +445,9 @@ def clausificationStep : MSimpRule := fun c => do
                   let resRight' := (Clause.mk #[] #[] resRight.toArray).toForallExpr
                   let resLits' := (resLeft.map Lit.toExpr).toArray.push resRight'
                   let dproof ← dproof h
-                  if not (← Meta.isDefEq (← Meta.inferType dproof) resRight') then
-                    throwError "Error when reconstructing clausification. Expected type: {resRight'}, but got: {dproof}"
+                  let dproofTy ← Meta.inferType dproof
+                  if not (← Meta.isDefEq dproofTy resRight') then
+                    throwError "Error when reconstructing clausification. Expected type: {resRight'}, but got: {dproof} of type {dproofTy}"
                   if resRight.length == 0 then
                     Meta.mkLambdaFVars #[h] $ ← Meta.mkAppOptM ``False.elim #[body, dproof]
                   else

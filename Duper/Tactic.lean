@@ -66,6 +66,7 @@ partial def collectLevelRequests (state : ProverM.State) (c : Clause)
     match acc.find? info.number with
     | some set => set
     | none     => HashMap.empty
+  trace[Meta.debug] "Request {lvls} for {c}"
   acc := acc.insert info.number (lvlset.insert lvls lvlset.size)
   for proofParent in info.proof.parents do
     let lvls' := proofParent.paramSubst.map
@@ -119,8 +120,9 @@ partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
       let instPP := {parent with paramSubst := instantiatedParentParamSubst}
       instantiatedProofParents := instantiatedProofParents.push instPP
     -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
-    let instCLits := c.lits.map (fun l => l.map (fun e => e.instantiateLevelParamsArray c.paramNames req))
-    let instC := {c with lits := instCLits}
+    let instCLits := c.lits.map (fun l => l.instantiateLevelParamsArray c.paramNames req)
+    let instBvarTys := c.bVarTypes.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
+    let instC := {c with lits := instCLits, bVarTypes := instBvarTys}
     trace[Meta.debug] "Reconstructing proof for #{info.number}: {instC}, Rule Name: {info.proof.ruleName}"
     let newProof ← (do
       let prf ← info.proof.mkProof parents.data instantiatedProofParents.data info.proof.newVarIndices instC

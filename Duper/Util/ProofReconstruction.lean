@@ -29,7 +29,7 @@ def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs 
     let parentParamNames := parent.clause.paramNames
     let parentParamSubst := parent.paramSubst
     let parentLits := parent.clause.lits.map fun lit =>
-      lit.map (fun e => (e.instantiateRev parentInstantiations).instantiateLevelParamsArray parentParamNames parentParamSubst)
+      (lit.map (fun e => (e.instantiateRev parentInstantiations))).instantiateLevelParamsArray parentParamNames parentParamSubst
     parentsLits := parentLits :: parentsLits
     let newprem := (mkAppN premise parentInstantiations).instantiateLevelParams parentParamNames.data parentParamSubst.data
     appliedPremises := newprem :: appliedPremises
