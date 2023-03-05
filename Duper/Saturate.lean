@@ -29,6 +29,7 @@ import Duper.Rules.DestructiveEqualityResolution
 import Duper.Rules.BoolHoist
 import Duper.Rules.EqHoist
 import Duper.Rules.ExistsHoist
+import Duper.Rules.ForallHoist
 import Duper.Rules.NeHoist
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
@@ -138,8 +139,9 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
   argCong,
   boolHoist,
   eqHoist,
-  neHoist,
-  existsHoist
+  neHoist
+  -- existsHoist, (to be uncommented once the issue with quantifiers like "∃ x : Nat, 0 = 0" are resolved)
+  -- forallHoist  (to be uncommented once the issue with quantifiers like "∀ x : Nat, 0 = 0" are resolved)
 ]
 
 register_option maxSaturationTime : Nat := {
