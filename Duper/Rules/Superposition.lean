@@ -18,10 +18,10 @@ def getSimultaneousSuperposition (opts : Options) : Bool :=
   simultaneousSuperposition.get opts
 
 def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
-  (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr := do
+  (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     
     let mainParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
     let sideParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
@@ -66,10 +66,10 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
     return proof
 
 def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (givenIsMain : Bool) (poses : Array ClausePos)
-  (premises : List Expr) (parents: List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr := do
+  (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
 
     let mainParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
     let sideParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!

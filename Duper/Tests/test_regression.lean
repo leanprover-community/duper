@@ -93,6 +93,7 @@ theorem test00
 
 #print test00
 
+set_option trace.Meta.debug true in
 theorem test0
 (ax1 : f a = b → f c ≠ b)
 (ax2 : ¬ ∃ x, f x ≠ b ∧ c = c)

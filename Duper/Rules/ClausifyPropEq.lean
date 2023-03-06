@@ -16,10 +16,10 @@ theorem c1_soundness {p : Prop} {q : Prop} (h : p = q) : (p = True) ∨ (q = Fal
     1. The literal p = q is removed from c
     2. The literals p = True and q = False are appended to the end of c (in that order)
 -/
-def mkC1Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr := do
+def mkC1Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
     let mut proofCases : Array Expr := Array.mkEmpty parentLits.size
@@ -51,10 +51,10 @@ theorem c2_soundness {p : Prop} {q : Prop} (h : p = q) : (p = False) ∨ (q = Tr
     1. The literal p = q is removed from c
     2. The literals p = False and q = True are appended to the end of c (in that order)
 -/
-def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
+def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
     let mut proofCases : Array Expr := Array.mkEmpty parentLits.size

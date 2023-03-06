@@ -9,10 +9,10 @@ open Lean
 initialize Lean.registerTraceClass `Rule.argCong
 
 def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr) (premises : List Expr) (parents : List ProofParent)
-  (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
+  (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 

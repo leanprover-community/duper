@@ -30,16 +30,16 @@ structure SkolemInfo where
   fvarId : FVarId
 
 
-/-- Takes: Proofs of the parent clauses, ProofParent information, the indices of new variables
+/-- Takes: Proofs of the parent clauses, ProofParent information, the transported Expressions
     (which will be turned into bvars in the clause) introduced by the rule, and the target clause -/
-abbrev ProofReconstructor := List Expr → List ProofParent → List Nat → Clause → MetaM Expr
+abbrev ProofReconstructor := List Expr → List ProofParent → Array Expr → Clause → MetaM Expr
 
 structure Proof where
   parents : List ProofParent
   ruleName : String := "unknown"
   introducedSkolems : Option SkolemInfo := none
   mkProof : ProofReconstructor
-  newVarIndices : List Nat := []
+  transferExprs : Array Expr := #[]
 deriving Inhabited
 
 structure LoadedClause where
@@ -265,9 +265,8 @@ def prepLoadClause (c : Clause) : RuleM (MClause × LoadedClause) := do
 
 open Lean.Meta.AbstractMVars in
 open Lean.Meta in
-def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause)
-  (freshMVarIds : List MVarId) (includeMVars : List Expr) :
-  M (Clause × List ProofParent × List Nat) := do
+def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transferExprs : Array Expr) :
+  M (Clause × List ProofParent × Array Expr) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
   -- We need to instantiate mvars because currently Lean's
@@ -275,13 +274,13 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause)
   let ec ← Lean.instantiateMVars c.toExpr
   -- `fec = concl[fvars]`
   let fec ← AbstractMVars.abstractExprMVars ec
-  -- Abstract metavariables in expressions whose metavariables must
-  --   be included in the abstraction procedure
-  for includeMVar in includeMVars do
-    let _ ← AbstractMVars.abstractExprMVars includeMVar
+  -- Abstract metavariables in expressions to be transported
+  --   to proof reconstruction
+  let ftransferExprs ← transferExprs.mapM AbstractMVars.abstractExprMVars
   let cst ← get
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := cst.lctx.mkForall cst.fvars fec
+  let transferExprs := ftransferExprs.map (cst.lctx.mkLambda cst.fvars)
   -- process loadedClause
   let mut proofParents : List ProofParent := []
   for ⟨loadedClause, lmvarIds, mvarIds⟩ in loadedClauses do
@@ -313,17 +312,13 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause)
   --   frequently, and if we put all vanished mvars into clauses, it will
   --   make an unbearably long list of binders.
   let c := Clause.fromForallExpr cst.paramNames abstec
-  -- Also return the bvars (represented as Nats) that correspond to the freshMVars
-  let mvarMap := cst.emap -- cst.emap maps MVarIds to the free variables they have been replaced with
-  let freshFVars := freshMVarIds.map (fun freshMVarId => mvarMap.find! freshMVarId)
-  let newVarIndices := freshFVars.map (fun freshFVar => Option.get! $ cst.fvars.getIdx? freshFVar)
-  return (c, proofParents, newVarIndices)
+  return (c, proofParents, transferExprs)
 
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
-  (isk : Option SkolemInfo := none) (freshMVarIds : List MVarId := []) (includeMVars : List Expr := []) : RuleM (Clause × Proof) := do
+  (isk : Option SkolemInfo := none) (transferExprs : Array Expr := #[]) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
-  let ((c, proofParents, newVarIndices), st) :=
-    neutralizeMClause mc (← getLoadedClauses) freshMVarIds includeMVars { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  let ((c, proofParents, transferExprs), st) :=
+    neutralizeMClause mc (← getLoadedClauses) transferExprs { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   setNGen st.ngen
   -- This is redundant because the `mctx` won't change
   -- We should not reset `lctx` because fvars introduced by
@@ -340,7 +335,7 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
     ruleName := ruleName,
     introducedSkolems := isk,
     mkProof := mkProof,
-    newVarIndices := newVarIndices
+    transferExprs := transferExprs
   }
   return (c, proof)
 

@@ -30,10 +30,10 @@ theorem bool_hoist_proof (f : Prop → Prop) (e : Prop) (H : f e) : f False ∨ 
                Or.inl (h ▸ H))
 
 def mkBoolHoistProof (pos : ClausePos) (sgn : Bool) (premises : List Expr)
-  (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
+  (parents : List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 

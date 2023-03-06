@@ -124,8 +124,9 @@ partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
     let instBvarTys := c.bVarTypes.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
     let instC := {c with lits := instCLits, bVarTypes := instBvarTys}
     trace[Meta.debug] "Reconstructing proof for #{info.number}: {instC}, Rule Name: {info.proof.ruleName}"
+    let instTr := info.proof.transferExprs.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
     let newProof ← (do
-      let prf ← info.proof.mkProof parents.data instantiatedProofParents.data info.proof.newVarIndices instC
+      let prf ← info.proof.mkProof parents.data instantiatedProofParents.data instTr instC
       if info.proof.ruleName != "assumption" then
         return prf
       else

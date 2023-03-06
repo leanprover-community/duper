@@ -10,8 +10,8 @@ open Lean
 initialize Lean.registerTraceClass `InstantiatePremises
 
 -- `xs` is usually obtained by `Meta.forallTelescope c.toForallExpr fun xs body =>`
-def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) : 
-    MetaM (List (Array Lit) × List Expr) := do
+def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) (transferExprs : Array Expr) : 
+    MetaM (List (Array Lit) × List Expr × Array Expr) := do
   let mut parentsLits := []
   let mut appliedPremises := []
   for (parent, premise) in List.zip parents premises do
@@ -34,7 +34,8 @@ def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs 
     let newprem := (mkAppN premise parentInstantiations).instantiateLevelParams parentParamNames.data parentParamSubst.data
     appliedPremises := newprem :: appliedPremises
     -- Now, `appliedPremises[i] : parentsLits[i]`, for all `i`
-  return (parentsLits, appliedPremises)
+  let transferExprs := transferExprs.map (fun e => mkAppN e xs)
+  return (parentsLits, appliedPremises, transferExprs)
 
 /-- Construct a proof of `lits[0] ∨ ... ∨ lits[n] → target`, given proofs (`casesProofs`) of `lits[i] → target` -/
 def orCases (lits : Array Expr) (caseProofs : Array Expr) : MetaM Expr := do

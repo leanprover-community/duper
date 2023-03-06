@@ -18,10 +18,10 @@ theorem eq_hoist_proof (x y : α) (f : Prop → Prop) (h : f (x = y)) : f False 
     exact Or.inl $ x_eq_y_false ▸ h
 
 def mkEqHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : List Expr)
-  (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
+  (parents : List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 

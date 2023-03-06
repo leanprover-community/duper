@@ -12,10 +12,10 @@ open Comparison
 initialize Lean.registerTraceClass `Rule.simplifyReflect
 
 def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Bool) (premises : List Expr) (parents : List ProofParent)
-  (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
+  (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
 
     let mainParentLits := if isForward then parentsLits[1]! else parentsLits[0]!
     let sideParentLits := if isForward then parentsLits[0]! else parentsLits[1]!
@@ -54,10 +54,10 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
     return proof
 
 def mkNegativeSimplifyReflectProof (mainPremiseLitIdx : Nat) (mainPremiseLhs : LitSide) (isForward : Bool) (premises : List Expr)
-  (parents : List ProofParent) (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
+  (parents : List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
 
     let mainParentLits := if isForward then parentsLits[1]! else parentsLits[0]!
     let sideParentLits := if isForward then parentsLits[0]! else parentsLits[1]!

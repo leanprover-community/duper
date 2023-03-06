@@ -47,10 +47,10 @@ theorem equality_factoring_soundness4 {α : Type} {s : α} {t : α} (u : α) (h 
     exact Or.intro_left _ (Ne.symm u_ne_t)
 
 def mkEqualityFactoringProof (i : Nat) (j : Nat) (litside_i : LitSide) (litside_j : LitSide) (premises : List Expr) (parents : List ProofParent) 
-  (newVarIndices : List Nat) (c : Clause) : MetaM Expr := do
+  (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
     let mut proofCases : Array Expr := Array.mkEmpty parentLits.size

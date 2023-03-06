@@ -22,11 +22,11 @@ theorem prop_false_ne_true (h : False = True) : False := by rw [h]; exact ⟨⟩
 
 theorem prop_true_ne_false (h : True = False) : False := by rw [← h]; exact ⟨⟩
 
-def mkIdentPropFalseElimProof (refs : List (Option Nat)) (premises : List Expr) (parents : List ProofParent) (newVarIndices : List Nat)
+def mkIdentPropFalseElimProof (refs : List (Option Nat)) (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 

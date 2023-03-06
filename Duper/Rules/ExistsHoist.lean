@@ -17,16 +17,15 @@ theorem exists_hoist_proof {y : α → Prop} (x : α) (f : Prop → Prop) (h : f
     exact Or.inr (eq_false (z_hyp x))
 
 def mkExistsHoistProof (pos : ClausePos) (premises : List Expr) (parents : List ProofParent)
-  (newVarIndices : List Nat) (c : Clause) : MetaM Expr :=
+  (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
-    let (parentsLits, appliedPremises) ← instantiatePremises parents premises xs
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 
-    let [freshVar1Idx] := newVarIndices
+    let #[freshVar1] := transferExprs
       | throwError "mkExistsHoistProof :: Wrong number of number of newVarIndices"
-    let freshVar1 := xs[freshVar1Idx]! -- TODO: This is wrong if freshVar1 doesn't appear in the body of y
 
     let mut caseProofs := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
@@ -38,10 +37,6 @@ def mkExistsHoistProof (pos : ClausePos) (premises : List Expr) (parents : List 
           let abstrExp := abstrLit.toExpr
           let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
           let lastTwoLitsProof ← Meta.mkAppM ``exists_hoist_proof #[freshVar1, abstrLam, h]
-          let lastTwoLits := cLits.toList.drop (c.lits.size - 2)
-          let lastTwoLitsAsExpr := (Clause.mk #[] #[] lastTwoLits.toArray).toForallExpr
-          if not (← Meta.isDefEq (← Meta.inferType lastTwoLitsProof) lastTwoLitsAsExpr) then
-            throwError "Error when reconstructing existsHoist. Expected type: {lastTwoLitsAsExpr}, but got type: {← Meta.inferType lastTwoLitsProof}"
           Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoLitsProof
         else
           let idx := if i ≥ pos.lit then i - 1 else i
@@ -94,7 +89,7 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let newLitLhs ← RuleM.instantiateMVars newLitLhs
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
       trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (freshMVarIds := [freshVar1.mvarId!]) (includeMVars := [freshVar1])
+      yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (transferExprs := #[freshVar1])
     return #[⟨ug, given, yC⟩]
 
 def existsHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
