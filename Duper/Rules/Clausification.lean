@@ -292,8 +292,8 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       let bInstantiated := b.instantiate1 skTerm
       if bInstantiated == b then -- The existentially quantified variable does not appear in b
         let pr : Expr → Array Expr → MetaM Expr := fun premise _ => do
-          Meta.mkAppM ``clausify_exists_constant #[premise]
-        return #[⟨MClause.mk #[Lit.fromSingleExpr b], pr, none, #[]⟩]
+          Meta.mkAppM ``clausify_forall_constant_eq_false #[premise]
+        return #[⟨MClause.mk #[Lit.fromSingleExpr b (sign := false)], pr, none, #[]⟩]
       else
         let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
           let #[tr] := trs
