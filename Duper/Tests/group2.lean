@@ -19,10 +19,10 @@ noncomputable instance : Inhabited G := ⟨one⟩
 theorem test : x ⬝ one = x :=
 by duper [Group.mul_one]
 
-set_option trace.Print_Proof true in
-theorem exists_right_inv : inv x ⬝ x = one :=
+theorem exists_right_inv (x : G) : inv x ⬝ x = one :=
 by duper [Group.mul_assoc, Group.mul_one, Group.mul_inv]
 
+set_option trace.Prover.saturate true in
 theorem left_neutral_unique (x : G) : (∀ y, x ⬝ y = y) → x = one :=
 by duper [Group.mul_assoc, Group.mul_one, Group.mul_inv]
 

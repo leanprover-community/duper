@@ -102,12 +102,6 @@ theorem clausify_exists {p : α → Prop} (h : (∃ x, p x) = True) :
   p (Classical.choose (of_eq_true h)) = True := 
 eq_true $ Classical.choose_spec _
 
-theorem clausify_exists_constant {p : Prop} (h : (∃ x : α, p) = True) : p = True := by
-  let q : α → Prop := fun _ => p
-  have exists_rw : (∃ x : α, p) = (∃ x : α, q x) := of_eq_true (eq_self (∃ x, p))
-  rw [exists_rw] at h
-  exact clausify_exists h
-
 --TODO: move?
 theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False := 
   eq_false (fun hp => not_of_eq_false h ⟨x, hp⟩)
@@ -132,14 +126,6 @@ theorem exists_of_forall_eq_false {p : α → Prop} (h : (∀ x, p x) = False) :
   intro hp
   apply hnex
   exact Exists.intro x hp
-
-theorem clausify_forall_constant_eq_false {p : Prop} (h : (∀ x : α, p) = False) : p = False := by
-  by_cases hp : p
-  . exfalso
-    rw [← h]
-    intro
-    exact hp
-  . exact eq_false hp
 
 theorem false_neq_true : False ≠ True := fun h => of_eq_true h
 
