@@ -387,6 +387,14 @@ by duper
 example (h : ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d) :
   ∀ a, ∀ b, ∀ c, ∃ d, f a = b ∧ g c = d := by duper
 
+-- Checks that duper can handle existential quantification where the variable doesn't appear in the body
+example (h : ∃ y : Nat, False) : False := by duper
+example (h : (∃ y : Nat, True) = False) : False := by duper
+
+-- Checks that duper can handle universal quantification where the variable doesn't appear in the body
+example (h : ∀ y : Nat, False) : False := by duper
+example (h : (∀ y : Nat, True) = False) : False := by duper
+
 --###############################################################################################################################
 -- Tests for providing facts to duper
 theorem add_assoc : ∀ x : Nat, ∀ y : Nat, ∀ z : Nat, (x + y) + z = x + (y + z) := sorry
@@ -434,7 +442,6 @@ set_option trace.Print_Proof true in
 set_option trace.Rule.existsHoist true in
 theorem existsHoistTest7 (f : Prop → Nat) : ∀ y : Nat, f (∃ x : Nat, y = y) = f True := by duper
 
-
 set_option trace.Print_Proof true in
 theorem forallHoistTest1 (f : Prop → Nat) : f (∀ (x : Nat), x ≠ Nat.zero) = f False := by duper
 
@@ -453,7 +460,6 @@ theorem forallHoistTest4 (f : Prop → Nat)
 set_option trace.Print_Proof true in
 theorem forallHoistTest5 (f : Prop → Nat)
   (h : ∀ x : Nat, ∃ y : Nat, f (∀ z : Nat, x = z ∧ y = z) ≠ f False) : False := by duper
-
 
 --###############################################################################################################################
 -- Tests that were previously in bugs.lean
