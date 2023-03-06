@@ -254,18 +254,12 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 mvar], pr, none, #[mvar]⟩]
   | true, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     let (skTerm, newmvar, isk) ← makeSkTerm ty b
-    let bInstantiated := b.instantiate1 skTerm
-    if bInstantiated == b then -- The existentially quantified variable does not appear in b
-      let pr : Expr → Array Expr → MetaM Expr := fun premise _ => do
-        Meta.mkAppM ``clausify_exists_constant #[premise]
-      return #[⟨MClause.mk #[Lit.fromSingleExpr b], pr, none, #[]⟩]
-    else
-      let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
-        let #[tr] := trs
-            | throwError "clausificationStepE :: Wrong number of transferExprs"
-        return ← Meta.mkAppM ``eq_true
-          #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``of_eq_true #[premise]]]
-      return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr, some isk, #[newmvar]⟩]
+    let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
+      let #[tr] := trs
+          | throwError "clausificationStepE :: Wrong number of transferExprs"
+      return ← Meta.mkAppM ``eq_true
+        #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``of_eq_true #[premise]]]
+    return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr, some isk, #[newmvar]⟩]
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_and_false #[premise]
     return #[⟨MClause.mk #[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr, none, #[]⟩]
@@ -289,18 +283,12 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
                ⟨MClause.mk #[Lit.fromSingleExpr b false], pr₂, none, #[]⟩]
     else
       let (skTerm, newmvar, isk) ← makeSkTerm ty (mkNot b)
-      let bInstantiated := b.instantiate1 skTerm
-      if bInstantiated == b then -- The existentially quantified variable does not appear in b
-        let pr : Expr → Array Expr → MetaM Expr := fun premise _ => do
-          Meta.mkAppM ``clausify_forall_constant_eq_false #[premise]
-        return #[⟨MClause.mk #[Lit.fromSingleExpr b (sign := false)], pr, none, #[]⟩]
-      else
-        let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
-          let #[tr] := trs
-            | throwError "clausificationStepE :: Wrong number of transferExprs"
-          Meta.mkAppM ``eq_true
-            #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
-        return #[⟨MClause.mk #[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr, some isk, #[newmvar]⟩]
+      let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
+        let #[tr] := trs
+          | throwError "clausificationStepE :: Wrong number of transferExprs"
+        Meta.mkAppM ``eq_true
+          #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
+      return #[⟨MClause.mk #[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr, some isk, #[newmvar]⟩]
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
       let #[tr] := trs
