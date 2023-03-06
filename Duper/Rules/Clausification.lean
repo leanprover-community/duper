@@ -102,6 +102,12 @@ theorem clausify_exists {p : α → Prop} (h : (∃ x, p x) = True) :
   p (Classical.choose (of_eq_true h)) = True := 
 eq_true $ Classical.choose_spec _
 
+theorem clausify_exists_constant {p : Prop} (h : (∃ x : α, p) = True) : p = True := by
+  let q : α → Prop := fun _ => p
+  have exists_rw : (∃ x : α, p) = (∃ x : α, q x) := of_eq_true (eq_self (∃ x, p))
+  rw [exists_rw] at h
+  exact clausify_exists h
+
 --TODO: move?
 theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False := 
   eq_false (fun hp => not_of_eq_false h ⟨x, hp⟩)
@@ -126,6 +132,14 @@ theorem exists_of_forall_eq_false {p : α → Prop} (h : (∀ x, p x) = False) :
   intro hp
   apply hnex
   exact Exists.intro x hp
+
+theorem clausify_forall_constant_eq_false {p : Prop} (h : (∀ x : α, p) = False) : p = False := by
+  by_cases hp : p
+  . exfalso
+    rw [← h]
+    intro
+    exact hp
+  . exact eq_false hp
 
 theorem false_neq_true : False ≠ True := fun h => of_eq_true h
 
@@ -243,7 +257,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       --      ```if not (← Meta.isDefEq (← Meta.inferType dproof) resRight') then```
       -- will assign this metavariable
       -- with an expression which contains other metavariables, and these
-      -- metavariables will escape from ```mkProof```, which causes bug.
+      -- metavariables will escape from ```mkProof```, which causes a bug.
       --
       -- To solve this problem, we can add ```mvar```
       -- to `includeMVars` to make sure that ```yieldClause``` correctly
@@ -257,14 +271,20 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 mvar], pr, none, [mvar.mvarId!], [mvar]⟩]
   | true, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     let (skTerm, isk) ← makeSkTerm ty b
-    let pr : Expr → List Expr → MetaM Expr := fun premise _ => do
-      let premisety ← Meta.inferType premise
-      let ty := (premisety.getArg! 1).getArg! 0
-      -- This `mvar` will be assigned by `isDefEq`
-      let mvar ← Meta.mkFreshExprMVar  ty
-      return ← Meta.mkAppM ``eq_true
-        #[← Meta.mkAppM ``Skolem.spec #[mvar, ← Meta.mkAppM ``of_eq_true #[premise]]]
-    return #[⟨MClause.mk #[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr, some isk, [], []⟩]
+    let bInstantiated := b.instantiate1 skTerm
+    if bInstantiated == b then -- The existentially quantified variable does not appear in b
+      let pr : Expr → List Expr → MetaM Expr := fun premise _ => do
+        Meta.mkAppM ``clausify_exists_constant #[premise]
+      return #[⟨MClause.mk #[Lit.fromSingleExpr b], pr, none, [], []⟩]
+    else
+      let pr : Expr → List Expr → MetaM Expr := fun premise _ => do
+        let premisety ← Meta.inferType premise
+        let ty := (premisety.getArg! 1).getArg! 0
+        -- This `mvar` will be assigned by `isDefEq` (and will certainly appear because bInstantiated ≠ b)
+        let mvar ← Meta.mkFreshExprMVar ty
+        trace[Rule.clausification] "ty inside of pr is: {ty}"
+        Meta.mkAppM ``eq_true #[← Meta.mkAppM ``Skolem.spec #[mvar, ← Meta.mkAppM ``of_eq_true #[premise]]]
+      return #[⟨MClause.mk #[Lit.fromSingleExpr bInstantiated], pr, some isk, [], []⟩]
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
     let pr : Expr → List Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_and_false #[premise]
     return #[⟨MClause.mk #[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr, none, [], []⟩]
@@ -288,14 +308,20 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
                ⟨MClause.mk #[Lit.fromSingleExpr b false], pr₂, none, [], []⟩]
     else
       let (skTerm, isk) ← makeSkTerm ty (mkNot b)
-      let pr : Expr → List Expr → MetaM Expr := fun premise _ => do
-        let premisety ← Meta.inferType premise
-        let ty := (premisety.getArg! 1).bindingDomain!
-        -- This `mvar` will be assigned by `isDefEq`
-        let mvar ← Meta.mkFreshExprMVar ty
-        Meta.mkAppM ``eq_true
-          #[← Meta.mkAppM ``Skolem.spec #[mvar, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
-      return #[⟨MClause.mk #[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr, some isk, [], []⟩]
+      let bInstantiated := b.instantiate1 skTerm
+      if bInstantiated == b then -- The universally quantified variable does not appear in b
+        let pr : Expr → List Expr → MetaM Expr := fun premise _ => do
+          Meta.mkAppM ``clausify_forall_constant_eq_false #[premise]
+        return #[⟨MClause.mk #[Lit.fromSingleExpr b (sign := false)], pr, none, [], []⟩]
+      else
+        let pr : Expr → List Expr → MetaM Expr := fun premise _ => do
+          let premisety ← Meta.inferType premise
+          let ty := (premisety.getArg! 1).bindingDomain!
+          -- This `mvar` will be assigned by `isDefEq` (and will certainly appear because bInstantiated ≠ b)
+          let mvar ← Meta.mkFreshExprMVar ty
+          Meta.mkAppM ``eq_true
+            #[← Meta.mkAppM ``Skolem.spec #[mvar, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
+        return #[⟨MClause.mk #[Lit.fromSingleExpr $ mkNot bInstantiated], pr, some isk, [], []⟩]
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     -- Add ```mvar``` to ```includeMVars```. Similar to ```true, Expr.forallE```
     let pr : Expr → List Expr → MetaM Expr := fun premise freshFVars => do
@@ -414,7 +440,7 @@ def clausificationStep : MSimpRule := fun c => do
             let parentLits := parentLits[0]!
             let appliedPremise := appliedPremise[0]!
             let freshVars := newVarIndices.map (fun idx => xs[idx]!)
-            
+
             let mut caseProofs := Array.mkEmpty parentLits.size
             for j in [:parentLits.size] do
               let lit := parentLits[j]!
