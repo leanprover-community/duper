@@ -212,17 +212,50 @@ syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
 macro_rules
 | `(tactic| duper) => `(tactic| duper [])
 
+-- Add the constant `skolemSorry` to the environment.
+-- Add suitable number of trailing underscores to avoid name conflict.
+def addSkolemSorry : CoreM Name := do
+  let mut nameS := "skolemSorry"
+  let env := (← get).env
+  let currNameSpace := (← read).currNamespace
+  while true do
+    let name := Name.str currNameSpace nameS
+    if env.constants.contains name then
+      nameS := nameS ++ "_"
+    else
+      break
+  let name := Name.str currNameSpace nameS
+  let lvlName := `u
+  let lvl := Level.param lvlName
+  -- Type = ∀ (n : Nat) (α : Sort u), α
+  let type := Expr.forallE `n (Expr.const ``Nat []) (
+    Expr.forallE `α (Expr.sort lvl) (.bvar 0) .default
+  ) .default
+  let term := Expr.lam `n (Expr.const ``Nat []) (
+    Expr.lam `α (Expr.sort lvl) (
+      Expr.app (Expr.app (Expr.const ``sorryAx [lvl]) (.bvar 0)) (Expr.const ``false [])
+    ) .default
+  ) .default
+  let opaqueVal : OpaqueVal := {name := name, levelParams := [lvlName],
+                                type := type, value := term, isUnsafe := true, all := [name]}
+  let decl : Declaration := (.opaqueDecl opaqueVal)
+  match (← getEnv).addDecl decl with
+  | Except.ok    env => setEnv env
+  | Except.error ex  => throwKernelException ex
+  return name
+
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
+  -- Add the constant `skolemSorry` to the environment
+  let skSorryName ← addSkolemSorry
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←
-    ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx})
+    ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemSorryName := skSorryName})
       ProverM.saturateNoPreprocessingClausification
       formulas
   return state
 
-@[tactic duper]
-def evalDuper : Tactic
+def evalDuperUnsafe : Tactic
 | `(tactic| duper [$facts,*]) => withMainContext do
   let startTime ← IO.monoMsNow
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
@@ -256,13 +289,32 @@ def evalDuper : Tactic
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
+-- We save the `CoreM` state. This is because we will add a constant
+-- `skolemSorry` to the environment to support skolem constants with
+-- universe levels. We want to erase this constant after the saturation
+-- procedure ends
+def withoutModifyingCoreEnv (m : TacticM α) : TacticM α := do
+  let coreEnv := (← liftM (get : CoreM Core.State)).env
+  try
+    -- Add the `skolemSorry` constant
+    let a ← m
+    liftM (modify (fun s => {s with env := coreEnv}) : CoreM Unit)
+    return a
+  catch e =>
+    liftM (modify (fun s => {s with env := coreEnv}) : CoreM Unit)
+    throw e
+
+@[tactic duper]
+def evalDuper : Tactic
+| `(tactic| $stx) => withoutModifyingCoreEnv <|
+  evalDuperUnsafe stx
+
 syntax (name := duper_no_timing) "duper_no_timing" ("[" term,* "]")? : tactic
 
 macro_rules
 | `(tactic| duper_no_timing) => `(tactic| duper_no_timing [])
 
-@[tactic duper_no_timing]
-def evalDuperNoTiming : Tactic
+def evalDuperNoTimingUnsafe : Tactic
 | `(tactic| duper_no_timing [$facts,*]) => withMainContext do
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
@@ -280,5 +332,9 @@ def evalDuperNoTiming : Tactic
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
-end Lean.Elab.Tactic
+@[tactic duper_no_timing]
+def evalDuperNoTiming : Tactic
+| `(tactic| $stx) => withoutModifyingCoreEnv <|
+  evalDuperNoTimingUnsafe stx
 
+end Lean.Elab.Tactic

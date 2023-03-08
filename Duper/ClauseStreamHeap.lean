@@ -167,20 +167,12 @@ def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
   | none => -- No result clause subsumes c, so add each result clause to the passive set
     addNewToPassive c proof (List.map (fun p => p.clause) proof.parents)
 
-@[inline] def ProverM.runInferenceRule (x : RuleM (Array ClauseStream)) : ProverM (Array ClauseStream) := do
-  let symbolPrecMap ← getSymbolPrecMap
-  let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
-  let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
-  let (streams, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
-  ProverM.setLCtx state.lctx
-  return streams
-
 def ProverM.performInferences (rules : List (Clause → MClause → Nat → RuleM (Array ClauseStream))) (given : Clause) : ProverM Unit := do
   let mut cs := #[]
   let cInfo ← getClauseInfo! given
   let cNum := cInfo.number
   for rule in rules do
-    let curStreams ← runInferenceRule do
+    let curStreams ← runRuleM do
       let c ← loadClause given
       rule given c cNum
     cs := cs.append curStreams

@@ -223,7 +223,9 @@ partial def saturate : ProverM Unit := do
       trace[Prover.saturate] "New active Set: {(← getActiveSet).toArray}"
       continue
     catch
-    | Exception.internal emptyClauseExceptionId _  =>
+    | Exception.internal id _  =>
+      if id != ProverM.emptyClauseExceptionId then
+        throwError "saturate :: Unexpected error"
       setResult ProverM.Result.contradiction
       return
     | e =>

@@ -50,7 +50,7 @@ abbrev BackwardMSimpRule := Clause → RuleM (Array (Clause × Option (Clause ×
 abbrev BackwardSimpRule := Clause → ProverM Unit
 
 def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
-  let res ← runSimpRule (rule givenClause)
+  let res ← runRuleM (rule givenClause)
   match res with
   | none => 
     return Unapplicable
@@ -74,7 +74,7 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
 
 def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSimpRule :=
   fun givenClause => do
-  let backwardSimpRes ← runSimpRule do
+  let backwardSimpRes ← runRuleM do
     withoutModifyingMCtx do
       rule givenClause
   let mut generatingAncestorsArray : Array (List Clause) := #[]

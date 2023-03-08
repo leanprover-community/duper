@@ -60,6 +60,7 @@ structure State where
   supSidePremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
+  skolemSorryName : Name := Name.anonymous
   lctx : LocalContext := {}
   mctx : MetavarContext := {}
 
@@ -139,6 +140,9 @@ def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
 def getQStreamSet : ProverM (ClauseStreamHeap ClauseStream) :=
   return (← get).qStreamSet
 
+def getSkolemSorryName : ProverM Name :=
+  return (← get).skolemSorryName
+
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }
 
@@ -177,6 +181,9 @@ def setMCtx (mctx : MetavarContext) : ProverM Unit :=
 
 def setQStreamSet (Q : ClauseStreamHeap ClauseStream) : ProverM Unit :=
   modify fun s => { s with qStreamSet := Q }
+
+def setSkolemSorryName (skname : Name) : ProverM Unit :=
+  modify fun s => {s with skolemSorryName := skname}
 
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
@@ -265,15 +272,6 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
-  let symbolPrecMap ← getSymbolPrecMap
-  let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
-  let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
-  let (res, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
-  ProverM.setLCtx state.lctx
-  ProverM.setMCtx state.mctx
-  return res
-
-@[inline] def runSimpRule (x : RuleM α) : ProverM.ProverM α := do
   let symbolPrecMap ← getSymbolPrecMap
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
   let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero

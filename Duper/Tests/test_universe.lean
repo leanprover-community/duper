@@ -1,0 +1,42 @@
+import Duper.Tactic
+import Duper.TPTP
+
+-- SkolemSorry test
+
+namespace SkolemSorry
+
+def skolemSorry := 2
+
+def skolemSorry_ := 4
+
+def sks₁ : True := by duper
+
+def sks₂ : True := by duper
+
+end SkolemSorry
+
+-- Universe level tests
+
+namespace UniverseTest
+
+axiom f.{u} : Type u → Prop
+
+axiom ftrue.{u} : f.{u} (Sort u)
+
+set_option trace.Print_Proof true in
+def unitst₁ : f.{max u v} (Sort (max u v)) ∧ f.{v} (Sort v) := by
+  duper [ftrue]
+
+axiom fmoretrue.{u} : ∀ (x : Type u), f x
+
+set_option trace.Print_Proof true in
+def unitst₂ : ∀ (x : Type v), f x := by
+  duper [fmoretrue]
+
+axiom exftrue.{u} : ∃ (x : Type u), f x
+
+set_option trace.Prover.debug true in
+def skuniverse.{u} : ∃ (x : Type u), f x := by
+  duper [exftrue]
+
+end UniverseTest
