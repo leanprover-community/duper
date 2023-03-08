@@ -9,9 +9,17 @@ def skolemSorry := 2
 
 def skolemSorry_ := 4
 
+set_option trace.Meta.debug true
+
 def sks₁ : True := by duper
 
 def sks₂ : True := by duper
+
+def sks₃ : False := by duper
+
+def sks₄ : False := by duper
+
+#print sks₂.proof_1
 
 end SkolemSorry
 

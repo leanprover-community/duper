@@ -333,6 +333,21 @@ where
     let fvar := Expr.fvar isk.fvarId
     let newmvar ← mkFreshExprMVar ty
     return (mkApp (mkAppN fvar mids) newmvar, newmvar, isk)
+  -- TODO:
+  -- makeSkTerm ty b : RuleM (Expr × Expr × SkolemInfo) := do
+  --   let cnt ← getSkolemCnt
+  --   setSkolemCnt (cnt + 1)
+  --   let p := mkLambda `x BinderInfo.default ty b
+  --   let prf_pre ← mkAppM ``Skolem.some #[p]
+  --   let (prf, mids, lnames, lvls) ← runMetaAsRuleM <| abstractMVarsLambdaWithIds prf_pre
+  --   let isk : SkolemInfo := {expr := prf, params := lnames, cnt := cnt}
+  --   let skTy ← inferType prf
+  --   let skLvl := (← inferType skTy).sortLevel!
+  --   let skolemSorryName ← getSkolemSorryName
+  --   let skExpr := Expr.app (.app (.const skolemSorryName [skLvl]) (.lit (.natVal cnt))) skTy
+  --   let skExpr := skExpr.instantiateLevelParamsArray lnames lvls
+  --   let newmvar ← mkFreshExprMVar ty
+  --   return (mkApp (mkAppN skExpr mids) newmvar, newmvar, isk)
 
 -- Important: We return `Array ClausificationResult` instead of
 --   `Option (Array ClausificationResult)` because whenever a literal

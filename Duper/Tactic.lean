@@ -74,10 +74,35 @@ partial def collectLevelRequests (state : ProverM.State) (c : Clause)
     acc ← collectLevelRequests state proofParent.clause lvls' acc
   return acc
 
-partial def mkSkProof (state : ProverM.State) : List Clause → MetaM Expr → MetaM Expr
-| [], mexpr => mexpr
-| c :: cs, mexpr => do
+structure PRContext where
+  pmstate : ProverM.State
+  reqs  : LevelRequests
+
+structure PRState where
+  -- `Nat` is the `id` of the clause
+  -- `Array Level` is the requested levels for the clause
+  -- `Expr` is the fvarId corresponding to the proof for the clause in the current `lctx`
+  constructedClauses : HashMap (Nat × Array Level) Expr
+  -- `Nat` is the `id` of the skolem constant
+  -- `Expr` is the type of the skolem constant
+  -- The second `Expr` is the skolem term (as a free variable)
+  constructedSkolems : HashMap (Nat × Expr) Expr
+  fvars : Array Expr
+  lctx : LocalContext
+
+def PRState.insertConstructedClauses (prs : PRState) (key : Nat × Array Level) (val : Expr) :=
+  {prs with constructedClauses := prs.constructedClauses.insert key val}
+
+abbrev PRM := ReaderT PRContext <| StateRefT PRState MetaM
+
+def PRM.run (m : PRM α) (ctx : PRContext) (st : PRState) : MetaM (α × PRState) :=
+  StateRefT'.run (m ctx) st
+
+partial def mkSkProof : List Clause → PRM Unit
+| [] => pure ()
+| c :: cs => do
   Core.checkMaxHeartbeats "mkSkProof"
+  let state := (← read).pmstate
   let info ← getClauseInfo! state c
   if let some ⟨skProof, fvarId⟩ := info.proof.introducedSkolems then
     trace[Print_Proof] "Reconstructing skolem, fvar = {mkFVar fvarId}"
@@ -86,28 +111,32 @@ partial def mkSkProof (state : ProverM.State) : List Clause → MetaM Expr → M
     let userName := (state.lctx.get! fvarId).userName
     trace[Print_Proof] "Reconstructed skloem, userName = {userName}"
     trace[Meta.debug] "Reconstructed skolem definition: {skProof}"
-    let lctx ← getLCtx
+    let lctx := (← get).lctx
     let lctx' := lctx.mkLetDecl fvarId userName ty skProof
-    withLCtx lctx' (← getLocalInstances) do
-      mkLambdaFVars (usedLetOnly := false) #[mkFVar fvarId] (← mkSkProof state cs mexpr)
-  else
-    mkSkProof state cs mexpr
+    modify fun s => {s with lctx := lctx'}
+    modify fun s => {s with fvars := s.fvars.push (mkFVar fvarId)}
+  mkSkProof cs
 
--- `Nat` is the id of the clause
--- `Array Level` is the requested levels for the clause
--- `Expr` is the fvarId corresponding to the proof for the clause in the current `lctx`
-abbrev ConstructedClauses := HashMap (Nat × Array Level) Expr
+-- def PRM.matchSkolem (skSorryName : Name) : Expr → PRM TransformStep
+-- | .app (.app (.const n lvls) (.lit (.natVal id))) ty => do
+--   if n == skSorryName then
+--     let constrSk := (← get).constructedSkolems
+--     if let some e := constrSk.find? (id, ty) then
+--       return .done e
+--     let skInfo := (← read).pmstate.skolemMap.find! id
+--     k
+--   else
+--     return .continue
+-- | _ => return .continue
 
-partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
-  List Clause → ConstructedClauses → MetaM (Expr × ConstructedClauses)
-| [], _ => panic! "mkClauseProof :: empty clause list"
-| c :: cs, ctrc => do
+partial def mkClauseProof : List Clause → PRM Expr
+| [] => panic! "mkClauseProof :: empty clause list"
+| c :: cs => do
+  let state := (← read).pmstate
+  let reqs := (← read).reqs
   Core.checkMaxHeartbeats "mkClauseProof"
   let info ← getClauseInfo! state c
   let lvlreqs := reqs.find! info.number
-  -- let mut parentss := #[]
-  let mut remainingProofConsCode : ConstructedClauses → MetaM (Expr × ConstructedClauses) :=
-    mkClauseProofHelper state reqs cs
   for (req, reqid) in lvlreqs.toList do
     let mut parents : Array Expr := #[]
     let mut instantiatedProofParents := #[]
@@ -115,7 +144,7 @@ partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
       let parentInfo ← getClauseInfo! state parent.clause
       let parentNumber := parentInfo.number
       let instantiatedParentParamSubst := parent.paramSubst.map (fun lvl => lvl.instantiateParams c.paramNames.data req.data)
-      let parentPrfFvar := ctrc.find! (parentNumber, instantiatedParentParamSubst)
+      let parentPrfFvar := (← get).constructedClauses.find! (parentNumber, instantiatedParentParamSubst)
       parents := parents.push parentPrfFvar
       let instPP := {parent with paramSubst := instantiatedParentParamSubst}
       instantiatedProofParents := instantiatedProofParents.push instPP
@@ -126,7 +155,8 @@ partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
     trace[Meta.debug] "Reconstructing proof for #{info.number}: {instC}, Rule Name: {info.proof.ruleName}"
     let instTr := info.proof.transferExprs.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
     let newProof ← (do
-      let prf ← info.proof.mkProof parents.data instantiatedProofParents.data instTr instC
+      let prf ← withLCtx (← get).lctx (← getLocalInstances) <|
+        info.proof.mkProof parents.data instantiatedProofParents.data instTr instC
       if info.proof.ruleName != "assumption" then
         return prf
       else
@@ -135,16 +165,17 @@ partial def mkClauseProofHelper (state : ProverM.State) (reqs : LevelRequests) :
         return prf.instantiateLevelParamsArray c.paramNames req)
     let newTarget := instC.toForallExpr
     trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
-    if cs == [] then return (newProof, ctrc)
-    remainingProofConsCode := fun ctrc =>
-      withLetDecl (Name.mkNum (Name.mkNum `clause info.number) reqid) newTarget newProof fun g => do
-        let ctrc' := ctrc.insert (info.number, req) g
-        let (remainingProof, ctrc') ← remainingProofConsCode ctrc'
-        let rexpr ← mkLambdaFVars (usedLetOnly := false) #[g] remainingProof
-        return (rexpr, ctrc')
-  remainingProofConsCode ctrc
+    if cs == [] then return newProof
+    -- Add the new proof to the local context
+    let fvarId ← mkFreshFVarId
+    let declName := (Name.mkNum (Name.mkNum `clause info.number) reqid)
+    let lctx' := (← get).lctx.mkLetDecl fvarId declName newTarget newProof
+    modify fun ctrc => ctrc.insertConstructedClauses (info.number, req) (mkFVar fvarId)
+    modify fun ctrc => {ctrc with lctx := lctx'}
+    modify fun ctrc => {ctrc with fvars := ctrc.fvars.push (mkFVar fvarId)}
+  mkClauseProof cs
 
-partial def mkClauseProof (state : ProverM.State) (cs : List Clause) : MetaM Expr := do
+partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr := do
   let cs := Array.mk cs
   let cslen := cs.size
   if cslen == 0 then
@@ -154,14 +185,22 @@ partial def mkClauseProof (state : ProverM.State) (cs : List Clause) : MetaM Exp
   -- Other clauses
   let zeroLvlsForEmptyClause := emptyClause.paramNames.map (fun _ => Level.zero)
   let reqs ← collectLevelRequests state emptyClause zeroLvlsForEmptyClause HashMap.empty
-  let (e, _) ← mkClauseProofHelper state reqs cs.data HashMap.empty
-  return e
+  let (e, prstate) ← (do mkSkProof cs.data; mkClauseProof cs.data).run
+      {pmstate := state, reqs := reqs}
+      {constructedClauses := HashMap.empty, constructedSkolems := HashMap.empty, lctx := ← getLCtx, fvars := #[]}
+  let lctx := prstate.lctx
+  let fvars := prstate.fvars
+  let abstLet ← withLCtx lctx (← getLocalInstances) do
+    mkLambdaFVars (usedLetOnly := false) fvars e
+  return abstLet
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
   let l := (← collectClauses state Clause.empty (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
-  trace[Meta.debug] "{l}"
+  -- Pretty-print skolems
+  withLCtx (state.lctx) (← getLocalInstances) <| do
+    trace[Meta.debug] "{l}"
   -- First make proof for skolems, then make proof for clauses
-  let proof ← mkSkProof state l (mkClauseProof state l)
+  let proof ← mkAllProof state l
   trace[Print_Proof] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
@@ -213,18 +252,19 @@ macro_rules
 | `(tactic| duper) => `(tactic| duper [])
 
 -- Add the constant `skolemSorry` to the environment.
--- Add suitable number of trailing underscores to avoid name conflict.
+-- Add suitable postfix to avoid name conflict.
 def addSkolemSorry : CoreM Name := do
-  let mut nameS := "skolemSorry"
+  let nameS := "skolemSorry"
   let env := (← get).env
+  let mut cnt := 0
   let currNameSpace := (← read).currNamespace
   while true do
-    let name := Name.str currNameSpace nameS
+    let name := Name.num (Name.str currNameSpace nameS) cnt
     if env.constants.contains name then
-      nameS := nameS ++ "_"
+      cnt := cnt + 1
     else
       break
-  let name := Name.str currNameSpace nameS
+  let name := Name.num (Name.str currNameSpace nameS) cnt
   let lvlName := `u
   let lvl := Level.param lvlName
   -- Type = ∀ (n : Nat) (α : Sort u), α
@@ -236,8 +276,9 @@ def addSkolemSorry : CoreM Name := do
       Expr.app (Expr.app (Expr.const ``sorryAx [lvl]) (.bvar 0)) (Expr.const ``false [])
     ) .default
   ) .default
+  -- TODO : Change `unsafe` to `true`
   let opaqueVal : OpaqueVal := {name := name, levelParams := [lvlName],
-                                type := type, value := term, isUnsafe := true, all := [name]}
+                                type := type, value := term, isUnsafe := false, all := [name]}
   let decl : Declaration := (.opaqueDecl opaqueVal)
   match (← getEnv).addDecl decl with
   | Except.ok    env => setEnv env
@@ -263,11 +304,11 @@ def evalDuperUnsafe : Tactic
     let state ← runDuper facts
     match state.result with
     | Result.contradiction => do
-      logInfo s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
+      IO.println s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
       printProof state
       applyProof state
-      logInfo s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+      IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated =>
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       throwError "Prover saturated."
@@ -278,12 +319,12 @@ def evalDuperUnsafe : Tactic
     let state ← runDuper facts
     match state.result with
     | Result.contradiction => do
-      logInfo s!"{ident} test succeeded in finding a contradiction"
+      IO.println s!"{ident} test succeeded in finding a contradiction"
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
       printProof state
       applyProof state
     | Result.saturated =>
-      logInfo s!"{ident} test resulted in prover saturation"
+      IO.println s!"{ident} test resulted in prover saturation"
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       Lean.Elab.Tactic.evalTactic (← `(tactic| sorry))
     | Result.unknown => throwError "Prover was terminated."
@@ -293,16 +334,11 @@ def evalDuperUnsafe : Tactic
 -- `skolemSorry` to the environment to support skolem constants with
 -- universe levels. We want to erase this constant after the saturation
 -- procedure ends
-def withoutModifyingCoreEnv (m : TacticM α) : TacticM α := do
-  let coreEnv := (← liftM (get : CoreM Core.State)).env
+def withoutModifyingCoreEnv (m : TacticM α) : TacticM α :=
   try
-    -- Add the `skolemSorry` constant
-    let a ← m
-    liftM (modify (fun s => {s with env := coreEnv}) : CoreM Unit)
-    return a
+    m
   catch e =>
-    liftM (modify (fun s => {s with env := coreEnv}) : CoreM Unit)
-    throw e
+    throwError e.toMessageData
 
 @[tactic duper]
 def evalDuper : Tactic
@@ -321,11 +357,11 @@ def evalDuperNoTimingUnsafe : Tactic
     let state ← runDuper facts
     match state.result with
     | Result.contradiction => do
-      logInfo s!"Contradiction found"
+      IO.println s!"Contradiction found"
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
       printProof state
       applyProof state
-      logInfo s!"Constructed proof"
+      IO.println s!"Constructed proof"
     | Result.saturated =>
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       throwError "Prover saturated."
