@@ -820,13 +820,13 @@ def boolSimp : MSimpRule := fun c => do
       -/
       match ← applyBoolSimpRules e with
       | some (e', boolSimpRule) =>
-        trace[Rule.boolSimp] "Replaced {e} with {e'} in {c.lits} to produce {(← c.replaceAtPos! pos e').lits} via {boolSimpRule}"
-        return (← c.replaceAtPos! pos e', mkBoolSimpProof pos boolSimpRule none)
+        trace[Rule.boolSimp] "Replaced {e} with {e'} in {c.lits} to produce {(← c.replaceAtPos! c.mvars pos e').lits} via {boolSimpRule}"
+        return (← c.replaceAtPos! c.mvars pos e', mkBoolSimpProof pos boolSimpRule none)
       | none => -- If none of the first 24 rules worked, attempt rules 25, 26, and 27
         match ← applyBoolSimpRulesWithIndices e with
         | some (ij, boolSimpRule) =>
-          trace[Rule.boolSimp] "Replaced {e} with True in {c.lits} to produce {(← c.replaceAtPos! pos (mkConst ``True)).lits} via {boolSimpRule}"
-          return (← c.replaceAtPos! pos (mkConst ``True), mkBoolSimpProof pos boolSimpRule (some ij))
+          trace[Rule.boolSimp] "Replaced {e} with True in {c.lits} to produce {(← c.replaceAtPos! c.mvars pos (mkConst ``True)).lits} via {boolSimpRule}"
+          return (← c.replaceAtPos! c.mvars pos (mkConst ``True), mkBoolSimpProof pos boolSimpRule (some ij))
         | none => return acc -- If no bool simp rule can be applied, then return the original clause unchanged
   let (c', proofOpt) ← c.foldGreenM fold_fn (c, none)
   match proofOpt with

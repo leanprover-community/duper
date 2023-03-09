@@ -15,6 +15,8 @@ open Std
 open RuleM
 open Expr
 
+def enableTypeInhabitationReasoning := false
+
 initialize
   registerTraceClass `RemoveClause.debug
   registerTraceClass `ImmediateSimplification.debug
@@ -233,8 +235,12 @@ def addNewClause (c : Clause) (proof : Proof) (generatingAncestors : List Clause
       isOrphan := false
     }
     setAllClauses (allClauses.insert c ci)
-    if c.lits.size == 0 then throwEmptyClauseException
-    return ci
+    if enableTypeInhabitationReasoning then
+      if c.lits.size == 0 && c.bVarTypes.size == 0 then throwEmptyClauseException
+      return ci
+    else
+      if c.lits.size == 0 then throwEmptyClauseException
+      return ci
 
 /-- Registers a new clause and adds it to the passive set. The `generatingAncestors` argument contains the list of clauses that were
     used to generate `c` (or `c`'s ancestor which generated `c` by a modifying inference). See page 8 of "E – A Brainiac Theorem Prover" -/

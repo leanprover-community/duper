@@ -33,6 +33,9 @@ import Duper.Rules.ForallHoist
 import Duper.Rules.NeHoist
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
+-- Rules for processing the empty clause
+import Duper.Rules.ProcessEmptyClause
+-- TODO: Add backward simp rule for re-examining empty clauses when we produce a clause of the form `Inhabited t = True`
 
 namespace Duper
 
@@ -87,12 +90,15 @@ def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
   ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
-  for simpRule in ← forwardSimpRules do
-    match ← simpRule givenClause with
-    | Removed => return Removed
-    | Applied c => return Applied c
-    | Unapplicable => continue
-  return Unapplicable
+  if givenClause.lits.size == 0 then
+    processEmptyClause.toSimpRule givenClause
+  else
+    for simpRule in ← forwardSimpRules do
+      match ← simpRule givenClause with
+      | Removed => return Removed
+      | Applied c => return Applied c
+      | Unapplicable => continue
+    return Unapplicable
 
 partial def forwardSimpLoop (givenClause : Clause) : ProverM (Option Clause) := do
   Core.checkMaxHeartbeats "forwardSimpLoop"

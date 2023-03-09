@@ -173,9 +173,10 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
         let mainPremise ← mainPremise.mapM RuleM.instantiateMVars
         let sidePremiseLhs ← RuleM.instantiateMVars sidePremiseLhs
         (mainPremiseReplaced, poses) := mainPremise.mapWithPos <|
-          Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs --TODO: Replace only green subterms
+          Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs
+        mainPremiseReplaced := {mainPremiseReplaced with mvars := mainPremise.mvars ++ sidePremise.mvars}
       else
-        mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
+        mainPremiseReplaced ← mainPremise.replaceAtPos! (mainPremise.mvars ++ sidePremise.mvars) mainPremisePos sidePremiseRhs
   
       if mainPremiseReplaced.isTrivial then
         trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"

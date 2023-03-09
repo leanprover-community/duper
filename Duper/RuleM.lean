@@ -11,6 +11,8 @@ namespace RuleM
 open Lean
 open Lean.Core
 
+def enableTypeInhabitationReasoning := false
+
 structure Context where
   order : Expr → Expr → MetaM Comparison
 deriving Inhabited
@@ -28,7 +30,6 @@ structure SkolemInfo where
   expr : Expr
   -- The `fvarId` of the skolem constant
   fvarId : FVarId
-
 
 /-- Takes: Proofs of the parent clauses, ProofParent information, the transported Expressions
     (which will be turned into bvars in the clause) introduced by the rule, and the target clause -/
@@ -245,9 +246,9 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
   let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
-  let (mVars, bis, e) ← forallMetaTelescope e
-  setLoadedClauses (⟨c, us.map Level.mvarId!, mVars.map Expr.mvarId!⟩ :: (← getLoadedClauses))
-  return (mVars, .fromExpr e)
+  let (mvars, bis, e) ← forallMetaTelescope e
+  setLoadedClauses (⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩ :: (← getLoadedClauses))
+  return (mvars, .fromExpr e mvars)
 
 def loadClause (c : Clause) : RuleM MClause := do
   let (_, mclause) ← loadClauseCore c
@@ -260,8 +261,8 @@ def loadClause (c : Clause) : RuleM MClause := do
 def prepLoadClause (c : Clause) : RuleM (MClause × LoadedClause) := do
   let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
   let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
-  let (mVars, bis, e) ← forallMetaTelescope e
-  return (.fromExpr e, ⟨c, us.map Level.mvarId!, mVars.map Expr.mvarId!⟩)
+  let (mvars, bis, e) ← forallMetaTelescope e
+  return (.fromExpr e mvars, ⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩)
 
 open Lean.Meta.AbstractMVars in
 open Lean.Meta in
@@ -274,9 +275,17 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transfe
   let ec ← Lean.instantiateMVars c.toExpr
   -- `fec = concl[fvars]`
   let fec ← AbstractMVars.abstractExprMVars ec
-  -- Abstract metavariables in expressions to be transported
-  --   to proof reconstruction
+  -- Abstract metavariables in expressions to be transported to proof reconstruction
   let ftransferExprs ← transferExprs.mapM AbstractMVars.abstractExprMVars
+  -- Make sure every mvar in c.mvars is also abstracted
+  /-
+    TODO: Process mvars to reduce redundant abstractions. If an mvar that does not appear in c.lits
+    has a type that will otherwise be universally quanitifed over regardless, this mvar does not need
+    to be abstracted again. For instance, rather than generate the clause
+    `∀ x : t, ∀ y : t, ∀ z : t, ∀ a : Nat, ∀ b : Nat, f a b`, generate `∀ x : t, ∀ a : Nat, ∀ b : Nat, f a b`
+  -/
+  if enableTypeInhabitationReasoning then
+    let _ ← c.mvars.mapM AbstractMVars.abstractExprMVars
   let cst ← get
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := cst.lctx.mkForall cst.fvars fec
