@@ -85,8 +85,8 @@ def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array Cla
       -- TODO: check both sides?
       if ¬ lit.rhs.isConstOf ``True && ¬ lit.rhs.isConstOf ``False then
         let c' := c.eraseLit i
-        let c1 := c'.appendLits #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
-        let c2 := c'.appendLits #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
+        let c1 := c'.appendLits c.mvars #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
+        let c2 := c'.appendLits c.mvars #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
         trace[Rule.clausifyPropEq] "clausifyPropEq called on {lit} in {c.lits} to produce {c1.lits} and {c2.lits}"
         let loaded ← getLoadedClauses
         let ug ← unifierGenerator #[]
@@ -96,8 +96,7 @@ def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array Cla
         let yield2 := do
           setLoadedClauses loaded
           yieldClause c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
-        streams := streams.append #[ClauseStream.mk ug given yield1,
-                                    ClauseStream.mk ug given yield2]
+        streams := streams.append #[ClauseStream.mk ug given yield1, ClauseStream.mk ug given yield2]
   return streams
 
 end Duper

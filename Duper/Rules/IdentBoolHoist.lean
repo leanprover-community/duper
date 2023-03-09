@@ -82,12 +82,11 @@ def identBoolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM (Opt
         trace[Rule.identBoolHoist] m!"BoolHoist at literal {l}, side {s}, position {p} in clause {c.lits.map Lit.toExpr}"
         let litl := c.lits[l]!
         let c_erased := c.eraseLit l
-        let nc := c_erased.appendLits
+        let nc := c_erased.appendLits c.mvars
           #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``True), Lit.fromSingleExpr e false]
         trace[Rule.identBoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
-        let cp1 ← yieldClause nc "identity loobHoist"
-          (some (mkBoolHoistProof pos true))
-        let nc := c_erased.appendLits
+        let cp1 ← yieldClause nc "identity loobHoist" (some (mkBoolHoistProof pos true))
+        let nc := c_erased.appendLits c.mvars
           #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``False), Lit.fromSingleExpr e true]
         trace[Rule.identBoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
         let cp2 ← yieldClause nc "identity boolHoist" (some (mkBoolHoistProof pos false))

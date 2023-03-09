@@ -111,9 +111,9 @@ def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat)
             }
           let modified_clause := 
             if (j < i) then -- erase i first so that c.lits[j] is still at the same index after the erasure
-              ((c.eraseLit i).eraseLit j).appendLits #[new_lit, c.lits[j]!]
+              ((c.eraseLit i).eraseLit j).appendLits c.mvars #[new_lit, c.lits[j]!]
             else -- i < j because i cannot equal j
-              ((c.eraseLit j).eraseLit i).appendLits #[new_lit, c.lits[j]!]
+              ((c.eraseLit j).eraseLit i).appendLits c.mvars #[new_lit, c.lits[j]!]
           trace[Prover.debug] "Successfully calling equality factoring on {c.lits} to yield {modified_clause.lits}"
           some <$> yieldClause modified_clause "equality factoring" (mkProof := some (mkEqualityFactoringProof i j litside_i litside_j))
         else
