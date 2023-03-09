@@ -87,13 +87,15 @@ f (f (f a)) = d ∨ f (f b) = d ∨ f c = d)
 #check fun h => Eq.mpr h True.intro
 #check propext
 
+set_option pp.rawOnError true
+set_option trace.Meta.debug true in
 theorem test00
 (ax1 : a ≠ a ∨ ¬ (∀ x : Nat, x = x) ∨ b ≠ b)
 : False := by duper
 
+
 #print test00
 
-set_option trace.Meta.debug true in
 theorem test0
 (ax1 : f a = b → f c ≠ b)
 (ax2 : ¬ ∃ x, f x ≠ b ∧ c = c)
@@ -472,6 +474,7 @@ example (f : Prop → Nat) :
 example (f g : Nat → Nat) (h : ∀ a, ∃ d, f a = d) :
   ∀ a, ∃ d, f a = d := by duper
 
+set_option trace.Meta.debug true in
 example : ((∀ (f : Nat → Nat) (x : Nat), f x = f x) = True) := by duper
 
 example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
@@ -507,6 +510,5 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
 tptp SEU123 "../TPTP-v8.0.0/Problems/SEU/SEU123+1.p"
   by duper
 
-set_option trace.Print_Proof true in
 tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
   by duper

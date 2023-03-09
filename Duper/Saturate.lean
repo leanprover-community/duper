@@ -61,7 +61,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     clausificationStep.toSimpRule,
     syntacticTautologyDeletion1.toSimpRule,
     syntacticTautologyDeletion2.toSimpRule,
-    boolSimp.toSimpRule,
+    -- boolSimp.toSimpRule,
     syntacticTautologyDeletion3.toSimpRule,
     elimDupLit.toSimpRule,
     elimResolvedLit.toSimpRule,

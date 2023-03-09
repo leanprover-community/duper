@@ -47,7 +47,6 @@ instance : ToMessageData Result :=
 | contradiction => "contradiction"⟩
 
 structure Context where
-  skolemSorryName : Name := Name.anonymous
 deriving Inhabited
 
 structure State where
@@ -62,7 +61,8 @@ structure State where
   supSidePremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
-  skolemCnt : Nat := 0
+  skolemMap : HashMap Nat SkolemInfo := HashMap.empty
+  skolemSorryName : Name := Name.anonymous
   lctx : LocalContext := {}
   mctx : MetavarContext := {}
 
@@ -140,10 +140,10 @@ def getQStreamSet : ProverM (ClauseStreamHeap ClauseStream) :=
   return (← get).qStreamSet
 
 def getSkolemSorryName : ProverM Name :=
-  return (← read).skolemSorryName
+  return (← get).skolemSorryName
 
-def getSkolemCnt : ProverM Nat :=
-  return (← get).skolemCnt
+def getSkolemMap : ProverM (HashMap Nat SkolemInfo) :=
+  return (← get).skolemMap
 
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }
@@ -184,8 +184,8 @@ def setMCtx (mctx : MetavarContext) : ProverM Unit :=
 def setQStreamSet (Q : ClauseStreamHeap ClauseStream) : ProverM Unit :=
   modify fun s => { s with qStreamSet := Q }
 
-def setSkolemCnt (skcnt : Nat) : ProverM Unit :=
-  modify fun s => {s with skolemCnt := skcnt}
+def setSkolemMap (skmap : HashMap Nat SkolemInfo) : ProverM Unit :=
+  modify fun s => {s with skolemMap := skmap}
 
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
@@ -281,9 +281,9 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   let symbolPrecMap ← getSymbolPrecMap
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
   let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
-  let (res, state) ← RuleM.run x (ctx := {order := order, skolemSorryName := ← getSkolemSorryName}) (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemCnt := ← getSkolemCnt})
+  let (res, state) ← RuleM.run x (ctx := {order := order, skolemSorryName := ← getSkolemSorryName}) (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemMap := ← getSkolemMap})
   ProverM.setLCtx state.lctx
-  ProverM.setSkolemCnt state.skolemCnt
+  ProverM.setSkolemMap state.skolemMap
   return res
 
 def addToActive (c : Clause) : ProverM Unit := do

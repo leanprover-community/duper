@@ -33,7 +33,7 @@ where
       | throwError "clause info not found: {c}"
     return ci
 
-def getClauseInfo! (state : ProverM.State) (c : Clause) : MetaM ClauseInfo := do
+def getClauseInfo! (state : ProverM.State) (c : Clause) : CoreM ClauseInfo := do
   let some ci := state.allClauses.find? c
     | throwError "clause info not found: {c}"
   return ci
@@ -83,51 +83,83 @@ structure PRState where
   -- `Array Level` is the requested levels for the clause
   -- `Expr` is the fvarId corresponding to the proof for the clause in the current `lctx`
   constructedClauses : HashMap (Nat × Array Level) Expr
-  -- `Nat` is the `id` of the skolem constant
-  -- `Expr` is the type of the skolem constant
-  -- The second `Expr` is the skolem term (as a free variable)
-  constructedSkolems : HashMap (Nat × Expr) Expr
-  fvars : Array Expr
+  -- Map from `id` of skolem constant to the constructed `fvar`
+  constructedSkolems : HashMap Nat FVarId
   lctx : LocalContext
+  mctx : MetavarContext
+  localInstances : LocalInstances
+  fvars : Array Expr
+deriving Inhabited
 
 def PRState.insertConstructedClauses (prs : PRState) (key : Nat × Array Level) (val : Expr) :=
   {prs with constructedClauses := prs.constructedClauses.insert key val}
 
-abbrev PRM := ReaderT PRContext <| StateRefT PRState MetaM
+abbrev PRM := ReaderT PRContext <| StateRefT PRState CoreM
 
-def PRM.run (m : PRM α) (ctx : PRContext) (st : PRState) : MetaM (α × PRState) :=
+-- Does not update the metavariable context !
+def runMetaAsPRM {α} (x : MetaM α) : PRM α := do
+    let lctx := (← get).lctx
+    let mctx := (← get).mctx
+    let localInstances := (← get).localInstances
+    let (res, state) ← Meta.MetaM.run (ctx := {lctx := lctx, localInstances := localInstances}) (s := {mctx := mctx}) do
+      x
+    modify fun s => {s with mctx := state.mctx}
+    return res
+
+def PRM.run (m : PRM α) (ctx : PRContext) (st : PRState) : CoreM (α × PRState) :=
   StateRefT'.run (m ctx) st
+
+private instance : Inhabited TransformStep where
+  default := TransformStep.continue
+
+partial def PRM.matchSkolem : Expr → PRM TransformStep
+| e@(.app ..) => e.withApp fun f args => do
+  let (.const skName lvl) := f
+    | return .continue
+  let skolemSorryName := (← read).pmstate.skolemSorryName
+  if skName == skolemSorryName then
+    let lvarr := args[0]!
+    let .natVal skid := args[1]!.litValue!
+      | throwError "PRM.matchSkolem :: Invalid skolem id!"
+    let skTy := args[2]!
+    let skmap := (← read).pmstate.skolemMap
+    let consk := (← get).constructedSkolems
+    if let some fvarId := consk.find? skid then
+      let trailingArgs := args.extract 3 args.size
+      let trailingArgs ← trailingArgs.mapM (fun e => Core.transform e PRM.matchSkolem)
+      return .done (mkAppN (mkFVar fvarId) trailingArgs)
+    if let some isk := skmap.find? skid then
+      let ⟨skProof, params⟩ := isk
+      let skProof ← Core.transform skProof PRM.matchSkolem
+      let skTy ← Core.transform skTy PRM.matchSkolem
+      let fvarId ← mkFreshFVarId
+      let userName := Name.num `skol skid
+      runMetaAsPRM <| do
+        trace[Print_Proof] "Reconstructing skolem, fvar = {mkFVar fvarId}"
+        trace[Meta.debug] "Reconstructing skolem, type = {skTy}"
+        trace[Print_Proof] "Reconstructed skolem, userName = {userName}"
+        trace[Meta.debug] "Reconstructed skolem definition: {skProof}"
+      let lctx := (← get).lctx
+      let lctx' := lctx.mkLetDecl fvarId userName skTy skProof
+      modify fun s => {s with lctx := lctx'}
+      modify fun s => {s with constructedSkolems := s.constructedSkolems.insert skid fvarId}
+      modify fun s => {s with fvars := s.fvars.push (mkFVar fvarId)}
+      let trailingArgs := args.extract 3 args.size
+      let trailingArgs ← trailingArgs.mapM (fun e => Core.transform e PRM.matchSkolem)
+      return .done (mkAppN (mkFVar fvarId) trailingArgs)
+    else
+      throwError "PRM.matchSkolem :: Unable to find skolem {skid} in skolem map!"
+  else
+    return .continue
+| _ => return .continue
 
 partial def mkSkProof : List Clause → PRM Unit
 | [] => pure ()
 | c :: cs => do
   Core.checkMaxHeartbeats "mkSkProof"
-  let state := (← read).pmstate
-  let info ← getClauseInfo! state c
-  if let some ⟨skProof, fvarId⟩ := info.proof.introducedSkolems then
-    trace[Print_Proof] "Reconstructing skolem, fvar = {mkFVar fvarId}"
-    let ty := (state.lctx.get! fvarId).type
-    trace[Meta.debug] "Reconstructing skolem, type = {ty}"
-    let userName := (state.lctx.get! fvarId).userName
-    trace[Print_Proof] "Reconstructed skloem, userName = {userName}"
-    trace[Meta.debug] "Reconstructed skolem definition: {skProof}"
-    let lctx := (← get).lctx
-    let lctx' := lctx.mkLetDecl fvarId userName ty skProof
-    modify fun s => {s with lctx := lctx'}
-    modify fun s => {s with fvars := s.fvars.push (mkFVar fvarId)}
+  let cexpr := c.toForallExpr
+  let _ ← Core.transform cexpr PRM.matchSkolem
   mkSkProof cs
-
--- def PRM.matchSkolem (skSorryName : Name) : Expr → PRM TransformStep
--- | .app (.app (.const n lvls) (.lit (.natVal id))) ty => do
---   if n == skSorryName then
---     let constrSk := (← get).constructedSkolems
---     if let some e := constrSk.find? (id, ty) then
---       return .done e
---     let skInfo := (← read).pmstate.skolemMap.find! id
---     k
---   else
---     return .continue
--- | _ => return .continue
 
 partial def mkClauseProof : List Clause → PRM Expr
 | [] => panic! "mkClauseProof :: empty clause list"
@@ -145,17 +177,23 @@ partial def mkClauseProof : List Clause → PRM Expr
       let parentNumber := parentInfo.number
       let instantiatedParentParamSubst := parent.paramSubst.map (fun lvl => lvl.instantiateParams c.paramNames.data req.data)
       let parentPrfFvar := (← get).constructedClauses.find! (parentNumber, instantiatedParentParamSubst)
+      -- TODO : Move param instantiation here
       parents := parents.push parentPrfFvar
-      let instPP := {parent with paramSubst := instantiatedParentParamSubst}
+      let parentClauseLits ← parent.clause.lits.mapM (fun l => l.mapM fun e => Core.transform e PRM.matchSkolem)
+      let parentClause := {parent.clause with lits := parentClauseLits}
+      let parentExpr ← Core.transform parent.expr PRM.matchSkolem
+      let instPP := {parent with expr := parentExpr, clause := parentClause, paramSubst := instantiatedParentParamSubst}
       instantiatedProofParents := instantiatedProofParents.push instPP
     -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
     let instCLits := c.lits.map (fun l => l.instantiateLevelParamsArray c.paramNames req)
-    let instBvarTys := c.bVarTypes.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
-    let instC := {c with lits := instCLits, bVarTypes := instBvarTys}
-    trace[Meta.debug] "Reconstructing proof for #{info.number}: {instC}, Rule Name: {info.proof.ruleName}"
+    let instCLits ← instCLits.mapM (fun l => l.mapM fun e => Core.transform e PRM.matchSkolem)
+    let instBVarTys := c.bVarTypes.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
+    let instC := {c with lits := instCLits, bVarTypes := instBVarTys}
+    runMetaAsPRM <|
+      do trace[Meta.debug] "Reconstructing proof for #{info.number}: {instC}, Rule Name: {info.proof.ruleName}"
     let instTr := info.proof.transferExprs.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
     let newProof ← (do
-      let prf ← withLCtx (← get).lctx (← getLocalInstances) <|
+      let prf ← runMetaAsPRM <|
         info.proof.mkProof parents.data instantiatedProofParents.data instTr instC
       if info.proof.ruleName != "assumption" then
         return prf
@@ -164,7 +202,8 @@ partial def mkClauseProof : List Clause → PRM Expr
         --   we have to manually instantiate the universe mvars
         return prf.instantiateLevelParamsArray c.paramNames req)
     let newTarget := instC.toForallExpr
-    trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
+    runMetaAsPRM <|
+      do trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
     if cs == [] then return newProof
     -- Add the new proof to the local context
     let fvarId ← mkFreshFVarId
@@ -187,7 +226,9 @@ partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr :
   let reqs ← collectLevelRequests state emptyClause zeroLvlsForEmptyClause HashMap.empty
   let (e, prstate) ← (do mkSkProof cs.data; mkClauseProof cs.data).run
       {pmstate := state, reqs := reqs}
-      {constructedClauses := HashMap.empty, constructedSkolems := HashMap.empty, lctx := ← getLCtx, fvars := #[]}
+      {constructedClauses := HashMap.empty, constructedSkolems := HashMap.empty,
+       lctx := ← getLCtx, mctx := ← getMCtx, localInstances := ← getLocalInstances, fvars := #[]}
+  setMCtx prstate.mctx
   let lctx := prstate.lctx
   let fvars := prstate.fvars
   let abstLet ← withLCtx lctx (← getLocalInstances) do
@@ -318,7 +359,7 @@ def addSkolemSorry : CoreM Name := do
   --   in the result clause which parent it's from, and backtrack all the
   --   way to the clause where the skolem was created.
   -- To solve this problem, we record the levels within the ``Prop`` argument.
-  --   In the above example, it will be recorded as ```Type u → Type v → Prop```.
+  --   In the above example, it will be recorded as ```Type u → Type v → opaqueBool```.
   let type := Expr.forallE `p (Expr.sort .zero) (Expr.forallE `n (Expr.const ``Nat []) (
     Expr.forallE `α (Expr.sort lvl) (.bvar 0) .default
   ) .default) .default
@@ -348,7 +389,7 @@ def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := wit
   let skSorryName ← addSkolemSorry
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←
-    ProverM.runWithExprs (ctx := {skolemSorryName := skSorryName}) (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemCnt := 0})
+    ProverM.runWithExprs (ctx := {}) (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemSorryName := skSorryName})
       ProverM.saturateNoPreprocessingClausification
       formulas
   return state
@@ -393,7 +434,10 @@ def evalDuperUnsafe : Tactic
 -- procedure ends
 def withoutModifyingCoreEnv (m : TacticM α) : TacticM α :=
   try
-    m
+    let env := (← liftM (get : CoreM Core.State)).env
+    let ret ← m
+    liftM (modify fun s => {s with env := env} : CoreM Unit)
+    return ret
   catch e =>
     throwError e.toMessageData
 

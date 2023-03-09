@@ -132,4 +132,6 @@ axiom g.{u} : ∀ (α : Sort u), α → Nat
 def neg₂ : g (Nat → True) (fun _ => True.intro) = g (Nat → True) (fun _ => True.intro) :=
   by duper
 
+def pos₂ : g (Nat → True) 
+
 end Negative

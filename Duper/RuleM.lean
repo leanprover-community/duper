@@ -28,9 +28,10 @@ deriving Inhabited
 
 structure SkolemInfo where
   -- The `proof` of the skolem constant
-  expr : Expr
-  -- The `fvarId` of the skolem constant
-  fvarId : FVarId
+  expr   : Expr
+  -- Universe levels of the skolem constant
+  params : Array Name
+deriving Inhabited
 
 /-- Takes: Proofs of the parent clauses, ProofParent information, the transported Expressions
     (which will be turned into bvars in the clause) introduced by the rule, and the target clause -/
@@ -39,7 +40,6 @@ abbrev ProofReconstructor := List Expr → List ProofParent → Array Expr → C
 structure Proof where
   parents : List ProofParent
   ruleName : String := "unknown"
-  introducedSkolems : Option SkolemInfo := none
   mkProof : ProofReconstructor
   transferExprs : Array Expr := #[]
 deriving Inhabited
@@ -56,7 +56,7 @@ structure State where
   mctx : MetavarContext := {}
   lctx : LocalContext := {}
   loadedClauses : List LoadedClause := []
-  skolemCnt : Nat
+  skolemMap : HashMap Nat SkolemInfo
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State CoreM
@@ -108,8 +108,8 @@ def getMCtx : RuleM MetavarContext :=
 def getLoadedClauses : RuleM (List LoadedClause) :=
   return (← get).loadedClauses
 
-def getSkolemCnt : RuleM Nat :=
-  return (← get).skolemCnt
+def getSkolemMap : RuleM (HashMap Nat SkolemInfo) :=
+  return (← get).skolemMap
 
 def setMCtx (mctx : MetavarContext) : RuleM Unit :=
   modify fun s => { s with mctx := mctx }
@@ -123,8 +123,8 @@ def setLoadedClauses (loadedClauses : List LoadedClause) : RuleM Unit :=
 def setState (s : State) : RuleM Unit :=
   modify fun _ => s
 
-def setSkolemCnt (skCnt : Nat) : RuleM Unit :=
-  modify fun s => {s with skolemCnt := skCnt}
+def setSkolemMap (skmap : HashMap Nat SkolemInfo) : RuleM Unit :=
+  modify fun s => {s with skolemMap := skmap}
 
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
   let s ← getMCtx
@@ -202,14 +202,6 @@ def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array 
 def forallMetaTelescopeReducing (e : Expr) (maxMVars? : Option Nat := none) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
   runMetaAsRuleM $ Meta.forallMetaTelescopeReducing e maxMVars? kind
 
-def mkFreshSkolem (name : Name) (type : Expr) (proof : Expr) : RuleM SkolemInfo := do
-  let name := Name.mkNum name (← getLCtx).decls.size
-  let (lctx, res) ← runMetaAsRuleM $ do
-    Meta.withLocalDeclD name type fun x => do
-      return (← getLCtx, x)
-  setLCtx lctx
-  return ⟨proof, res.fvarId!⟩
-
 def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
   runMetaAsRuleM $ Meta.mkForallFVars xs e usedOnly usedLetOnly
 
@@ -246,6 +238,13 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
     if s == target then
       return TransformStep.done replacement
     else return TransformStep.continue s)
+
+def typeCorrect (e : Expr) : RuleM Bool := 
+  try
+    let _ ← runMetaAsRuleM $ Meta.inferType e
+    return true
+  catch _ =>
+    return false
 
 -- Suppose `c : Clause = ⟨bs, ls⟩`, `(mVars, m) ← loadClauseCore c`
 -- then
@@ -332,7 +331,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transfe
   return (c, proofParents, transferExprs)
 
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
-  (isk : Option SkolemInfo := none) (transferExprs : Array Expr := #[]) : RuleM (Clause × Proof) := do
+  (transferExprs : Array Expr := #[]) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents, transferExprs), st) :=
     neutralizeMClause mc (← getLoadedClauses) transferExprs { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
@@ -350,7 +349,6 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
   let proof := {
     parents := proofParents,  
     ruleName := ruleName,
-    introducedSkolems := isk,
     mkProof := mkProof,
     transferExprs := transferExprs
   }

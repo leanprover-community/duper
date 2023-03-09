@@ -52,15 +52,10 @@ def ClauseStream.takeAsProverM (cs : ClauseStream)
     return none
   let (opu, ug') ← ProverM.runMetaAsProverM (cs.ug.takeWithRetry kRetry)
   if let some u := opu then
-    let symbolPrecMap ← getSymbolPrecMap
-    let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
-    let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
     -- set `mctx` as the mctx of the unification problem
     -- set `lctx` as the lctx of ProverM
-    let (res, state) ← RuleM.run cs.postUnification
-      (ctx := {order := order, skolemSorryName := ← getSkolemSorryName})
-      (s := {lctx := ← getLCtx, mctx := u.mctx, skolemCnt := ← getSkolemCnt})
-    ProverM.setLCtx state.lctx
+    ProverM.setMCtx u.mctx
+    let res ← ProverM.runRuleM cs.postUnification
     if let some clauseProof := res then
       return some ((cs.simplifiedGivenClause, clauseProof), {cs with ug := ug'})
     else
