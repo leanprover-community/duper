@@ -156,7 +156,7 @@ partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
 -- Return: (processed expression, is_flex)
 @[inline] partial def derefNormTerm (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × Bool) :=
   Meta.lambdaTelescope e fun xs' body => do
-    let body ← Meta.whnf body
+    let body := body.headBeta
     let fn := Expr.getAppFn body
     match fn with
     | .mvar _ => do
