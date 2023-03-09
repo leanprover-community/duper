@@ -89,6 +89,9 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let cmp ← compare eSide otherSide
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none
+      -- Additional constraint: We don't want to perform forallHoist if e was actually unified with an implication
+      if (← instantiateMVars (← inferType freshVar1Ty)).isProp then
+        return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
       -- Need to instantiate mvars in newLitLhs because unification assigned to mvars in it
@@ -97,7 +100,7 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       -- Note: Since freshVar2 is guaranteed to appear in newClause.lits, it is not necessary to include the mvars
       -- from freshVar2 in newClause.mvars. However, since freshVar1 might not appear, it is necessary to include it
       let newClause := cErased.appendLits (c.mvars.push freshVar1) #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]
-      trace[Rule.forallHoist] "Created {newClause.lits} from {c.lits}"
+      trace[Rule.forallHoist] "Created {newClause.lits} with mvars {newClause.mvars} from {c.lits} with mvars {c.mvars}"
       yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (transferExprs := #[freshVar1])
     return #[⟨ug, given, yC⟩]
 

@@ -129,9 +129,13 @@ def pos₁ : (f (Nat → False) = f False) := by duper
 
 axiom g.{u} : ∀ (α : Sort u), α → Nat
 
+-- These two examples fail when boolSimp is enabled, but I don't think that adding guards to
+-- boolSimp will fix that, since both instances in which boolSimp is applied are reasonable
+-- (∀ _ : Nat, True) in general should be turned into True, as should (True → True)
 def neg₂ : g (Nat → True) (fun _ => True.intro) = g (Nat → True) (fun _ => True.intro) :=
   by duper
 
-def pos₂ : g (Nat → True) 
+def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ => True.intro) :=
+  by duper
 
 end Negative
