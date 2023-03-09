@@ -8,6 +8,7 @@ namespace Duper
 open Lean
 open Lean.Meta
 open RuleM
+open Meta
 open SimpResult
 open Comparison
 
@@ -490,8 +491,8 @@ def applyRule24 (e : Expr) : RuleM (Option Expr) := do
   match e with
   | Expr.app (Expr.app (Expr.const ``Exists _) t) b =>
     if t.isProp then
-      let bTrue ← RuleM.runMetaAsRuleM $ whnf $ mkApp b (mkConst ``True)
-      let bFalse ← RuleM.runMetaAsRuleM $ whnf $ mkApp b (mkConst ``False)
+      let bTrue ← whnf $ mkApp b (mkConst ``True)
+      let bFalse ← whnf $ mkApp b (mkConst ``False)
       mkAppM ``Or #[bTrue, bFalse]
     else return none
   | _ => return none

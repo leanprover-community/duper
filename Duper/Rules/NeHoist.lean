@@ -5,6 +5,7 @@ import Duper.Util.ProofReconstruction
 
 namespace Duper
 open Lean
+open Meta
 open RuleM
 open SimpResult
 
@@ -75,17 +76,17 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
       setLoadedClauses loaded
       if not $ ← eligibilityPostUnificationCheck c pos.lit eligibility (strict := lit.sign) then
         return none
-      let eSide ← RuleM.instantiateMVars $ lit.getSide pos.side
-      let otherSide ← RuleM.instantiateMVars $ lit.getOtherSide pos.side
+      let eSide ← instantiateMVars $ lit.getSide pos.side
+      let otherSide ← instantiateMVars $ lit.getOtherSide pos.side
       let cmp ← compare eSide otherSide
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
       -- Need to instantiate mvars in freshVar1, freshVar2, and freshVarEquality because unification assigned to mvars in each of them
-      let freshVar1 ← RuleM.instantiateMVars freshVar1
-      let freshVar2 ← RuleM.instantiateMVars freshVar2
-      let freshVarEquality ← RuleM.instantiateMVars freshVarEquality 
+      let freshVar1 ← instantiateMVars freshVar1
+      let freshVar2 ← instantiateMVars freshVar2
+      let freshVarEquality ← instantiateMVars freshVarEquality 
       -- Note: Since freshVar1 and freshVar2 are guaranteed to appear in newClause.lits, it is not necessary to include the mvars
       -- from freshVar1 and freshVar2 in newClause.mvars. See the note on the mvars field invariant in MClause.lean
       let newClause := cErased.appendLits c.mvars #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromExpr freshVarEquality]

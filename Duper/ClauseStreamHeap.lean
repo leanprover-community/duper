@@ -31,14 +31,6 @@ def logForceProbeRetry (max : Nat) : CoreM Unit := do
   let msg := s!"forceProbe exceeded iteration limit {max}"
   logInfo msg
 
-@[inline] def ProverM.runMetaAsProverM (x : MetaM α) : ProverM α := do
-  let lctx ← getLCtx
-  let mctx ← getMCtx
-  let (res, state) ← Meta.MetaM.run (ctx := {lctx := lctx}) (s := {mctx := mctx}) do
-    x
-  ProverM.setMCtx state.mctx
-  return res
-
 -- Clause Streams
 
 -- The first `Clause` is the (simplified)GivenClause
@@ -50,12 +42,12 @@ def ClauseStream.takeAsProverM (cs : ClauseStream)
   -- No more unification problem left
   if cs.ug.isEmpty then
     return none
-  let (opu, ug') ← ProverM.runMetaAsProverM (cs.ug.takeWithRetry kRetry)
+  let (opu, ug') ← cs.ug.takeWithRetry kRetry
   if let some u := opu then
-    -- set `mctx` as the mctx of the unification problem
-    -- set `lctx` as the lctx of ProverM
-    ProverM.setMCtx u.mctx
-    let res ← ProverM.runRuleM cs.postUnification
+    let res ← ProverM.runRuleM <| do
+      -- set `mctx` as the mctx of the unification problem
+      setMCtx u.mctx
+      cs.postUnification
     if let some clauseProof := res then
       return some ((cs.simplifiedGivenClause, clauseProof), {cs with ug := ug'})
     else

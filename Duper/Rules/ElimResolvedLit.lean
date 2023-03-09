@@ -6,6 +6,7 @@ open Std
 open RuleM
 open SimpResult
 open Lean
+open Meta
 
 def mkElimResolvedLitProof (refs : List (Option Nat)) (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr := do

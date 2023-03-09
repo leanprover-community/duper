@@ -8,6 +8,7 @@ import Duper.Util.AbstractMVars
 namespace Duper
 open Lean
 open RuleM
+open Meta
 open SimpResult
 
 initialize Lean.registerTraceClass `Rule.clausification
@@ -325,7 +326,7 @@ where
     let cnt := skMap.size
     let p := mkLambda `x BinderInfo.default ty b
     let prf_pre ← mkAppM ``Skolem.some #[p]
-    let (prf, mids, lnames, lvls) ← runMetaAsRuleM <| abstractMVarsLambdaWithIds prf_pre
+    let (prf, mids, lnames, lvls) ← abstractMVarsLambdaWithIds prf_pre
     let isk : SkolemInfo := {expr := prf, params := lnames}
     setSkolemMap (skMap.insert cnt isk)
     let skTy ← inferType prf

@@ -5,7 +5,7 @@ import Duper.Util.ProofReconstruction
 namespace Duper
 
 open Lean
-open Lean.Meta
+open Meta
 open RuleM
 open SimpResult
 open Comparison

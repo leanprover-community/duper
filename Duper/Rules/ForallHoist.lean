@@ -5,6 +5,7 @@ import Duper.Util.ProofReconstruction
 
 namespace Duper
 open Lean
+open Meta
 open RuleM
 open SimpResult
 
@@ -74,8 +75,8 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       return #[]
     let freshVar1 ← mkFreshExprMVar none
     let freshVar1Ty ← inferType freshVar1
-    let (freshVarForallExpr, freshVarLambdaExpr) ← runMetaAsRuleM $ mkForallAndLambda freshVar1Ty
-    let newLitLhs ← runMetaAsRuleM $ Meta.whnf (.app freshVarLambdaExpr freshVar1)
+    let (freshVarForallExpr, freshVarLambdaExpr) ← mkForallAndLambda freshVar1Ty
+    let newLitLhs ← Meta.whnf (.app freshVarLambdaExpr freshVar1)
     -- Perform unification
     let ug ← unifierGenerator #[(e, freshVarForallExpr)]
     let loaded ← getLoadedClauses
@@ -83,16 +84,16 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       setLoadedClauses loaded
       if not $ ← eligibilityPostUnificationCheck c pos.lit eligibility (strict := lit.sign) then
         return none
-      let eSide ← RuleM.instantiateMVars $ lit.getSide pos.side
-      let otherSide ← RuleM.instantiateMVars $ lit.getOtherSide pos.side
+      let eSide ← instantiateMVars $ lit.getSide pos.side
+      let otherSide ← instantiateMVars $ lit.getOtherSide pos.side
       let cmp ← compare eSide otherSide
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
       -- Need to instantiate mvars in newLitLhs because unification assigned to mvars in it
-      let newLitLhs ← RuleM.instantiateMVars newLitLhs
-      let newLitLhs ← RuleM.runMetaAsRuleM $ Meta.whnf newLitLhs -- newLitLhs probably has the form (λ x, stuff) x, so perform the application
+      let newLitLhs ← instantiateMVars newLitLhs
+      let newLitLhs ← Meta.whnf newLitLhs -- newLitLhs probably has the form (λ x, stuff) x, so perform the application
       -- Note: Since freshVar2 is guaranteed to appear in newClause.lits, it is not necessary to include the mvars
       -- from freshVar2 in newClause.mvars. However, since freshVar1 might not appear, it is necessary to include it
       let newClause := cErased.appendLits (c.mvars.push freshVar1) #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]

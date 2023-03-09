@@ -8,6 +8,7 @@ import Duper.Rules.Clausification
 namespace Duper
 namespace ProverM
 open Lean
+open Meta
 open Std
 open ProverM
 open RuleM
@@ -73,7 +74,7 @@ partial def updateSymbolFreqArityMap (f : Expr) (symbolFreqArityMap : HashMap Sy
     match symbolFreqArityMap.find? fSymbol with
     | some (fFreq, fArity) => return symbolFreqArityMap.insert fSymbol (fFreq + 1, fArity)
     | none =>
-      let fType ← runRuleM $ RuleM.inferType f
+      let fType ← inferType f
       return symbolFreqArityMap.insert fSymbol (1, getArity fType)
   | Expr.app f1 f2 =>
     let symbolFreqMap' ← updateSymbolFreqArityMap f1 symbolFreqArityMap

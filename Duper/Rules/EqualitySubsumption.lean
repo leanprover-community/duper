@@ -5,7 +5,7 @@ import Duper.Util.ProofReconstruction
 namespace Duper
 
 open Lean
-open Lean.Meta
+open Meta
 open RuleM
 open SimpResult
 open Comparison
@@ -22,8 +22,8 @@ def equalitySubsumptionWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
     -- can match with main premise lit's other side at the same ExprPos
     let sidePremiseLit := sidePremise.lits[0]!
     let mainPremiseLit := mainPremise.lits[mainPremisePos.lit]!.makeLhs mainPremisePos.side
-    if (← RuleM.performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs)] mainPremiseMVarIds) then
-      if (← RuleM.performMatch #[(mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds) then
+    if (← performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs)] mainPremiseMVarIds) then
+      if (← performMatch #[(mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds) then
         return Removed
       else return Unapplicable
     else return Unapplicable

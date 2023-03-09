@@ -9,7 +9,6 @@ namespace Duper
 
 namespace RuleM
 open Lean
-open Lean.Core
 
 def enableTypeInhabitationReasoning := false
 
@@ -53,13 +52,11 @@ structure LoadedClause where
   mVarIds  : Array MVarId
 
 structure State where
-  mctx : MetavarContext := {}
-  lctx : LocalContext := {}
   loadedClauses : List LoadedClause := []
   skolemMap : HashMap Nat SkolemInfo
 deriving Inhabited
 
-abbrev RuleM := ReaderT Context $ StateRefT State CoreM
+abbrev RuleM := ReaderT Context $ StateRefT State MetaM
 
 end RuleM
 
@@ -79,22 +76,11 @@ initialize
   registerTraceClass `Rule
   registerTraceClass `Rule.debug
 
-instance : MonadLCtx RuleM where
-  getLCtx := return (← get).lctx
-
-instance : MonadMCtx RuleM where
-  getMCtx    := return (← get).mctx
-  modifyMCtx f := modify fun s => { s with mctx := f s.mctx }
-
-@[inline] def RuleM.run (x : RuleM α) (ctx : Context) (s : State) : CoreM (α × State) :=
+@[inline] def RuleM.run (x : RuleM α) (ctx : Context) (s : State) : MetaM (α × State) :=
   x ctx |>.run s
 
-@[inline] def RuleM.run' (x : RuleM α) (ctx : Context) (s : State) : CoreM α :=
+@[inline] def RuleM.run' (x : RuleM α) (ctx : Context) (s : State) : MetaM α :=
   Prod.fst <$> x.run ctx s
-
-@[inline] def RuleM.toIO (x : RuleM α) (ctxCore : Core.Context) (sCore : Core.State) (ctx : Context) (s : State) : IO (α × Core.State × State) := do
-  let ((a, s), sCore) ← (x.run ctx s).toIO ctxCore sCore
-  pure (a, sCore, s)
 
 def getOrder : RuleM (Expr → Expr → MetaM Comparison) :=
   return (← read).order
@@ -102,20 +88,11 @@ def getOrder : RuleM (Expr → Expr → MetaM Comparison) :=
 def getSkolemSorryName : RuleM Name :=
   return (← read).skolemSorryName
 
-def getMCtx : RuleM MetavarContext :=
-  return (← get).mctx
-
 def getLoadedClauses : RuleM (List LoadedClause) :=
   return (← get).loadedClauses
 
 def getSkolemMap : RuleM (HashMap Nat SkolemInfo) :=
   return (← get).skolemMap
-
-def setMCtx (mctx : MetavarContext) : RuleM Unit :=
-  modify fun s => { s with mctx := mctx }
-
-def setLCtx (lctx : LocalContext) : RuleM Unit :=
-  modify fun s => { s with lctx := lctx }
 
 def setLoadedClauses (loadedClauses : List LoadedClause) : RuleM Unit :=
   modify fun s => { s with loadedClauses := loadedClauses }
@@ -172,66 +149,9 @@ def conditionallyModifyingLoadedClauses (x : RuleM (Bool × α)) : RuleM α := d
 instance : AddMessageContext RuleM where
   addMessageContext := addMessageContextFull
 
--- TODO: MonadLift
-def runMetaAsRuleM (x : MetaM α) : RuleM α := do
-  let lctx ← getLCtx
-  let mctx ← getMCtx
-  let (res, state) ← Meta.MetaM.run (ctx := {lctx := lctx}) (s := {mctx := mctx}) do
-    x
-  setMCtx state.mctx
-  return res
-
-def mkFreshExprMVar (type? : Option Expr) (kind := MetavarKind.natural) (userName := Name.anonymous) : RuleM Expr := do
-  runMetaAsRuleM $ Meta.mkFreshExprMVar type? kind userName
-
-def mkFreshLevelMVar : RuleM Level := do
-  runMetaAsRuleM $ Meta.mkFreshLevelMVar
-
-def mkAppM (constName : Name) (xs : Array Expr) :=
-  runMetaAsRuleM $ Meta.mkAppM constName xs
-
-def mkAppOptM (constName : Name) (xs : Array (Option Expr)) :=
-  runMetaAsRuleM $ Meta.mkAppOptM constName xs
-
-def getMVarType (mvarId : MVarId) : RuleM Expr := do
-  runMetaAsRuleM $ Lean.MVarId.getType mvarId
-
-def forallMetaTelescope (e : Expr) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
-  runMetaAsRuleM $ Meta.forallMetaTelescope e kind
-
-def forallMetaTelescopeReducing (e : Expr) (maxMVars? : Option Nat := none) (kind := MetavarKind.natural) : RuleM (Array Expr × Array BinderInfo × Expr) :=
-  runMetaAsRuleM $ Meta.forallMetaTelescopeReducing e maxMVars? kind
-
-def mkForallFVars (xs : Array Expr) (e : Expr) (usedOnly : Bool := false) (usedLetOnly : Bool := true) : RuleM Expr :=
-  runMetaAsRuleM $ Meta.mkForallFVars xs e usedOnly usedLetOnly
-
-def inferType (e : Expr) : RuleM Expr :=
-  runMetaAsRuleM $ Meta.inferType e
-
-def instantiateMVars (e : Expr) : RuleM Expr :=
-  runMetaAsRuleM $ Lean.instantiateMVars e
-
--- TODO : Delete this
--- Why we use unify in simplification rules?
-def fastUnify (l : Array (Expr × Expr)) : RuleM Bool :=
-  runMetaAsRuleM $ Meta.fastUnify l
-
-def unifierGenerator (l : Array (Expr × Expr)) : RuleM DUnif.UnifierGenerator :=
-  runMetaAsRuleM $ DUnif.UnifierGenerator.fromExprPairs l
-
-/-- Given an array of expression pairs (match_target, e), attempts to assign mvars in e to make e equal to match_target.
-    Returns true and performs mvar assignments if successful, returns false and does not perform any mvar assignments otherwise -/
-def performMatch (l : Array (Expr × Expr)) (protected_mvars : Array MVarId) : RuleM Bool := do
-  runMetaAsRuleM $ Meta.performMatch l protected_mvars
-
-def isProof (e : Expr) : RuleM Bool := do
-  runMetaAsRuleM $ Meta.isProof e
-
-def isType (e : Expr) : RuleM Bool := do
-  runMetaAsRuleM $ Meta.isType e
-
-def getFunInfoNArgs (fn : Expr) (nargs : Nat) : RuleM Meta.FunInfo := do
-  runMetaAsRuleM $ Meta.getFunInfoNArgs fn nargs
+-- Easy to switch between first-order unification and higher-order unification
+def unifierGenerator (l : Array (Expr × Expr)) : MetaM DUnif.UnifierGenerator :=
+  DUnif.UnifierGenerator.fromExprPairs l
 
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
   Core.transform e (pre := fun s => do
@@ -241,10 +161,12 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
 
 def typeCorrect (e : Expr) : RuleM Bool := 
   try
-    let _ ← runMetaAsRuleM $ Meta.inferType e
+    let _ ← Meta.inferType e
     return true
   catch _ =>
     return false
+
+open Lean.Meta
 
 -- Suppose `c : Clause = ⟨bs, ls⟩`, `(mVars, m) ← loadClauseCore c`
 -- then
@@ -356,7 +278,7 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
 
 def compare (s t : Expr) : RuleM Comparison := do
   let ord ← getOrder
-  runMetaAsRuleM do ord s t
+  ord s t
 
 end RuleM
 

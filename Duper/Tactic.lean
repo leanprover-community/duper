@@ -237,9 +237,7 @@ partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr :
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
   let l := (← collectClauses state Clause.empty (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
-  -- Pretty-print skolems
-  withLCtx (state.lctx) (← getLocalInstances) <| do
-    trace[Meta.debug] "{l}"
+  trace[Meta.debug] "Collected clauses: {l}"
   -- First make proof for skolems, then make proof for clauses
   let proof ← mkAllProof state l
   trace[Print_Proof] "Proof: {proof}"
@@ -389,7 +387,7 @@ def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := wit
   let skSorryName ← addSkolemSorry
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←
-    ProverM.runWithExprs (ctx := {}) (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemSorryName := skSorryName})
+    ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
       ProverM.saturateNoPreprocessingClausification
       formulas
   return state

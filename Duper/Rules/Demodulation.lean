@@ -5,7 +5,7 @@ import Duper.Util.ProofReconstruction
 namespace Duper
 
 open Lean
-open Lean.Meta
+open Meta
 open RuleM
 open SimpResult
 open Comparison
@@ -68,18 +68,18 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
   Core.checkMaxHeartbeats "forward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
-    let isMaximalLit ← runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit
+    let isMaximalLit ← mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit
     let mainPremiseSideComparison ← compare
       (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
     let atTopPos := Array.isEmpty mainPremisePos.pos
     if isMaximalLit && (mainPremiseSideComparison == Comparison.GreaterThan) && atTopPos then
       return none -- Cannot perform demodulation because Schulz's side conditions are not met
-  if not (← RuleM.performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
+  if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
-  let mainPremiseReplaced ← mainPremise.replaceAtPos! (mainPremise.mvars ++ sidePremise.mvars) mainPremisePos $ ← RuleM.instantiateMVars sidePremiseLit.rhs
+  let mainPremiseReplaced ← mainPremise.replaceAtPos! (mainPremise.mvars ++ sidePremise.mvars) mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
   return some (mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))
 
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTrie) (givenMainClause : MClause)
@@ -136,7 +136,7 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
   Core.checkMaxHeartbeats "backward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
-    let isMaximalLit ← runMetaAsRuleM $ mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit
+    let isMaximalLit ← mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit
     let mainPremiseSideComparison ← compare
       (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
@@ -147,7 +147,7 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
-  let mainPremiseReplaced ← mainPremise.replaceAtPos! (mainPremise.mvars ++ sidePremise.mvars) mainPremisePos $ ← RuleM.instantiateMVars sidePremiseLit.rhs
+  let mainPremiseReplaced ← mainPremise.replaceAtPos! (mainPremise.mvars ++ sidePremise.mvars) mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
   trace[Rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
   trace[Rule.demodulation] "(Backward) Side clause (after matching): {sidePremise.lits}"
   trace[Rule.demodulation] "(Backward) Result: {mainPremiseReplaced.lits}"

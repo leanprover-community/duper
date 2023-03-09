@@ -5,6 +5,7 @@ import Duper.Util.Misc
 
 namespace Duper
 open Lean
+open Meta
 open RuleM
 open SimpResult
 
@@ -24,7 +25,7 @@ def processEmptyClause : MSimpRule := fun c => do
   try
     for m in c.mvars do
       let ty ← inferType m
-      let _ ← runMetaAsRuleM $ Meta.findInstance ty
+      let _ ← Meta.findInstance ty
       numMVarsInstantiated := numMVarsInstantiated + 1
     let yc ← yieldClause (MClause.mk #[] #[]) "process empty clause" (some mkProcessEmptyClauseProof)
     return some #[yc] 

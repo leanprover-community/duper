@@ -5,6 +5,7 @@ namespace Duper
 open RuleM
 open SimpResult
 open Lean
+open Meta
 
 def is_var (e : Expr) : Bool :=
   match Expr.consumeMData e with

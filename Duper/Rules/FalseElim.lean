@@ -6,6 +6,7 @@ namespace Duper
 open RuleM
 open SimpResult
 open Lean
+open Meta
 
 initialize registerTraceClass `Rule.falseElim
 
@@ -60,7 +61,7 @@ def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array Claus
     let eligibility ← eligibilityPreUnificationCheck c i
     if eligibility == Eligibility.notEligible then return #[]
     let loaded ← getLoadedClauses
-    let ug ← runMetaAsRuleM $ DUnif.UnifierGenerator.fromMetaMProcedure (isFalseLiteral lit)
+    let ug ← DUnif.UnifierGenerator.fromMetaMProcedure (isFalseLiteral lit)
     let yC := do
       setLoadedClauses loaded
       if (not $ ← eligibilityPostUnificationCheck c i eligibility (strict := true)) then return none

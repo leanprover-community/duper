@@ -5,7 +5,7 @@ import Duper.Util.ProofReconstruction
 namespace Duper
 
 open Lean
-open Lean.Meta
+open Meta
 open RuleM
 open SimpResult
 open Comparison
@@ -96,7 +96,7 @@ def forwardPositiveSimplifyReflectWithPartner (mainPremise : MClause) (mainPremi
     let sidePremiseLit := sidePremise.lits[0]!
     let mainPremiseLit := mainPremise.lits[mainPremisePos.lit]!.makeLhs mainPremisePos.side
     let matchSuccess ← -- Try to match lhs of sidePremise to mainPremisePos.side of mainPremise and rhs of sidePremise to other side of main premise
-      RuleM.performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs),
+      performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs),
                           (mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds
     if matchSuccess then
       let mainPremiseLitsExceptSimplifiedLit :=
@@ -151,7 +151,7 @@ def forwardNegativeSimplifyReflectWithPartner (mainPremise : MClause) (mainPremi
     let sidePremiseLit := sidePremise.lits[0]!
     let mainPremiseLit := mainPremise.lits[mainPremiseLitIdx]!.makeLhs mainPremiseLhs
     let matchSuccess ← -- Try to match lhs of sidePremise to mainPremiseLhs of mainPremise and rhs of sidePremise to other side of main premise
-      RuleM.performMatch #[(mainPremiseLit.lhs, sidePremiseLit.lhs), (mainPremiseLit.rhs, sidePremiseLit.rhs)] mainPremiseMVarIds
+      performMatch #[(mainPremiseLit.lhs, sidePremiseLit.lhs), (mainPremiseLit.rhs, sidePremiseLit.rhs)] mainPremiseMVarIds
     if matchSuccess then
       let mut mainPremiseLitsExceptSimplifiedLit := mainPremise.lits.extract 0 mainPremiseLitIdx ++ mainPremise.lits.extract (mainPremiseLitIdx + 1) mainPremise.lits.size
       let res := MClause.mk mainPremiseLitsExceptSimplifiedLit (mainPremise.mvars ++ sidePremise.mvars)
@@ -216,7 +216,7 @@ def backwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
             let sideClauseLit := givenSideClause.lits[0]!
             let mainClauseLit := mainClause.lits[pos.lit]!.makeLhs pos.side
             let matchSuccess ← -- Try to match lhs of sidePremise to pos.side of mclause and rhs of sidePremise to other side of mclause
-              RuleM.performMatch #[(mainClauseLit.lhs.getAtPos! pos.pos, sideClauseLit.lhs),
+              performMatch #[(mainClauseLit.lhs.getAtPos! pos.pos, sideClauseLit.lhs),
                                   (mainClauseLit.rhs.getAtPos! pos.pos, sideClauseLit.rhs)] mclauseMVarIds
             if matchSuccess then
               let mainClauseLitsExceptSimplifiedLit := mainClause.lits.extract 0 pos.lit ++ mainClause.lits.extract (pos.lit + 1) mainClause.lits.size
@@ -253,7 +253,7 @@ def backwardNegativeSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
           for mainClauseLhs in [LitSide.lhs, LitSide.rhs] do
             let mainClauseLit := mainClause.lits[mainClauseLitIdx]!.makeLhs mainClauseLhs
             let matchSuccess ← -- Try to match sideClause.lhs to mainClauseLit.lhs and sideClause.rhs to mainClauseLit.rhs
-              RuleM.performMatch #[(mainClauseLit.lhs, sideClauseLit.lhs), (mainClauseLit.rhs, sideClauseLit.rhs)] mclauseMVarIds
+              performMatch #[(mainClauseLit.lhs, sideClauseLit.lhs), (mainClauseLit.rhs, sideClauseLit.rhs)] mclauseMVarIds
             if matchSuccess then
               let mut mainClauseLitsExceptSimplifiedLit :=
                 mainClause.lits.extract 0 mainClauseLitIdx ++ mainClause.lits.extract (mainClauseLitIdx + 1) (mainClause.lits.size)

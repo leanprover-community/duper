@@ -3,6 +3,7 @@ import Duper.RuleM
 namespace Duper
 
 open Lean
+open Meta
 open RuleM
 
 /-- Determines whether there is any σ such that σ(l1.lhs) = l2.lhs and σ(l1.rhs) = l2.rhs. Returns true and applies σ if so,

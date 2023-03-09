@@ -5,6 +5,7 @@ namespace Duper
 
 open Lean
 open RuleM
+open Meta
 open SimpResult
 
 initialize Lean.registerTraceClass `Rule.clauseSubsumption

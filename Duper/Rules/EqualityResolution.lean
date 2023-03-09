@@ -5,6 +5,7 @@ import Duper.Util.ProofReconstruction
 namespace Duper
 open RuleM
 open Lean
+open Meta
 
 def mkEqualityResolutionProof (i : Nat) (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr :=

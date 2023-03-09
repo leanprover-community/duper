@@ -63,17 +63,8 @@ structure State where
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
   skolemMap : HashMap Nat SkolemInfo := HashMap.empty
   skolemSorryName : Name := Name.anonymous
-  lctx : LocalContext := {}
-  mctx : MetavarContext := {}
 
-abbrev ProverM := ReaderT Context $ StateRefT State CoreM
-
-instance : MonadLCtx ProverM where
-  getLCtx := return (← get).lctx
-
-instance : MonadMCtx ProverM where
-  getMCtx    := return (← get).mctx
-  modifyMCtx f := modify fun s => { s with mctx := f s.mctx }
+abbrev ProverM := ReaderT Context $ StateRefT State MetaM
 
 instance : AddMessageContext ProverM where
   addMessageContext := fun msgData => do
@@ -82,16 +73,11 @@ instance : AddMessageContext ProverM where
     let opts ← getOptions
     pure $ MessageData.withContext { env := env, mctx := {}, lctx := lctx, opts := opts } msgData
 
-@[inline] def ProverM.run (x : ProverM α) (ctx : Context := {}) (s : State := {}) : CoreM (α × State) :=
+@[inline] def ProverM.run (x : ProverM α) (ctx : Context := {}) (s : State := {}) : MetaM (α × State) :=
   x ctx |>.run s
 
-@[inline] def ProverM.run' (x : ProverM α) (ctx : Context := {}) (s : State := {}) : CoreM α :=
+@[inline] def ProverM.run' (x : ProverM α) (ctx : Context := {}) (s : State := {}) : MetaM α :=
   Prod.fst <$> x.run ctx s
-
-@[inline] def ProverM.toIO (x : ProverM α) (ctxCore : Core.Context) (sCore : Core.State) (ctx : Context := {}) (s : State := {}) :
-  IO (α × Core.State × State) := do
-  let ((a, s), sCore) ← (x.run ctx s).toIO ctxCore sCore
-  pure (a, sCore, s)
 
 instance [MetaEval α] : MetaEval (ProverM α) :=
   ⟨fun env opts x _ => MetaEval.eval env opts x.run' true⟩
@@ -174,12 +160,6 @@ def setMainPremiseIdx (mainPremiseIdx : RootCFPTrie) : ProverM Unit :=
 
 def setSubsumptionTrie (subsumptionTrie : SubsumptionTrie) : ProverM Unit :=
   modify fun s => { s with subsumptionTrie := subsumptionTrie }
-
-def setLCtx (lctx : LocalContext) : ProverM Unit :=
-  modify fun s => { s with lctx := lctx }
-
-def setMCtx (mctx : MetavarContext) : ProverM Unit :=
-  modify fun s => { s with mctx := mctx }
 
 def setQStreamSet (Q : ClauseStreamHeap ClauseStream) : ProverM Unit :=
   modify fun s => { s with qStreamSet := Q }
@@ -269,7 +249,7 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
   | none => throwError "Unable to find information for clausified clause {c}"
 
 def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name)) (ctx : Context) (s : State) : 
-    CoreM (α × State) := do
+    MetaM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
     for (e, proof, paramNames) in es do
       let c := Clause.fromSingleExpr paramNames e
@@ -278,12 +258,13 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
+  let mctx ← getMCtx
   let symbolPrecMap ← getSymbolPrecMap
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
   let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
-  let (res, state) ← RuleM.run x (ctx := {order := order, skolemSorryName := ← getSkolemSorryName}) (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemMap := ← getSkolemMap})
-  ProverM.setLCtx state.lctx
+  let (res, state) ← RuleM.run x (ctx := {order := order, skolemSorryName := ← getSkolemSorryName}) (s := {skolemMap := ← getSkolemMap})
   ProverM.setSkolemMap state.skolemMap
+  setMCtx mctx
   return res
 
 def addToActive (c : Clause) : ProverM Unit := do
@@ -296,7 +277,7 @@ def addToActive (c : Clause) : ProverM Unit := do
     let sel := getSelections mclause
     mclause.foldM
       fun idx e pos => do
-        let canNeverBeMaximal ← runMetaAsRuleM $ mclause.canNeverBeMaximal (← getOrder) pos.lit
+        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) pos.lit
         let eligible :=
           if not mclause.lits[pos.lit]!.sign then false
           else if(sel.contains pos.lit) then true
@@ -320,7 +301,7 @@ def addToActive (c : Clause) : ProverM Unit := do
     let sel := getSelections mclause
     mclause.foldGreenM
       fun idx e pos => do
-        let canNeverBeMaximal ← runMetaAsRuleM $ mclause.canNeverBeMaximal (← getOrder) pos.lit
+        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) pos.lit
         let eligible :=
           if e.isMVar then false
           else if(sel.contains pos.lit) then true

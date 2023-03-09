@@ -6,6 +6,7 @@ namespace Duper
 open RuleM
 open SimpResult
 open Lean
+open Meta
 
 /-- Determines whether a literal has exactly the form `False = True` or `True = False`-/
 def isFalsePropLiteral (lit : Lit) : MetaM Bool := do
@@ -68,7 +69,7 @@ def identPropFalseElim : MSimpRule := fun c => do
   let mut newLits : List Lit := []
   let mut refs : List (Option Nat) := []
   for lit in c.lits do
-    if (← runMetaAsRuleM (isFalsePropLiteral lit)) then
+    if (← isFalsePropLiteral lit) then
       refs := none :: refs
     else
       refs := (some newLits.length) :: refs

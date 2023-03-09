@@ -5,6 +5,7 @@ import Duper.Util.ProofReconstruction
 namespace Duper
 open RuleM
 open Lean
+open Meta
 
 initialize Lean.registerTraceClass `Rule.argCong
 

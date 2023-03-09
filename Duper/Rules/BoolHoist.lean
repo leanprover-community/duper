@@ -7,6 +7,7 @@ import Duper.Rules.IdentBoolHoist
 namespace Duper
 open Lean
 open RuleM
+open Meta
 open SimpResult
 
 initialize Lean.registerTraceClass `Rule.boolHoist
@@ -29,8 +30,8 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
     let yC := do
       setLoadedClauses loaded
       let lit := c.lits[pos.lit]!
-      let eSide ← RuleM.instantiateMVars $ lit.getSide pos.side
-      let otherSide ← RuleM.instantiateMVars $ lit.getOtherSide pos.side
+      let eSide ← instantiateMVars $ lit.getSide pos.side
+      let otherSide ← instantiateMVars $ lit.getOtherSide pos.side
       let cmp ← compare eSide otherSide
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none

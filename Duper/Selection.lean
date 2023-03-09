@@ -53,7 +53,7 @@ A literal L is (strictly) eligible in C if it is selected in C or there are no s
 in C and L is (strictly) maximal in C. -/
 def eligibilityNoUnificationCheck (c : MClause) (i : Nat) (strict := false) : RuleM Bool := do
   match getSelections c with
-  | [] => runMetaAsRuleM $ c.isMaximalLit (← getOrder) i strict
+  | [] => c.isMaximalLit (← getOrder) i strict
   | sel => do
     let isSelected := sel.contains i
     if isSelected ∧ ¬ isSelectableLit c i then
@@ -70,7 +70,7 @@ def eligibilityPreUnificationCheck (c : MClause) (i : Nat) : RuleM Eligibility :
   if(sel.contains i) then
     return Eligibility.eligible -- literal is eligible and the post unification check is not necessary
   else if(sel == []) then do
-    if (← runMetaAsRuleM $ c.canNeverBeMaximal (← getOrder) i) then
+    if (← c.canNeverBeMaximal (← getOrder) i) then
       return Eligibility.notEligible
     else
       return Eligibility.potentiallyEligible -- literal may be eligible but the post unification check is needed to confirm maximality
@@ -86,7 +86,7 @@ def eligibilityPostUnificationCheck (c : MClause) (i : Nat) (preUnificationResul
   if preUnificationResult == Eligibility.eligible then return true
   else if preUnificationResult == Eligibility.notEligible then return false
   else
-    let c ← c.mapM RuleM.instantiateMVars
-    runMetaAsRuleM $ c.isMaximalLit (← getOrder) i (strict := strict)
+    let c ← c.mapM instantiateMVars
+    c.isMaximalLit (← getOrder) i (strict := strict)
 
 end Duper

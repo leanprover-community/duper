@@ -5,6 +5,7 @@ namespace Duper
 open RuleM
 open SimpResult
 open Lean
+open Meta
 
 initialize Lean.registerTraceClass `Rule.elimDupLit
 

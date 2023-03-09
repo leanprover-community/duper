@@ -6,6 +6,7 @@ import Duper.Util.ProofReconstruction
 namespace Duper
 open RuleM
 open Lean
+open Meta
 
 initialize registerTraceClass `Superposition.debug
 
@@ -149,8 +150,8 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       if not mainPremiseFinalEligibility then return none
   
       -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
-      let sidePremiseLhs ← RuleM.instantiateMVars sidePremiseLit.lhs
-      let sidePremiseRhs ← RuleM.instantiateMVars sidePremiseLit.rhs
+      let sidePremiseLhs ← instantiateMVars sidePremiseLit.lhs
+      let sidePremiseRhs ← instantiateMVars sidePremiseLit.rhs
       let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs
       if sidePremiseComparison == Comparison.LessThan || sidePremiseComparison == Comparison.Equal then
         return none
@@ -170,8 +171,8 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       let mut mainPremiseReplaced : MClause := Inhabited.default
       let mut poses : Array ClausePos := #[]
       if simultaneousSuperposition then
-        let mainPremise ← mainPremise.mapM RuleM.instantiateMVars
-        let sidePremiseLhs ← RuleM.instantiateMVars sidePremiseLhs
+        let mainPremise ← mainPremise.mapM instantiateMVars
+        let sidePremiseLhs ← instantiateMVars sidePremiseLhs
         (mainPremiseReplaced, poses) := mainPremise.mapWithPos <|
           Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs
         mainPremiseReplaced := {mainPremiseReplaced with mvars := mainPremise.mvars ++ sidePremise.mvars}
@@ -182,7 +183,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
         trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
         return none
   
-      let restOfSidePremise ← restOfSidePremise.mapM fun e => RuleM.instantiateMVars e
+      let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
       let res := MClause.append restOfSidePremise mainPremiseReplaced
       let mkProof :=
         if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain poses
