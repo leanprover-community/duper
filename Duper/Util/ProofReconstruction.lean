@@ -26,12 +26,10 @@ def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs 
     -- `parentInstantiations = mvars[fvars]`
     let parentInstantiations := finstantiatedparent.getAppArgs
     trace[InstantiatePremises] "parentInstantiations: {parentInstantiations}"
-    let parentParamNames := parent.clause.paramNames
-    let parentParamSubst := parent.paramSubst
     let parentLits := parent.clause.lits.map fun lit =>
-      (lit.map (fun e => (e.instantiateRev parentInstantiations))).instantiateLevelParamsArray parentParamNames parentParamSubst
+    lit.map (fun e => (e.instantiateRev parentInstantiations))
     parentsLits := parentLits :: parentsLits
-    let newprem := (mkAppN premise parentInstantiations).instantiateLevelParams parentParamNames.data parentParamSubst.data
+    let newprem := mkAppN premise parentInstantiations
     appliedPremises := newprem :: appliedPremises
     -- Now, `appliedPremises[i] : parentsLits[i]`, for all `i`
   let transferExprs := transferExprs.map (fun e => mkAppN e xs)

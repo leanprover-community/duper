@@ -332,7 +332,8 @@ where
     let skTy ← inferType prf
     let skLvl := (← inferType skTy).sortLevel!
     let skolemSorryName ← getSkolemSorryName
-    let skExpr := Expr.app (.app (.app (.const skolemSorryName [skLvl]) (.const ``False [])) (.lit (.natVal cnt))) skTy
+    let wrapped ← wrapSortIntoOpaqueNat lnames
+    let skExpr := Expr.app (.app (.app (.const skolemSorryName [skLvl]) wrapped) (.lit (.natVal cnt))) skTy
     let skExpr := skExpr.instantiateLevelParamsArray lnames lvls
     let newmvar ← mkFreshExprMVar ty
     return (mkApp (mkAppN skExpr mids) newmvar, newmvar)

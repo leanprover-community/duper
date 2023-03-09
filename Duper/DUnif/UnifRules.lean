@@ -20,6 +20,7 @@ structure Config where
 --    us from assigning the metavariables that are assumed to
 --    be synthesized by typeclass resolution)
 -- 3: Propositional extensionality
+-- 4: Whether to use `headBeta` or `whnf`
 
 inductive StructType where
   -- Things considered as `const`:

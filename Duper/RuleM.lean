@@ -14,6 +14,7 @@ def enableTypeInhabitationReasoning := false
 
 structure Context where
   order : Expr → Expr → MetaM Comparison
+  opaqueNatName : Name
   skolemSorryName : Name
 deriving Inhabited
 
@@ -84,6 +85,9 @@ initialize
 
 def getOrder : RuleM (Expr → Expr → MetaM Comparison) :=
   return (← read).order
+
+def getOpaqueNatName : RuleM Name :=
+  return (← read).opaqueNatName
 
 def getSkolemSorryName : RuleM Name :=
   return (← read).skolemSorryName
@@ -165,6 +169,24 @@ def typeCorrect (e : Expr) : RuleM Bool :=
     return true
   catch _ =>
     return false
+
+-- Support for skolems with universe levels
+def wrapSortIntoOpaqueNat (paramNames : Array Name) : RuleM Expr := do
+  let mut expr := Expr.sort (.succ .zero)
+  let nameRev := paramNames.reverse
+  for name in nameRev do
+    expr := Expr.forallE `_ (.sort (Level.param name)) expr .default
+  let ty ← Meta.inferType expr
+  let lvl := ty.sortLevel!
+  let opaqueNatName ← getOpaqueNatName
+  return Expr.app (Expr.const opaqueNatName [lvl]) expr
+
+def unWrapOpqaueNat (e : Expr) (opaqueNatName : Name) : MetaM (Array Level) := do
+  let Expr.app (Expr.const opn [_]) sortForall := e
+    | throwError "unWrapOpaqueNat :: Invalid expression {e}"
+  if opn != opaqueNatName then
+    throwError "unWrapOpaqueNat :: Unknown name {opaqueNatName}"
+  Meta.forallTelescope sortForall fun xs _ => pure (xs.map Expr.sortLevel!)
 
 open Lean.Meta
 

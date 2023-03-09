@@ -96,15 +96,21 @@ def PRState.insertConstructedClauses (prs : PRState) (key : Nat × Array Level) 
 
 abbrev PRM := ReaderT PRContext <| StateRefT PRState CoreM
 
+def PRM.mkLetDecl (fvarId : FVarId) (userName : Name) (type : Expr) (value : Expr) (nonDep := false) (kind : LocalDeclKind := default) : PRM Unit := do
+  let lctx := (← get).lctx
+  let lctx' := lctx.mkLetDecl fvarId userName type value nonDep kind
+  modify fun s => {s with lctx := lctx'}
+  modify fun s => {s with fvars := s.fvars.push (mkFVar fvarId)}
+
 -- Does not update the metavariable context !
 def runMetaAsPRM {α} (x : MetaM α) : PRM α := do
-    let lctx := (← get).lctx
-    let mctx := (← get).mctx
-    let localInstances := (← get).localInstances
-    let (res, state) ← Meta.MetaM.run (ctx := {lctx := lctx, localInstances := localInstances}) (s := {mctx := mctx}) do
-      x
-    modify fun s => {s with mctx := state.mctx}
-    return res
+  let lctx := (← get).lctx
+  let mctx := (← get).mctx
+  let localInstances := (← get).localInstances
+  let (res, state) ← Meta.MetaM.run (ctx := {lctx := lctx, localInstances := localInstances}) (s := {mctx := mctx}) do
+    x
+  modify fun s => {s with mctx := state.mctx}
+  return res
 
 def PRM.run (m : PRM α) (ctx : PRContext) (st : PRState) : CoreM (α × PRState) :=
   StateRefT'.run (m ctx) st
@@ -118,7 +124,8 @@ partial def PRM.matchSkolem : Expr → PRM TransformStep
     | return .continue
   let skolemSorryName := (← read).pmstate.skolemSorryName
   if skName == skolemSorryName then
-    let lvarr := args[0]!
+    let opqn := args[0]!
+    let lvls ← runMetaAsPRM <| RuleM.unWrapOpqaueNat opqn (← read).pmstate.opaqueNatName
     let .natVal skid := args[1]!.litValue!
       | throwError "PRM.matchSkolem :: Invalid skolem id!"
     let skTy := args[2]!
@@ -130,7 +137,9 @@ partial def PRM.matchSkolem : Expr → PRM TransformStep
       return .done (mkAppN (mkFVar fvarId) trailingArgs)
     if let some isk := skmap.find? skid then
       let ⟨skProof, params⟩ := isk
+      let skProof := skProof.instantiateLevelParamsArray params lvls
       let skProof ← Core.transform skProof PRM.matchSkolem
+      let skTy := skTy.instantiateLevelParamsArray params lvls
       let skTy ← Core.transform skTy PRM.matchSkolem
       let fvarId ← mkFreshFVarId
       let userName := Name.num `skol skid
@@ -139,11 +148,8 @@ partial def PRM.matchSkolem : Expr → PRM TransformStep
         trace[Meta.debug] "Reconstructing skolem, type = {skTy}"
         trace[Print_Proof] "Reconstructed skolem, userName = {userName}"
         trace[Meta.debug] "Reconstructed skolem definition: {skProof}"
-      let lctx := (← get).lctx
-      let lctx' := lctx.mkLetDecl fvarId userName skTy skProof
-      modify fun s => {s with lctx := lctx'}
+      PRM.mkLetDecl fvarId userName skTy skProof
       modify fun s => {s with constructedSkolems := s.constructedSkolems.insert skid fvarId}
-      modify fun s => {s with fvars := s.fvars.push (mkFVar fvarId)}
       let trailingArgs := args.extract 3 args.size
       let trailingArgs ← trailingArgs.mapM (fun e => Core.transform e PRM.matchSkolem)
       return .done (mkAppN (mkFVar fvarId) trailingArgs)
@@ -152,14 +158,6 @@ partial def PRM.matchSkolem : Expr → PRM TransformStep
   else
     return .continue
 | _ => return .continue
-
-partial def mkSkProof : List Clause → PRM Unit
-| [] => pure ()
-| c :: cs => do
-  Core.checkMaxHeartbeats "mkSkProof"
-  let cexpr := c.toForallExpr
-  let _ ← Core.transform cexpr PRM.matchSkolem
-  mkSkProof cs
 
 partial def mkClauseProof : List Clause → PRM Expr
 | [] => panic! "mkClauseProof :: empty clause list"
@@ -177,18 +175,16 @@ partial def mkClauseProof : List Clause → PRM Expr
       let parentNumber := parentInfo.number
       let instantiatedParentParamSubst := parent.paramSubst.map (fun lvl => lvl.instantiateParams c.paramNames.data req.data)
       let parentPrfFvar := (← get).constructedClauses.find! (parentNumber, instantiatedParentParamSubst)
-      -- TODO : Move param instantiation here
       parents := parents.push parentPrfFvar
-      let parentClauseLits ← parent.clause.lits.mapM (fun l => l.mapM fun e => Core.transform e PRM.matchSkolem)
-      let parentClause := {parent.clause with lits := parentClauseLits}
-      let parentExpr ← Core.transform parent.expr PRM.matchSkolem
-      let instPP := {parent with expr := parentExpr, clause := parentClause, paramSubst := instantiatedParentParamSubst}
+      let parentClause ← parent.clause.mapMUpdateType (fun e => Core.transform e PRM.matchSkolem)
+      let parentClause := parentClause.instantiateLevelParamsArray parentClause.paramNames instantiatedParentParamSubst
+      let parentExpr := parent.expr.instantiateLevelParamsArray parentClause.paramNames instantiatedParentParamSubst
+      let parentExpr ← Core.transform parentExpr PRM.matchSkolem
+      let instPP := {parent with expr := parentExpr, clause := parentClause}
       instantiatedProofParents := instantiatedProofParents.push instPP
     -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
-    let instCLits := c.lits.map (fun l => l.instantiateLevelParamsArray c.paramNames req)
-    let instCLits ← instCLits.mapM (fun l => l.mapM fun e => Core.transform e PRM.matchSkolem)
-    let instBVarTys := c.bVarTypes.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
-    let instC := {c with lits := instCLits, bVarTypes := instBVarTys}
+    let instC := c.instantiateLevelParamsArray c.paramNames req
+    let instC ← instC.mapMUpdateType (fun e => Core.transform e PRM.matchSkolem)
     runMetaAsPRM <|
       do trace[Meta.debug] "Reconstructing proof for #{info.number}: {instC}, Rule Name: {info.proof.ruleName}"
     let instTr := info.proof.transferExprs.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
@@ -208,10 +204,8 @@ partial def mkClauseProof : List Clause → PRM Expr
     -- Add the new proof to the local context
     let fvarId ← mkFreshFVarId
     let declName := (Name.mkNum (Name.mkNum `clause info.number) reqid)
-    let lctx' := (← get).lctx.mkLetDecl fvarId declName newTarget newProof
+    PRM.mkLetDecl fvarId declName newTarget newProof
     modify fun ctrc => ctrc.insertConstructedClauses (info.number, req) (mkFVar fvarId)
-    modify fun ctrc => {ctrc with lctx := lctx'}
-    modify fun ctrc => {ctrc with fvars := ctrc.fvars.push (mkFVar fvarId)}
   mkClauseProof cs
 
 partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr := do
@@ -224,7 +218,7 @@ partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr :
   -- Other clauses
   let zeroLvlsForEmptyClause := emptyClause.paramNames.map (fun _ => Level.zero)
   let reqs ← collectLevelRequests state emptyClause zeroLvlsForEmptyClause HashMap.empty
-  let (e, prstate) ← (do mkSkProof cs.data; mkClauseProof cs.data).run
+  let (e, prstate) ← (do mkClauseProof cs.data).run
       {pmstate := state, reqs := reqs}
       {constructedClauses := HashMap.empty, constructedSkolems := HashMap.empty,
        lctx := ← getLCtx, mctx := ← getMCtx, localInstances := ← getLocalInstances, fvars := #[]}
@@ -325,6 +319,30 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Arr
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
   return formulas
 
+def addOpaqueNat : CoreM Name := do
+  let nameS := "opaqueNat"
+  let env := (← get).env
+  let mut cnt := 0
+  let currNameSpace := (← read).currNamespace
+  while true do
+    let name := Name.num (Name.str currNameSpace nameS) cnt
+    if env.constants.contains name then
+      cnt := cnt + 1
+    else
+      break
+  let name := Name.num (Name.str currNameSpace nameS) cnt
+  let lvlName := `u
+  let lvl := Level.param lvlName
+  let type := Expr.forallE `l (.sort lvl) (.const ``Nat []) .default
+  let term := Expr.lam `l (.sort lvl) (.const ``Nat.zero []) .default
+  let opaqueVal : OpaqueVal := {name := name, levelParams := [lvlName],
+                                type := type, value := term, isUnsafe := true, all := [name]}
+  let decl : Declaration := (.opaqueDecl opaqueVal)
+  match (← getEnv).addDecl decl with
+  | Except.ok    env => setEnv env
+  | Except.error ex  => throwKernelException ex
+  return name
+
 -- Add the constant `skolemSorry` to the environment.
 -- Add suitable postfix to avoid name conflict.
 def addSkolemSorry : CoreM Name := do
@@ -341,8 +359,8 @@ def addSkolemSorry : CoreM Name := do
   let name := Name.num (Name.str currNameSpace nameS) cnt
   let lvlName := `u
   let lvl := Level.param lvlName
-  -- Type = ∀ (p : Prop) (n : Nat) (α : Sort u), α
-  -- The preceeding ```Prop``` is needed for recording level parameters.
+  -- Type = ∀ (p : Nat) (n : Nat) (α : Sort u), α
+  -- The preceeding ```Nat``` is needed for recording level parameters.
   --   We'll show how it is used using the following example:
   -- Suppose we are clausifying
   --   ``∃ (x : Nat), f (Type u) x = g (Type v) x``
@@ -356,20 +374,19 @@ def addSkolemSorry : CoreM Name := do
   --   recover the levels, as we have to identify for each skolem constant
   --   in the result clause which parent it's from, and backtrack all the
   --   way to the clause where the skolem was created.
-  -- To solve this problem, we record the levels within the ``Prop`` argument.
-  --   In the above example, it will be recorded as ```Type u → Type v → opaqueBool```.
-  let type := Expr.forallE `p (Expr.sort .zero) (Expr.forallE `n (Expr.const ``Nat []) (
+  -- To solve this problem, we record the levels within the ``Nat`` argument.
+  --   In the above example, it will be recorded as ```opaqueNat (Type u → Type v → Type)```.
+  let type := Expr.forallE `p (Expr.const ``Nat []) (Expr.forallE `n (Expr.const ``Nat []) (
     Expr.forallE `α (Expr.sort lvl) (.bvar 0) .default
   ) .default) .default
   -- Term = fun (p : Prop) (n : Nat) (α : Sort u) => sorryAx.{u} α false
-  let term := Expr.lam `p (Expr.sort .zero) (Expr.lam `n (Expr.const ``Nat []) (
+  let term := Expr.lam `p (Expr.const ``Nat []) (Expr.lam `n (Expr.const ``Nat []) (
     Expr.lam `α (Expr.sort lvl) (
       Expr.app (Expr.app (Expr.const ``sorryAx [lvl]) (.bvar 0)) (Expr.const ``false [])
     ) .default
   ) .default) .default
-  -- TODO : Change `unsafe` to `true`
   let opaqueVal : OpaqueVal := {name := name, levelParams := [lvlName],
-                                type := type, value := term, isUnsafe := false, all := [name]}
+                                type := type, value := term, isUnsafe := true, all := [name]}
   let decl : Declaration := (.opaqueDecl opaqueVal)
   match (← getEnv).addDecl decl with
   | Except.ok    env => setEnv env
@@ -384,10 +401,11 @@ macro_rules
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
   -- Add the constant `skolemSorry` to the environment
+  let opaqueNatName ← addOpaqueNat
   let skSorryName ← addSkolemSorry
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←
-    ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
+    ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName, opaqueNatName := opaqueNatName})
       ProverM.saturateNoPreprocessingClausification
       formulas
   return state

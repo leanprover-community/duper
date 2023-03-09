@@ -261,6 +261,16 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
 def getAtPos! (c : Clause) (pos : ClausePos) : Expr :=
   c.lits[pos.lit]!.getAtPos! ⟨pos.side, pos.pos⟩
 
+def mapMUpdateType [instMonad : Monad m] (c : Clause) (f : Expr → m Expr) := do
+  let bVarTypes ← c.bVarTypes.mapM f
+  let lits ← c.lits.mapM (Lit.mapM f)
+  return {c with bVarTypes := bVarTypes, lits := lits}
+
+def instantiateLevelParamsArray (c : Clause) (paramNames : Array Name) (levels : Array Level) :=
+  let bVarTypes := c.bVarTypes.map (fun e => e.instantiateLevelParamsArray paramNames levels)
+  let lits := c.lits.map (fun l => l.instantiateLevelParamsArray paramNames levels)
+  {c with bVarTypes := bVarTypes, lits := lits}
+
 def toForallExpr (c : Clause) : Expr :=
   c.bVarTypes.foldr (fun ty b => mkForall Name.anonymous BinderInfo.default ty b) c.toExpr
 
