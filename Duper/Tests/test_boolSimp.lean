@@ -114,3 +114,22 @@ theorem boolSimpRule27Test (a b c shared x y z r : Prop) (h : ((a ∧ b ∧ shar
 
 theorem boolSimpRule28Test (p q r : Prop) (h : (p ↔ r) = (q ↔ r)) : p = q :=
   by duper
+
+
+-- Negative tests
+
+namespace Negative
+
+axiom f.{u} : Sort u → Nat
+
+def neg₁ : (f (Nat → Nat) = f (Nat → Nat)) := by duper
+
+-- A positive example
+def pos₁ : (f (Nat → False) = f False) := by duper
+
+axiom g.{u} : ∀ (α : Sort u), α → Nat
+
+def neg₂ : g (Nat → True) (fun _ => True.intro) = g (Nat → True) (fun _ => True.intro) :=
+  by duper
+
+end Negative

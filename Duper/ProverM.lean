@@ -45,7 +45,7 @@ instance : ToMessageData Result :=
 | contradiction => "contradiction"⟩
 
 structure Context where
-  blah : Bool := false
+  skolemSorryName : Name := Name.anonymous
 deriving Inhabited
 
 structure State where
@@ -60,7 +60,7 @@ structure State where
   supSidePremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
-  skolemSorryName : Name := Name.anonymous
+  skolemCnt : Nat := 0
   lctx : LocalContext := {}
   mctx : MetavarContext := {}
 
@@ -98,9 +98,6 @@ initialize
   registerTraceClass `Prover
   registerTraceClass `Prover.saturate
   registerTraceClass `Prover.debug
-
-def getBlah : ProverM Bool :=
-  return (← read).blah
 
 def getResult : ProverM Result :=
   return (← get).result
@@ -141,7 +138,10 @@ def getQStreamSet : ProverM (ClauseStreamHeap ClauseStream) :=
   return (← get).qStreamSet
 
 def getSkolemSorryName : ProverM Name :=
-  return (← get).skolemSorryName
+  return (← read).skolemSorryName
+
+def getSkolemCnt : ProverM Nat :=
+  return (← get).skolemCnt
 
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }
@@ -182,8 +182,8 @@ def setMCtx (mctx : MetavarContext) : ProverM Unit :=
 def setQStreamSet (Q : ClauseStreamHeap ClauseStream) : ProverM Unit :=
   modify fun s => { s with qStreamSet := Q }
 
-def setSkolemSorryName (skname : Name) : ProverM Unit :=
-  modify fun s => {s with skolemSorryName := skname}
+def setSkolemCnt (skcnt : Nat) : ProverM Unit :=
+  modify fun s => {s with skolemCnt := skcnt}
 
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
@@ -262,7 +262,7 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
     setPassiveSet $ (← getPassiveSet).insert c c.weight ci.number
   | none => throwError "Unable to find information for clausified clause {c}"
 
-def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name)) (ctx : Context := {}) (s : State := {}) : 
+def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name)) (ctx : Context) (s : State) : 
     CoreM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
     for (e, proof, paramNames) in es do
@@ -275,8 +275,9 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   let symbolPrecMap ← getSymbolPrecMap
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
   let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
-  let (res, state) ← RuleM.run x (ctx := {order := order}) (s := {lctx := ← getLCtx, mctx := ← getMCtx})
+  let (res, state) ← RuleM.run x (ctx := {order := order, skolemSorryName := ← getSkolemSorryName}) (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemCnt := ← getSkolemCnt})
   ProverM.setLCtx state.lctx
+  ProverM.setSkolemCnt state.skolemCnt
   return res
 
 def addToActive (c : Clause) : ProverM Unit := do

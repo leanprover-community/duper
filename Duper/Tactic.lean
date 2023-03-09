@@ -284,13 +284,7 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Arr
         formulas := (fact, ← mkAppM ``eq_true #[proof], params) :: formulas
       else
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
-
   return formulas
-
-syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
-
-macro_rules
-| `(tactic| duper) => `(tactic| duper [])
 
 -- Add the constant `skolemSorry` to the environment.
 -- Add suitable postfix to avoid name conflict.
@@ -308,15 +302,32 @@ def addSkolemSorry : CoreM Name := do
   let name := Name.num (Name.str currNameSpace nameS) cnt
   let lvlName := `u
   let lvl := Level.param lvlName
-  -- Type = ∀ (n : Nat) (α : Sort u), α
-  let type := Expr.forallE `n (Expr.const ``Nat []) (
+  -- Type = ∀ (p : Prop) (n : Nat) (α : Sort u), α
+  -- The preceeding ```Prop``` is needed for recording level parameters.
+  --   We'll show how it is used using the following example:
+  -- Suppose we are clausifying
+  --   ``∃ (x : Nat), f (Type u) x = g (Type v) x``
+  -- Then the skolem constant should be
+  --   ``Skolem.some (fun x => f (Type u) x = g (Type v) x)``
+  -- In the ``skolemSorry`` approach without the ```Prop```, the skolem
+  --   constant is stored as ```SkolemSorry <id> Nat```, which makes it
+  --   difficult to keep track of ``u`` and ``v``. For example, sometimes
+  --   superposition can cause a literal to contain two skolem constants
+  --   with the same id and different levels. It's cumbersome to
+  --   recover the levels, as we have to identify for each skolem constant
+  --   in the result clause which parent it's from, and backtrack all the
+  --   way to the clause where the skolem was created.
+  -- To solve this problem, we record the levels within the ``Prop`` argument.
+  --   In the above example, it will be recorded as ```Type u → Type v → Prop```.
+  let type := Expr.forallE `p (Expr.sort .zero) (Expr.forallE `n (Expr.const ``Nat []) (
     Expr.forallE `α (Expr.sort lvl) (.bvar 0) .default
-  ) .default
-  let term := Expr.lam `n (Expr.const ``Nat []) (
+  ) .default) .default
+  -- Term = fun (p : Prop) (n : Nat) (α : Sort u) => sorryAx.{u} α false
+  let term := Expr.lam `p (Expr.sort .zero) (Expr.lam `n (Expr.const ``Nat []) (
     Expr.lam `α (Expr.sort lvl) (
       Expr.app (Expr.app (Expr.const ``sorryAx [lvl]) (.bvar 0)) (Expr.const ``false [])
     ) .default
-  ) .default
+  ) .default) .default
   -- TODO : Change `unsafe` to `true`
   let opaqueVal : OpaqueVal := {name := name, levelParams := [lvlName],
                                 type := type, value := term, isUnsafe := false, all := [name]}
@@ -326,13 +337,18 @@ def addSkolemSorry : CoreM Name := do
   | Except.error ex  => throwKernelException ex
   return name
 
+syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
+
+macro_rules
+| `(tactic| duper) => `(tactic| duper [])
+
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
   -- Add the constant `skolemSorry` to the environment
   let skSorryName ← addSkolemSorry
   trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
   let (_, state) ←
-    ProverM.runWithExprs (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemSorryName := skSorryName})
+    ProverM.runWithExprs (ctx := {skolemSorryName := skSorryName}) (s := {lctx := ← getLCtx, mctx := ← getMCtx, skolemCnt := 0})
       ProverM.saturateNoPreprocessingClausification
       formulas
   return state
