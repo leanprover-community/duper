@@ -509,5 +509,6 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
 tptp SEU123 "../TPTP-v8.0.0/Problems/SEU/SEU123+1.p"
   by duper
 
+set_option trace.Saturate.debug true in
 tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
   by duper

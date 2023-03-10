@@ -356,7 +356,7 @@ def addOpaqueNat : CoreM Name := do
 -- Add the constant `skolemSorry` to the environment.
 -- Add suitable postfix to avoid name conflict.
 def addSkolemSorry : CoreM Name := do
-  let nameS := "skolemSorry"
+  let nameS := "skS"
   let env := (← get).env
   let mut cnt := 0
   let currNameSpace := (← read).currNamespace
@@ -387,14 +387,14 @@ def addSkolemSorry : CoreM Name := do
   -- To solve this problem, we record the levels within the ``Nat`` argument.
   --   In the above example, it will be recorded as ```opaqueNat (Type u → Type v → Type)```.
   let type := Expr.forallE `p (Expr.const ``Nat []) (Expr.forallE `n (Expr.const ``Nat []) (
-    Expr.forallE `α (Expr.sort lvl) (.bvar 0) .default
-  ) .default) .default
-  -- Term = fun (p : Prop) (n : Nat) (α : Sort u) => sorryAx.{u} α false
+    Expr.forallE `α (Expr.sort lvl) (.bvar 0) .implicit
+  ) .default) .implicit
+  -- Term = fun (p : Nat) (n : Nat) (α : Sort u) => sorryAx.{u} α false
   let term := Expr.lam `p (Expr.const ``Nat []) (Expr.lam `n (Expr.const ``Nat []) (
     Expr.lam `α (Expr.sort lvl) (
       Expr.app (Expr.app (Expr.const ``sorryAx [lvl]) (.bvar 0)) (Expr.const ``false [])
-    ) .default
-  ) .default) .default
+    ) .implicit
+  ) .default) .implicit
   let opaqueVal : OpaqueVal := {name := name, levelParams := [lvlName],
                                 type := type, value := term, isUnsafe := true, all := [name]}
   let decl : Declaration := (.opaqueDecl opaqueVal)
