@@ -10,33 +10,32 @@ open Lean.Parser
 initialize 
   registerTraceClass `TPTP_Testing
   registerTraceClass `Print_Proof
+  registerTraceClass `ProofReconstruction
   registerTraceClass `Saturate.debug
 
 namespace Lean.Elab.Tactic
 
-partial def printProof (state : ProverM.State) : MetaM Unit := do
-  Core.checkMaxHeartbeats "printProof"
-  let rec go c (hm : Array (Nat × Clause) := {}) : MetaM (Array (Nat × Clause)) := do
-    let info ← getClauseInfo! c
-    if hm.contains (info.number, c) then return hm
-    let mut hm := hm.push (info.number, c)
-    let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! pp.clause) 
-    let parentIds := parentInfo.map fun info => info.number
-    trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
-    for proofParent in info.proof.parents do
-      hm ← go proofParent.clause hm
-    return hm
-  let _ ← go Clause.empty
-where 
-  getClauseInfo! (c : Clause) : MetaM ClauseInfo := do
-    let some ci := state.allClauses.find? c
-      | throwError "clause info not found: {c}"
-    return ci
 
 def getClauseInfo! (state : ProverM.State) (c : Clause) : CoreM ClauseInfo := do
   let some ci := state.allClauses.find? c
     | throwError "clause info not found: {c}"
   return ci
+
+partial def printProof (state : ProverM.State) : MetaM Unit := do
+  Core.checkMaxHeartbeats "printProof"
+  let rec go c (hm : Array (Nat × Clause) := {}) : MetaM (Array (Nat × Clause)) := do
+    let info ← getClauseInfo! state c
+    if hm.contains (info.number, c) then return hm
+    let mut hm := hm.push (info.number, c)
+    let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! state pp.clause) 
+    let parentIds := parentInfo.map fun info => info.number
+    trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
+    for proofParent in info.proof.parents do
+      hm ← go proofParent.clause hm
+    return hm
+  let some emptyClause := state.emptyClause
+    | throwError "applyProof :: Can't find empty clause in ProverM's state"
+  let _ ← go emptyClause
 
 abbrev ClauseHeap := Std.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 
@@ -66,7 +65,7 @@ partial def collectLevelRequests (state : ProverM.State) (c : Clause)
     match acc.find? info.number with
     | some set => set
     | none     => HashMap.empty
-  trace[Meta.debug] "Request {lvls} for {c}"
+  trace[ProofReconstruction] "Request {c.paramNames} ↦ {lvls} for {c}"
   acc := acc.insert info.number (lvlset.insert lvls lvlset.size)
   for proofParent in info.proof.parents do
     let lvls' := proofParent.paramSubst.map
@@ -131,24 +130,22 @@ partial def PRM.matchSkolem : Expr → PRM TransformStep
     let skTy := args[2]!
     let skmap := (← read).pmstate.skolemMap
     let consk := (← get).constructedSkolems
-    if let some fvarId := consk.find? skid then
+    if let some isk := skmap.find? skid then
       let trailingArgs := args.extract 3 args.size
       let trailingArgs ← trailingArgs.mapM (fun e => Core.transform e PRM.matchSkolem)
-      return .done (mkAppN (mkFVar fvarId) trailingArgs)
-    if let some isk := skmap.find? skid then
+      if let some fvarId := consk.find? skid then
+        return .done (mkAppN (mkFVar fvarId) trailingArgs)
       let ⟨skProof, params⟩ := isk
       let skProof := skProof.instantiateLevelParamsArray params lvls
       let skProof ← Core.transform skProof PRM.matchSkolem
-      let skTy := skTy.instantiateLevelParamsArray params lvls
+      -- Don't need to instantiate level params for `skTy`, because
+      --   it's already instantiated
       let skTy ← Core.transform skTy PRM.matchSkolem
       let fvarId ← mkFreshFVarId
       let userName := Name.num `skol skid
-      runMetaAsPRM <| do
-        trace[Print_Proof] "Reconstructing skolem, fvar = {mkFVar fvarId}"
-        trace[Meta.debug] "Reconstructing skolem, type = {skTy}"
-        trace[Print_Proof] "Reconstructed skolem, userName = {userName}"
-        trace[Meta.debug] "Reconstructed skolem definition: {skProof}"
       PRM.mkLetDecl fvarId userName skTy skProof
+      runMetaAsPRM <| do
+        trace[ProofReconstruction] "Reconstructing skolem, {(mkFVar fvarId).dbgToString} ≡≡ {mkFVar fvarId} : {skTy} := {skProof}"
       modify fun s => {s with constructedSkolems := s.constructedSkolems.insert skid fvarId}
       let trailingArgs := args.extract 3 args.size
       let trailingArgs ← trailingArgs.mapM (fun e => Core.transform e PRM.matchSkolem)
@@ -176,8 +173,13 @@ partial def mkClauseProof : List Clause → PRM Expr
       let instantiatedParentParamSubst := parent.paramSubst.map (fun lvl => lvl.instantiateParams c.paramNames.data req.data)
       let parentPrfFvar := (← get).constructedClauses.find! (parentNumber, instantiatedParentParamSubst)
       parents := parents.push parentPrfFvar
-      let parentClause ← parent.clause.mapMUpdateType (fun e => Core.transform e PRM.matchSkolem)
-      let parentClause := parentClause.instantiateLevelParamsArray parentClause.paramNames instantiatedParentParamSubst
+      runMetaAsPRM <| do
+        trace[ProofReconstruction] (
+          m!"Instantiating parent {parent.clause} ≡≡ {parent.expr} with " ++
+          m!"param subst {parent.clause.paramNames} ↦ {instantiatedParentParamSubst}"
+        )
+      let parentClause := parent.clause.instantiateLevelParamsArray parent.clause.paramNames instantiatedParentParamSubst
+      let parentClause ← parentClause.mapMUpdateType (fun e => Core.transform e PRM.matchSkolem)
       let parentExpr := parent.expr.instantiateLevelParamsArray parentClause.paramNames instantiatedParentParamSubst
       let parentExpr ← Core.transform parentExpr PRM.matchSkolem
       let instPP := {parent with expr := parentExpr, clause := parentClause}
@@ -185,8 +187,11 @@ partial def mkClauseProof : List Clause → PRM Expr
     -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
     let instC := c.instantiateLevelParamsArray c.paramNames req
     let instC ← instC.mapMUpdateType (fun e => Core.transform e PRM.matchSkolem)
-    runMetaAsPRM <|
-      do trace[Meta.debug] "Reconstructing proof for #{info.number}: {instC}, Rule Name: {info.proof.ruleName}"
+    runMetaAsPRM <| do 
+      trace[ProofReconstruction] (
+        m!"Reconstructing proof for #{info.number} " ++
+        m!": {instC.paramNames} ↦ {req} @ {instC}, Rule Name: {info.proof.ruleName}"
+      )
     let instTr := info.proof.transferExprs.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
     let newProof ← (do
       let prf ← runMetaAsPRM <|
@@ -199,7 +204,7 @@ partial def mkClauseProof : List Clause → PRM Expr
         return prf.instantiateLevelParamsArray c.paramNames req)
     let newTarget := instC.toForallExpr
     runMetaAsPRM <|
-      do trace[Meta.debug] "#{info.number}'s newProof: {newProof}"
+      do trace[ProofReconstruction] "#{info.number}'s newProof: {newProof}"
     if cs == [] then return newProof
     -- Add the new proof to the local context
     let fvarId ← mkFreshFVarId
@@ -230,11 +235,13 @@ partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr :
   return abstLet
 
 def applyProof (state : ProverM.State) : TacticM Unit := do
-  let l := (← collectClauses state Clause.empty (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
-  trace[Meta.debug] "Collected clauses: {l}"
+  let some emptyClause := state.emptyClause
+    | throwError "applyProof :: Can't find empty clause in ProverM's state"
+  let l := (← collectClauses state emptyClause (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
+  trace[ProofReconstruction] "Collected clauses: {l}"
   -- First make proof for skolems, then make proof for clauses
   let proof ← mkAllProof state l
-  trace[Print_Proof] "Proof: {proof}"
+  trace[ProofReconstruction] "Proof: {proof}"
   Lean.MVarId.assign (← getMainGoal) proof -- TODO: List.last?
 
 /-- Produces definional equations for a recursor `recVal` such as
@@ -298,7 +305,7 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     let e ← Term.elabTerm stx none
     Term.synthesizeSyntheticMVars (mayPostpone := false) (ignoreStuckTC := true)
     let e ← instantiateMVars e
-    let abstres ← abstractMVars e
+    let abstres ← Duper.abstractMVars e
     let e := abstres.expr
     let paramNames := abstres.paramNames
     return (← inferType e, e, paramNames)

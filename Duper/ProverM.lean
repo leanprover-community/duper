@@ -64,6 +64,10 @@ structure State where
   skolemMap : HashMap Nat SkolemInfo := HashMap.empty
   opaqueNatName : Name := Name.anonymous
   skolemSorryName : Name := Name.anonymous
+  -- We need this field because empty clauses may contain
+  --   level parameters, and we can't just use ```Clause.empty``` as
+  --   a key to find the clauseInfo of the empty clause in ```allClauses```
+  emptyClause : Option Clause := none
 
 abbrev ProverM := ReaderT Context $ StateRefT State MetaM
 
@@ -135,6 +139,9 @@ def getSkolemSorryName : ProverM Name :=
 def getSkolemMap : ProverM (HashMap Nat SkolemInfo) :=
   return (← get).skolemMap
 
+def getEmptyClause : ProverM (Option Clause) :=
+  return (← get).emptyClause
+
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }
 
@@ -170,6 +177,9 @@ def setQStreamSet (Q : ClauseStreamHeap ClauseStream) : ProverM Unit :=
 
 def setSkolemMap (skmap : HashMap Nat SkolemInfo) : ProverM Unit :=
   modify fun s => {s with skolemMap := skmap}
+
+def setEmptyClause (c : Clause) : ProverM Unit :=
+  modify fun s => {s with emptyClause := some c}
 
 initialize emptyClauseExceptionId : InternalExceptionId ← registerInternalExceptionId `emptyClause
 
@@ -220,10 +230,14 @@ def addNewClause (c : Clause) (proof : Proof) (generatingAncestors : List Clause
     }
     setAllClauses (allClauses.insert c ci)
     if enableTypeInhabitationReasoning then
-      if c.lits.size == 0 && c.bVarTypes.size == 0 then throwEmptyClauseException
+      if c.lits.size == 0 && c.bVarTypes.size == 0 then 
+        setEmptyClause c
+        throwEmptyClauseException
       return ci
     else
-      if c.lits.size == 0 then throwEmptyClauseException
+      if c.lits.size == 0 then
+        setEmptyClause c
+        throwEmptyClauseException
       return ci
 
 /-- Registers a new clause and adds it to the passive set. The `generatingAncestors` argument contains the list of clauses that were

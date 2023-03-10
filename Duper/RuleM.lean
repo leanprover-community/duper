@@ -4,6 +4,7 @@ import Duper.MClause
 import Duper.Match
 import Duper.DUnif.UnifRules
 import Duper.Util.IdStrategyHeap
+import Duper.Util.AbstractMVars
 
 namespace Duper
 
@@ -186,7 +187,9 @@ def unWrapOpqaueNat (e : Expr) (opaqueNatName : Name) : MetaM (Array Level) := d
     | throwError "unWrapOpaqueNat :: Invalid expression {e}"
   if opn != opaqueNatName then
     throwError "unWrapOpaqueNat :: Unknown name {opaqueNatName}"
-  Meta.forallTelescope sortForall fun xs _ => pure (xs.map Expr.sortLevel!)
+  Meta.forallTelescope sortForall fun xs _ => do
+    let tys ← xs.mapM Meta.inferType
+    return tys.map Expr.sortLevel!
 
 open Lean.Meta
 
@@ -215,19 +218,16 @@ def prepLoadClause (c : Clause) : RuleM (MClause × LoadedClause) := do
   let (mvars, bis, e) ← forallMetaTelescope e
   return (.fromExpr e mvars, ⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩)
 
-open Lean.Meta.AbstractMVars in
-open Lean.Meta in
+open Duper.AbstractMVars in
 def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transferExprs : Array Expr) :
   M (Clause × List ProofParent × Array Expr) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
-  -- We need to instantiate mvars because currently Lean's
-  --   `abstractMVars` does not deal with level mvars correctly.
-  let ec ← Lean.instantiateMVars c.toExpr
+  let ec := c.toExpr
   -- `fec = concl[fvars]`
-  let fec ← AbstractMVars.abstractExprMVars ec
+  let fec ← Duper.AbstractMVars.abstractExprMVars ec
   -- Abstract metavariables in expressions to be transported to proof reconstruction
-  let ftransferExprs ← transferExprs.mapM AbstractMVars.abstractExprMVars
+  let ftransferExprs ← transferExprs.mapM Duper.AbstractMVars.abstractExprMVars
   -- Make sure every mvar in c.mvars is also abstracted
   /-
     TODO: Process mvars to reduce redundant abstractions. If an mvar that does not appear in c.lits
@@ -236,7 +236,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transfe
     `∀ x : t, ∀ y : t, ∀ z : t, ∀ a : Nat, ∀ b : Nat, f a b`, generate `∀ x : t, ∀ a : Nat, ∀ b : Nat, f a b`
   -/
   if enableTypeInhabitationReasoning then
-    let _ ← c.mvars.mapM AbstractMVars.abstractExprMVars
+    let _ ← c.mvars.mapM Duper.AbstractMVars.abstractExprMVars
   let cst ← get
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := cst.lctx.mkForall cst.fvars fec
@@ -254,16 +254,13 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transfe
     let minstantiatedparent := mkAppN mprotectedparent (mvarIds.map mkMVar)
     -- `finstantiatedparent = (fun [vars] => parent[vars]) mvars[fvars]`
     -- In this following `AbstractMVars`, there are no universe metavariables
-    let finstantiatedparent ← AbstractMVars.abstractExprMVars minstantiatedparent
+    let finstantiatedparent ← Duper.AbstractMVars.abstractExprMVars minstantiatedparent
     let lst ← get
     -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
     let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
     -- Make sure that levels are abstracted
     let lmvars := lmvarIds.map Level.mvar
-    -- We need to instantiate level mvars because currently Lean's
-    --   `abstractMVars` does not deal with level mvars correctly.
-    let lmvarsInst ← lmvars.mapM instantiateLevelMVars
-    let lvarSubstWithExpr ← AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvarsInst.data)
+    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.data)
     let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
     proofParents := ⟨instantiatedparent, loadedClause, paramSubst⟩ :: proofParents
   -- Deal with universe variables differently from metavariables :
@@ -271,6 +268,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transfe
   --   variables are put into the clause. This is because mvars vanish
   --   frequently, and if we put all vanished mvars into clauses, it will
   --   make an unbearably long list of binders.
+  let cst ← get
   let c := Clause.fromForallExpr cst.paramNames abstec
   return (c, proofParents, transferExprs)
 

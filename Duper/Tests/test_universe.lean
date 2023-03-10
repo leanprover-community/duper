@@ -43,7 +43,7 @@ def unitst₂ : ∀ (x : Type v), f x := by
 
 axiom exftrue.{u} : ∃ (x : Type u), f x
 
-set_option trace.Meta.debug true in
+set_option trace.ProofReconstruction true in
 def skuniverse.{u} : ∃ (x : Type u), f x := by
   duper [exftrue]
 
