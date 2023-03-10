@@ -250,12 +250,14 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | Expr.const ``False _, Expr.const ``False _ => return Equal
 | Expr.const ``True _, Expr.const ``True _ => return Equal
 
+| Expr.sort .., Expr.const .. => return GreaterThan
 | Expr.const ``LAM _, Expr.const .. => return GreaterThan
 | Expr.bvar .., Expr.const .. => return GreaterThan
 | Expr.fvar m .., Expr.const n .. => symbolPrecCompare f g (Symbol.FVarId m) (Symbol.Const n) symbolPrecMap
 | Expr.const ``True _, Expr.const .. => return LessThan
 | Expr.const ``False _, Expr.const .. => return LessThan
 
+| Expr.const .., Expr.sort .. => return LessThan
 | Expr.const .., Expr.const ``LAM _ => return LessThan
 | Expr.const .., Expr.bvar .. => return LessThan
 | Expr.const m .., Expr.fvar n .. => symbolPrecCompare f g (Symbol.Const m) (Symbol.FVarId n) symbolPrecMap
