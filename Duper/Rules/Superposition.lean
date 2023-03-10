@@ -8,7 +8,7 @@ open RuleM
 open Lean
 open Meta
 
-initialize registerTraceClass `Superposition.debug
+initialize registerTraceClass `Rule.superposition
 
 register_option simultaneousSuperposition : Bool := {
   defValue := true
@@ -180,7 +180,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
         mainPremiseReplaced ← mainPremise.replaceAtPos! (mainPremise.mvars ++ sidePremise.mvars) mainPremisePos sidePremiseRhs
   
       if mainPremiseReplaced.isTrivial then
-        trace[Prover.debug] "trivial: {mainPremiseReplaced.lits}"
+        trace[Rule.superposition] "trivial: {mainPremiseReplaced.lits}"
         return none
   
       let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
@@ -188,7 +188,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       let mkProof :=
         if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain poses
         else mkSuperpositionProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain
-      trace[Superposition.debug]
+      trace[Rule.superposition]
         m!"Superposition successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
         m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
       some <$> yieldClause res "superposition" mkProof
@@ -229,14 +229,13 @@ def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (
 
 def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (given : Clause) (givenClause : MClause)
   (givenClauseNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Prover.debug] "Superposition inferences with {givenClause.lits}"
+  trace[Rule.superposition] "Superposition inferences with {givenClause.lits}"
   let opts ← getOptions
   let simultaneousSuperposition := getSimultaneousSuperposition opts
   let mut streams := #[]
   -- With given clause as side premise:
   for i in [:givenClause.lits.size] do
-    if givenClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenClause i
-    then
+    if givenClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenClause i then
       for side in #[LitSide.lhs, LitSide.rhs] do
         let flippedLit := givenClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs) == Comparison.LessThan then

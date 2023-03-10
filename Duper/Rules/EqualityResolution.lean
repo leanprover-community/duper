@@ -7,6 +7,8 @@ open RuleM
 open Lean
 open Meta
 
+initialize Lean.registerTraceClass `Rule.equalityResolution
+
 def mkEqualityResolutionProof (i : Nat) (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
@@ -54,7 +56,7 @@ def equalityResolutionAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Ar
     return #[ClauseStream.mk ug given yC]
       
 def equalityResolution (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Prover.debug] "EqRes inferences with {c.lits}"
+  trace[Rule.equalityResolution] "EqRes inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = false then

@@ -9,6 +9,8 @@ open Lean
 open Meta
 open RuleM
 
+initialize Lean.registerTraceClass `Rule.equalityFactoring
+
 /- 
   Notes on the equality_factoring_soundness proofs:
   1. s, t, u, and v should all have the same type (α) because if they didn't, then equalityFactoringWithAllConstraints would throw an error.
@@ -115,7 +117,7 @@ def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat)
               ((c.eraseLit i).eraseLit j).appendLits c.mvars #[new_lit, c.lits[j]!]
             else -- i < j because i cannot equal j
               ((c.eraseLit j).eraseLit i).appendLits c.mvars #[new_lit, c.lits[j]!]
-          trace[Prover.debug] "Successfully calling equality factoring on {c.lits} to yield {modified_clause.lits}"
+          trace[Rule.equalityFactoring] "Successfully calling equality factoring on {c.lits} to yield {modified_clause.lits}"
           some <$> yieldClause modified_clause "equality factoring" (mkProof := some (mkEqualityFactoringProof i j litside_i litside_j))
         else
           return none
@@ -147,17 +149,17 @@ def equalityFactoringAtLit (given : Clause) (c : MClause) (i : Nat) (j : Nat) : 
   -/
   match ← compare c.lits[i]!.lhs c.lits[i]!.rhs with
   | Comparison.LessThan =>
-    trace[Prover.debug] "{c.lits[i]!.lhs} < {c.lits[i]!.rhs} by the ground reduction ordering"
+    trace[Rule.equalityFactoring] "{c.lits[i]!.lhs} < {c.lits[i]!.rhs} by the ground reduction ordering"
     let str1 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs
     let str2 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].rhs
     return #[str1, str2]
   | Comparison.GreaterThan =>
-    trace[Prover.debug] "{c.lits[i]!.lhs} > {c.lits[i]!.rhs} by the ground reduction ordering"
+    trace[Rule.equalityFactoring] "{c.lits[i]!.lhs} > {c.lits[i]!.rhs} by the ground reduction ordering"
     let str1 ← equalityFactoringWithAllConstraints given c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
     let str2 ← equalityFactoringWithAllConstraints given c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
     return #[str1, str2]
   | _ => -- If the Comparison is Equal or Incomparable, we unfortunately have to just try all possibilities
-    trace[Prover.debug] "{c.lits[i]!.lhs} equal to or incomparable to {c.lits[i]!.rhs} by the ground reduction ordering"
+    trace[Rule.equalityFactoring] "{c.lits[i]!.lhs} equal to or incomparable to {c.lits[i]!.rhs} by the ground reduction ordering"
     let str1 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs
     let str2 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].rhs
     let str3 ← equalityFactoringWithAllConstraints given c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
@@ -165,14 +167,14 @@ def equalityFactoringAtLit (given : Clause) (c : MClause) (i : Nat) (j : Nat) : 
     return #[str1, str2, str3, str4]
 
 def equalityFactoring (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Prover.debug] "EqFact inferences with {c.lits}"
+  trace[Rule.equalityFactoring] "EqFact inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if(c.lits[i]!.sign) then
       for j in [i+1:c.lits.size] do -- Since we call equalityFactoringAtLit c i j and equalityFactoringAtLit c j i, we can always have j > i
         if(c.lits[j]!.sign) then
           -- Attempt to perform equalityFactoring with c.lits[i] as the literal to be transformed
-          trace[Prover.debug] "Attempting to call equalityFactoring on {c.lits} using {c.lits[i]!} and {c.lits[j]!}"
+          trace[Rule.equalityFactoring] "Attempting to call equalityFactoring on {c.lits} using {c.lits[i]!} and {c.lits[j]!}"
           let str ← equalityFactoringAtLit given c i j
           streams := streams.append str
           -- Attempt to perform equalityFactoring with c.lits[j] as the literal to be transformed

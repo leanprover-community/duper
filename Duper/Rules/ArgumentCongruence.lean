@@ -84,7 +84,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
     return streams
 
 def argCong (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Prover.debug] "ArgCong inferences with {c.lits}"
+  trace[Rule.argCong] "ArgCong inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = true then
