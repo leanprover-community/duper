@@ -223,7 +223,7 @@ def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array Unif
   let (rhs', rsort, rarray) ← exprForallToLambda eq.rhs n
   if let some lsort := lsort then
     if let some rsort := rsort then
-      if ¬ (← Meta.isLevelDefEq lsort.sortLevel! rsort.sortLevel!) then
+      if ¬ (← Meta.isDefEq lsort rsort) then
         return #[]
   let p := p.pushPrioritized (.fromExprPair lhs' rhs')
   let neweqs := (larray.zip rarray).map (fun (a, b) => UnifEq.fromExprPair a b)
