@@ -109,7 +109,13 @@ theorem boolSimpRule25Test (p q r : Prop) (h : (p → ¬q → q → p → False)
 theorem boolSimpRule26Test (a b c shared x y z r : Prop) (h : (a → b → shared → c → (x ∨ shared ∨ y ∨ z)) = r) : r :=
   by duper
 
+theorem boolSimpRule26TestDep₁ (a b y z r : Prop) (dep : a → Prop) (h : ((x : a) → b → dep x → (dep x ∨ y ∨ z)) = r) : r :=
+  by duper
+
 theorem boolSimpRule27Test (a b c shared x y z r : Prop) (h : ((a ∧ b ∧ shared ∧ c) → (x ∨ shared ∨ y ∨ z)) = r) : r :=
+  by duper
+
+theorem boolSimpRule27TestDep₂ (a b c y z r : Prop) (f : a ∧ b ∧ c → Prop) (h : ((x : a ∧ b ∧ c) → (y ∨ f x ∨ c ∨ z)) = r) : r :=
   by duper
 
 theorem boolSimpRule28Test (p q r : Prop) (h : (p ↔ r) = (q ↔ r)) : p = q :=

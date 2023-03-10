@@ -9,15 +9,6 @@ Inference rules:
   - ForAllRw
   - ExistsRw
 
-Bugs:
-- The following problem fails
-  ```
-  set_option trace.Rule.boolSimp true in
-  tptp ITP209_2 "../TPTP-v8.0.0/Problems/ITP/ITP209_2.p"
-  by duper
-  ```
-  because rule 18,22,23,26,27 does not deal with ```forallE``` correctly, causing the body to contain loose bound variable, eventually leading to the failure of ```inferType```. Maybe we should use ```forallTelescope```.
-
 Infrastructure
 - precCompare: Support for higher-order problem
 - TPTP higher-order problem parsing

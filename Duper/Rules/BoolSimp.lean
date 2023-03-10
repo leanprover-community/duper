@@ -519,7 +519,9 @@ def applyRule25 (e : Expr) : RuleM (Option (Nat × Nat)) := applyRule25Helper e 
 
 partial def applyRule26Helper (e : Expr) (hyps : Array Expr) : RuleM (Option (Nat × Nat)) := do
   match e.consumeMData with
-  | Expr.forallE _ t b _ => applyRule26Helper b (hyps.push t)
+  | e@(Expr.forallE ..) => Meta.forallTelescope e fun xs b => do
+    let tys ← (xs.mapM Meta.inferType : MetaM (Array Expr))
+    applyRule26Helper b (hyps.append tys)
   | _ =>
     if !(← inferType e).isProp then return none -- Prevents applying rule26 to expressions like Nat → Nat
     let goals := getDisjunctiveGoals e #[]
@@ -542,8 +544,9 @@ def applyRule26 (e : Expr) : RuleM (Option (Nat × Nat)) := applyRule26Helper e 
     and the inddex of the conclusion vj. Specifically, if si = vj, then we return some (i, j) -/
 partial def applyRule27 (e : Expr) : RuleM (Option (Nat × Nat)) := do
   match e.consumeMData with
-  | Expr.forallE _ t b _ =>
+  | e@(Expr.forallE ..) => Meta.forallBoundedTelescope e (some 1) fun xs b => do
     if !(← inferType b).isProp then return none -- Prevents applying rule27 to expressions like Nat → Nat
+    let t ← inferType xs[0]!
     let hyps := getConjunctiveHypotheses t #[]
     let goals := getDisjunctiveGoals b #[]
     let mut goalIdx := 0

@@ -225,10 +225,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_or #[premise]
     return #[⟨#[Lit.fromSingleExpr e₁, Lit.fromSingleExpr e₂], pr, #[]⟩]
   | true, Expr.forallE _ ty b _ => do
-    if (← inferType ty).isProp
-    then
-      if b.hasLooseBVars then
-        throwError "Types depending on props are not supported" 
+    if (← inferType ty).isProp && !b.hasLooseBVars then
       let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_imp #[premise]
       return #[⟨#[Lit.fromSingleExpr ty false, Lit.fromSingleExpr b], pr, #[]⟩]
     else
@@ -256,10 +253,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
        "b ∨ c ∨ d... = False" to be the first clause (which will return to Saturate's simpLoop to receive further clausification) -/
     return #[⟨#[Lit.fromSingleExpr e₂ false], pr₂, #[]⟩, ⟨#[Lit.fromSingleExpr e₁ false], pr₁, #[]⟩]
   | false, Expr.forallE _ ty b _ => do
-    if (← inferType ty).isProp
-    then
-      if b.hasLooseBVars then
-        throwError "Types depending on props are not supported"
+    if (← inferType ty).isProp && !b.hasLooseBVars then
       let pr₁ : Expr → Array Expr → MetaM Expr := fun premise _ =>
         Meta.mkAppM ``clausify_imp_false_left #[premise]
       let pr₂ : Expr → Array Expr → MetaM Expr := fun premise _ =>
