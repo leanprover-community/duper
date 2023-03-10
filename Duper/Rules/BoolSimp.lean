@@ -468,12 +468,12 @@ def applyRule21 (e : Expr) : Option Expr := do
   | _ => none
 
 /-- s → s ↦ True -/
-def applyRule22 (e : Expr) : Option Expr := do
+def applyRule22 (e : Expr) : RuleM (Option Expr) := do
   match e with
   | Expr.forallE _ t b _ =>
-    if t == b then some (mkConst ``True)
-    else none
-  | _ => none
+    if t == b && (← inferType t).isProp then return some (mkConst ``True)
+    else return none
+  | _ => return none
 
 /-- ∀ p : Prop, f(p) ↦ f(True) ∧ f(False) -/
 def applyRule23 (e : Expr) : RuleM (Option Expr) := do
@@ -520,6 +520,7 @@ partial def applyRule26Helper (e : Expr) (hyps : Array Expr) : RuleM (Option (Na
   match e.consumeMData with
   | Expr.forallE _ t b _ => applyRule26Helper b (hyps.push t)
   | _ =>
+    if !(← inferType e).isProp then return none -- Prevents applying rule26 to expressions like Nat → Nat
     let goals := getDisjunctiveGoals e #[]
     let mut goalIdx := 0
     for goal in goals do
@@ -541,6 +542,7 @@ def applyRule26 (e : Expr) : RuleM (Option (Nat × Nat)) := applyRule26Helper e 
 partial def applyRule27 (e : Expr) : RuleM (Option (Nat × Nat)) := do
   match e.consumeMData with
   | Expr.forallE _ t b _ =>
+    if !(← inferType b).isProp then return none -- Prevents applying rule27 to expressions like Nat → Nat
     let hyps := getConjunctiveHypotheses t #[]
     let goals := getDisjunctiveGoals b #[]
     let mut goalIdx := 0
@@ -768,13 +770,13 @@ def applyRulesList1 : List ((Expr → (Option Expr)) × BoolSimpRule) := [
   (applyRule19, rule19),
   (applyRule20, rule20),
   (applyRule21, rule21),
-  (applyRule22, rule22),
   (applyRule28, rule28)
 ]
 
 /-- The list of rules that do require the RuleM monad -/
 def applyRulesList2 : List ((Expr → RuleM (Option Expr)) × BoolSimpRule) := [
   (applyRule18, rule18),
+  (applyRule22, rule22),
   (applyRule23, rule23),
   (applyRule24, rule24)
 ]
