@@ -46,7 +46,7 @@ def equalityResolutionAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Ar
     let ug ← unifierGenerator #[(lit.lhs, lit.rhs)]
     let yC := do
       setLoadedClauses loaded
-      if (← eligibilityPostUnificationCheck c i eligibility) then
+      if not $ ← eligibilityPostUnificationCheck c i eligibility then
         return none
       let c := c.eraseLit i
       some <$> yieldClause c "equality resolution" 
