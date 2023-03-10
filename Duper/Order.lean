@@ -86,8 +86,8 @@ def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHas
 
 -- The orderings treat lambda-expressions like a "LAM" symbol applied to the
 -- type and body of the lambda-expression
-axiom LAM : Prop
-axiom FORALL : Prop
+opaque LAM : Prop
+opaque FORALL : Prop
 def getHead (t : Expr) := match t with
 | Expr.lam .. => mkConst ``LAM
 | Expr.forallE .. => mkConst ``FORALL
@@ -273,7 +273,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
   if v == w then return Equal else return Incomparable
 | _, Expr.mvar _ => return Incomparable
 | Expr.mvar _, _ => return Incomparable
-| _, _ => panic! s!"precCompare: not implemented {f} <> {g}"
+| _, _ => panic! s!"precCompare: not implemented {toString f} <> {toString g}"
 
 -- Inspired by Zipperposition
 partial def kbo (t1 t2 : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
