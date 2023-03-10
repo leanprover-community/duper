@@ -38,8 +38,8 @@ inductive Trie (α : Type) where
 /- The filterSet argument is a temporary hack to simulate deletions from the discrimination tree. If that turns
    out to be too slow though, I'll have to remove it and rewrite delete to actually remove elements from the tree -/
 structure DiscrTree (α : Type) where
-  root : Std.PersistentHashMap Key (Trie α) := {}
-  filterSet : Std.HashSet Clause := {} -- Keeps track of the set of clauses that should be filtered out (i.e. "removed" clauses)
+  root : PersistentHashMap Key (Trie α) := {}
+  filterSet : HashSet Clause := {} -- Keeps track of the set of clauses that should be filtered out (i.e. "removed" clauses)
 
 def Key.ctorIdx : Key → Nat
   | Key.star     => 0
@@ -163,7 +163,7 @@ private def ignoreArg (a : Expr) (i : Nat) (infos : Array Meta.ParamInfo) : Rule
     if info.isInstImplicit then
       return true
     else if info.isImplicit || info.isStrictImplicit then
-      return not (← isType a)
+      return not (← Meta.isType a)
     else
       return false -- Previously: isProof a
   else
@@ -189,7 +189,7 @@ private def pushArgs (root : Bool) (todo : Array Expr) (e : Expr) : RuleM (Key �
   else
     let fn := e.getAppFn
     let push (k : Key) (nargs : Nat) : RuleM (Key × Array Expr) := do
-      let info ← getFunInfoNArgs fn nargs
+      let info ← Meta.getFunInfoNArgs fn nargs
       let todo ← pushArgsAux info.paramInfo (nargs-1) e todo
       return (k, todo)
     match fn with

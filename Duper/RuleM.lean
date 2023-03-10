@@ -164,13 +164,6 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
       return TransformStep.done replacement
     else return TransformStep.continue s)
 
-def typeCorrect (e : Expr) : RuleM Bool := 
-  try
-    let _ ← Meta.inferType e
-    return true
-  catch _ =>
-    return false
-
 -- Support for skolems with universe levels
 def wrapSortIntoOpaqueNat (paramNames : Array Name) : RuleM Expr := do
   let mut expr := Expr.sort (.succ .zero)

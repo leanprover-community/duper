@@ -71,7 +71,7 @@ def iter₂ (done : Prop) (a : Nat)
           (gene : ∀ (F G : Nat → Nat), F a = G a → done) :
           done := by
   apply gene
-  case a => drefl attempt 4400 unifier 0 contains 1541 iteron; exact wwww
+  case a => drefl attempt 4400 unifier 0 contains 1541 iteron;
 
 #print iter₂.proof_1
 

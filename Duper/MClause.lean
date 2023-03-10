@@ -99,12 +99,23 @@ def replaceAtPos? (c : MClause) (mvars : Array Expr) (pos : ClausePos) (replacem
     | none => none
 
 def replaceAtPos! (c : MClause) (mvars : Array Expr) (pos : ClausePos) (replacement : Expr) [Monad m] [MonadError m]
-  : m MClause :=
+  : m MClause := do
   let litPos : LitPos := {side := pos.side, pos := pos.pos}
+  let replacedLit ← c.lits[pos.lit]!.replaceAtPos! litPos replacement
   return {
-      lits := Array.set! c.lits pos.lit $ ← c.lits[pos.lit]!.replaceAtPos! litPos replacement,
+      lits := Array.set! c.lits pos.lit $ replacedLit,
       mvars := mvars
     }
+
+def replaceAtPosUpdateType? (c : MClause) (mvars : Array Expr) (pos : ClausePos) (replacement : Expr) : MetaM (Option MClause) := do
+  let litPos : LitPos := {side := pos.side, pos := pos.pos}
+  if let some replacedLit ← c.lits[pos.lit]!.replaceAtPosUpdateType? litPos replacement then
+    return some {
+      lits := Array.set! c.lits pos.lit $ replacedLit,
+      mvars := mvars
+    }
+  else
+    return none
 
 /-- This function acts as Meta.kabstract except that it takes a ClausePos rather than Occurrences and expects
     the given expression to consist only of applications up to the given ExprPos. Additionally, since the exact

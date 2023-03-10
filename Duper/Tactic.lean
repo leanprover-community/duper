@@ -326,6 +326,9 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Arr
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
   return formulas
 
+def collectedAssumptionToMessageData : Expr × Expr × Array Name → MessageData
+| (ty, term, names) => MessageData.compose (.compose m!"{names} @ " m!"{term} : ") m!"{ty}"
+
 def addOpaqueNat : CoreM Name := do
   let nameS := "opaqueNat"
   let env := (← get).env
@@ -410,7 +413,7 @@ def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := wit
   -- Add the constant `skolemSorry` to the environment
   let opaqueNatName ← addOpaqueNat
   let skSorryName ← addSkolemSorry
-  trace[Meta.debug] "Formulas from collectAssumptions: {formulas}"
+  trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
   let (_, state) ←
     ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName, opaqueNatName := opaqueNatName})
       ProverM.saturateNoPreprocessingClausification

@@ -9,6 +9,24 @@ Inference rules:
   - ForAllRw
   - ExistsRw
 
+Bugs:
+- The following problem fails
+  ```
+  set_option trace.Rule.boolSimp true in
+  tptp ITP209_2 "../TPTP-v8.0.0/Problems/ITP/ITP209_2.p"
+  by duper
+  ```
+  because rule 18,22,23,26,27 does not deal with ```forallE``` correctly, causing the body to contain loose bound variable, eventually leading to the failure of ```inferType```. Maybe we should use ```forallTelescope```.
+
+Infrastructure
+- precCompare: Support for higher-order problem
+- TPTP higher-order problem parsing
+- Performance-tuning higher-order unification procedure
+- Change ```replaceAtPos!``` to ```replaceAtPosUpdateType?```
+- For superposition, it might still make sense to test early whether a subterm is **depended** by another term because then we don't even need to add it to our term index. That would save us quite a bit of computation.
+- Also the current implementation of ```Lit.map``` and ```Lit.mapM``` is questionable. If $t : \alpha$ (at term level) and $f : Expr \to Expr$ (at meta level) is a function, then we probably do not always have $f \ t : f \ \alpha$. Currently it doesn't cause problem, but I expect there to be problems when we add support for dependent types. I think we should probably only map to ```lhs``` and ```rhs```, and then update the type using ```Meta.inferType```.
+- Make ```ClausePos``` an extension of ```LitPos```
+
 Simplification rules:
 - Semantic tautology deletion?
 - Equality subsumption?

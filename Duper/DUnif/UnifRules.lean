@@ -141,14 +141,9 @@ partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
     let fn := Expr.getAppFn body
     if let .mvar _ := fn then
       let args := Expr.getAppArgs body
-      let fni ← instantiateMVars fn
-      if let .mvar _ := fni then
-        let body' := mkAppN fni args
-        let e' ← Meta.mkForallFVars (xs ++ xs') body'
-        return (e', true)
-      else
-        let body' := mkAppN fni args
-        derefNormType body' (xs ++ xs')
+      let body' := mkAppN fn args
+      let e' ← Meta.mkForallFVars (xs ++ xs') body'
+      return (e', true)
     else
       let e' ← Meta.mkForallFVars (xs ++ xs') body
       return (e', false)
@@ -157,19 +152,14 @@ partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × B
 -- Return: (processed expression, is_flex)
 @[inline] partial def derefNormTerm (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × Bool) :=
   Meta.lambdaTelescope e fun xs' body => do
-    let body := body.headBeta
+    let body ← Meta.whnf body
     let fn := Expr.getAppFn body
     match fn with
     | .mvar _ => do
       let args := Expr.getAppArgs body
-      let fni ← instantiateMVars fn
-      if let .mvar _ := fni then
-        let body' := mkAppN fni args
-        let e' ← Meta.mkLambdaFVars (xs ++ xs') body'
-        return (e', true)
-      else
-        let body' := mkAppN fni args
-        derefNormTerm body' (xs ++ xs')
+      let body' := mkAppN fn args
+      let e' ← Meta.mkLambdaFVars (xs ++ xs') body'
+      return (e', true)
     | .forallE _ _ _ _  => do
       -- type can't be applied
       if body.getAppArgs.size != 0 then
@@ -520,7 +510,7 @@ def UnifierGenerator.takeWithRetry (ug : UnifierGenerator) (nRetry : Nat) :
     if let some ou := ou then
       withoutModifyingMCtx <| do
         setMCtx ou.mctx
-        trace[DUnif.result] "Produced unifier : {ou}"
+        trace[DUnif.result] "Produced unifier: {ou}"
       return (ou, ug')
     else
       ug := ug'

@@ -1,8 +1,6 @@
 import Duper.Tactic
 import Duper.TPTP
 
-set_option trace.Meta.debug true in
-set_option trace.Prover.debug true in
 def rec₁ : False := by
   duper [Nat.rec]
 
@@ -23,13 +21,7 @@ inductive Color :=
 | red : Color
 | green : Color
 
-set_option trace.DUnif.result true
-set_option dUnifDbgOn true
-set_option trace.Superposition.debug true
-set_option trace.Saturate.debug true
-
 example : @Color.rec (fun _ => Nat) a b .red = a := by duper [Color.rec]
-
 
 def test : Color → Color
 | .red => .green
@@ -41,7 +33,9 @@ set_option pp.match false
 #print Color.casesOn
 
 -- Not sure why this does not work:
-example : test .red = .green := by duper [test, test.match_1, Color.rec, Color.casesOn]
+set_option trace.Prover.saturate true in
+example : test .red = .green := by
+  duper [test, test.match_1, Color.rec, Color.casesOn]
 
 end Color2
 

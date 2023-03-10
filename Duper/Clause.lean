@@ -136,6 +136,20 @@ def replaceAtPos! (l : Lit) (pos : LitPos) (replacement : Expr) [Monad m] [Monad
   | LitSide.lhs => return {l with lhs := ← l.lhs.replaceAtPos! pos.pos replacement}
   | LitSide.rhs => return {l with rhs := ← l.rhs.replaceAtPos! pos.pos replacement}
 
+-- Note : This function will throw error if ``pos`` is not a valid ``pos`` for `l`
+def replaceAtPosUpdateType? (l : Lit) (pos : LitPos) (replacement : Expr) : MetaM (Option Lit) := do
+  let repPos ← replaceAtPos! l pos replacement
+  try
+    let ty ← Meta.inferType repPos.lhs
+    let lvl := (← Meta.inferType ty).sortLevel!
+    let res : Lit := {repPos with ty := ty, lvl := lvl}
+    if ← Meta.isTypeCorrect res.toExpr then
+      return some res
+    else
+      return none
+  catch _ =>
+    return none
+
 /-- This function acts as Meta.kabstract except that it takes a LitPos rather than Occurrences and expects
     the given expression to consist only of applications up to the given ExprPos. Additionally, since the exact
     position is given, we don't need to pass in Meta.kabstract's second argument p -/

@@ -55,6 +55,7 @@ inductive BoolSimpRule
   | rule26 -- (s1 → s2 → ... → sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
   | rule27 -- (s1 ∧ s2 ∧ ... ∧ sn → v1 ∨ ... ∨ vm) ↦ True if there exists i and j such that si = vj
   | rule28 -- s1 ↔ s2 ↦ s1 = s2
+deriving Repr
 
 open BoolSimpRule
 
@@ -823,13 +824,19 @@ def boolSimp : MSimpRule := fun c => do
       -/
       match ← applyBoolSimpRules e with
       | some (e', boolSimpRule) =>
-        trace[Rule.boolSimp] "Replaced {e} with {e'} in {c.lits} to produce {(← c.replaceAtPos! c.mvars pos e').lits} via {boolSimpRule}"
-        return (← c.replaceAtPos! c.mvars pos e', mkBoolSimpProof pos boolSimpRule none)
+        if let some replacedMClause ← c.replaceAtPosUpdateType? c.mvars pos e' then
+          trace[Rule.boolSimp] "Replaced {e} with {e'} in {c.lits} to produce {replacedMClause.lits} via {boolSimpRule}"
+          return (replacedMClause, mkBoolSimpProof pos boolSimpRule none)
+        else
+          return acc
       | none => -- If none of the first 24 rules worked, attempt rules 25, 26, and 27
         match ← applyBoolSimpRulesWithIndices e with
         | some (ij, boolSimpRule) =>
-          trace[Rule.boolSimp] "Replaced {e} with True in {c.lits} to produce {(← c.replaceAtPos! c.mvars pos (mkConst ``True)).lits} via {boolSimpRule}"
-          return (← c.replaceAtPos! c.mvars pos (mkConst ``True), mkBoolSimpProof pos boolSimpRule (some ij))
+          if let some replacedMClause ← c.replaceAtPosUpdateType? c.mvars pos (mkConst ``True) then
+            trace[Rule.boolSimp] "Replaced {e} with True in {c.lits} to produce {replacedMClause.lits} via {boolSimpRule}"
+            return (replacedMClause, mkBoolSimpProof pos boolSimpRule (some ij))
+          else
+            return acc
         | none => return acc -- If no bool simp rule can be applied, then return the original clause unchanged
   let (c', proofOpt) ← c.foldGreenM fold_fn (c, none)
   match proofOpt with
