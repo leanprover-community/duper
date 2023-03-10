@@ -103,10 +103,9 @@ def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) :
 partial def forwardSimpLoop (givenClause : Clause) : ProverM (Option Clause) := do
   Core.checkMaxHeartbeats "forwardSimpLoop"
   let activeSet ← getActiveSet
+  if activeSet.contains givenClause then return none
   match ← applyForwardSimpRules givenClause with
-  | Applied c =>
-    if activeSet.contains c then return none
-    else forwardSimpLoop c
+  | Applied c => forwardSimpLoop c
   | Unapplicable => return some givenClause 
   | Removed => return none
 

@@ -103,9 +103,20 @@ theorem clausify_exists {p : α → Prop} (h : (∃ x, p x) = True) :
   p (Classical.choose (of_eq_true h)) = True := 
 eq_true $ Classical.choose_spec _
 
+theorem nonempty_of_exists {p : α → Prop} (h : (∃ x : α, p x) = True) : Nonempty α = True :=
+  eq_true (Nonempty.intro (Classical.choose (of_eq_true h)))
+
 --TODO: move?
 theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False := 
   eq_false (fun hp => not_of_eq_false h ⟨x, hp⟩)
+
+theorem nonempty_of_forall_eq_false {p : α → Prop} (h : (∀ x : α, p x) = False) : Nonempty α := by
+  apply Classical.byContradiction
+  intro h_nonempty
+  apply not_of_eq_false h
+  intro x
+  exfalso
+  exact h_nonempty (Nonempty.intro x)
 
 --TODO: move
 noncomputable def Skolem.some (p : α → Prop) (x : α) :=
@@ -235,14 +246,20 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         Meta.mkAppM ``clausify_forall #[tr, premise]
       let mvar ← mkFreshExprMVar ty
       return #[⟨#[Lit.fromSingleExpr $ b.instantiate1 mvar], pr, #[mvar]⟩]
-  | true, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
+  | true, Expr.app (Expr.app (Expr.const ``Exists lvls) ty) (Expr.lam _ _ b _) => do
     let (skTerm, newmvar) ← makeSkTerm ty b
-    let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
+    let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
       let #[tr] := trs
           | throwError "clausificationStepE :: Wrong number of transferExprs"
       return ← Meta.mkAppM ``eq_true
         #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``of_eq_true #[premise]]]
-    return #[⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr, #[newmvar]⟩]
+    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``nonempty_of_exists #[premise]
+    let [ty_lvl] := lvls
+      | throwError "Wrong number of levels in {lvls} for exists statement {e}"
+    return #[
+        ⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr1, #[newmvar]⟩,
+        ⟨#[Lit.fromSingleExpr $ .app (.const ``Nonempty [ty_lvl]) ty], pr2, #[]⟩
+      ]
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_and_false #[premise]
     return #[⟨#[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr, #[]⟩]
@@ -261,11 +278,15 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       return #[⟨#[Lit.fromSingleExpr ty], pr₁, #[]⟩, ⟨#[Lit.fromSingleExpr b false], pr₂, #[]⟩]
     else
       let (skTerm, newmvar) ← makeSkTerm ty (mkNot b)
-      let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
+      let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
         let #[tr] := trs
           | throwError "clausificationStepE :: Wrong number of transferExprs"
         Meta.mkAppM ``eq_true #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
-      return #[⟨#[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr, #[newmvar]⟩]
+      let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``nonempty_of_forall_eq_false #[premise]
+      return #[
+          ⟨#[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr1, #[newmvar]⟩,
+          ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
+        ]
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
       let #[tr] := trs
