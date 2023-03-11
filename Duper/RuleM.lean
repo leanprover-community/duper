@@ -39,7 +39,7 @@ deriving Inhabited
 abbrev ProofReconstructor := List Expr → List ProofParent → Array Expr → Clause → MetaM Expr
 
 structure Proof where
-  parents : List ProofParent
+  parents : Array ProofParent
   ruleName : String := "unknown"
   mkProof : ProofReconstructor
   transferExprs : Array Expr := #[]
@@ -54,7 +54,7 @@ structure LoadedClause where
   mVarIds  : Array MVarId
 
 structure State where
-  loadedClauses : List LoadedClause := []
+  loadedClauses : Array LoadedClause := #[]
   skolemMap : HashMap Nat SkolemInfo
 deriving Inhabited
 
@@ -93,13 +93,13 @@ def getOpaqueNatName : RuleM Name :=
 def getSkolemSorryName : RuleM Name :=
   return (← read).skolemSorryName
 
-def getLoadedClauses : RuleM (List LoadedClause) :=
+def getLoadedClauses : RuleM (Array LoadedClause) :=
   return (← get).loadedClauses
 
 def getSkolemMap : RuleM (HashMap Nat SkolemInfo) :=
   return (← get).skolemMap
 
-def setLoadedClauses (loadedClauses : List LoadedClause) : RuleM Unit :=
+def setLoadedClauses (loadedClauses : Array LoadedClause) : RuleM Unit :=
   modify fun s => { s with loadedClauses := loadedClauses }
 
 def setState (s : State) : RuleM Unit :=
@@ -194,7 +194,7 @@ def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
   let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
   let (mvars, bis, e) ← forallMetaTelescope e
-  setLoadedClauses (⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩ :: (← getLoadedClauses))
+  setLoadedClauses ((← getLoadedClauses).push ⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩)
   return (mvars, .fromExpr e mvars)
 
 def loadClause (c : Clause) : RuleM MClause := do
@@ -212,8 +212,8 @@ def prepLoadClause (c : Clause) : RuleM (MClause × LoadedClause) := do
   return (.fromExpr e mvars, ⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩)
 
 open Duper.AbstractMVars in
-def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transferExprs : Array Expr) :
-  M (Clause × List ProofParent × Array Expr) := do
+def neutralizeMClause (c : MClause) (loadedClauses : Array LoadedClause) (transferExprs : Array Expr) :
+  M (Clause × Array ProofParent × Array Expr) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
   let ec := c.toExpr
@@ -221,21 +221,12 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transfe
   let fec ← Duper.AbstractMVars.abstractExprMVars ec
   -- Abstract metavariables in expressions to be transported to proof reconstruction
   let ftransferExprs ← transferExprs.mapM Duper.AbstractMVars.abstractExprMVars
-  -- Make sure every mvar in c.mvars is also abstracted
-  /-
-    TODO: Process mvars to reduce redundant abstractions. If an mvar that does not appear in c.lits
-    has a type that will otherwise be universally quanitifed over regardless, this mvar does not need
-    to be abstracted again. For instance, rather than generate the clause
-    `∀ x : t, ∀ y : t, ∀ z : t, ∀ a : Nat, ∀ b : Nat, f a b`, generate `∀ x : t, ∀ a : Nat, ∀ b : Nat, f a b`
-  -/
-  if enableTypeInhabitationReasoning then
-    let _ ← c.mvars.mapM Duper.AbstractMVars.abstractExprMVars
   let cst ← get
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := cst.lctx.mkForall cst.fvars fec
   let transferExprs := ftransferExprs.map (cst.lctx.mkLambda cst.fvars)
   -- process loadedClause
-  let mut proofParents : List ProofParent := []
+  let mut proofParents : Array ProofParent := #[]
   for ⟨loadedClause, lmvarIds, mvarIds⟩ in loadedClauses do
     -- Restore exprmvars, but does not restore level mvars
     set {(← get) with lctx := cst.lctx, mctx := cst.mctx, fvars := cst.fvars, emap := cst.emap}
@@ -255,7 +246,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transfe
     let lmvars := lmvarIds.map Level.mvar
     let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.data)
     let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
-    proofParents := ⟨instantiatedparent, loadedClause, paramSubst⟩ :: proofParents
+    proofParents := proofParents.push ⟨instantiatedparent, loadedClause, paramSubst⟩
   -- Deal with universe variables differently from metavariables :
   --   Vanished mvars are not put into clause, while vanished level
   --   variables are put into the clause. This is because mvars vanish
@@ -265,11 +256,58 @@ def neutralizeMClause (c : MClause) (loadedClauses : List LoadedClause) (transfe
   let c := Clause.fromForallExpr cst.paramNames abstec
   return (c, proofParents, transferExprs)
 
+/-
+  TODO: Process mvars to reduce redundant abstractions. If an mvar that does not appear in c.lits
+  has a type that will otherwise be universally quanitifed over regardless, this mvar does not need
+  to be abstracted again. For instance, rather than generate the clause
+  `∀ x : t, ∀ y : t, ∀ z : t, ∀ a : Nat, ∀ b : Nat, f a b`, generate `∀ x : t, ∀ a : Nat, ∀ b : Nat, f a b`
+-/
+open Duper.AbstractMVars in
+def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array LoadedClause) (transferExprs : Array Expr) :
+  M (Clause × Array ProofParent × Array Expr) := do
+  -- process c, `umvars` stands for "uninstantiated mvars"
+  -- `ec = concl[umvars]`
+  let ec := c.toExpr
+  -- `fec = concl[fvars]`
+  let fec ← Duper.AbstractMVars.abstractExprMVars ec
+  -- Abstract metavariables in expressions to be transported to proof reconstruction
+  let ftransferExprs ← transferExprs.mapM Duper.AbstractMVars.abstractExprMVars
+  -- process loadedClause
+  let mut proofParentsPre : Array ProofParent := #[]
+  for ⟨loadedClause, lmvarIds, mvarIds⟩ in loadedClauses do
+    -- Add `mdata` to protect the body from `getAppArgs`
+    -- The inner part will no longer be used, it is almost dummy, except that it makes the type check
+    -- `mprotectedparent = fun [vars] => parent[vars]`
+    let mprotectedparent := Expr.mdata .empty loadedClause.toLambdaExpr
+    -- `minstantiatedparent = (fun [vars] => parent[vars]) mvars[umvars] ≝ parent[mvars[umvars]]`
+    let minstantiatedparent := mkAppN mprotectedparent (mvarIds.map mkMVar)
+    -- `finstantiatedparent = (fun [vars] => parent[vars]) mvars[fvars]`
+    -- In this following `AbstractMVars`, there are no universe metavariables
+    let finstantiatedparent ← Duper.AbstractMVars.abstractExprMVars minstantiatedparent
+    -- Make sure that levels are abstracted
+    let lmvars := lmvarIds.map Level.mvar
+    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.data)
+    let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
+    proofParentsPre := proofParentsPre.push ⟨finstantiatedparent, loadedClause, paramSubst⟩
+  let cst ← get
+  let proofParents := proofParentsPre.map (fun x =>
+    -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
+    let instantiatedparent := cst.lctx.mkForall cst.fvars x.expr
+    {x with expr := instantiatedparent})
+  -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
+  let abstec := cst.lctx.mkForall cst.fvars fec
+  let transferExprs := ftransferExprs.map (cst.lctx.mkLambda cst.fvars)
+  let c := Clause.fromForallExpr cst.paramNames abstec
+  return (c, proofParents, transferExprs)
+
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
   (transferExprs : Array Expr := #[]) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents, transferExprs), st) :=
-    neutralizeMClause mc (← getLoadedClauses) transferExprs { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+    if enableTypeInhabitationReasoning then
+      neutralizeMClauseInhabitedReasoningOn mc (← getLoadedClauses) transferExprs { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+    else
+      neutralizeMClause mc (← getLoadedClauses) transferExprs { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   setNGen st.ngen
   -- This is redundant because the `mctx` won't change
   -- We should not reset `lctx` because fvars introduced by

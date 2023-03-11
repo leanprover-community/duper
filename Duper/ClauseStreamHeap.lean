@@ -150,11 +150,11 @@ def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
   | some subsumingClause => -- subsumingClause subsumes c so we can remove c and only need to add subsumingClause
     removeClause given [subsumingClause]
     if c == subsumingClause then
-      addNewToPassive c proof (List.map (fun p => p.clause) proof.parents)
+      addNewToPassive c proof (proof.parents.map (fun p => p.clause))
     else
       throwError "Unable to find {subsumingClause} in resultClauses"
   | none => -- No result clause subsumes c, so add each result clause to the passive set
-    addNewToPassive c proof (List.map (fun p => p.clause) proof.parents)
+    addNewToPassive c proof (proof.parents.map (fun p => p.clause))
 
 def ProverM.performInferences (rules : List (Clause → MClause → Nat → RuleM (Array ClauseStream))) (given : Clause) : ProverM Unit := do
   let mut cs := #[]

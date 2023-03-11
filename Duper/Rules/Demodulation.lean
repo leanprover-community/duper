@@ -91,7 +91,7 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTri
     | none => continue
     | some res =>
       -- forwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
-      setLoadedClauses (cToLoad :: (← getLoadedClauses))
+      setLoadedClauses ((← getLoadedClauses).push cToLoad)
       let cp ← yieldClause res.1 "forward demodulation" res.2
       trace[Rule.demodulation] "Main clause: {givenMainClause.lits} at lit: {pos.lit} at expression: {e}"
       trace[Rule.demodulation] "Side clause: {partnerClause} at lit: {partnerPos.lit}"

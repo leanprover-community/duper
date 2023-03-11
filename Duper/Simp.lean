@@ -77,7 +77,7 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSi
   let backwardSimpRes ← runRuleM do
     withoutModifyingMCtx do
       rule givenClause
-  let mut generatingAncestorsArray : Array (List Clause) := #[]
+  let mut generatingAncestorsArray : Array (Array Clause) := #[]
   -- It is important that we remove each clause in clausesToRemove before reading the newly generated clauses
   for (c, _) in backwardSimpRes do
     trace[RemoveClause.debug] "About to remove {c} because it was simplified away"

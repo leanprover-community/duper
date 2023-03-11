@@ -32,7 +32,7 @@ open Result
 structure ClauseInfo where
 (number : Nat)
 (proof : Proof)
-(generatingAncestors : List Clause)
+(generatingAncestors : Array Clause)
 (descendants : List Clause)
 (wasSimplified : Bool)
 (isOrphan : Bool)
@@ -195,7 +195,7 @@ partial def chooseGivenClause : ProverM (Option Clause) := do
     return none
 
 /-- Given a clause c and a list of ancestors, markAsDescendantToGeneratingAncestors adds c to each generating ancestor's list of descendants -/
-def markAsDescendantToGeneratingAncestors (c : Clause) (generatingAncestors : List Clause) : ProverM Unit := do
+def markAsDescendantToGeneratingAncestors (c : Clause) (generatingAncestors : Array Clause) : ProverM Unit := do
   let mut allClauses ← getAllClauses
   for ancestor in generatingAncestors do
     match allClauses.find? ancestor with
@@ -208,7 +208,7 @@ def markAsDescendantToGeneratingAncestors (c : Clause) (generatingAncestors : Li
 
 /-- Registers a new clause, but does not add it to active or passive set.
     Typically, you'll want to use `addNewToPassive` instead. -/
-def addNewClause (c : Clause) (proof : Proof) (generatingAncestors : List Clause) : ProverM ClauseInfo := do
+def addNewClause (c : Clause) (proof : Proof) (generatingAncestors : Array Clause) : ProverM ClauseInfo := do
   markAsDescendantToGeneratingAncestors c generatingAncestors
   let allClauses ← getAllClauses
   let ci ← (do
@@ -248,7 +248,7 @@ def addNewClause (c : Clause) (proof : Proof) (generatingAncestors : List Clause
 
 /-- Registers a new clause and adds it to the passive set. The `generatingAncestors` argument contains the list of clauses that were
     used to generate `c` (or `c`'s ancestor which generated `c` by a modifying inference). See page 8 of "E – A Brainiac Theorem Prover" -/
-def addNewToPassive (c : Clause) (proof : Proof) (generatingAncestors : List Clause) : ProverM Unit := do
+def addNewToPassive (c : Clause) (proof : Proof) (generatingAncestors : Array Clause) : ProverM Unit := do
   match (← getAllClauses).find? c with
   | some ci =>
     if (ci.wasSimplified) then pure () -- No need to add c to the passive set because it would just be simplified away later
@@ -277,7 +277,7 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
     for (e, proof, paramNames) in es do
       let c := Clause.fromSingleExpr paramNames e
       let mkProof := fun _ _ _ _ => pure proof
-      addNewToPassive c {parents := [], ruleName := "assumption", mkProof := mkProof} []
+      addNewToPassive c {parents := #[], ruleName := "assumption", mkProof := mkProof} #[]
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
@@ -364,7 +364,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
     match allClauses.find? d with
     | some dInfo =>
       -- Tag d as an orphan in allClauses
-      let dInfo := {dInfo with generatingAncestors := [], isOrphan := true}
+      let dInfo := {dInfo with generatingAncestors := #[], isOrphan := true}
       setAllClauses $ allClauses.insert d dInfo
       allClauses ← getAllClauses
       -- Remove c from passive set
