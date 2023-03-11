@@ -38,7 +38,8 @@ def mkBoolHoistProof (pos : ClausePos) (sgn : Bool) (premises : List Expr)
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
 
-    let ⟨i, s, p⟩ := pos
+    let i := pos.lit
+    let ⟨s, p⟩ := pos.toLitPos
 
     let mut caseProofs := Array.mkEmpty parentLits.size
     for j in [:parentLits.size] do
@@ -72,7 +73,8 @@ def identBoolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM (Opt
   withoutModifyingMCtx do
     let ty ← inferType e
     if ty == .sort .zero then
-      let ⟨l, s, p⟩ := pos
+      let l := pos.lit
+      let ⟨s, p⟩ := pos.toLitPos
       trace[Rule.identBoolHoist] m!"Inspecting position {pos} in clause {c.lits.map Lit.toExpr}"
       let is_true := e == (mkConst ``True)
       let is_false := e == (mkConst ``False)

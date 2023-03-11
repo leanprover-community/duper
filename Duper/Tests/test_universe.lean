@@ -54,7 +54,8 @@ namespace ComplexUniverse
 #check Lean.Level
 
 -- Just checking whether universe level works correctly
-set_option maxHeartbeats 20000 in
+set_option maxHeartbeats 625 in
+set_option trace.Prover.saturate true in
 def rec₁ : False := by
   duper [Nat.rec]
 

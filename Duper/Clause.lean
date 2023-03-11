@@ -238,10 +238,8 @@ structure Clause :=
 (lits : Array Lit)
 deriving Inhabited, BEq, Hashable
 
-structure ClausePos where
+structure ClausePos extends LitPos where
   lit : Nat
-  side : LitSide
-  pos : ExprPos
 deriving Inhabited, BEq, Hashable
 
 def ClausePos.format (pos : ClausePos) : MessageData :=
@@ -268,7 +266,7 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → ClausePos → m β) (init : β) (c : Clause) : m β := do
   let mut acc := init
   for i in [:c.lits.size] do
-    let f' := fun acc e pos => f acc e ⟨i, pos.side, pos.pos⟩
+    let f' := fun acc e pos => f acc e {pos with lit := i}
     acc ← c.lits[i]!.foldM f' acc
   return acc
 

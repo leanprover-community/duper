@@ -109,39 +109,8 @@ theorem boolSimpRule25Test (p q r : Prop) (h : (p → ¬q → q → p → False)
 theorem boolSimpRule26Test (a b c shared x y z r : Prop) (h : (a → b → shared → c → (x ∨ shared ∨ y ∨ z)) = r) : r :=
   by duper
 
-theorem boolSimpRule26TestDep₁ (a b y z r : Prop) (dep : a → Prop) (h : ((x : a) → b → dep x → (dep x ∨ y ∨ z)) = r) : r :=
-  by duper
-
 theorem boolSimpRule27Test (a b c shared x y z r : Prop) (h : ((a ∧ b ∧ shared ∧ c) → (x ∨ shared ∨ y ∨ z)) = r) : r :=
-  by duper
-
-theorem boolSimpRule27TestDep₂ (a b c y z r : Prop) (f : a ∧ b ∧ c → Prop) (h : ((x : a ∧ b ∧ c) → (y ∨ f x ∨ c ∨ z)) = r) : r :=
   by duper
 
 theorem boolSimpRule28Test (p q r : Prop) (h : (p ↔ r) = (q ↔ r)) : p = q :=
   by duper
-
-
--- Negative tests
-
-namespace Negative
-
-axiom f.{u} : Sort u → Nat
-
-def neg₁ : (f (Nat → Nat) = f (Nat → Nat)) := by duper
-
--- A positive example
-def pos₁ : (f (Nat → False) = f False) := by duper
-
-axiom g.{u} : ∀ (α : Sort u), α → Nat
-
--- These two examples fail when boolSimp is enabled, but I don't think that adding guards to
--- boolSimp will fix that, since both instances in which boolSimp is applied are reasonable
--- (∀ _ : Nat, True) in general should be turned into True, as should (True → True)
-def neg₂ : g (Nat → True) (fun _ => True.intro) = g (Nat → True) (fun _ => True.intro) :=
-  by duper
-
-def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ => True.intro) :=
-  by duper
-
-end Negative

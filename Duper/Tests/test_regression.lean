@@ -512,3 +512,35 @@ tptp SEU123 "../TPTP-v8.0.0/Problems/SEU/SEU123+1.p"
 set_option trace.Rule.superposition true in
 tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
   by duper
+
+/- BoolSimp tests -/
+
+theorem boolSimpRule26TestDep₁ (a b y z r : Prop) (dep : a → Prop) (h : ((x : a) → b → dep x → (dep x ∨ y ∨ z)) = r) : r :=
+  by duper
+
+theorem boolSimpRule27TestDep₁ (a b c y z r : Prop) (f : a ∧ b ∧ c → Prop) (h : ((x : a ∧ b ∧ c) → (y ∨ f x ∨ c ∨ z)) = r) : r :=
+  by duper
+
+/- Negative BoolSimp tests -/
+
+namespace NegativeBoolSimpTests
+
+axiom f.{u} : Sort u → Nat
+
+def neg₁ : (f (Nat → Nat) = f (Nat → Nat)) := by duper
+
+-- A positive example
+def pos₁ : (f (Nat → False) = f False) := by duper
+
+axiom g.{u} : ∀ (α : Sort u), α → Nat
+
+-- These two examples fail when boolSimp is enabled, but I don't think that adding guards to
+-- boolSimp will fix that, since both instances in which boolSimp is applied are reasonable
+-- (∀ _ : Nat, True) in general should be turned into True, as should (True → True)
+def neg₂ : g (Nat → True) (fun _ => True.intro) = g (Nat → True) (fun _ => True.intro) :=
+  by duper
+
+def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ => True.intro) :=
+  by duper
+
+end NegativeBoolSimpTests

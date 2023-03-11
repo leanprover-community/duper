@@ -44,7 +44,7 @@ def map (f : Expr → Expr) (c : MClause) : MClause :=
 def mapWithPos (f : Expr → Expr × Array ExprPos) (c : MClause) : MClause × Array ClausePos :=
   let mapres := c.lits.map (fun l => l.mapWithPos f)
   let c' := ⟨mapres.map (fun x => x.fst)⟩
-  let cps := mapres.mapIdx (fun i x => x.snd.map (fun p => ClausePos.mk i p.side p.pos))
+  let cps := mapres.mapIdx (fun i x => x.snd.map (fun pos => {pos with lit := i}))
   (c', cps.concatMap id)
 
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (c : MClause) : m MClause := do
@@ -61,7 +61,7 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → ClausePos → m β) (init : β) (c : MClause) : m β := do
   let mut acc := init
   for i in [:c.lits.size] do
-    let f' := fun acc e pos => f acc e ⟨i, pos.side, pos.pos⟩
+    let f' := fun acc e pos => f acc e {pos with lit := i}
     acc ← c.lits[i]!.foldM f' acc
   return acc
 
@@ -69,7 +69,7 @@ def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → ClausePos → m β) (init : β) (c : MClause) : m β := do
   let mut acc := init
   for i in [:c.lits.size] do
-    let f' := fun acc e pos => f acc e ⟨i, pos.side, pos.pos⟩
+    let f' := fun acc e pos => f acc e {pos with lit := i}
     acc ← c.lits[i]!.foldGreenM f' acc
   return acc
 

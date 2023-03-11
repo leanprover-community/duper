@@ -16,7 +16,6 @@ Infrastructure
 - Change ```replaceAtPos!``` to ```replaceAtPosUpdateType?```
 - For superposition, it might still make sense to test early whether a subterm is **depended** by another term because then we don't even need to add it to our term index. That would save us quite a bit of computation.
 - Also the current implementation of ```Lit.map``` and ```Lit.mapM``` is questionable. If $t : \alpha$ (at term level) and $f : Expr \to Expr$ (at meta level) is a function, then we probably do not always have $f \ t : f \ \alpha$. Currently it doesn't cause problem, but I expect there to be problems when we add support for dependent types. I think we should probably only map to ```lhs``` and ```rhs```, and then update the type using ```Meta.inferType```.
-- Make ```ClausePos``` an extension of ```LitPos```
 
 Simplification rules:
 - Semantic tautology deletion?

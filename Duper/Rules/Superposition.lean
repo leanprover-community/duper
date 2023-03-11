@@ -79,8 +79,9 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
 
     -- processing `poses`
     let mut poseses : Array (Array LitPos) := (Array.mk <| List.range mainParentLits.size).map (fun _ => #[])
-    for ⟨lit, side, pos⟩ in poses do
-      poseses := poseses.set! lit (poseses[lit]!.push ⟨side, pos⟩)
+    for cpos in poses do
+      let lit := cpos.lit
+      poseses := poseses.set! lit (poseses[lit]!.push cpos.toLitPos)
 
     let mut caseProofsSide := Array.mkEmpty sideParentLits.size
     for j in [:sideParentLits.size] do
