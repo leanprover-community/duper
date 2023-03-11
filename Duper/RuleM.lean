@@ -69,6 +69,7 @@ structure ClauseStream where
   ug                    : DUnif.UnifierGenerator
   simplifiedGivenClause : Clause
   postUnification       : RuleM.RuleM (Option (Clause × RuleM.Proof))
+  ruleName              : String
 
 namespace RuleM
 open Lean

@@ -121,7 +121,7 @@ def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat)
           some <$> yieldClause modified_clause "equality factoring" (mkProof := some (mkEqualityFactoringProof i j litside_i litside_j))
         else
           return none
-    return ⟨ug, given, yC⟩
+    return ClauseStream.mk ug given yC "equality factoring"
 
 /--
   Attempts to perform equality factoring with c.lits[i] as the literal to be transformed

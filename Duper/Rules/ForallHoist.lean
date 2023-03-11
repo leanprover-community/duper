@@ -100,7 +100,7 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]
       trace[Rule.forallHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (transferExprs := #[freshVar1])
-    return #[⟨ug, given, yC⟩]
+    return #[ClauseStream.mk ug given yC "forallHoist"]
 
 def forallHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Rule.forallHoist] "Running ForallHoist on {c.lits}"

@@ -68,7 +68,7 @@ def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array Claus
       let c := c.eraseLit i
       trace[Rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"
       yieldClause c "falseElim" $ some (mkFalseElimProof i)
-    return #[⟨ug, given, yC⟩]
+    return #[ClauseStream.mk ug given yC "falseElim"]
 
 /-- If there is a substitution σ and literal l in c such that σ(l) equates `True` and `False`, then
     falseElim yields the clause obtained by removing l from c and applying sigma to the rest of c -/

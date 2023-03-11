@@ -91,7 +91,7 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
       trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (transferExprs := #[freshVar1])
-    return #[⟨ug, given, yC⟩]
+    return #[ClauseStream.mk ug given yC "existsHoist"]
 
 def existsHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Rule.existsHoist] "Running ExistsHoist on {c.lits}"

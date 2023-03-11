@@ -78,7 +78,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
         let yC := do
           setLoadedClauses loaded
           yieldClause c' "argument congruence" (mkProof := mkArgumentCongruenceProof i mVarTys)
-        streams := streams.push ⟨ug, given, yC⟩
+        streams := streams.push (ClauseStream.mk ug given yC "argument congruence")
     return streams
 
 def argCong (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do

@@ -97,7 +97,7 @@ def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array Cla
         let yield2 := do
           setLoadedClauses loaded
           yieldClause c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
-        streams := streams.append #[ClauseStream.mk ug given yield1, ClauseStream.mk ug given yield2]
+        streams := streams.append #[ClauseStream.mk ug given yield1 "clausify Prop equality", ClauseStream.mk ug given yield2 "clausify Prop equality"]
   return streams
 
 end Duper

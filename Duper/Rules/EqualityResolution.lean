@@ -53,7 +53,7 @@ def equalityResolutionAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Ar
       let c := c.eraseLit i
       some <$> yieldClause c "equality resolution" 
         (mkProof := mkEqualityResolutionProof i)
-    return #[ClauseStream.mk ug given yC]
+    return #[ClauseStream.mk ug given yC "equality resolution"]
       
 def equalityResolution (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Rule.equalityResolution] "EqRes inferences with {c.lits}"
