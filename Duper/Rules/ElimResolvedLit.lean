@@ -8,6 +8,8 @@ open SimpResult
 open Lean
 open Meta
 
+initialize Lean.registerTraceClass `Rule.elimResolvedLit
+
 def mkElimResolvedLitProof (refs : List (Option Nat)) (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
@@ -63,7 +65,7 @@ def elimResolvedLit : MSimpRule := fun c => do
   if (newLits.length = c.lits.size) then
     return none
   else
-    trace[Simp.debug] "elimResolvedLit applied with the newLits: {newLits}"
+    trace[Rule.elimResolvedLit] "elimResolvedLit applied with the newLits: {newLits}"
     let yc ← yieldClause (MClause.mk newLits.toArray) "eliminate resolved literals" (some (mkElimResolvedLitProof refs))
     return some #[yc]
 

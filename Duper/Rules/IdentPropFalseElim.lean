@@ -8,6 +8,8 @@ open SimpResult
 open Lean
 open Meta
 
+initialize Lean.registerTraceClass `Rule.identPropFalseElim
+
 /-- Determines whether a literal has exactly the form `False = True` or `True = False`-/
 def isFalsePropLiteral (lit : Lit) : MetaM Bool := do
   match lit.ty with
@@ -78,10 +80,10 @@ def identPropFalseElim : MSimpRule := fun c => do
   newLits := newLits.reverse
   refs := refs.reverse
   if (newLits.length = c.lits.size) then
-    trace[Simp.identPropFalseElim] "Returning Unapplicable on {c.lits}"
+    trace[Rule.identPropFalseElim] "Returning Unapplicable on {c.lits}"
     return none
   else
-    trace[Simp.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
+    trace[Rule.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
     let resultClause ← yieldClause (MClause.mk newLits.toArray) "identity prop false elimination"
       (some (mkIdentPropFalseElimProof refs))
     return some #[resultClause]

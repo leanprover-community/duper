@@ -44,7 +44,7 @@ set_option simultaneousSuperposition false -- TODO: There is a bug in simultaneo
 set_option trace.DUnif.result true
 set_option dUnifDbgOn true
 set_option trace.Rule.superposition true
-set_option trace.Saturate.debug true
+set_option trace.Prover.saturate true
 -- set_option maxHeartbeats 200
 example : @Nat.rec (fun _ => Bool) a b Nat.zero = a := by duper [Nat.rec]
 

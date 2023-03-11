@@ -322,7 +322,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         ⟨#[Lit.fromSingleExpr e₁ true, Lit.fromSingleExpr e₂ true], pr2, #[]⟩
       ]
   | _, _ => do
-    trace[Simp.debug] "### clausificationStepE is unapplicable with e = {e} and sign = {sign}"
+    trace[Rule.clausification] "### clausificationStepE is unapplicable with e = {e} and sign = {sign}"
     return #[]
 where
   -- h : (∃ x : ty, p x)

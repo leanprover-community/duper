@@ -93,6 +93,7 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
     return #[⟨ug, given, yC⟩]
 
 def eqHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+  trace[Rule.eqHoist] "Running EqHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← eqHoistAtExpr e.consumeMData pos given c
     return streams.append str

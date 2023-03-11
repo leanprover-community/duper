@@ -103,6 +103,7 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
     return #[⟨ug, given, yC⟩]
 
 def forallHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+  trace[Rule.forallHoist] "Running ForallHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← forallHoistAtExpr e.consumeMData pos given c
     return streams.append str

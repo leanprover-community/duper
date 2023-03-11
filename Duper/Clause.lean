@@ -302,7 +302,7 @@ where
   | e@(_)                                     => [Lit.fromExpr e]
 
 instance : ToFormat Clause :=
-⟨ fun c => format c.toExpr ⟩
+⟨ fun c => format c.toForallExpr ⟩
 
 instance : ToMessageData Clause :=
 ⟨ fun c => c.toForallExpr ⟩

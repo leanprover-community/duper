@@ -43,6 +43,7 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
     return #[⟨ug, given, yC⟩]
 
 def boolHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+  trace[Rule.boolHoist] "Running BoolHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← boolHoistAtExpr e pos given c
     return streams.append str

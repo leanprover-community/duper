@@ -157,6 +157,7 @@ def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
     addNewToPassive c proof (proof.parents.map (fun p => p.clause))
 
 def ProverM.performInferences (rules : List (Clause → MClause → Nat → RuleM (Array ClauseStream))) (given : Clause) : ProverM Unit := do
+  trace[Prover.saturate] "perform inference with given clause {given}"
   let mut cs := #[]
   let cInfo ← getClauseInfo! given
   let cNum := cInfo.number

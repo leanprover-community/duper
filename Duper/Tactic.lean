@@ -11,7 +11,6 @@ initialize
   registerTraceClass `TPTP_Testing
   registerTraceClass `Print_Proof
   registerTraceClass `ProofReconstruction
-  registerTraceClass `Saturate.debug
 
 namespace Lean.Elab.Tactic
 
@@ -434,7 +433,7 @@ def evalDuperUnsafe : Tactic
       applyProof state
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated =>
-      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+      trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident [$facts,*]) => withMainContext do
@@ -449,7 +448,7 @@ def evalDuperUnsafe : Tactic
       applyProof state
     | Result.saturated =>
       IO.println s!"{ident} test resulted in prover saturation"
-      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+      trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
       Lean.Elab.Tactic.evalTactic (← `(tactic| sorry))
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
@@ -490,7 +489,7 @@ def evalDuperNoTimingUnsafe : Tactic
       applyProof state
       IO.println s!"Constructed proof"
     | Result.saturated =>
-      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+      trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax

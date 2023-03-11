@@ -4,7 +4,6 @@ import Duper.TPTP
 -- set_option trace.Meta.debug true
 -- set_option trace.Prover.saturate true
 -- set_option trace.Prover.debug true
--- set_option trace.Rule.debug true
 -- set_option pp.all true
 -- set_option pp.rawOnError true
 
@@ -25,12 +24,12 @@ axiom p : Nat → Prop
 axiom q : Prop
 axiom isZero : Nat → Prop
 
--- theorem test0000 (one : Nat) (isZero : Nat → Prop) (div mul add : Nat → Nat → Nat)
--- (div_self : ∀ x, ¬ isZero x → div x x = one)
--- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
--- (div_def : ∀ (x y : Nat), ¬ isZero y → div x y = mul x (inv y)) :
--- ∀ (x y : Nat), ¬ isZero y → div (add x y) y = add (div x y) one := by duper
--- #print axioms test0000
+theorem test0000 (one : Nat) (isZero : Nat → Prop) (div mul add : Nat → Nat → Nat)
+(div_self : ∀ x, ¬ isZero x → div x x = one)
+(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+(div_def : ∀ (x y : Nat), ¬ isZero y → div x y = mul x (inv y)) :
+∀ (x y : Nat), ¬ isZero y → div (add x y) y = add (div x y) one := by duper
+#print axioms test0000
 
 -- Contradiction found. Time: 647ms
 theorem test0018 (a1 a2 a3 a4 a5 a6 : Nat)
@@ -53,39 +52,30 @@ f (f (f a)) = d ∨ f (f b) = d ∨ f c = d)
 
 #print test0018
 
--- theorem test00008
--- (div_self : ∀ x, x ≠ zero → mul x (inv x) = one)
--- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z)) :
--- -- (div_def : ∀ (x y : Nat), y ≠ zero → div x y = mul x (inv y)) :
--- ∀ (x y : Nat), y ≠ zero → mul (add x y) (inv y) = add (mul x (inv y)) one := by duper
+theorem test00008
+(div_self : ∀ x, x ≠ zero → mul x (inv x) = one)
+(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z)) :
+∀ (x y : Nat), y ≠ zero → mul (add x y) (inv y) = add (mul x (inv y)) one := by duper
 
 
--- theorem test00008
--- (div_self : ∀ x, x ≠ zero → div x x = one)
--- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
--- (div_def : ∀ (x y : Nat), y ≠ zero → div x y = mul x (inv y)) :
--- ∀ (x y : Nat), y ≠ zero → mul (add x y) (inv y) = add (mul x (inv y)) one := by duper
+theorem test00008'
+(div_self : ∀ x, x ≠ zero → div x x = one)
+(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+(div_def : ∀ (x y : Nat), y ≠ zero → div x y = mul x (inv y)) :
+∀ (x y : Nat), y ≠ zero → mul (add x y) (inv y) = add (mul x (inv y)) one := by duper
 
--- #print test
--- #print axioms test
-
--- theorem test 
--- (div_self : ∀ x, div x x = one)
--- (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
--- (div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
--- ∀ (x y : Nat), div (add x y) y = add (div x y) one := by duper
+theorem test 
+(div_self : ∀ x, div x x = one)
+(add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
+(div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
+∀ (x y : Nat), div (add x y) y = add (div x y) one := by duper
 
 -- #print test
 -- #print axioms test
 
--- example --(h : ∃ x, x ≠ c ∨ a = b) 
--- (h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b) 
--- : False := by
---   prover
---   all_goals
---     sorry
-#check fun h => Eq.mpr h True.intro
-#check propext
+example --(h : ∃ x, x ≠ c ∨ a = b) 
+(h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b) 
+: False := by duper
 
 set_option trace.Meta.debug true in
 theorem test00
@@ -132,25 +122,18 @@ likes johanna peanuts := by duper
 #print puzzle1
 
 #print axioms puzzle1
--- set_option trace.Meta.debug true
 
--- set_option trace.Prover.saturate true
-
--- set_option trace.Prover.debug true
--- set_option trace.Rule.debug true
--- set_option pp.all true
-
--- theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι) 
---   (Doctor : ι → Prop) (Peculiar : ι → Prop) (Sane : ι → Prop)
---   (bestFriend : ι → ι) (Special : ι → Prop)
---   (h4 : ∀x, Peculiar x = (Sane x = ¬ Doctor x))
---   (h5 : ∀x, Special x = (∀y, ¬ Doctor y = (Sane y = Peculiar x)))
---   (h7 : ∀x, ∀y, (Sane x = Special y) → (Sane (bestFriend x) = ¬ Doctor y))
---   (h8 : Sane Tarr = ∀x, Doctor x → Sane x)
---   (h10 : Sane Fether = ∀x, Doctor x → ¬ Sane x)
---   (h12 : Sane Fether = Sane Tarr) : 
--- False := by duper
-
+set_option maxHeartbeats 10000 in
+theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι) 
+  (Doctor : ι → Prop) (Peculiar : ι → Prop) (Sane : ι → Prop)
+  (bestFriend : ι → ι) (Special : ι → Prop)
+  (h4 : ∀x, Peculiar x = (Sane x = ¬ Doctor x))
+  (h5 : ∀x, Special x = (∀y, ¬ Doctor y = (Sane y = Peculiar x)))
+  (h7 : ∀x, ∀y, (Sane x = Special y) → (Sane (bestFriend x) = ¬ Doctor y))
+  (h8 : Sane Tarr = ∀x, Doctor x → Sane x)
+  (h10 : Sane Fether = ∀x, Doctor x → ¬ Sane x)
+  (h12 : Sane Fether = Sane Tarr) : 
+False := by duper
 
 -- Time 29717ms
 theorem test0011 (one : Nat) (div mul add : Nat → Nat → Nat)

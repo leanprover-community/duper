@@ -93,6 +93,7 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
     return #[⟨ug, given, yC⟩]
 
 def neHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+  trace[Rule.neHoist] "Running NeHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← neHoistAtExpr e.consumeMData pos given c
     return streams.append str

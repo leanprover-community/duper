@@ -18,7 +18,7 @@ open Expr
 def enableTypeInhabitationReasoning := false
 
 initialize
-  registerTraceClass `RemoveClause.debug
+  registerTraceClass `Simplification.debug
   registerTraceClass `ImmediateSimplification.debug
 
 inductive Result :=
@@ -360,7 +360,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
   let mut allClauses ← getAllClauses
   for d in ci.descendants do
     if protectedClauses.contains d then continue
-    trace[RemoveClause.debug] "Marking {d} as orphan because it is a descendant of {c} and does not appear in {protectedClauses}"
+    trace[Simplification.debug] "Marking {d} as orphan because it is a descendant of {c} and does not appear in {protectedClauses}"
     match allClauses.find? d with
     | some dInfo =>
       -- Tag d as an orphan in allClauses
@@ -384,7 +384,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
     ancestor (without intending to remove itself), so the protectedClauses argument ensures that no clause inadvertently
     removes itself in the process of simplifying away a different clause. -/
 partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) : ProverM Unit := do
-  trace[RemoveClause.debug] "Calling removeClause with c: {c} and protectedClauses: {protectedClauses}"
+  trace[Simplification.debug] "Calling removeClause with c: {c} and protectedClauses: {protectedClauses}"
   let mut activeSet ← getActiveSet
   let mut passiveSet ← getPassiveSet
   let mut allClauses ← getAllClauses

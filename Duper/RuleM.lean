@@ -74,9 +74,7 @@ namespace RuleM
 open Lean
 open Lean.Core
 
-initialize
-  registerTraceClass `Rule
-  registerTraceClass `Rule.debug
+initialize registerTraceClass `Rule
 
 @[inline] def RuleM.run (x : RuleM α) (ctx : Context) (s : State) : MetaM (α × State) :=
   x ctx |>.run s

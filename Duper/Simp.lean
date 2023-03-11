@@ -55,7 +55,7 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
   | none => 
     return Unapplicable
   | some cs => do
-    trace[RemoveClause.debug] "About to remove {givenClause} because it was simplified away to produce {cs.map (fun x => x.1)}"
+    trace[Simplification.debug] "About to remove {givenClause} because it was simplified away to produce {cs.map (fun x => x.1)}"
     removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated clauses
     match cs.data with
     | List.nil => return Removed
@@ -80,7 +80,7 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSi
   let mut generatingAncestorsArray : Array (Array Clause) := #[]
   -- It is important that we remove each clause in clausesToRemove before reading the newly generated clauses
   for (c, _) in backwardSimpRes do
-    trace[RemoveClause.debug] "About to remove {c} because it was simplified away"
+    trace[Simplification.debug] "About to remove {c} because it was simplified away"
     removeClause c [givenClause] -- givenClause must be protected when we remove c and its descendants because givenClause was used to eliminate c
     match (← getAllClauses).find? c with
     | some ci => generatingAncestorsArray := generatingAncestorsArray.push ci.generatingAncestors

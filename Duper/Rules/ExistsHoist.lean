@@ -94,6 +94,7 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
     return #[⟨ug, given, yC⟩]
 
 def existsHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+  trace[Rule.existsHoist] "Running ExistsHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← existsHoistAtExpr e.consumeMData pos given c
     return streams.append str

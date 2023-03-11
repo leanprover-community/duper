@@ -45,10 +45,7 @@ open Std
 open ProverM
 open RuleM
 
-initialize
-  registerTraceClass `Simp
-  registerTraceClass `Simp.debug
-  registerTraceClass `Timeout.debug
+initialize registerTraceClass `Timeout.debug
 
 open SimpResult
 
@@ -86,44 +83,6 @@ def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
     (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
   ]
 
-def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
-  for simpRule in ← forwardSimpRules do
-    match ← simpRule givenClause with
-    | Removed => return Removed
-    | Applied c => return Applied c
-    | Unapplicable => continue
-  return Unapplicable
-
-partial def forwardSimpLoop (givenClause : Clause) : ProverM (Option Clause) := do
-  Core.checkMaxHeartbeats "forwardSimpLoop"
-  let activeSet ← getActiveSet
-  if activeSet.contains givenClause then return none
-  match ← applyForwardSimpRules givenClause with
-  | Applied c => forwardSimpLoop c
-  | Unapplicable => return some givenClause 
-  | Removed => return none
-
-/-- Uses other clauses in the active set to attempt to simplify the given clause. Returns some simplifiedGivenClause if
-    forwardSimpLoop is able to use simplification rules to transform givenClause to simplifiedGivenClause. Returns none if
-    forwardSimpLoop is able to use simplification rules to show that givenClause is unneeded. -/
-def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
-  let c := forwardSimpLoop givenClause
-  c
-
-/-- Attempts to use givenClause to apply backwards simplification rules (starting from the startIdx's backward simplification rule) on clauses
-    in the active set. -/
-def applyBackwardSimpRules (givenClause : Clause) : ProverM Unit := do
-  let backwardSimpRules ← backwardSimpRules
-  for i in [0 : backwardSimpRules.size] do
-    let simpRule := backwardSimpRules[i]!
-    simpRule givenClause
-
-/-- Uses the givenClause to attempt to simplify other clauses in the active set. For each clause that backwardSimplify is
-    able to produce a simplification for, backwardSimplify removes the clause adds any newly simplified clauses to the passive set.
-    Additionally, for each clause removed from the active set in this way, all descendents of said clause should also be removed from
-    the current state's allClauses and passiveSet -/
-def backwardSimplify (givenClause : Clause) : ProverM Unit := applyBackwardSimpRules givenClause
-
 -- The first `Clause` is the given clause
 -- The second `MClause` is a loaded clause
 def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array ClauseStream))) := do
@@ -142,6 +101,38 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
   existsHoist,
   forallHoist
 ]
+
+def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
+  for simpRule in ← forwardSimpRules do
+    match ← simpRule givenClause with
+    | Removed => return Removed
+    | Applied c => return Applied c
+    | Unapplicable => continue
+  return Unapplicable
+
+/-- Uses other clauses in the active set to attempt to simplify the given clause. Returns some simplifiedGivenClause if
+    forwardSimplify is able to use simplification rules to transform givenClause to simplifiedGivenClause. Returns none if
+    forwardSimplify is able to use simplification rules to show that givenClause is unneeded. -/
+partial def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
+  trace[Prover.saturate] "forward simplifying {givenClause}"
+  Core.checkMaxHeartbeats "forwardSimpLoop"
+  let activeSet ← getActiveSet
+  if activeSet.contains givenClause then return none
+  match ← applyForwardSimpRules givenClause with
+  | Applied c => forwardSimplify c
+  | Unapplicable => return some givenClause 
+  | Removed => return none
+
+/-- Uses the givenClause to attempt to simplify other clauses in the active set. For each clause that backwardSimplify is
+    able to produce a simplification for, backwardSimplify removes the clause adds any newly simplified clauses to the passive set.
+    Additionally, for each clause removed from the active set in this way, all descendents of said clause should also be removed from
+    the current state's allClauses and passiveSet -/
+def backwardSimplify (givenClause : Clause) : ProverM Unit := do
+  trace[Prover.saturate] "backward simplify with {givenClause}"
+  let backwardSimpRules ← backwardSimpRules
+  for i in [0 : backwardSimpRules.size] do
+    let simpRule := backwardSimpRules[i]!
+    simpRule givenClause
 
 register_option maxSaturationTime : Nat := {
   defValue := 500
@@ -222,9 +213,9 @@ partial def saturate : ProverM Unit := do
       trace[Prover.saturate] "New active Set: {(← getActiveSet).toArray}"
       continue
     catch
-    | Exception.internal id _  =>
+    | e@(Exception.internal id _)  =>
       if id != ProverM.emptyClauseExceptionId then
-        throwError "saturate :: Unexpected error"
+        throwError e.toMessageData
       setResult ProverM.Result.contradiction
       return
     | e =>

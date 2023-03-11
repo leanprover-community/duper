@@ -73,7 +73,7 @@ def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array Claus
 /-- If there is a substitution σ and literal l in c such that σ(l) equates `True` and `False`, then
     falseElim yields the clause obtained by removing l from c and applying sigma to the rest of c -/
 def falseElim (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.falseElim] "Attempting to apply falseElim to {c.lits}"
+  trace[Rule.falseElim] "Running FalseElim on {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign then
