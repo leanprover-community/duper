@@ -77,7 +77,7 @@ def identBoolFalseElim : MSimpRule := fun c => do
   if (newLits.length = c.lits.size) then
     return none
   else
-    let resultClause ← yieldClause (MClause.mk newLits.toArray c.mvars) "identity boolean false elimination"
+    let resultClause ← yieldClause (MClause.mk newLits.toArray) "identity boolean false elimination"
       (some (mkIdentBoolFalseElimProof refs))
     return some #[resultClause]
 

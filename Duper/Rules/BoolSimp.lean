@@ -827,7 +827,7 @@ def boolSimp : MSimpRule := fun c => do
       -/
       match ← applyBoolSimpRules e with
       | some (e', boolSimpRule) =>
-        if let some replacedMClause ← c.replaceAtPosUpdateType? c.mvars pos e' then
+        if let some replacedMClause ← c.replaceAtPosUpdateType? pos e' then
           trace[Rule.boolSimp] "Replaced {e} with {e'} in {c.lits} to produce {replacedMClause.lits} via {boolSimpRule}"
           return (replacedMClause, mkBoolSimpProof pos boolSimpRule none)
         else
@@ -835,7 +835,7 @@ def boolSimp : MSimpRule := fun c => do
       | none => -- If none of the first 24 rules worked, attempt rules 25, 26, and 27
         match ← applyBoolSimpRulesWithIndices e with
         | some (ij, boolSimpRule) =>
-          if let some replacedMClause ← c.replaceAtPosUpdateType? c.mvars pos (mkConst ``True) then
+          if let some replacedMClause ← c.replaceAtPosUpdateType? pos (mkConst ``True) then
             trace[Rule.boolSimp] "Replaced {e} with True in {c.lits} to produce {replacedMClause.lits} via {boolSimpRule}"
             return (replacedMClause, mkBoolSimpProof pos boolSimpRule (some ij))
           else

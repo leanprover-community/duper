@@ -87,9 +87,7 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
       let freshVar1 ← instantiateMVars freshVar1
       let freshVar2 ← instantiateMVars freshVar2
       let freshVarEquality ← instantiateMVars freshVarEquality
-      -- Note: Since freshVar1 and freshVar2 are guaranteed to appear in newClause.lits, it is not necessary to include the mvars
-      -- from freshVar1 and freshVar2 in newClause.mvars. See the note on the mvars field invariant in MClause.lean
-      let newClause := cErased.appendLits c.mvars #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromExpr freshVarEquality]
+      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromExpr freshVarEquality]
       trace[Rule.eqHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "eqHoist" $ some (mkEqHoistProof pos freshVar1 freshVar2)
     return #[⟨ug, given, yC⟩]

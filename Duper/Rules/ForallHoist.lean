@@ -97,10 +97,8 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       -- Need to instantiate mvars in newLitLhs because unification assigned to mvars in it
       let newLitLhs ← instantiateMVars newLitLhs
       let newLitLhs ← Meta.whnf newLitLhs -- newLitLhs probably has the form (λ x, stuff) x, so perform the application
-      -- Note: Since freshVar2 is guaranteed to appear in newClause.lits, it is not necessary to include the mvars
-      -- from freshVar2 in newClause.mvars. However, since freshVar1 might not appear, it is necessary to include it
-      let newClause := cErased.appendLits (c.mvars.push freshVar1) #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]
-      trace[Rule.forallHoist] "Created {newClause.lits} with mvars {newClause.mvars} from {c.lits} with mvars {c.mvars}"
+      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]
+      trace[Rule.forallHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (transferExprs := #[freshVar1])
     return #[⟨ug, given, yC⟩]
 

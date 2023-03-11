@@ -64,8 +64,7 @@ def elimResolvedLit : MSimpRule := fun c => do
     return none
   else
     trace[Simp.debug] "elimResolvedLit applied with the newLits: {newLits}"
-    let yc ← yieldClause (MClause.mk newLits.toArray c.mvars) "eliminate resolved literals"
-      (some (mkElimResolvedLitProof refs))
+    let yc ← yieldClause (MClause.mk newLits.toArray) "eliminate resolved literals" (some (mkElimResolvedLitProof refs))
     return some #[yc]
 
 end Duper

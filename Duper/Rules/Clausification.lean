@@ -434,8 +434,8 @@ def clausificationStep : MSimpRule := fun c => do
             let r ← orCases (parentLits.map Lit.toExpr) caseProofs
             let r ← Meta.mkLambdaFVars xs $ mkApp r appliedPremise
             return r
-      let newClause := ⟨c.lits.eraseIdx i ++ d, c.mvars ++ tr⟩
-      trace[Rule.clausification] "Yielding newClause: {newClause.lits} with mvars: {newClause.mvars}"
+      let newClause := ⟨c.lits.eraseIdx i ++ d⟩
+      trace[Rule.clausification] "Yielding newClause: {newClause.lits}"
       let newResult ← yieldClause newClause "clausification" mkProof tr
       resultClauses := resultClauses.push newResult
     return some resultClauses

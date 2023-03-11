@@ -82,7 +82,7 @@ def identPropFalseElim : MSimpRule := fun c => do
     return none
   else
     trace[Simp.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
-    let resultClause ← yieldClause (MClause.mk newLits.toArray c.mvars) "identity prop false elimination"
+    let resultClause ← yieldClause (MClause.mk newLits.toArray) "identity prop false elimination"
       (some (mkIdentPropFalseElimProof refs))
     return some #[resultClause]
 

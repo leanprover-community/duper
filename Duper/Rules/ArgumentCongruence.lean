@@ -61,11 +61,9 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
       let lhs := lit.lhs; let rhs := lit.rhs;
       let mut newMVars := #[]
       let mut mVarTys := #[]
-      let mut resMVars := c.mvars
       let loaded ← getLoadedClauses
       for m in mVars do
         newMVars := newMVars.push m
-        resMVars := resMVars.push m
         mVarTys := mVarTys.push (← inferType m)
         let newlhs := mkAppN lhs newMVars
         let newrhs := mkAppN rhs newMVars
@@ -75,7 +73,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
                                  rhs := newrhs,
                                  ty  := ← inferType newlhs
                                  lvl := Expr.sortLevel! newsort}
-        let c' := c.replaceLit! resMVars i newlit
+        let c' := c.replaceLit! i newlit
         let ug ← unifierGenerator #[]
         let yC := do
           setLoadedClauses loaded

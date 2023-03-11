@@ -74,7 +74,7 @@ def mkContextualLiteralCuttingProof (negatedLitMainIdx : Nat) (assignment : List
 def negateMClauseLit (c : MClause) (litIndex : Nat) : RuleM MClause := do
   let l := c.lits[litIndex]!
   let lNeg := {l with sign := not l.sign}
-  match c.replaceLit? c.mvars litIndex lNeg with
+  match c.replaceLit? litIndex lNeg with
   | some c => return c
   | none => throwError "Invalid litIndex {litIndex}"
 

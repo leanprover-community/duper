@@ -86,8 +86,8 @@ def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array Cla
       -- TODO: check both sides?
       if ¬ lit.rhs.isConstOf ``True && ¬ lit.rhs.isConstOf ``False then
         let c' := c.eraseLit i
-        let c1 := c'.appendLits c.mvars #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
-        let c2 := c'.appendLits c.mvars #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
+        let c1 := c'.appendLits #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
+        let c2 := c'.appendLits #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
         trace[Rule.clausifyPropEq] "clausifyPropEq called on {lit} in {c.lits} to produce {c1.lits} and {c2.lits}"
         let loaded ← getLoadedClauses
         let ug ← unifierGenerator #[]

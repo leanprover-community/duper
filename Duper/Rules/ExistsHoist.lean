@@ -88,9 +88,7 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let cErased := c.eraseLit pos.lit
       -- Need to instantiate mvars in newLitLhs because unification assigned to mvars in it
       let newLitLhs ← instantiateMVars newLitLhs
-      -- Note: Since freshVar2 is guaranteed to appear in newClause.lits, it is not necessary to include the mvars
-      -- from freshVar2 in newClause.mvars. However, since freshVar1 might not appear, it is necessary to include it
-      let newClause := cErased.appendLits (c.mvars.push freshVar1) #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
+      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
       trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (transferExprs := #[freshVar1])
     return #[⟨ug, given, yC⟩]

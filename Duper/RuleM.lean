@@ -195,7 +195,7 @@ def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
   let (mvars, bis, e) ← forallMetaTelescope e
   setLoadedClauses ((← getLoadedClauses).push ⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩)
-  return (mvars, .fromExpr e mvars)
+  return (mvars, .fromExpr e)
 
 def loadClause (c : Clause) : RuleM MClause := do
   let (_, mclause) ← loadClauseCore c
@@ -209,7 +209,7 @@ def prepLoadClause (c : Clause) : RuleM (MClause × LoadedClause) := do
   let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
   let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
   let (mvars, bis, e) ← forallMetaTelescope e
-  return (.fromExpr e mvars, ⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩)
+  return (.fromExpr e, ⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩)
 
 open Duper.AbstractMVars in
 def neutralizeMClause (c : MClause) (loadedClauses : Array LoadedClause) (transferExprs : Array Expr) :

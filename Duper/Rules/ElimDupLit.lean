@@ -56,8 +56,7 @@ def elimDupLit : MSimpRule := fun c => do
   if newLits.size = c.lits.size then
     return none
   else
-    let cp ← yieldClause (MClause.mk newLits c.mvars) "eliminate duplicate literals"
-      (some (mkElimDupLitProof refs))
+    let cp ← yieldClause (MClause.mk newLits) "eliminate duplicate literals" (some (mkElimDupLitProof refs))
     return some #[cp]
 
 end Duper
