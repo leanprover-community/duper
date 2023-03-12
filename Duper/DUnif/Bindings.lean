@@ -244,9 +244,15 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM
   let Gty ← Meta.inferType G
   -- Side condition
   if !(← mustNotOccursCheck F.mvarId! Gty) then
-    return .NewLazyList (← elimination G p eq)
+    if p.elimVar.contains G then
+      return .NewArray #[]
+    else
+      return .NewLazyList (← elimination G p eq)
   if !(← mustNotOccursCheck G.mvarId! Fty) then
-    return .NewLazyList (← elimination F p eq)
+    if p.elimVar.contains F then
+      return .NewArray #[]
+    else
+      return .NewLazyList (← elimination F p eq)
   -- Unify sort
   let (typeη, samesort) ← Meta.forallTelescopeReducing Fty fun xs β => Meta.forallTelescopeReducing Gty fun ys δ => do
     let sortβ ← Meta.inferType β
