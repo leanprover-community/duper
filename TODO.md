@@ -10,7 +10,7 @@ Inference rules:
   - ExistsRw
 
 Infrastructure
-- precCompare: Support for higher-order problem
+- precCompare: Support for higher-order problem, and resolve the ```SEU139``` bug.
 - TPTP higher-order problem parsing
 - Performance-tuning higher-order unification procedure
 - Change ```replaceAtPos!``` to ```replaceAtPosUpdateType?```

@@ -54,10 +54,7 @@ namespace ComplexUniverse
 #check Lean.Level
 
 -- Just checking whether universe level works correctly
-set_option maxHeartbeats 760 in
-set_option trace.Simplification.debug true in
 set_option trace.Prover.saturate true in
-set_option duperDebugOpt1 700677 in
 def rec₁ : False := by
   duper [Nat.rec]
 
