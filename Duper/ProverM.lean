@@ -65,6 +65,8 @@ structure State where
   skolemMap : HashMap Nat SkolemInfo := HashMap.empty
   opaqueNatName : Name := Name.anonymous
   skolemSorryName : Name := Name.anonymous
+  verifiedInhabitedTypes : HashSet Expr := {}
+  potentiallyVacuousClauses : ClauseSet := {}
   -- We need this field because empty clauses may contain
   --   level parameters, and we can't just use ```Clause.empty``` as
   --   a key to find the clauseInfo of the empty clause in ```allClauses```
@@ -271,6 +273,8 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
     setPassiveSet $ (← getPassiveSet).insert c c.weight ci.number
   | none => throwError "Unable to find information for clausified clause {c}"
 
+-- TODO: Initialize verifiedInhabitedTypes by examining each type that appears in the set of assumptions
+-- attempting to synthesize the Inhabited typeclass.
 def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name)) (ctx : Context) (s : State) : 
     MetaM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
@@ -290,6 +294,13 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   setMCtx mctx
   return res
 
+/-
+  TODO: Check whether c is potentially vacuous (by checking whether it has any vanished bVarTypes whose types are not verified
+  to be inhabited). If it is, then add c to the active set and the set of potentiallyVacuousClauses, but not to any of the
+  superposition/demodulation indices or the subsumptionTrie. Alternatively, if it turns out to be easier to determine whether
+  c is potentially vacuous as an mclause (e.g. because of bVarTypes that depend on each other like the second of #[Nat, Fin #0]),
+  then write an additional, addVacuousToActive function that only adds c to the active set and the set of potentiallyVacuousClauses
+-/
 def addToActive (c : Clause) : ProverM Unit := do
   let cInfo ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
   let cNum := cInfo.number

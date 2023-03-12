@@ -11,9 +11,9 @@ initialize
   registerTraceClass `TPTP_Testing
   registerTraceClass `Print_Proof
   registerTraceClass `ProofReconstruction
+  registerTraceClass `Saturate.debug
 
 namespace Lean.Elab.Tactic
-
 
 def getClauseInfo! (state : ProverM.State) (c : Clause) : CoreM ClauseInfo := do
   let some ci := state.allClauses.find? c
@@ -434,6 +434,7 @@ def evalDuperUnsafe : Tactic
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated =>
       trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
+      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident [$facts,*]) => withMainContext do

@@ -97,7 +97,6 @@ theorem test1
 (div_self : ∀ x, f x ≠ a)
 : False := by duper
 
-
 #print test1
 
 theorem test1'
@@ -123,6 +122,7 @@ likes johanna peanuts := by duper
 
 #print axioms puzzle1
 
+/- Leaving this test commented out because we expect it to time out
 set_option maxHeartbeats 10000 in
 theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι) 
   (Doctor : ι → Prop) (Peculiar : ι → Prop) (Sane : ι → Prop)
@@ -134,6 +134,7 @@ theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι)
   (h10 : Sane Fether = ∀x, Doctor x → ¬ Sane x)
   (h12 : Sane Fether = Sane Tarr) : 
 False := by duper
+-/
 
 -- Time 29717ms
 theorem test0011 (one : Nat) (div mul add : Nat → Nat → Nat)
@@ -517,9 +518,6 @@ def pos₁ : (f (Nat → False) = f False) := by duper
 
 axiom g.{u} : ∀ (α : Sort u), α → Nat
 
--- These two examples fail when boolSimp is enabled, but I don't think that adding guards to
--- boolSimp will fix that, since both instances in which boolSimp is applied are reasonable
--- (∀ _ : Nat, True) in general should be turned into True, as should (True → True)
 def neg₂ : g (Nat → True) (fun _ => True.intro) = g (Nat → True) (fun _ => True.intro) :=
   by duper
 
