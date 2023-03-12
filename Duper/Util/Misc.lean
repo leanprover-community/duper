@@ -6,14 +6,6 @@ def List.subsequences (xs : List α) :=
   | nil => [nil]
   | cons a as => List.subsequences as ++ map (List.cons a) (List.subsequences as)
 
--- TODO : Do not use this function
-def MVarId.modifyLCtx (mvarId : MVarId) (lctx : LocalContext) : MetaM PUnit := do
-  let decl ← mvarId.getDecl
-  let decl' := {decl with lctx := lctx}
-  let mctx := (← get).mctx
-  let mctx' := {mctx with decls := mctx.decls.insert mvarId decl'}
-  modify fun s => {s with mctx := mctx'}
-
 -- The following two functions are copied from Lean's
 -- standard library. The only difference is that we
 -- replace `whnf e` with `e`.
@@ -41,6 +33,38 @@ def Lean.Expr.countForalls : Expr → Nat
 /-- Given `e` of the form `forall (a_1 : A_1) ... (a_n : A_n), B[a_1, ..., a_n]` and `p_1 : A_1, ... p_n : A_n`, return `B[p_1, ..., p_n]`. -/
 def Lean.Expr.instantiateForallNoReducing (e : Expr) (ps : Array Expr) : MetaM Expr :=
   instantiateForallAux ps 0 e
+
+def Lean.Meta.withoutMVarAssignments (m : MetaM α) : MetaM α := do
+  let mctx ← getMCtx
+  Meta.withMCtx {mctx with eAssignment := {}, lAssignment := {}} m
+
+initialize Lean.registerTraceClass `Meta.inspectMVarAssignments
+
+def Lean.Meta.inspectMVarAssignments : MetaM Unit := do
+  let mctx ← getMCtx
+  let eAssignmentList := mctx.eAssignment.toList
+  let lAssignmentList := mctx.lAssignment.toList
+  Meta.withMCtx {mctx with eAssignment := {}, lAssignment := {}} <| do
+    let ems := eAssignmentList.map (fun (id, e) => MessageData.compose m!"{Expr.mvar id} := " m!"{e}")
+    let lms := lAssignmentList.map (fun (id, l) => MessageData.compose m!"{Level.mvar id} := " m!"{l}")
+    let mut em := m!"["; let mut fst := true
+    for m in ems do
+      if fst then
+        fst := false
+      else
+        em := .compose em m!", "
+      em := .compose em m
+    em := .compose em "]"
+    trace[Meta.inspectMVarAssignments] .compose "ExprMVar Assignments: " em
+    let mut lm := m!"["; fst := true
+    for m in lms do
+      if fst then
+        fst := false
+      else
+        lm := .compose lm m!", "
+      lm := .compose lm m
+    lm := .compose lm "]"
+    trace[Meta.inspectMVarAssignments] .compose "LevelMVar Assignments: " lm
 
 def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
   let ty ← instantiateMVars ty

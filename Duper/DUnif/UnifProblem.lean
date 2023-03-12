@@ -26,6 +26,12 @@ structure UnifEq where
   rflex : Bool := false
   deriving Hashable, Inhabited, BEq, Repr
 
+def UnifEq.toString : UnifEq → String :=
+  fun ⟨lhs, rhs, lflex, rflex⟩ => s!"\{{h lflex} lhs: {lhs}, {h rflex} rhs: {rhs}}"
+    where h b := if b then "Flex" else "Rigid"
+
+instance : ToString UnifEq := ⟨UnifEq.toString⟩
+
 def UnifEq.toMessageData : UnifEq → MessageData :=
   fun ⟨lhs, rhs, lflex, rflex⟩ => m!"\{{h lflex} lhs: {lhs}, {h rflex} rhs: {rhs}}"
     where h b := if b then "Flex" else "Rigid"
@@ -60,6 +66,26 @@ inductive ParentRule where
 | Identification : UnifEq → (e1 e2 : Expr) → Expr → Expr → ParentRule
 | Elimination    : UnifEq → Expr → Array Nat → Expr → ParentRule
 deriving Inhabited, BEq
+
+def ParentRule.toString : ParentRule → String
+| FromExprPairs arr => s!"From {arr}"
+| Succeed  => "Succeed"
+| Delete ue => s!"Delete {ue}"
+| OracleSucc ue => s!"OracleSucc {ue}"
+| OracleFail ue => s!"OracleFail {ue}"
+| Decompose ue => s!"Decompose {ue}"
+| ForallToLambda ue n => s!"ForallToLambda {ue} for {n} binders"
+| OracleInst ue => s!"OracleInst {ue}"
+| Iteration ue F i argn b => s!"Iteration for {F} at {i} with extra {argn} args in {ue} binding {b}"
+| JPProjection ue F i b => s!"JPProjection for {F} at {i} in {ue} binding {b}"
+| HuetProjection ue F i b => s!"HuetProjection for {F} at {i} in {ue} binding {b}"
+| ImitForall ue F b => s!"ImitForall of {F} in {ue} binding {b}"
+| ImitProj ue F i b => s!"ImitProj of {F} in {ue} proj {i} binding {b}"
+| Imitation ue F g b => s!"Imitation of {g} for {F} in {ue} binding {b}"
+| Identification ue F G bF bG => s!"Identification of {F} and {G} in {ue} binding {bF} and {bG}"
+| Elimination ue F arr b => s!"Elimination of {F} at {arr} in {ue} binding {b}"
+
+instance : ToString ParentRule := ⟨ParentRule.toString⟩
 
 def ParentRule.toMessageData : ParentRule → MessageData
 | FromExprPairs arr => .compose m!"From " (Duper.ArrayToMessageData arr Duper.ExprPairToMessageData)
@@ -139,14 +165,23 @@ structure UnifProblem where
   trackedExpr: Array Expr   := #[]
   deriving Inhabited
 
-def UnifProblem.format : UnifProblem → MessageData :=
+def UnifProblem.toString : UnifProblem → String :=
+  fun ⟨prioritized, rigidrigid, flexrigid, flexflex, checked, _, identVar, elimVar, parentrules, parentclauses, trackedExpr⟩ =>
+    "Unification Problem:" ++
+    s!"\n  prioritized := {prioritized},\n  rigidrigid := {rigidrigid},\n  flexrigid := {flexrigid}," ++
+    s!"\n  flexflex := {flexflex},\n  checked := {checked},\n  identVar := {identVar.toList},\n  elimVar := {elimVar.toList}" ++
+    s!"\n  parentclauses := {parentclauses.toList}\n  parentrules := {parentrules.toArray}\n  trackedExpr := {trackedExpr}\n"
+
+instance : ToString UnifProblem := ⟨UnifProblem.toString⟩
+
+def UnifProblem.toMessageData : UnifProblem → MessageData :=
   fun ⟨prioritized, rigidrigid, flexrigid, flexflex, checked, _, identVar, elimVar, parentrules, parentclauses, trackedExpr⟩ =>
     "Unification Problem:" ++
     m!"\n  prioritized := {prioritized},\n  rigidrigid := {rigidrigid},\n  flexrigid := {flexrigid}," ++
     m!"\n  flexflex := {flexflex},\n  checked := {checked},\n  identVar := {identVar.toList},\n  elimVar := {elimVar.toList}" ++
     m!"\n  parentclauses := {parentclauses.toList}\n  parentrules := {parentrules.toArray}\n  trackedExpr := {trackedExpr}\n"
 
-instance : ToMessageData UnifProblem := ⟨UnifProblem.format⟩
+instance : ToMessageData UnifProblem := ⟨UnifProblem.toMessageData⟩
 
 def UnifProblem.pushPrioritized (p : UnifProblem) (e : UnifEq) :=
   {p with prioritized := p.prioritized.push e}

@@ -323,7 +323,7 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
   setMCtx p.mctx
   -- If `dUnifDbg` is off, then we can't check `contains` because we don't push parent clause
   if ¬ (← getDUnifDbgOn) ∨ p.parentClauses.toList.contains config.contains then
-    trace[DUnif.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
+    Meta.withoutMVarAssignments <| do trace[DUnif.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
   let is_prio : Bool := ¬ p.prioritized.isEmpty
   if let some (eq, p') := p.pop? then
     let (lh, lhtype) ← structInfo p eq.lhs
@@ -531,7 +531,7 @@ def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) (ncont : Nat) (iterOn :
   let mut cnt := 0
   for i in List.range nAttempt do
     if ug.isEmpty then
-      trace[Meta.Tactic] "Failed after {i} attempts"
+      trace[Meta.Tactic] "Failed with empty queue after {i} attempts"
       return false
     let (up, ug') ← ug.take
     ug := ug'
@@ -548,4 +548,17 @@ def hounif (e1 e2 : Expr) (nAttempt : Nat) (nUnif : Nat) (ncont : Nat) (iterOn :
         return true
       else
         cnt := cnt + 1
+  trace[Meta.Tactic] "Failed because attempt limit has been reached, printing queue elements"
+  let mut q := ug.q
+  while true do
+    match q.dequeue? with
+    | some (elem, q') =>
+      q := q'
+      match elem with
+      | .Problem up =>
+        Meta.withMCtx up.mctx <| do
+          Meta.withoutMVarAssignments <| do trace[Meta.Tactic] "Queue Element: {up}"
+          Meta.inspectMVarAssignments
+      | .LazyListOfProblem _ => trace[Meta.Tactic] "Lazy List"
+    | none => break
   return false

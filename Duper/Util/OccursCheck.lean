@@ -3,13 +3,14 @@ Copyright (c) 2023 Duper development team. All rights reserved.
 Author: Duper development team
 -/
 import Lean.MetavarContext
+import Lean
 
 namespace Lean
 
 /--
   Return true if `e` **must not** contain `mvarId` directly or indirectly
   This function considers assigments and delayed assignments. -/
-partial def mustNotOccursCheck [Monad m] [MonadMCtx m] (mvarId : MVarId) (e : Expr) : m Bool := do
+partial def mustNotOccursCheck (mvarId : MVarId) (e : Expr) : MetaM Bool := do
   if !e.hasExprMVar then
     return true
   else
@@ -17,15 +18,15 @@ partial def mustNotOccursCheck [Monad m] [MonadMCtx m] (mvarId : MVarId) (e : Ex
     | (.ok .., _)    => return true
     | (.error .., _) => return false
 where
-  visitMVar (mvarId' : MVarId) : ExceptT Unit (StateT ExprSet m) Unit := do
+  visitMVar (mvarId' : MVarId) : ExceptT Unit (StateT ExprSet MetaM) Unit := do
     if mvarId == mvarId' then
-      throw () -- found
+      throw (self:=instMonadExcept _ _) () -- found
     else
-      let decl := (← getMCtx).getDecl mvarId
+      let mvarTy' ← Meta.inferType (mkMVar mvarId')
       -- Modification : We also need to check whether metavariables
       --   might depend on the metavariable being checked, so we also
       --   visit the type of the metavariable declaration
-      visit decl.type
+      visit mvarTy'
       match (← getExprMVarAssignment? mvarId') with
       | some v => visit v
       | none   =>
@@ -33,7 +34,7 @@ where
         | some d => visitMVar d.mvarIdPending
         | none   => return ()
 
-  visit (e : Expr) : ExceptT Unit (StateT ExprSet m) Unit := do
+  visit (e : Expr) : ExceptT Unit (StateT ExprSet MetaM) Unit := do
     if !e.hasExprMVar then
       return ()
     else if (← get).contains e then

@@ -1,5 +1,6 @@
 import Lean
 import Duper.Util.Misc
+import Duper.Util.OccursCheck
 import Duper.Util.LazyList
 import Duper.DUnif.UnifProblem
 open Lean
@@ -197,10 +198,16 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Arr
 --   Extra Unification Problems:
 --     λ[x]. η [x] (F₁ [x]) ⋯ (Fₘ [x]) =? λ[x]. β [x]
 --     λ[y]. η (G₁ [y]) ⋯ (Gₙ [y]) [y] =? λ[y]. δ [y]
+-- Side condition: `F` cannot depend on `G`, and `G` cannot depend on `F`
 def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   let Gty ← Meta.inferType G
+  -- Side condition
+  if !(← mustNotOccursCheck F.mvarId! Gty) then
+    return #[]
+  if !(← mustNotOccursCheck G.mvarId! Fty) then
+    return #[]
   -- Unify sort
   let (typeη, samesort) ← Meta.forallTelescopeReducing Fty fun xs β => Meta.forallTelescopeReducing Gty fun ys δ => do
     let sortβ ← Meta.inferType β
@@ -277,8 +284,8 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
       if let some _ := Expr.find? (fun x => xsset.contains x) mvarTy then
         return #[]
       let res ← (do
-        let newMVar ← Meta.mkFreshExprMVar mvarTy
-        MVarId.modifyLCtx newMVar.mvarId! lctx₀
+        let newMVar ← Meta.withLCtx lctx₀ (← Meta.getLocalInstances) <|
+          Meta.mkFreshExprMVar mvarTy
         let mt ← Meta.mkLambdaFVars xs (mkAppN newMVar vars)
         MVarId.assign F.mvarId! mt
         return {(← p.pushParentRuleIfDbgOn (.Elimination eq F isub mt))
