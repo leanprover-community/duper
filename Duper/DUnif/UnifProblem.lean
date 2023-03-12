@@ -1,5 +1,6 @@
 import Lean
 import Duper.Util.MessageData
+import Duper.Util.LazyList
 open Lean
 
 namespace Duper
@@ -294,3 +295,11 @@ def UnifProblem.pop? (p : UnifProblem) : Option (UnifEq × UnifProblem) := Id.ru
 def UnifProblem.instantiateTrackedExpr (p : UnifProblem) : MetaM UnifProblem := do
   let trackedExpr ← p.trackedExpr.mapM instantiateMVars
   return {p with trackedExpr := trackedExpr}
+
+-- MetaM : mvar assignments
+-- LazyList UnifProblem : unification problems being generated
+-- Bool : True -> Succeed, False -> Fail
+inductive UnifRuleResult
+| NewArray : Array UnifProblem → UnifRuleResult
+| NewLazyList : LazyList (MetaM (Array UnifProblem)) → UnifRuleResult
+| Succeed : UnifRuleResult

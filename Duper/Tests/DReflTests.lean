@@ -164,7 +164,8 @@ def neg₂ (done : Prop) (f : Nat → Nat) (g : Nat → Nat →  Nat)
 --   some mvars in `e` depends on `m`. This mostly concerns the binding
 --   `oracleInst` and `identification`.
 set_option trace.DUnif.debug true in
+set_option trace.Meta.Tactic true in
 def neg₃ (done : Prop)
-         (h : ∀ (r : Sort u) (a_1 : r → Prop) (a_2 : r), a_1 a_2 = Nonempty r → done) : done := by
+         (h : ∀ (r : Type u) (a_1 : r → Prop) (a_2 : r), a_1 a_2 = Nonempty r → done) : done := by
   apply h
-  case a => drefl attempt 13 unifier 0 contains 0
+  case a => drefl attempt 21 unifier 0 contains 0; exact (Sort u)

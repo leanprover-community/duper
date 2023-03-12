@@ -2,7 +2,6 @@ import Lean
 import Duper.DUnif.UnifProblem
 import Duper.DUnif.Bindings
 import Duper.DUnif.Oracles
-import Duper.Util.LazyList
 import Duper.Util.Misc
 open Lean
 open Duper
@@ -300,14 +299,6 @@ def failDecompose (is_prio : Bool) (p : UnifProblem) (eq : UnifEq) : MetaM (Arra
     -- Does not assign ExprMVars, so no need to set `Checked = False`
     return #[{p with mctx := ← getMCtx}]
 
--- MetaM : mvar assignments
--- LazyList UnifProblem : unification problems being generated
--- Bool : True -> Succeed, False -> Fail
-inductive UnifRuleResult
-| NewArray : Array UnifProblem → UnifRuleResult
-| NewLazyList : LazyList (MetaM (Array UnifProblem)) → UnifRuleResult
-| Succeed : UnifRuleResult
-
 
 -- All rules set the `mctx` as the `mctx` of problem `p` upon entry, and
 --   might modify the `mctx`. So, `applyRules` should be run with
@@ -389,7 +380,7 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
     -- Heads are different
     if lh != rh then
       -- Iteration for both lhs and rhs
-      let iter ← (do
+      let mut ll ← (do
         if config.iterationOn then
           let liter ← DUnif.iteration lh p eq false
           let riter ← DUnif.iteration rh p eq false
@@ -397,13 +388,17 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
         else
           return LazyList.nil)
       -- Identification
-      let mut arr ← DUnif.identification lh rh p eq
+      let mut arr := #[]
+      match (← DUnif.identification lh rh p eq) with
+      | .NewArray a => arr := arr.append a
+      | .NewLazyList l => ll := LazyList.interleave l ll
+      | .Succeed => throwError "applyRules :: identification never succeeds"
       -- JP style projection
       if ¬ p.identVar.contains lh then
         arr := arr.append (← DUnif.jpProjection lh p eq)
       if ¬ p.identVar.contains rh then
         arr := arr.append (← DUnif.jpProjection rh p eq)
-      return .NewLazyList (.cons (pure arr) iter)
+      return .NewLazyList (.cons (pure arr) ll)
     -- Left flex, Right flex
     -- Heads are the same
     else

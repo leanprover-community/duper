@@ -184,77 +184,6 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Arr
     MVarId.assign F.mvarId! mt
     return #[{(← p.pushParentRuleIfDbgOn (.Imitation eq F g mt)) with checked := false, mctx := ← getMCtx}]
 
--- Both `F` and `G` are metavariables
--- Proposal
---   Premises
---     F : (x₁ : α₁) → (x₂ : α₂) → ⋯ → (xₙ : αₙ) → β x₁ x₂ ⋯ xₙ (F : ∀ [x], β [x])
---     G : (y₁ : γ₁) → (y₂ : γ₂) → ⋯ → (yₘ : γₘ) → δ y₁ y₂ ⋯ yₙ (G : ∀ [y], δ [y])
----------------------------------------------------------------
---   Binding
---     η : ∀ [x] [y], Type ?u
---     H : ∀ [x] [y], η [x] [y]
---     F ↦ λ [x]. H [x] (F₁ [x]) ⋯ (Fₘ [x])
---     G ↦ λ [y]. H (G₁ [y]) ⋯ (Gₙ [y]) [y]
---   Extra Unification Problems:
---     λ[x]. η [x] (F₁ [x]) ⋯ (Fₘ [x]) =? λ[x]. β [x]
---     λ[y]. η (G₁ [y]) ⋯ (Gₙ [y]) [y] =? λ[y]. δ [y]
--- Side condition: `F` cannot depend on `G`, and `G` cannot depend on `F`
-def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
-  setMCtx p.mctx
-  let Fty ← Meta.inferType F
-  let Gty ← Meta.inferType G
-  -- Side condition
-  if !(← mustNotOccursCheck F.mvarId! Gty) then
-    return #[]
-  if !(← mustNotOccursCheck G.mvarId! Fty) then
-    return #[]
-  -- Unify sort
-  let (typeη, samesort) ← Meta.forallTelescopeReducing Fty fun xs β => Meta.forallTelescopeReducing Gty fun ys δ => do
-    let sortβ ← Meta.inferType β
-    let sortδ ← Meta.inferType δ
-    let typeη ← Meta.mkForallFVars (xs ++ ys) sortβ
-    if let .sort lβ := sortβ then
-      if let .sort lδ := sortδ then
-        let same ← Meta.isLevelDefEq lβ lδ
-        return (typeη, same)
-      else
-        trace[DUnif.debug] "identification : {sortδ} is not a sort"
-        return (typeη, false)
-    else
-      trace[DUnif.debug] "identification : {sortβ} is not a sort"
-      return (typeη, false)
-  if ¬ samesort then
-    return #[]
-  -- make η and H
-  let η ← Meta.mkFreshExprMVar typeη
-  let Hty ← Meta.forallTelescopeReducing Fty fun xs β => Meta.forallTelescopeReducing Gty fun ys δ => do
-    let applied := mkAppN η (xs ++ ys)
-    Meta.mkForallFVars (xs ++ ys) applied
-  let mH ← Meta.mkFreshExprMVar Hty
-  -- Binding for `F`
-  let mtF ← Meta.forallTelescopeReducing Fty fun xs _ => do
-    let (ys, _, _) ← Meta.forallMetaTelescopeReducing Gty
-    Meta.mkLambdaFVars xs (mkAppN mH (xs ++ ys))
-  -- Bindings for `G`
-  let mtG ← Meta.forallTelescopeReducing Gty fun ys _ => do
-    let (xs, _, _) ← Meta.forallMetaTelescopeReducing Fty
-    Meta.mkLambdaFVars ys (mkAppN mH (xs ++ ys))
-  -- Unify types
-  let mtFty ← Meta.inferType mtF
-  let feq := mtFty == Fty
-  let mtGty ← Meta.inferType mtG
-  let geq := mtGty == Gty
-  let mut p := p
-  if ¬ feq then
-    p := p.pushPrioritized (UnifEq.fromExprPair mtFty Fty)
-  if ¬ geq then
-    p := p.pushPrioritized (UnifEq.fromExprPair mtGty Gty)
-  -- Assign metavariables
-  MVarId.assign F.mvarId! mtF
-  MVarId.assign G.mvarId! mtG
-  return #[{(← p.pushParentRuleIfDbgOn (.Identification eq F G mtF mtG))
-            with checked := false, mctx := ← getMCtx, identVar := p.identVar.insert mH}]
-
 def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
   setMCtx p.mctx
   let lctx₀ ← getLCtx
@@ -292,3 +221,76 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
                  with checked := false, mctx := ← getMCtx, elimVar := p.elimVar.insert newMVar})
       return #[res]
     return indsubseqs.map nats2binding
+
+-- Both `F` and `G` are metavariables
+-- Proposal
+--   Premises
+--     F : (x₁ : α₁) → (x₂ : α₂) → ⋯ → (xₙ : αₙ) → β x₁ x₂ ⋯ xₙ (F : ∀ [x], β [x])
+--     G : (y₁ : γ₁) → (y₂ : γ₂) → ⋯ → (yₘ : γₘ) → δ y₁ y₂ ⋯ yₙ (G : ∀ [y], δ [y])
+---------------------------------------------------------------
+--   Binding
+--     η : ∀ [x] [y], Type ?u
+--     H : ∀ [x] [y], η [x] [y]
+--     F ↦ λ [x]. H [x] (F₁ [x]) ⋯ (Fₘ [x])
+--     G ↦ λ [y]. H (G₁ [y]) ⋯ (Gₙ [y]) [y]
+--   Extra Unification Problems:
+--     λ[x]. η [x] (F₁ [x]) ⋯ (Fₘ [x]) =? λ[x]. β [x]
+--     λ[y]. η (G₁ [y]) ⋯ (Gₙ [y]) [y] =? λ[y]. δ [y]
+-- Side condition: `F` cannot depend on `G`, and `G` cannot depend on `F`.
+--   If any of `F` or `G` depends on another, switch to `elimination`
+def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM UnifRuleResult := do
+  setMCtx p.mctx
+  let Fty ← Meta.inferType F
+  let Gty ← Meta.inferType G
+  -- Side condition
+  if !(← mustNotOccursCheck F.mvarId! Gty) then
+    return .NewLazyList (← elimination G p eq)
+  if !(← mustNotOccursCheck G.mvarId! Fty) then
+    return .NewLazyList (← elimination F p eq)
+  -- Unify sort
+  let (typeη, samesort) ← Meta.forallTelescopeReducing Fty fun xs β => Meta.forallTelescopeReducing Gty fun ys δ => do
+    let sortβ ← Meta.inferType β
+    let sortδ ← Meta.inferType δ
+    let typeη ← Meta.mkForallFVars (xs ++ ys) sortβ
+    if let .sort lβ := sortβ then
+      if let .sort lδ := sortδ then
+        let same ← Meta.isLevelDefEq lβ lδ
+        return (typeη, same)
+      else
+        trace[DUnif.debug] "identification : {sortδ} is not a sort"
+        return (typeη, false)
+    else
+      trace[DUnif.debug] "identification : {sortβ} is not a sort"
+      return (typeη, false)
+  if ¬ samesort then
+    return .NewArray #[]
+  -- make η and H
+  let η ← Meta.mkFreshExprMVar typeη
+  let Hty ← Meta.forallTelescopeReducing Fty fun xs β => Meta.forallTelescopeReducing Gty fun ys δ => do
+    let applied := mkAppN η (xs ++ ys)
+    Meta.mkForallFVars (xs ++ ys) applied
+  let mH ← Meta.mkFreshExprMVar Hty
+  -- Binding for `F`
+  let mtF ← Meta.forallTelescopeReducing Fty fun xs _ => do
+    let (ys, _, _) ← Meta.forallMetaTelescopeReducing Gty
+    Meta.mkLambdaFVars xs (mkAppN mH (xs ++ ys))
+  -- Bindings for `G`
+  let mtG ← Meta.forallTelescopeReducing Gty fun ys _ => do
+    let (xs, _, _) ← Meta.forallMetaTelescopeReducing Fty
+    Meta.mkLambdaFVars ys (mkAppN mH (xs ++ ys))
+  -- Unify types
+  let mtFty ← Meta.inferType mtF
+  let feq := mtFty == Fty
+  let mtGty ← Meta.inferType mtG
+  let geq := mtGty == Gty
+  let mut p := p
+  if ¬ feq then
+    p := p.pushPrioritized (UnifEq.fromExprPair mtFty Fty)
+  if ¬ geq then
+    p := p.pushPrioritized (UnifEq.fromExprPair mtGty Gty)
+  -- Assign metavariables
+  MVarId.assign F.mvarId! mtF
+  MVarId.assign G.mvarId! mtG
+  let up' := {(← p.pushParentRuleIfDbgOn (.Identification eq F G mtF mtG))
+              with checked := false, mctx := ← getMCtx, identVar := p.identVar.insert mH}
+  return .NewArray #[up']
