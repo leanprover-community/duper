@@ -6,6 +6,7 @@ import Duper.SubsumptionTrie
 import Duper.Util.ClauseSubsumptionCheck
 import Duper.Util.StrategyHeap
 import Duper.Util.IdStrategyHeap
+import Duper.Util.AbstractMVars
 
 namespace Duper
 namespace ProverM
@@ -20,6 +21,7 @@ def enableTypeInhabitationReasoning := false
 initialize
   registerTraceClass `Simplification.debug
   registerTraceClass `ImmediateSimplification.debug
+  registerTraceClass `typeInhabitationReasoning.debug
 
 inductive Result :=
 | unknown
@@ -40,6 +42,7 @@ deriving Inhabited
 
 abbrev ClauseSet := HashSet Clause
 abbrev FairAgeClauseHeap := StrategyHeap Clause (β:=Nat)
+abbrev abstractedMVarList := List Meta.AbstractMVarsResult
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -53,7 +56,7 @@ deriving Inhabited
 structure State where
   result : Result := unknown
   allClauses : HashMap Clause ClauseInfo := {}
-  activeSet : ClauseSet := {} --TODO: put clause into only in allClauses?
+  activeSet : ClauseSet := {}
   passiveSet : FairAgeClauseHeap := FairAgeHeap.empty Clause 5
   qStreamSet : ClauseStreamHeap ClauseStream := ClauseStreamHeap.empty ClauseStream
   symbolPrecMap : SymbolPrecMap := HashMap.empty
@@ -65,7 +68,9 @@ structure State where
   skolemMap : HashMap Nat SkolemInfo := HashMap.empty
   opaqueNatName : Name := Name.anonymous
   skolemSorryName : Name := Name.anonymous
-  verifiedInhabitedTypes : HashSet Expr := {}
+  verifiedInhabitedTypes : abstractedMVarList := []
+  inhabitedTypeWitnesses : ClauseSet := {} -- The set of clauses of the form `Nonempty t = True` or `True = Nonempty t`
+  potentiallyUninhabitedTypes : abstractedMVarList := []
   potentiallyVacuousClauses : ClauseSet := {}
   -- We need this field because empty clauses may contain
   --   level parameters, and we can't just use ```Clause.empty``` as
@@ -141,6 +146,18 @@ def getSkolemSorryName : ProverM Name :=
 def getSkolemMap : ProverM (HashMap Nat SkolemInfo) :=
   return (← get).skolemMap
 
+def getVerifiedInhabitedTypes : ProverM abstractedMVarList :=
+  return (← get).verifiedInhabitedTypes
+
+def getInhabitedTypeWitnesses : ProverM ClauseSet :=
+  return (← get).inhabitedTypeWitnesses
+
+def getPotentiallyUninhabitedTypes : ProverM abstractedMVarList :=
+  return (← get).potentiallyUninhabitedTypes
+
+def getPotentiallyVacuousClauses : ProverM ClauseSet :=
+  return (← get).potentiallyVacuousClauses
+
 def getEmptyClause : ProverM (Option Clause) :=
   return (← get).emptyClause
 
@@ -179,6 +196,18 @@ def setQStreamSet (Q : ClauseStreamHeap ClauseStream) : ProverM Unit :=
 
 def setSkolemMap (skmap : HashMap Nat SkolemInfo) : ProverM Unit :=
   modify fun s => {s with skolemMap := skmap}
+
+def setVerifiedInhabitedTypes (verifiedInhabitedTypes : abstractedMVarList) : ProverM Unit :=
+  modify fun s => {s with verifiedInhabitedTypes := verifiedInhabitedTypes}
+
+def setInhabitedTypeWitnesses (inhabitedTypeWitnesses : ClauseSet) : ProverM Unit :=
+  modify fun s => {s with inhabitedTypeWitnesses := inhabitedTypeWitnesses}
+
+def setPotentiallyUninhabitedTypes (potentiallyUninhabitedTypes : abstractedMVarList) : ProverM Unit :=
+  modify fun s => {s with potentiallyUninhabitedTypes := potentiallyUninhabitedTypes}
+
+def setPotentiallyVacuousClauses (potentiallyVacuousClauses : ClauseSet) : ProverM Unit :=
+  modify fun s => {s with potentiallyVacuousClauses := potentiallyVacuousClauses}
 
 def setEmptyClause (c : Clause) : ProverM Unit :=
   modify fun s => {s with emptyClause := some c}
@@ -273,10 +302,7 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
     setPassiveSet $ (← getPassiveSet).insert c c.weight ci.number
   | none => throwError "Unable to find information for clausified clause {c}"
 
--- TODO: Initialize verifiedInhabitedTypes by examining each type that appears in the set of assumptions
--- attempting to synthesize the Inhabited typeclass.
-def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name)) (ctx : Context) (s : State) : 
-    MetaM (α × State) := do
+def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name)) (ctx : Context) (s : State) : MetaM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
     for (e, proof, paramNames) in es do
       let c := Clause.fromSingleExpr paramNames e
@@ -294,13 +320,11 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   setMCtx mctx
   return res
 
-/-
-  TODO: Check whether c is potentially vacuous (by checking whether it has any vanished bVarTypes whose types are not verified
-  to be inhabited). If it is, then add c to the active set and the set of potentiallyVacuousClauses, but not to any of the
-  superposition/demodulation indices or the subsumptionTrie. Alternatively, if it turns out to be easier to determine whether
-  c is potentially vacuous as an mclause (e.g. because of bVarTypes that depend on each other like the second of #[Nat, Fin #0]),
-  then write an additional, addVacuousToActive function that only adds c to the active set and the set of potentiallyVacuousClauses
--/
+def addPotentiallyVacuousToActive (c : Clause) : ProverM Unit := do
+  trace[typeInhabitationReasoning.debug] "Registering {c} as potentially vacuous"
+  setPotentiallyVacuousClauses $ (← getPotentiallyVacuousClauses).insert c
+  setActiveSet $ (← getActiveSet).insert c
+
 def addToActive (c : Clause) : ProverM Unit := do
   let cInfo ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
   let cNum := cInfo.number

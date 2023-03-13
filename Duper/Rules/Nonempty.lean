@@ -30,6 +30,7 @@ def removeInhabitedConstraint (potentiallyVacuousClauses : ClauseSet) : Backward
   match getNonemptyType givenSideClause with
   | none => return #[]
   | some t =>
+    trace[Rule.removeInhabitedConstraint] "Calling removeInhabitedConstraint with type {t} from {givenSideClause.lits}"
     let mut result := #[]
     for c in potentiallyVacuousClauses do
       let res ←
@@ -41,6 +42,9 @@ def removeInhabitedConstraint (potentiallyVacuousClauses : ClauseSet) : Backward
               match res with
               | some _ => return res
               | none =>
+                -- TODO: Rather than (← inferType mvar) == t, I should try to match t onto (← inferType mvar)
+                -- This way, if I derived `Nonempty (Option ?m) = True`, I can use that for any `Option` type
+                -- inhabitation constraints
                 if cExpr.abstract #[mvar] == cExpr && (← inferType mvar) == t then
                   -- TODO: Proof reconstruction
                   some <$> yieldClause c "removeInhabitedConstraint" none (mvarIdsToRemove := #[mvar.mvarId!])
@@ -48,6 +52,7 @@ def removeInhabitedConstraint (potentiallyVacuousClauses : ClauseSet) : Backward
             mvars.foldlM fold_fn none
       if let some cp := res then
         result := result.push (c, some cp)
+    trace[Rule.removeInhabitedConstraint] "Result: {result.map (fun x => x.2.get!.1)}"
     return result
 
 -- TODO: resolveInhabitedConstraint (the inference rule version of removeInhabitedConstraint)

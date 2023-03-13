@@ -33,6 +33,9 @@ import Duper.Rules.ForallHoist
 import Duper.Rules.NeHoist
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
+-- Type inhabitation reasoning rules
+import Duper.Util.TypeInhabitationReasoning
+import Duper.Rules.Nonempty
 
 namespace Duper
 
@@ -74,14 +77,25 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
   let subsumptionTrie ← getSubsumptionTrie
-  return #[
-    (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule,
-    (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
-    (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
-    (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
-    (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
-    (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
-  ]
+  if enableTypeInhabitationReasoning then
+    return #[
+      (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule,
+      (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
+      (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
+      (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
+      (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
+      (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule,
+      (removeInhabitedConstraint (← getPotentiallyVacuousClauses)).toBackwardSimpRule
+    ]
+  else
+    return #[
+      (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule,
+      (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
+      (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
+      (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
+      (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
+      (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
+    ]
 
 -- The first `Clause` is the given clause
 -- The second `MClause` is a loaded clause
@@ -118,10 +132,18 @@ partial def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := 
   Core.checkMaxHeartbeats "forwardSimpLoop"
   let activeSet ← getActiveSet
   if activeSet.contains givenClause then return none
-  match ← applyForwardSimpRules givenClause with
-  | Applied c => forwardSimplify c
-  | Unapplicable => return some givenClause 
-  | Removed => return none
+  if enableTypeInhabitationReasoning then
+    let some givenClause ← removeVanishedVars givenClause
+      | return none -- givenClause is potentially vacuous, so we cannot safely use it for any rules
+    match ← applyForwardSimpRules givenClause with
+    | Applied c => forwardSimplify c
+    | Unapplicable => return some givenClause
+    | Removed => return none
+  else
+    match ← applyForwardSimpRules givenClause with
+    | Applied c => forwardSimplify c
+    | Unapplicable => return some givenClause
+    | Removed => return none
 
 /-- Uses the givenClause to attempt to simplify other clauses in the active set. For each clause that backwardSimplify is
     able to produce a simplification for, backwardSimplify removes the clause adds any newly simplified clauses to the passive set.
@@ -199,6 +221,7 @@ partial def saturate : ProverM Unit := do
       let some simplifiedGivenClause ← forwardSimplify givenClause
         | continue
       trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause}"
+      if enableTypeInhabitationReasoning then registerNewInhabitedTypes simplifiedGivenClause
       backwardSimplify simplifiedGivenClause
       addToActive simplifiedGivenClause
       let inferenceRules ← inferenceRules

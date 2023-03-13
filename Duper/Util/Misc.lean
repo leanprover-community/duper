@@ -79,7 +79,7 @@ def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
       catch _ =>
         -- Find assumption in Local Context
         let ctx ← getLCtx
-        let option_matching_expr ← ctx.findDeclM? fun decl: Lean.LocalDecl => do
+        let option_matching_expr ← ctx.findDeclM? fun decl : Lean.LocalDecl => do
           let declExpr := decl.toExpr
           let declType ← Lean.Meta.inferType declExpr
           if ← Lean.Meta.isDefEq declType ty'
@@ -91,6 +91,10 @@ def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
         | some e => pure e
         | none => Meta.mkAppOptM ``default #[ty', none]
     mkLambdaFVars xs u
+
+def Lean.Meta.tryFindInstance (ty : Expr) : MetaM (Option Expr) :=
+  try Lean.Meta.findInstance ty
+  catch _ => return none
 
 /-- Returns the arity of e -/
 partial def getArity (e : Expr) : Nat :=
