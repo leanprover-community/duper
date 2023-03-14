@@ -45,13 +45,47 @@ namespace Order
 open Lean.Meta
 open Comparison
 
-def VarBalance := HashMap Expr Int
+def Weight := Int × Int
+deriving Inhabited
 
-def VarBalance.addPosVar (vb : VarBalance) (t : Expr) : VarBalance :=
+instance : Add Weight := ⟨fun (a₁, b₁) (a₂, b₂) => (a₁ + a₂, b₁ + b₂)⟩ 
+instance : Sub Weight := ⟨fun (a₁, b₁) (a₂, b₂) => (a₁ - a₂, b₁ - b₂)⟩ 
+instance : OfNat Weight n := ⟨(0, n)⟩
+instance : LT Weight := ⟨fun (a₁, b₁) (a₂, b₂) => a₁ < a₂ ∨ (a₁ = a₂ ∧ b₁ < b₂)⟩
+instance (v w : Weight) : Decidable (v < w) :=
+  if h : v.1 < w.1 ∨ (v.1 = w.1 ∧ v.2 < w.2) then .isTrue h else .isFalse fun g => h g
+
+local notation "ω" => ((1,0) : Weight)
+
+def VarBalance := HashMap (Expr × Bool) Weight
+
+def VarBalance.addPosVar (vb : VarBalance) (t : Expr × Bool) : VarBalance :=
   vb.insert t $ vb.findD t 0 + 1
 
-def VarBalance.addNegVar (vb : VarBalance) (t : Expr) : VarBalance :=
+def VarBalance.addNegVar (vb : VarBalance) (t : Expr × Bool) : VarBalance :=
   vb.insert t $ vb.findD t 0 - 1
+
+-- The orderings treat lambda-expressions like a "LAM" symbol applied to the
+-- type and body of the lambda-expression
+opaque LAM : Prop
+opaque FORALL : Prop
+opaque EXISTS : Prop
+def getHead (t : Expr) := match t with
+| Expr.lam .. => mkConst ``LAM
+| Expr.forallE .. => mkConst ``FORALL
+| Expr.app (Expr.app (Expr.const ``Exists _) _) _  => mkConst ``EXISTS
+| Expr.mdata _ t => getHead t
+| _ => t.getAppFn
+
+def getArgs (t : Expr) := match t with
+| Expr.lam _ ty b _ => [ty, b]
+| Expr.forallE _ ty b _ => [ty, b]
+| Expr.app (Expr.app (Expr.const ``Exists _) ty) b  =>
+  match b with
+  | .lam _ _ b _ => [ty, b]
+  | _ => [ty, .app (b.liftLooseBVars 0 1) (.bvar 0)]
+| Expr.mdata _ t => getArgs t
+| _ => t.getAppArgs.toList
 
 /-- Computes headWeight according to firstmaximal0 weight generation scheme. The head
     is given weight 1 unless if the head is the unique symbol with the highest precedence in
@@ -62,14 +96,17 @@ def VarBalance.addNegVar (vb : VarBalance) (t : Expr) : VarBalance :=
     assign the highest precedence symbol weight 0 (because this would violate KBO's constraint
     that all first-order 'constants' share some positive weight μ). In this case, I simply assign
     the highest precedence symbol weight 1, as with everything else. -/
-def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : Int := match f with
+def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) (belowLam : Bool): Weight := match f with
   | Expr.const name _ =>
-    let fSymbol := Symbol.Const name
-    match symbolPrecMap.find? fSymbol with
-    | some 0 => -- The symbol with the highest precedence in symbolPrecMap is mapped to 0 (unless it has arity zero)
-      if highesetPrecSymbolHasArityZero then 1
-      else 0
-    | _ => 1
+    if name == ``FORALL || name == ``EXISTS then
+      if belowLam then 1 else ω
+    else
+      let fSymbol := Symbol.Const name
+      match symbolPrecMap.find? fSymbol with
+      | some 0 => -- The symbol with the highest precedence in symbolPrecMap is mapped to 0 (unless it has arity zero)
+        if highesetPrecSymbolHasArityZero then 1
+        else 0
+      | _ => 1
   | Expr.fvar fVarId =>
     let fSymbol := Symbol.FVarId fVarId
     match symbolPrecMap.find? fSymbol with
@@ -88,22 +125,7 @@ def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHas
   | Expr.letE .. => panic! s!"head_weight: let expressions must be eliminated to compute order {f}"
   | Expr.proj .. => panic! s!"head_weight: projections must be eliminated to compute order {f}"
 
--- The orderings treat lambda-expressions like a "LAM" symbol applied to the
--- type and body of the lambda-expression
-opaque LAM : Prop
-opaque FORALL : Prop
-def getHead (t : Expr) := match t with
-| Expr.lam .. => mkConst ``LAM
-| Expr.forallE .. => mkConst ``FORALL
-| Expr.mdata _ t => getHead t
-| _ => t.getAppFn
-
-def getArgs (t : Expr) := match t with
-| Expr.lam _ ty b _ => [ty, b]
-| Expr.forallE _ ty b _ => [ty, b]
-| _ => t.getAppArgs.toList
-
-def weightVarHeaded : Int := 1
+def weightVarHeaded : Weight := 1
 
 def VarBalance.noNegatives (vb : VarBalance) : Bool := Id.run do
   for (_, b) in vb.toArray do
@@ -192,9 +214,12 @@ def symbolPrecCompare (e1 : Expr) (e2 : Expr) (s1 : Symbol) (s2 : Symbol) (symbo
 
 def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison := match f, g with
 
--- Sort > lam > db > quantifier > symbols > lits > False > True
+-- TODO: quantifiers: ex/forall
+-- Sort > lam > bvar > quantifier > symbols > lits > False > True
 | Expr.sort .., Expr.const ``LAM _ => return GreaterThan
 | Expr.sort .., Expr.bvar .. => return GreaterThan
+| Expr.sort .., Expr.const ``FORALL _ => return GreaterThan
+| Expr.sort .., Expr.const ``EXISTS _ => return GreaterThan
 | Expr.sort .., Expr.fvar .. => return GreaterThan
 | Expr.sort .., Expr.lit .. => return GreaterThan
 | Expr.sort .., Expr.const ``False _ => return GreaterThan
@@ -202,6 +227,8 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 
 | Expr.const ``LAM _, Expr.sort .. => return LessThan
 | Expr.const ``LAM _, Expr.bvar .. => return GreaterThan
+| Expr.const ``LAM _, Expr.const ``FORALL _ => return GreaterThan
+| Expr.const ``LAM _, Expr.const ``EXISTS _ => return GreaterThan
 | Expr.const ``LAM _, Expr.fvar .. => return GreaterThan
 | Expr.const ``LAM _, Expr.lit .. => return GreaterThan
 | Expr.const ``LAM _, Expr.const ``False _ => return GreaterThan
@@ -209,28 +236,54 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 
 | Expr.bvar .., Expr.sort .. => return LessThan
 | Expr.bvar .., Expr.const ``LAM _ => return LessThan
+| Expr.bvar .., Expr.const ``FORALL _ => return GreaterThan
+| Expr.bvar .., Expr.const ``EXISTS _ => return GreaterThan
 | Expr.bvar .., Expr.fvar .. => return GreaterThan
 | Expr.bvar .., Expr.lit .. => return GreaterThan
 | Expr.bvar .., Expr.const ``False _ => return GreaterThan
 | Expr.bvar .., Expr.const ``True _ => return GreaterThan
 
+| Expr.const ``FORALL _, Expr.sort .. => return LessThan
+| Expr.const ``FORALL _, Expr.const ``LAM _ => return LessThan
+| Expr.const ``FORALL _, Expr.bvar .. => return LessThan
+| Expr.const ``FORALL _, Expr.const ``EXISTS _ => return GreaterThan
+| Expr.const ``FORALL _, Expr.fvar .. => return GreaterThan
+| Expr.const ``FORALL _, Expr.lit .. => return GreaterThan
+| Expr.const ``FORALL _, Expr.const ``False _ => return GreaterThan
+| Expr.const ``FORALL _, Expr.const ``True _ => return GreaterThan
+
+| Expr.const ``EXISTS _, Expr.sort .. => return LessThan
+| Expr.const ``EXISTS _, Expr.const ``LAM _ => return LessThan
+| Expr.const ``EXISTS _, Expr.bvar .. => return LessThan
+| Expr.const ``EXISTS _, Expr.const ``FORALL _ => return LessThan
+| Expr.const ``EXISTS _, Expr.fvar .. => return GreaterThan
+| Expr.const ``EXISTS _, Expr.lit .. => return GreaterThan
+| Expr.const ``EXISTS _, Expr.const ``False _ => return GreaterThan
+| Expr.const ``EXISTS _, Expr.const ``True _ => return GreaterThan
+
 | Expr.fvar .., Expr.sort .. => return LessThan
 | Expr.fvar .., Expr.const ``LAM _ => return LessThan
 | Expr.fvar .., Expr.bvar .. => return LessThan
+| Expr.fvar .., Expr.const ``FORALL _ => return LessThan
+| Expr.fvar .., Expr.const ``EXISTS _ => return LessThan
 | Expr.fvar .., Expr.lit .. => return GreaterThan
 | Expr.fvar .., Expr.const ``False _ => return GreaterThan
 | Expr.fvar .., Expr.const ``True _ => return GreaterThan
 
 | Expr.lit .., Expr.sort .. => return LessThan
+| Expr.lit .., Expr.const ``LAM _ => return LessThan
 | Expr.lit .., Expr.bvar .. => return LessThan
+| Expr.lit .., Expr.const ``FORALL _ => return LessThan
+| Expr.lit .., Expr.const ``EXISTS _ => return LessThan
+| Expr.lit .., Expr.fvar .. => return LessThan
 | Expr.lit .., Expr.const ``False _ => return GreaterThan
 | Expr.lit .., Expr.const ``True _ => return GreaterThan
-| Expr.lit .., Expr.const .. => return LessThan
-| Expr.lit .., Expr.fvar .. => return LessThan
 
 | Expr.const ``False _, Expr.sort .. => return LessThan
 | Expr.const ``False _, Expr.const ``LAM _ => return LessThan
 | Expr.const ``False _, Expr.bvar .. => return LessThan
+| Expr.const ``False _, Expr.const ``FORALL _ => return LessThan
+| Expr.const ``False _, Expr.const ``EXISTS _ => return LessThan
 | Expr.const ``False _, Expr.fvar .. => return LessThan
 | Expr.const ``False _, Expr.lit .. => return LessThan
 | Expr.const ``False _, Expr.const ``True _ => return GreaterThan
@@ -238,6 +291,8 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | Expr.const ``True _, Expr.sort .. => return LessThan
 | Expr.const ``True _, Expr.const ``LAM _ => return LessThan
 | Expr.const ``True _, Expr.bvar .. => return LessThan
+| Expr.const ``True _, Expr.const ``FORALL _ => return LessThan
+| Expr.const ``True _, Expr.const ``EXISTS _ => return LessThan
 | Expr.const ``True _, Expr.fvar .. => return LessThan
 | Expr.const ``True _, Expr.lit .. => return LessThan
 | Expr.const ``True _, Expr.const ``False _ => return LessThan
@@ -249,6 +304,8 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
   else if m > n then return GreaterThan
   else if m < n then return LessThan
   else return Incomparable
+| Expr.const ``FORALL _, Expr.const ``FORALL _ => return Equal
+| Expr.const ``EXISTS _, Expr.const ``EXISTS _ => return Equal
 | Expr.fvar m .., Expr.fvar n .. => symbolPrecCompare f g (Symbol.FVarId m) (Symbol.FVarId n) symbolPrecMap
 | Expr.const ``False _, Expr.const ``False _ => return Equal
 | Expr.const ``True _, Expr.const ``True _ => return Equal
@@ -256,13 +313,18 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | Expr.sort .., Expr.const .. => return GreaterThan
 | Expr.const ``LAM _, Expr.const .. => return GreaterThan
 | Expr.bvar .., Expr.const .. => return GreaterThan
+| Expr.const ``FORALL _, Expr.const .. => return GreaterThan
+| Expr.const ``EXISTS _, Expr.const .. => return GreaterThan
 | Expr.fvar m .., Expr.const n .. => symbolPrecCompare f g (Symbol.FVarId m) (Symbol.Const n) symbolPrecMap
-| Expr.const ``True _, Expr.const .. => return LessThan
+| Expr.lit .., Expr.const .. => return LessThan
 | Expr.const ``False _, Expr.const .. => return LessThan
+| Expr.const ``True _, Expr.const .. => return LessThan
 
 | Expr.const .., Expr.sort .. => return LessThan
 | Expr.const .., Expr.const ``LAM _ => return LessThan
 | Expr.const .., Expr.bvar .. => return LessThan
+| Expr.const .., Expr.const ``FORALL _ => return LessThan
+| Expr.const .., Expr.const ``EXISTS _ => return LessThan
 | Expr.const m .., Expr.fvar n .. => symbolPrecCompare f g (Symbol.Const m) (Symbol.FVarId n) symbolPrecMap
 | Expr.const .., Expr.lit _ => return GreaterThan
 | Expr.const .., Expr.const ``False _ => return GreaterThan
@@ -292,106 +354,111 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | Expr.letE .., _ => panic! s!"precCompare: let expressions need to be eliminated before computing order {toString f} <> {toString g}"
 | _, Expr.letE .. => panic! s!"precCompare: let expressions need to be eliminated before computing order {toString f} <> {toString g}"
 
+/-- Overapproximation of being fluid -/
+def isFluid (t : Expr) := 
+  let t := t.consumeMData
+  (t.isApp && t.getAppFn.isMVar) || (t.isLambda && t.hasMVar)
 
 /-- Higher-Order KBO, inspired by `https://github.com/sneeuwballen/zipperposition/blob/master/src/core/Ordering.ml`.
 
-Roughly follows Section 3.9 of `https://matryoshka-project.github.io/pubs/hosup_article.pdf`
-and the article "Things to Know when Implementing KBO" by Bernd Löchner
+Follows Section 3.9 of `https://matryoshka-project.github.io/pubs/hosup_article.pdf`
+and the article "Things to Know when Implementing KBO" by Bernd Löchner.
 -/
 partial def kbo (t1 t2 : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
-  let (_, _, res) ← tckbo 0 HashMap.empty t1 t2
+  let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false)
   return res
 where
   /- Update variable balance, weight balance, and check whether the term contains the fluid term s.
     The argument `pos` determines whether weights and variables will be counted positively or negatively,
     i.e., whether `t` is the left term in the comparison.
     Returns the weight balance and whether `s` was found. -/
-  balance_weight (wb : Int) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) : MetaM (Int × VarBalance × Bool) := do
-    if t.isMVar then
-      return ← balance_weight_var wb vb t s pos
+  balance_weight (wb : Weight) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) (belowLam : Bool)
+      : MetaM (Weight × VarBalance × Bool) := do
+    if t.isMVar || isFluid t then
+      return ← balance_weight_var wb vb t s pos belowLam
     else
       match getHead t, getArgs t with
       | h@(Expr.mvar _), args =>
-        let (wb, vb, res) := ← balance_weight_var wb vb h s pos
-        balance_weight_rec wb vb args s pos res
+        let (wb, vb, res) := ← balance_weight_var wb vb h s pos belowLam
+        balance_weight_rec wb vb args s pos belowLam res
       | h, args =>
         let wb :=
           if pos
-          then wb + headWeight h symbolPrecMap highesetPrecSymbolHasArityZero
-          else wb - headWeight h symbolPrecMap highesetPrecSymbolHasArityZero
-        balance_weight_rec wb vb args s pos false
+          then wb + headWeight h symbolPrecMap highesetPrecSymbolHasArityZero belowLam
+          else wb - headWeight h symbolPrecMap highesetPrecSymbolHasArityZero belowLam
+        balance_weight_rec wb vb args s pos (belowLam := h.isConstOf ``LAM) false
   /- balance_weight for the case where t is an applied variable -/
-  balance_weight_var (wb : Int) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) : MetaM (Int × VarBalance × Bool) := do
+  balance_weight_var (wb : Weight) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) (belowLam : Bool) : MetaM (Weight × VarBalance × Bool) := do
     if pos then
-      let vb := vb.addPosVar t
+      let vb := vb.addPosVar (t, belowLam)
       let wb := wb + weightVarHeaded
       return (wb, vb, s == some t)
     else
-      let vb := vb.addNegVar t
+      let vb := vb.addNegVar (t, belowLam)
       let wb := wb - weightVarHeaded
       return (wb, vb, s == some t)
   /- list version of the previous one, threaded with the check result -/
-  balance_weight_rec (wb : Int) (vb : VarBalance) (terms : List Expr) (s : Option Expr) (pos : Bool) (res : Bool) : MetaM _ := 
+  balance_weight_rec (wb : Weight) (vb : VarBalance) (terms : List Expr) (s : Option Expr) (pos : Bool) (belowLam : Bool) (res : Bool) : MetaM _ := 
     match terms with
     | [] => pure (wb, vb, res)
     | t::terms' => do
-      let (wb, vb, res') := ← balance_weight wb vb t s pos
-      return ← balance_weight_rec wb vb terms' s pos (res || res')
+      let (wb, vb, res') := ← balance_weight wb vb t s pos belowLam
+      return ← balance_weight_rec wb vb terms' s pos belowLam (res || res')
   /- lexicographic comparison -/
-  tckbolex wb vb terms1 terms2 : MetaM _ := do
+  tckbolex wb vb terms1 terms2 (belowLam : Bool) : MetaM _ := do
     match terms1, terms2 with
     | [], [] => return (wb, vb, Comparison.Equal)
     | t1::terms1', t2::terms2' =>
-      match ← tckbo wb vb t1 t2 with
-        | (wb, vb, Comparison.Equal) => tckbolex wb vb terms1' terms2'
+      match ← tckbo wb vb t1 t2 belowLam with
+        | (wb, vb, Comparison.Equal) => tckbolex wb vb terms1' terms2' belowLam
         | (wb, vb, res) => -- (* just compute the weights and return result *)
-          let (wb, vb, _) := ← balance_weight_rec wb vb terms1' none (pos := true) false
-          let (wb, vb, _) := ← balance_weight_rec wb vb terms2' none (pos := false) false
+          let (wb, vb, _) := ← balance_weight_rec wb vb terms1' none (pos := true) belowLam false
+          let (wb, vb, _) := ← balance_weight_rec wb vb terms2' none (pos := false) belowLam false
           return (wb, vb, res)
     | [], _ =>
-      let (wb, vb, _) := ← balance_weight_rec wb vb terms2 none (pos := false) false
+      let (wb, vb, _) := ← balance_weight_rec wb vb terms2 none (pos := false) belowLam false
       return (wb, vb, Comparison.LessThan)
     | _, [] =>
-      let (wb, vb, _) := ← balance_weight_rec wb vb terms1 none (pos := true) false
+      let (wb, vb, _) := ← balance_weight_rec wb vb terms1 none (pos := true) belowLam false
       return (wb, vb, Comparison.GreaterThan)
   /- length-lexicographic comparison -/
-  tckbolenlex wb vb terms1 terms2 : MetaM _ := do
+  tckbolenlex wb vb terms1 terms2 (belowLam : Bool) : MetaM _ := do
     if terms1.length == terms2.length
-    then return ← tckbolex wb vb terms1 terms2
+    then return ← tckbolex wb vb terms1 terms2 belowLam
     else
       /- just compute the weights and return result -/
-      let (wb, vb, _) := ← balance_weight_rec wb vb terms1 none (pos := true) false
-      let (wb, vb, _) := ← balance_weight_rec wb vb terms2 none (pos := false) false
+      let (wb, vb, _) := ← balance_weight_rec wb vb terms1 none (pos := true) belowLam false
+      let (wb, vb, _) := ← balance_weight_rec wb vb terms2 none (pos := false) belowLam false
       let res :=
         if List.length terms1 > List.length terms2
         then Comparison.GreaterThan 
         else Comparison.LessThan
       return (wb, vb, res)
   /- tupled version of kbo (kbo_5 of the paper) -/
-  tckbo (wb : Int) (vb : VarBalance) (t1 t2 : Expr) : MetaM (Int × VarBalance × Comparison) := do
+  tckbo (wb : Weight) (vb : VarBalance) (t1 t2 : Expr) (belowLam : Bool) : MetaM (Weight × VarBalance × Comparison) := do
     if t1 == t2
     then return (wb, vb, Equal) -- do not update weight or var balance
     else
       match getHead t1, getHead t2 with
       | Expr.mvar _, Expr.mvar _ =>
-        let vb := vb.addPosVar t1;
-        let vb := vb.addNegVar t2;
+        let vb := vb.addPosVar (t1, belowLam);
+        let vb := vb.addNegVar (t2, belowLam);
         return (wb, vb, Incomparable)
       | Expr.mvar _,  _ =>
-        let vb := vb.addPosVar t1;
-        let (wb, vb, contains) ← balance_weight wb vb t2 (some t1) (pos := false)
+        let vb := vb.addPosVar (t1, belowLam);
+        let (wb, vb, contains) ← balance_weight wb vb t2 (some t1) (pos := false) belowLam
         return ((wb + weightVarHeaded), vb, if contains then LessThan else Incomparable)
       |  _, Expr.mvar _ =>
-        let vb := vb.addNegVar t2;
-        let (wb, vb, contains) ← balance_weight wb vb t1 (some t2) (pos := true)
+        let vb := vb.addNegVar (t2, belowLam);
+        let (wb, vb, contains) ← balance_weight wb vb t1 (some t2) (pos := true) belowLam
         return ((wb - weightVarHeaded), vb, if contains then GreaterThan else Incomparable)
       | h1, h2 => 
-        return ← tckbo_composite wb vb h1 h2 (getArgs t1) (getArgs t2)
+        return ← tckbo_composite wb vb h1 h2 (getArgs t1) (getArgs t2) belowLam
   /- tckbo, for non-variable-headed terms). -/
-  tckbo_composite wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
+  tckbo_composite wb vb f g ss ts (belowLam : Bool) : MetaM (Weight × VarBalance × Comparison) := do
     /- do the recursive computation of kbo -/
-    let (wb, vb, res) := ← tckbo_rec wb vb f g ss ts
-    let wb := wb + headWeight f symbolPrecMap highesetPrecSymbolHasArityZero - headWeight g symbolPrecMap highesetPrecSymbolHasArityZero
+    let (wb, vb, res) := ← tckbo_rec wb vb f g ss ts belowLam
+    let wb := wb + headWeight f symbolPrecMap highesetPrecSymbolHasArityZero belowLam - headWeight g symbolPrecMap highesetPrecSymbolHasArityZero belowLam
     /- check variable condition -/
     let g_or_n := if vb.noNegatives then GreaterThan else Incomparable
     let l_or_n := if vb.noPositives then LessThan else Incomparable
@@ -409,13 +476,15 @@ where
         else return (wb, vb, Incomparable)
       | _ => return (wb, vb, Incomparable)
   /- recursive comparison -/
-  tckbo_rec wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
+  tckbo_rec wb vb f g ss ts (belowLam : Bool) : MetaM (Weight × VarBalance × Comparison) := do
+    let ssBelowLam := belowLam || f.isConstOf ``LAM
+    let tsBelowLam := belowLam || g.isConstOf ``LAM
     if (← precCompare f g symbolPrecMap) == Comparison.Equal
-    then return ← tckbolenlex wb vb ss ts
+    then return ← tckbolenlex wb vb ss ts (belowLam := ssBelowLam)
     else
       /- just compute variable and weight balances -/
-      let (wb, vb, _) := ← balance_weight_rec wb vb ss none (pos := true) false
-      let (wb, vb, _) := ← balance_weight_rec wb vb ts none (pos := false) false
+      let (wb, vb, _) := ← balance_weight_rec wb vb ss none (pos := true) false (belowLam := ssBelowLam)
+      let (wb, vb, _) := ← balance_weight_rec wb vb ts none (pos := false) false (belowLam := tsBelowLam)
       return (wb, vb, Comparison.Incomparable)
 
 end Order
