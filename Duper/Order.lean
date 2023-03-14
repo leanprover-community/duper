@@ -81,8 +81,12 @@ def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHas
   | Expr.bvar .. => 1
   | Expr.sort .. => 1
   | Expr.lit .. => 1
-  | Expr.mdata _ e => headWeight e symbolPrecMap highesetPrecSymbolHasArityZero
-  | _ => panic! s!"head_weight: not implemented {f}"
+  | Expr.mdata .. => panic! s!"head_weight: mdata is not a valid head symbol {f}"
+  | Expr.forallE .. => panic! s!"head_weight: forall is not a valid head symbol {f}"
+  | Expr.lam .. => panic! s!"head_weight: lambda is not a valid head symbol {f}"
+  | Expr.app .. => panic! s!"head_weight: app is not a valid head symbol {f}"
+  | Expr.letE .. => panic! s!"head_weight: let expressions must be eliminated to compute order {f}"
+  | Expr.proj .. => panic! s!"head_weight: projections must be eliminated to compute order {f}"
 
 -- The orderings treat lambda-expressions like a "LAM" symbol applied to the
 -- type and body of the lambda-expression
@@ -91,6 +95,7 @@ opaque FORALL : Prop
 def getHead (t : Expr) := match t with
 | Expr.lam .. => mkConst ``LAM
 | Expr.forallE .. => mkConst ``FORALL
+| Expr.mdata _ t => getHead t
 | _ => t.getAppFn
 
 def getArgs (t : Expr) := match t with
@@ -101,13 +106,13 @@ def getArgs (t : Expr) := match t with
 def weightVarHeaded : Int := 1
 
 def VarBalance.noNegatives (vb : VarBalance) : Bool := Id.run do
-  for (v, b) in vb.toArray do
+  for (_, b) in vb.toArray do
     if b < 0 then
       return False
   return True
 
 def VarBalance.noPositives (vb : VarBalance) : Bool := Id.run do
-  for (v, b) in vb.toArray do
+  for (_, b) in vb.toArray do
     if b > 0 then
       return False
   return True
@@ -118,8 +123,6 @@ def nameCompare (n1 : Name) (n2 : Name) : Comparison :=
   match n1, n2 with
   | Name.anonymous, Name.anonymous => Equal
   | Name.num pre1 n1, Name.num pre2 n2 =>
-    -- For completeness, it is important that newer skolems have higher precedence than older skolems. Fortunately,
-    -- newer skolems also have larger numbers at the end, so simply comparing the numbers at the end works.
     if n1 < n2 then LessThan
     else if n1 > n2 then GreaterThan
     else nameCompare pre1 pre2
@@ -261,6 +264,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | Expr.const .., Expr.const ``LAM _ => return LessThan
 | Expr.const .., Expr.bvar .. => return LessThan
 | Expr.const m .., Expr.fvar n .. => symbolPrecCompare f g (Symbol.Const m) (Symbol.FVarId n) symbolPrecMap
+| Expr.const .., Expr.lit _ => return GreaterThan
 | Expr.const .., Expr.const ``False _ => return GreaterThan
 | Expr.const .., Expr.const ``True _ => return GreaterThan
 
@@ -275,17 +279,33 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
   if v == w then return Equal else return Incomparable
 | _, Expr.mvar _ => return Incomparable
 | Expr.mvar _, _ => return Incomparable
-| _, _ => panic! s!"precCompare: not implemented {toString f} <> {toString g}"
+| Expr.mdata .., _ => panic! s!"precCompare: mdata expression is not a valid head symbol {toString f} <> {toString g}"
+| _, Expr.mdata .. => panic! s!"precCompare: mdata expression is not a valid head symbol {toString f} <> {toString g}"
+| Expr.forallE .., _ => panic! s!"precCompare: forall expression is not a valid head symbol {toString f} <> {toString g}"
+| _, Expr.forallE .. => panic! s!"precCompare: forall expression is not a valid head symbol {toString f} <> {toString g}"
+| Expr.lam .., _ => panic! s!"precCompare: lambda expression is not a valid head symbol {toString f} <> {toString g}"
+| _, Expr.lam .. => panic! s!"precCompare: lambda expression is not a valid head symbol {toString f} <> {toString g}"
+| Expr.app .., _ => panic! s!"precCompare: applications are not a valid head symbol {toString f} <> {toString g}"
+| _, Expr.app .. => panic! s!"precCompare: applications are not a valid head symbol {toString f} <> {toString g}"
+| Expr.proj .., _ => panic! s!"precCompare: projections need to be eliminated before computing order {toString f} <> {toString g}"
+| _, Expr.proj .. => panic! s!"precCompare: projections need to be eliminated before computing order {toString f} <> {toString g}"
+| Expr.letE .., _ => panic! s!"precCompare: let expressions need to be eliminated before computing order {toString f} <> {toString g}"
+| _, Expr.letE .. => panic! s!"precCompare: let expressions need to be eliminated before computing order {toString f} <> {toString g}"
 
--- Inspired by Zipperposition
+
+/-- Higher-Order KBO, inspired by `https://github.com/sneeuwballen/zipperposition/blob/master/src/core/Ordering.ml`.
+
+Roughly follows Section 3.9 of `https://matryoshka-project.github.io/pubs/hosup_article.pdf`
+and the article "Things to Know when Implementing KBO" by Bernd Löchner
+-/
 partial def kbo (t1 t2 : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
   let (_, _, res) ← tckbo 0 HashMap.empty t1 t2
   return res
 where
---     -- (** Update variable balance, weight balance, and check whether the term contains the fluid term s.
---     --     @param pos stands for positive (is t the left term?)
---     --     @return weight balance, was `s` found?
---     -- *)
+  /- Update variable balance, weight balance, and check whether the term contains the fluid term s.
+    The argument `pos` determines whether weights and variables will be counted positively or negatively,
+    i.e., whether `t` is the left term in the comparison.
+    Returns the weight balance and whether `s` was found. -/
   balance_weight (wb : Int) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) : MetaM (Int × VarBalance × Bool) := do
     if t.isMVar then
       return ← balance_weight_var wb vb t s pos
@@ -300,7 +320,7 @@ where
           then wb + headWeight h symbolPrecMap highesetPrecSymbolHasArityZero
           else wb - headWeight h symbolPrecMap highesetPrecSymbolHasArityZero
         balance_weight_rec wb vb args s pos false
-  -- (** balance_weight for the case where t is an applied variable *)
+  /- balance_weight for the case where t is an applied variable -/
   balance_weight_var (wb : Int) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) : MetaM (Int × VarBalance × Bool) := do
     if pos then
       let vb := vb.addPosVar t
@@ -310,14 +330,14 @@ where
       let vb := vb.addNegVar t
       let wb := wb - weightVarHeaded
       return (wb, vb, s == some t)
---     (** list version of the previous one, threaded with the check result *)
+  /- list version of the previous one, threaded with the check result -/
   balance_weight_rec (wb : Int) (vb : VarBalance) (terms : List Expr) (s : Option Expr) (pos : Bool) (res : Bool) : MetaM _ := 
     match terms with
     | [] => pure (wb, vb, res)
     | t::terms' => do
       let (wb, vb, res') := ← balance_weight wb vb t s pos
       return ← balance_weight_rec wb vb terms' s pos (res || res')
---     (** lexicographic comparison *)
+  /- lexicographic comparison -/
   tckbolex wb vb terms1 terms2 : MetaM _ := do
     match terms1, terms2 with
     | [], [] => return (wb, vb, Comparison.Equal)
@@ -334,12 +354,12 @@ where
     | _, [] =>
       let (wb, vb, _) := ← balance_weight_rec wb vb terms1 none (pos := true) false
       return (wb, vb, Comparison.GreaterThan)
---     (* length-lexicographic comparison *)
+  /- length-lexicographic comparison -/
   tckbolenlex wb vb terms1 terms2 : MetaM _ := do
     if terms1.length == terms2.length
     then return ← tckbolex wb vb terms1 terms2
     else
-      --(* just compute the weights and return result *)
+      /- just compute the weights and return result -/
       let (wb, vb, _) := ← balance_weight_rec wb vb terms1 none (pos := true) false
       let (wb, vb, _) := ← balance_weight_rec wb vb terms2 none (pos := false) false
       let res :=
@@ -347,7 +367,7 @@ where
         then Comparison.GreaterThan 
         else Comparison.LessThan
       return (wb, vb, res)
---     (* tupled version of kbo (kbo_5 of the paper) *)
+  /- tupled version of kbo (kbo_5 of the paper) -/
   tckbo (wb : Int) (vb : VarBalance) (t1 t2 : Expr) : MetaM (Int × VarBalance × Comparison) := do
     if t1 == t2
     then return (wb, vb, Equal) -- do not update weight or var balance
@@ -367,15 +387,15 @@ where
         return ((wb - weightVarHeaded), vb, if contains then GreaterThan else Incomparable)
       | h1, h2 => 
         return ← tckbo_composite wb vb h1 h2 (getArgs t1) (getArgs t2)
---     (** tckbo, for non-variable-headed terms). *)
+  /- tckbo, for non-variable-headed terms). -/
   tckbo_composite wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
---       (* do the recursive computation of kbo *)
+    /- do the recursive computation of kbo -/
     let (wb, vb, res) := ← tckbo_rec wb vb f g ss ts
     let wb := wb + headWeight f symbolPrecMap highesetPrecSymbolHasArityZero - headWeight g symbolPrecMap highesetPrecSymbolHasArityZero
-    --(* check variable condition *)
+    /- check variable condition -/
     let g_or_n := if vb.noNegatives then GreaterThan else Incomparable
     let l_or_n := if vb.noPositives then LessThan else Incomparable
-    --(* lexicographic product of weight and precedence *)
+    /- lexicographic product of weight and precedence -/
     if wb > 0 then return (wb, vb, g_or_n)
     else if wb < 0 then return (wb, vb, l_or_n)
     else 
@@ -388,12 +408,12 @@ where
         else if res == GreaterThan then return (wb, vb, g_or_n)
         else return (wb, vb, Incomparable)
       | _ => return (wb, vb, Incomparable)
---     (* recursive comparison *)
+  /- recursive comparison -/
   tckbo_rec wb vb f g ss ts : MetaM (Int × VarBalance × Comparison) := do
     if (← precCompare f g symbolPrecMap) == Comparison.Equal
     then return ← tckbolenlex wb vb ss ts
     else
-      --(* just compute variable and weight balances *)
+      /- just compute variable and weight balances -/
       let (wb, vb, _) := ← balance_weight_rec wb vb ss none (pos := true) false
       let (wb, vb, _) := ← balance_weight_rec wb vb ts none (pos := false) false
       return (wb, vb, Comparison.Incomparable)
