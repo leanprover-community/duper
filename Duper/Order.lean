@@ -291,7 +291,7 @@ where
       return ← balance_weight_var wb vb t s pos
     else
       match getHead t, getArgs t with
-      | h@(Expr.mvar v), args =>
+      | h@(Expr.mvar _), args =>
         let (wb, vb, res) := ← balance_weight_var wb vb h s pos
         balance_weight_rec wb vb args s pos res
       | h, args =>
@@ -338,7 +338,7 @@ where
   tckbolenlex wb vb terms1 terms2 : MetaM _ := do
     if terms1.length == terms2.length
     then return ← tckbolex wb vb terms1 terms2
-    else (
+    else
       --(* just compute the weights and return result *)
       let (wb, vb, _) := ← balance_weight_rec wb vb terms1 none (pos := true) false
       let (wb, vb, _) := ← balance_weight_rec wb vb terms2 none (pos := false) false
@@ -347,7 +347,6 @@ where
         then Comparison.GreaterThan 
         else Comparison.LessThan
       return (wb, vb, res)
-    )
 --     (* tupled version of kbo (kbo_5 of the paper) *)
   tckbo (wb : Int) (vb : VarBalance) (t1 t2 : Expr) : MetaM (Int × VarBalance × Comparison) := do
     if t1 == t2
