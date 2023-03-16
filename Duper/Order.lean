@@ -31,6 +31,12 @@ abbrev SymbolPrecMap := HashMap Symbol Nat -- Maps symbols to their precedence. 
 
 namespace Comparison
 
+def flip : Comparison → Comparison
+| GreaterThan => LessThan
+| LessThan => GreaterThan
+| Incomparable => Incomparable
+| Equal => Equal
+
 instance : ToMessageData Comparison := ⟨
   fun c => match c with
 | GreaterThan => ">"
