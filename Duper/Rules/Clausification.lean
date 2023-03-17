@@ -257,8 +257,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
     let [ty_lvl] := lvls
       | throwError "Wrong number of levels in {lvls} for exists statement {e}"
     return #[
-        ⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr1, #[newmvar]⟩,
-        ⟨#[Lit.fromSingleExpr $ .app (.const ``Nonempty [ty_lvl]) ty], pr2, #[]⟩
+        ⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr1, #[newmvar]⟩
       ]
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_and_false #[premise]
@@ -284,8 +283,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         Meta.mkAppM ``eq_true #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
       let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``nonempty_of_forall_eq_false #[premise]
       return #[
-          ⟨#[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr1, #[newmvar]⟩,
-          ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
+          ⟨#[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr1, #[newmvar]⟩
         ]
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
     let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
