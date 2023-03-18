@@ -133,6 +133,17 @@ def dep₂ (done : Prop)
 
 #print dep₂.proof_1
 
+-- This tests DUnif's ability to avoid assigning `e` to mvar `m` when
+--   some mvars in `e` depends on `m`. This mostly concerns the binding
+--   `oracleInst` and `identification`.
+set_option trace.DUnif.debug true in
+set_option trace.Meta.Tactic true in
+def dep₃ (done : Prop) (inh : Sort u)
+         (h : ∀ (r : Type u) (a_1 : r → Prop) (a_2 : r), a_1 a_2 = Nonempty r → done) : done := by
+  apply h
+  case a => drefl attempt 21 unifier 0 contains 0; exact (Sort u);
+  case a_2 => exact inh
+
 end Dependent
 
 
@@ -159,13 +170,3 @@ def neg₂ (done : Prop) (f : Nat → Nat) (g : Nat → Nat →  Nat)
          (h : ∀ x y, g x y = g y (f x) → done) : done := by
   apply h
   case a => drefl attempt 10 unifier 0 contains 0
-
--- This tests DUnif's ability to avoid assigning `e` to mvar `m` when
---   some mvars in `e` depends on `m`. This mostly concerns the binding
---   `oracleInst` and `identification`.
-set_option trace.DUnif.debug true in
-set_option trace.Meta.Tactic true in
-def neg₃ (done : Prop)
-         (h : ∀ (r : Type u) (a_1 : r → Prop) (a_2 : r), a_1 a_2 = Nonempty r → done) : done := by
-  apply h
-  case a => drefl attempt 21 unifier 0 contains 0; exact (Sort u)

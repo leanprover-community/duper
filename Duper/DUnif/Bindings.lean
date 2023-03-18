@@ -212,13 +212,12 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
       -- `xs`, then this set is invalid
       if let some _ := Expr.find? (fun x => xsset.contains x) mvarTy then
         return #[]
-      let res ← (do
-        let newMVar ← Meta.withLCtx lctx₀ (← Meta.getLocalInstances) <|
-          Meta.mkFreshExprMVar mvarTy
-        let mt ← Meta.mkLambdaFVars xs (mkAppN newMVar vars)
-        MVarId.assign F.mvarId! mt
-        return {(← p.pushParentRuleIfDbgOn (.Elimination eq F isub mt))
-                 with checked := false, mctx := ← getMCtx, elimVar := p.elimVar.insert newMVar})
+      let newMVar ← Meta.withLCtx lctx₀ (← Meta.getLocalInstances) <|
+        Meta.mkFreshExprMVar mvarTy
+      let mt ← Meta.mkLambdaFVars xs (mkAppN newMVar vars)
+      MVarId.assign F.mvarId! mt
+      let res := {(← p.pushParentRuleIfDbgOn (.Elimination eq F isub mt))
+                   with checked := false, mctx := ← getMCtx, elimVar := p.elimVar.insert newMVar}
       return #[res]
     return indsubseqs.map nats2binding
 
@@ -258,16 +257,8 @@ def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM
     let sortβ ← Meta.inferType β
     let sortδ ← Meta.inferType δ
     let typeη ← Meta.mkForallFVars (xs ++ ys) sortβ
-    if let .sort lβ := sortβ then
-      if let .sort lδ := sortδ then
-        let same ← Meta.isLevelDefEq lβ lδ
-        return (typeη, same)
-      else
-        trace[DUnif.debug] "identification : {sortδ} is not a sort"
-        return (typeη, false)
-    else
-      trace[DUnif.debug] "identification : {sortβ} is not a sort"
-      return (typeη, false)
+    let same ← Meta.isDefEq sortβ sortδ
+    return (typeη, same)
   if ¬ samesort then
     return .NewArray #[]
   -- make η and H

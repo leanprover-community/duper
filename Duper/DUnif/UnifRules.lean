@@ -134,43 +134,38 @@ def exprForallToLambda (e : Expr) (n : Nat) : MetaM (Expr × (Option Expr) × Ar
     let e' ← Meta.mkLambdaFVars (xs ++ prev) body
     return (e', sort, retarr)
 
-partial def derefNormType (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × Bool) :=
+@[inline] partial def derefNormType (e : Expr) : MetaM (Expr × Bool) :=
   Meta.forallTelescope e fun xs' body => do
     let body ← Meta.whnf body
     let fn := Expr.getAppFn body
+    let e' ← Meta.mkForallFVars xs' body
     if let .mvar _ := fn then
-      let args := Expr.getAppArgs body
-      let body' := mkAppN fn args
-      let e' ← Meta.mkForallFVars (xs ++ xs') body'
       return (e', true)
     else
-      let e' ← Meta.mkForallFVars (xs ++ xs') body
       return (e', false)
 
 -- Dereference head and normalize, assuming that `e` has been eta expanded
 -- Return: (processed expression, is_flex)
-@[inline] partial def derefNormTerm (e : Expr) (xs : Array Expr := #[]) : MetaM (Expr × Bool) :=
+@[inline] partial def derefNormTerm (e : Expr) : MetaM (Expr × Bool) :=
   Meta.lambdaTelescope e fun xs' body => do
     let body ← Meta.whnf body
     let fn := Expr.getAppFn body
     match fn with
     | .mvar _ => do
-      let args := Expr.getAppArgs body
-      let body' := mkAppN fn args
-      let e' ← Meta.mkLambdaFVars (xs ++ xs') body'
+      let e' ← Meta.mkLambdaFVars xs' body
       return (e', true)
     | .forallE _ _ _ _  => do
       -- type can't be applied
-      if body.getAppArgs.size != 0 then
+      if body.getAppNumArgs != 0 then
         trace[DUnif.debug] "Type {fn} is applied to arguments in {body}"
       let (body, flex) ← derefNormType fn
-      let e' ← Meta.mkLambdaFVars (xs ++ xs') body
+      let e' ← Meta.mkLambdaFVars xs' body
       return (e', flex)
     | _ => do
-      let e' ← Meta.mkLambdaFVars (xs ++ xs') body
+      let e' ← Meta.mkLambdaFVars xs' body
       return (e', false)
 
-@[inline] def derefNormEq (u : UnifEq) : MetaM UnifEq := do
+def derefNormEq (u : UnifEq) : MetaM UnifEq := do
   let mut lhs' := u.lhs
   let mut lflex' := u.lflex
   if u.lflex then
