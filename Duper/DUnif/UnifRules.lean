@@ -119,6 +119,10 @@ def structInfo (p : UnifProblem) (e : Expr) : MetaM (Expr × StructType) := do
 def exprForallToLambda (e : Expr) (n : Nat) : MetaM (Expr × (Option Expr) × Array Expr) :=
   Meta.lambdaTelescope e fun xs e' => Meta.forallBoundedTelescope e' n fun ys body => do
     -- Do not unify sort if `body` begins with `forallE`
+    -- This is because that `forall` will later be transformed to
+    -- `lambda` and the binder's type and sort will be unified. Finally
+    -- when the body does not begin with `lambda`, it's sort will be
+    -- unified.
     let sort :=
       if let .forallE _ _ _ _ := body then
         none
@@ -133,6 +137,45 @@ def exprForallToLambda (e : Expr) (n : Nat) : MetaM (Expr × (Option Expr) × Ar
       prev := prev.push y
     let e' ← Meta.mkLambdaFVars (xs ++ prev) body
     return (e', sort, retarr)
+
+def exprPairForallToLambda (e₁ : Expr) (e₂ : Expr) (n : Nat) : MetaM (Option UnifEq × Array UnifEq) :=
+  Meta.lambdaTelescope e₁ fun xs₁ e₁' => Meta.forallBoundedTelescope e₁' n fun ys₁ body₁ =>
+    Meta.lambdaTelescope e₂ fun xs₂ e₂' => Meta.forallBoundedTelescope e₂' n fun ys₂ body₂ => do
+      if ys₁.size != n || ys₂.size != n then
+        throwError "exprPairForallToLambda :: Incorrect number of foralls"
+      let sort₁ ← Meta.inferType body₁
+      let sort₂ ← Meta.inferType body₂
+      let mut retarr : Array UnifEq := #[]
+      let mut prev₁ := #[]
+      let mut prev₂ := #[]
+      for i in [0:n] do
+        let y₁ := ys₁[i]!
+        let y₂ := ys₂[i]!
+        let yty₁ ← Meta.inferType y₁
+        let yty₂ ← Meta.inferType y₂
+        let ysort₁ ← Meta.inferType yty₁
+        let ysort₂ ← Meta.inferType yty₂
+        if ysort₁ != ysort₂ then
+          retarr := retarr.push (.fromExprPair ysort₁ ysort₂)
+        if yty₁ != yty₂ then
+          let absty₁ ← Meta.mkLambdaFVars (xs₁ ++ prev₁) yty₁
+          let absty₂ ← Meta.mkLambdaFVars (xs₂ ++ prev₂) yty₂
+          retarr := retarr.push (.fromExprPair absty₁ absty₂)
+        prev₁ := prev₁.push y₁
+        prev₂ := prev₂.push y₂
+      if body₁ != body₂ then
+        let abstb₁ ← Meta.mkLambdaFVars (xs₁ ++ prev₁) body₁
+        let abstb₂ ← Meta.mkLambdaFVars (xs₂ ++ prev₂) body₂
+        retarr := retarr.push (.fromExprPair abstb₁ abstb₂)
+      let sorteq :=
+        if let .forallE _ _ _ _ := body₁ then
+          none
+        else
+          if let .forallE _ _ _ _ := body₂ then
+            none
+          else
+            UnifEq.fromExprPair sort₁ sort₂
+      return (sorteq, retarr)
 
 @[inline] partial def derefNormType (e : Expr) : MetaM (Expr × Bool) :=
   Meta.forallTelescope e fun xs' body => do
@@ -211,7 +254,7 @@ def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := do
 -- This function turns `forall` into `lambda`
 -- If there is `forall`, then this is a type unification problem,
 --   and it's supposed to be prioritized
-def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array UnifProblem) := do
+@[deprecated] def forallToLambdaSeparate (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let (lhs', lsort, larray) ← exprForallToLambda eq.lhs n
   let (rhs', rsort, rarray) ← exprForallToLambda eq.rhs n
@@ -223,6 +266,19 @@ def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array Unif
   let neweqs := (larray.zip rarray).map (fun (a, b) => UnifEq.fromExprPair a b)
   -- Later types depend on previous, so we push in reverse order
   let p := p.appendPrioritized neweqs.reverse
+  return #[{(← p.pushParentRuleIfDbgOn (.ForallToLambda eq n)) with checked := false, mctx := ← getMCtx}]
+
+-- This function turns `forall` into `lambda`
+-- If there is `forall`, then this is a type unification problem,
+--   and it's supposed to be prioritized
+def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array UnifProblem) := do
+  setMCtx p.mctx
+  let (sorteq, arreq) ← exprPairForallToLambda eq.lhs eq.rhs n
+  if let some sorteq := sorteq then
+    if ¬ (← Meta.isDefEq sorteq.lhs sorteq.rhs) then
+      return #[]
+  -- Later types depend on previous, so we push in reverse order
+  let p := p.appendPrioritized arreq.reverse
   return #[{(← p.pushParentRuleIfDbgOn (.ForallToLambda eq n)) with checked := false, mctx := ← getMCtx}]
 
 -- This function takes care of `Fail` and `Decompose`, and `Delete` of constant pair with level mvars

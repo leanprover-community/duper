@@ -18,6 +18,12 @@ def tri₂ (done : Prop)
   case a => drefl attempt 500 unifier 0 contains 0 iteron; exact 1
 #print tri₂.proof_1
 
+@[reducible] def fooNat := Nat
+
+set_option trace.DUnif.debug true in
+def tri₃ : (Nat → Nat → Nat → Nat → Nat) = (Nat → Nat → Nat → fooNat → Nat) := by
+  drefl attempt 11 unifier 0 contains 0
+
 -- Iteration
 set_option trace.DUnif.debug true in
 set_option oracleInstOn false in
@@ -129,7 +135,7 @@ set_option dUnifDbgOn false in
 def dep₂ (done : Prop)
          (h : ∀ x, x = Nat.add1 → done) : done := by
   apply h
-  case a => drefl attempt 120000 unifier 0 contains 0
+  case a => drefl attempt 130000 unifier 0 contains 0
 
 #print dep₂.proof_1
 
@@ -170,3 +176,11 @@ def neg₂ (done : Prop) (f : Nat → Nat) (g : Nat → Nat →  Nat)
          (h : ∀ x y, g x y = g y (f x) → done) : done := by
   apply h
   case a => drefl attempt 10 unifier 0 contains 0
+
+set_option trace.DUnif.debug true in
+def neg₃ : (Nat → Bool → Nat → Bool → Nat) = (Bool → Nat → Bool → Nat → Bool) := by
+  drefl attempt 11 unifier 0 contains 0
+
+set_option trace.DUnif.debug true in
+def neg₄ : (Nat → Type 2 → Type 1) = (Nat → Bool → Type 2) := by
+  drefl attempt 11 unifier 0 contains 0
