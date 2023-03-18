@@ -66,7 +66,6 @@ structure State where
   demodSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
   skolemMap : HashMap Nat SkolemInfo := HashMap.empty
-  opaqueNatName : Name := Name.anonymous
   skolemSorryName : Name := Name.anonymous
   verifiedInhabitedTypes : abstractedMVarList := []
   inhabitedTypeWitnesses : ClauseSet := {} -- The set of clauses of the form `Nonempty t = True` or `True = Nonempty t`
@@ -136,9 +135,6 @@ def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
 
 def getQStreamSet : ProverM (ClauseStreamHeap ClauseStream) :=
   return (← get).qStreamSet
-
-def getOpaqueNatName : ProverM Name :=
-  return (← get).opaqueNatName
 
 def getSkolemSorryName : ProverM Name :=
   return (← get).skolemSorryName
@@ -315,7 +311,7 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   let symbolPrecMap ← getSymbolPrecMap
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
   let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
-  let (res, state) ← RuleM.run x (ctx := {order := order, skolemSorryName := ← getSkolemSorryName, opaqueNatName := ← getOpaqueNatName}) (s := {skolemMap := ← getSkolemMap})
+  let (res, state) ← RuleM.run x (ctx := {order := order, skolemSorryName := ← getSkolemSorryName}) (s := {skolemMap := ← getSkolemMap})
   ProverM.setSkolemMap state.skolemMap
   setMCtx mctx
   return res

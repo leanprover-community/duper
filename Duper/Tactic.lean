@@ -123,7 +123,7 @@ partial def PRM.matchSkolem : Expr → PRM TransformStep
   let skolemSorryName := (← read).pmstate.skolemSorryName
   if skName == skolemSorryName then
     let opqn := args[0]!
-    let lvls ← runMetaAsPRM <| RuleM.unWrapOpqaueNat opqn (← read).pmstate.opaqueNatName
+    let lvls ← runMetaAsPRM <| RuleM.unWrapSort opqn
     let .natVal skid := args[1]!.litValue!
       | throwError "PRM.matchSkolem :: Invalid skolem id!"
     let skTy := args[2]!
@@ -328,30 +328,6 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Arr
 def collectedAssumptionToMessageData : Expr × Expr × Array Name → MessageData
 | (ty, term, names) => MessageData.compose (.compose m!"{names} @ " m!"{term} : ") m!"{ty}"
 
-def addOpaqueNat : CoreM Name := do
-  let nameS := "opaqueNat"
-  let env := (← get).env
-  let mut cnt := 0
-  let currNameSpace := (← read).currNamespace
-  while true do
-    let name := Name.num (Name.str currNameSpace nameS) cnt
-    if env.constants.contains name then
-      cnt := cnt + 1
-    else
-      break
-  let name := Name.num (Name.str currNameSpace nameS) cnt
-  let lvlName := `u
-  let lvl := Level.param lvlName
-  let type := Expr.forallE `l (.sort lvl) (.const ``Nat []) .default
-  let term := Expr.lam `l (.sort lvl) (.const ``Nat.zero []) .default
-  let opaqueVal : OpaqueVal := {name := name, levelParams := [lvlName],
-                                type := type, value := term, isUnsafe := true, all := [name]}
-  let decl : Declaration := (.opaqueDecl opaqueVal)
-  match (← getEnv).addDecl decl with
-  | Except.ok    env => setEnv env
-  | Except.error ex  => throwKernelException ex
-  return name
-
 -- Add the constant `skolemSorry` to the environment.
 -- Add suitable postfix to avoid name conflict.
 def addSkolemSorry : CoreM Name := do
@@ -366,10 +342,12 @@ def addSkolemSorry : CoreM Name := do
     else
       break
   let name := Name.num (Name.str currNameSpace nameS) cnt
-  let lvlName := `u
-  let lvl := Level.param lvlName
-  -- Type = ∀ (p : Nat) (n : Nat) (α : Sort u), α
-  -- The preceeding ```Nat``` is needed for recording level parameters.
+  let vlvlName := `v
+  let vlvl := Level.param vlvlName
+  let ulvlName := `u
+  let ulvl := Level.param ulvlName
+  -- Type = ∀ (p : Sort v) (n : Nat) (α : Sort u), α
+  -- The preceeding ```Sort v``` is needed for recording level parameters.
   --   We'll show how it is used using the following example:
   -- Suppose we are clausifying
   --   ``∃ (x : Nat), f (Type u) x = g (Type v) x``
@@ -383,18 +361,18 @@ def addSkolemSorry : CoreM Name := do
   --   recover the levels, as we have to identify for each skolem constant
   --   in the result clause which parent it's from, and backtrack all the
   --   way to the clause where the skolem was created.
-  -- To solve this problem, we record the levels within the ``Nat`` argument.
-  --   In the above example, it will be recorded as ```opaqueNat (Type u → Type v → Type)```.
-  let type := Expr.forallE `p (Expr.const ``Nat []) (Expr.forallE `n (Expr.const ``Nat []) (
-    Expr.forallE `α (Expr.sort lvl) (.bvar 0) .implicit
+  -- To solve this problem, we record the levels within the ``p`` argument.
+  --   In the above example, it will be recorded as ```Type u → Type v → Type```.
+  let type := Expr.forallE `p (Expr.sort vlvl) (Expr.forallE `n (Expr.const ``Nat []) (
+    Expr.forallE `α (Expr.sort ulvl) (.bvar 0) .implicit
   ) .default) .implicit
   -- Term = fun (p : Nat) (n : Nat) (α : Sort u) => sorryAx.{u} α false
-  let term := Expr.lam `p (Expr.const ``Nat []) (Expr.lam `n (Expr.const ``Nat []) (
-    Expr.lam `α (Expr.sort lvl) (
-      Expr.app (Expr.app (Expr.const ``sorryAx [lvl]) (.bvar 0)) (Expr.const ``false [])
+  let term := Expr.lam `p (Expr.sort vlvl) (Expr.lam `n (Expr.const ``Nat []) (
+    Expr.lam `α (Expr.sort ulvl) (
+      Expr.app (Expr.app (Expr.const ``sorryAx [ulvl]) (.bvar 0)) (Expr.const ``false [])
     ) .implicit
   ) .default) .implicit
-  let opaqueVal : OpaqueVal := {name := name, levelParams := [lvlName],
+  let opaqueVal : OpaqueVal := {name := name, levelParams := [vlvlName, ulvlName],
                                 type := type, value := term, isUnsafe := true, all := [name]}
   let decl : Declaration := (.opaqueDecl opaqueVal)
   match (← getEnv).addDecl decl with
@@ -410,11 +388,10 @@ macro_rules
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
   -- Add the constant `skolemSorry` to the environment
-  let opaqueNatName ← addOpaqueNat
   let skSorryName ← addSkolemSorry
   trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
   let (_, state) ←
-    ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName, opaqueNatName := opaqueNatName})
+    ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
       ProverM.saturateNoPreprocessingClausification
       formulas
   return state

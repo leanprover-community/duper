@@ -15,7 +15,6 @@ def enableTypeInhabitationReasoning := false
 
 structure Context where
   order : Expr → Expr → MetaM Comparison
-  opaqueNatName : Name
   skolemSorryName : Name
 deriving Inhabited
 
@@ -85,9 +84,6 @@ initialize registerTraceClass `Rule
 
 def getOrder : RuleM (Expr → Expr → MetaM Comparison) :=
   return (← read).order
-
-def getOpaqueNatName : RuleM Name :=
-  return (← read).opaqueNatName
 
 def getSkolemSorryName : RuleM Name :=
   return (← read).skolemSorryName
@@ -164,22 +160,15 @@ def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
     else return TransformStep.continue s)
 
 -- Support for skolems with universe levels
-def wrapSortIntoOpaqueNat (paramNames : Array Name) : RuleM Expr := do
+def wrapSort (paramNames : Array Name) : RuleM Expr := do
   let mut expr := Expr.sort (.succ .zero)
   let nameRev := paramNames.reverse
   for name in nameRev do
     expr := Expr.forallE `_ (.sort (Level.param name)) expr .default
-  let ty ← Meta.inferType expr
-  let lvl := ty.sortLevel!
-  let opaqueNatName ← getOpaqueNatName
-  return Expr.app (Expr.const opaqueNatName [lvl]) expr
+  return expr
 
-def unWrapOpqaueNat (e : Expr) (opaqueNatName : Name) : MetaM (Array Level) := do
-  let Expr.app (Expr.const opn [_]) sortForall := e
-    | throwError "unWrapOpaqueNat :: Invalid expression {e}"
-  if opn != opaqueNatName then
-    throwError "unWrapOpaqueNat :: Unknown name {opaqueNatName}"
-  Meta.forallTelescope sortForall fun xs _ => do
+def unWrapSort (e : Expr) : MetaM (Array Level) := do
+  Meta.forallTelescope e fun xs _ => do
     let tys ← xs.mapM Meta.inferType
     return tys.map Expr.sortLevel!
 
