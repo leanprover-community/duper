@@ -23,17 +23,10 @@ inductive VarRemovalRes
 
 open VarRemovalRes
 
-def mkRemoveVanishedVarsProof (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
-  (c : Clause) : MetaM Expr := do
-  Meta.forallTelescope c.toForallExpr fun xs body => do
-    let (_, appliedPremises, _) ← instantiatePremises parents premises xs transferExprs
-    let appliedPremise := appliedPremises[0]!
-    Meta.mkLambdaFVars xs appliedPremise
-
 /-- Attempts to remove the vanished variables that appear in c, updating verifiedInhabitedTypes and potentiallyUninhabitedTypes as it
     encounters types whose inhabitation status has not previously been checked. -/
-def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMVarList) (potentiallyUninhabitedTypes : abstractedMVarList)
-  : RuleM (VarRemovalRes × abstractedMVarList × abstractedMVarList) := do
+def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMVarList) (verifiedNonemptyTypes : abstractedMVarAndClauseList)
+  (potentiallyUninhabitedTypes : abstractedMVarList) : RuleM (VarRemovalRes × abstractedMVarList × abstractedMVarList) := do
   let (mvars, mclause) ← loadClauseCore c
   let mut verifiedInhabitedTypes := verifiedInhabitedTypes
   let (_, s) := AbstractMVars.abstractExprMVars mclause.toExpr { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
@@ -48,18 +41,23 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
       if verifiedInhabitedTypes.contains abstractedType then
         mvarIdsToRemove := mvarIdsToRemove.push mvarId
         continue
-      else if potentiallyUninhabitedTypes.contains abstractedType then
-        return (PotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
-      else -- This is a type we haven't seen yet. Try to synthesize inhabited
-        match ← Meta.tryFindInstance mvarType with
-        | none => return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
-        | some _ =>
-          verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
-          mvarIdsToRemove := mvarIdsToRemove.push mvarId
+      match verifiedNonemptyTypes.find? (fun (t, c) => t == abstractedType) with
+      | some (_, c) =>
+        let _ ← loadClause c -- Adding c as a parent so that its proof is available to proof reconstruction
+        mvarIdsToRemove := mvarIdsToRemove.push mvarId
+      | none =>
+        if potentiallyUninhabitedTypes.contains abstractedType then
+          return (PotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
+        else -- This is a type we haven't seen yet. Try to synthesize inhabited
+          match ← Meta.tryFindInstance mvarType with
+          | none => return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
+          | some _ =>
+            verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
+            mvarIdsToRemove := mvarIdsToRemove.push mvarId
   if mvarIdsToRemove.size == 0 then
     return (NoVanishedVars, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
   else
-    let cp ← yieldClause mclause "removeVanishedVars" (some mkRemoveVanishedVarsProof) (mvarIdsToRemove := mvarIdsToRemove)
+    let cp ← yieldClause mclause "removeVanishedVars" none (mvarIdsToRemove := mvarIdsToRemove)
     return (Success cp, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
 
 /-- Iterates through c's bVarTypes and removes each bVarType whose bvar does not appear in c. If `removeVanishedVars`
@@ -70,7 +68,7 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
     it uniquely interacts with ProverM's verifiedInhabitedTypes and potentiallyUninhabitedTypes. -/
 def removeVanishedVars (givenClause : Clause) : ProverM (Option Clause) := do
   let (res, verifiedInhabitedTypes, potentiallyUninhabitedTypes) ← runRuleM $
-    removeVanishedVarsHelper givenClause (← getVerifiedInhabitedTypes) (← getPotentiallyUninhabitedTypes)
+    removeVanishedVarsHelper givenClause (← getVerifiedInhabitedTypes) (← getVerifiedNonemptyTypes) (← getPotentiallyUninhabitedTypes)
   setVerifiedInhabitedTypes verifiedInhabitedTypes
   setPotentiallyUninhabitedTypes potentiallyUninhabitedTypes
   match res with
@@ -102,7 +100,7 @@ def registerNewInhabitedTypes (givenClause : Clause) : ProverM Unit := do
   let some abstractedT ← runRuleM $  registerNewInhabitedTypesHelper givenClause
     | return -- If registerNewInhabitedTypesHelper returns none, then givenClause is not of the appropriate form
   let verifiedInhabitedTypes ← getVerifiedInhabitedTypes
+  let verifiedNonemptyTypes ← getVerifiedNonemptyTypes
   if verifiedInhabitedTypes.contains abstractedT then return
-  else
-    setVerifiedInhabitedTypes (abstractedT :: verifiedInhabitedTypes)
-    setInhabitedTypeWitnesses ((← getInhabitedTypeWitnesses).insert givenClause)
+  else if verifiedNonemptyTypes.any (fun (t, c) => t == abstractedT) then return
+  else setVerifiedNonemptyTypes ((abstractedT, givenClause) :: verifiedNonemptyTypes)

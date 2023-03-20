@@ -43,6 +43,7 @@ deriving Inhabited
 abbrev ClauseSet := HashSet Clause
 abbrev FairAgeClauseHeap := StrategyHeap Clause (β:=Nat)
 abbrev abstractedMVarList := List Meta.AbstractMVarsResult
+abbrev abstractedMVarAndClauseList := List (Meta.AbstractMVarsResult × Clause)
 
 instance : ToMessageData Result := 
 ⟨fun r => match r with
@@ -67,8 +68,8 @@ structure State where
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
   skolemMap : HashMap Nat SkolemInfo := HashMap.empty
   skolemSorryName : Name := Name.anonymous
-  verifiedInhabitedTypes : abstractedMVarList := []
-  inhabitedTypeWitnesses : ClauseSet := {} -- The set of clauses of the form `Nonempty t = True` or `True = Nonempty t`
+  verifiedInhabitedTypes : abstractedMVarList := [] -- List of (abstracted) types that we have determined are inhabited by typeclass inference
+  verifiedNonemptyTypes : abstractedMVarAndClauseList := [] -- List of (abstracted) types that duper has derived are nonempty (along with the clause asserting that fact)
   potentiallyUninhabitedTypes : abstractedMVarList := []
   potentiallyVacuousClauses : ClauseSet := {}
   -- We need this field because empty clauses may contain
@@ -145,8 +146,8 @@ def getSkolemMap : ProverM (HashMap Nat SkolemInfo) :=
 def getVerifiedInhabitedTypes : ProverM abstractedMVarList :=
   return (← get).verifiedInhabitedTypes
 
-def getInhabitedTypeWitnesses : ProverM ClauseSet :=
-  return (← get).inhabitedTypeWitnesses
+def getVerifiedNonemptyTypes : ProverM abstractedMVarAndClauseList :=
+  return (← get).verifiedNonemptyTypes
 
 def getPotentiallyUninhabitedTypes : ProverM abstractedMVarList :=
   return (← get).potentiallyUninhabitedTypes
@@ -196,8 +197,8 @@ def setSkolemMap (skmap : HashMap Nat SkolemInfo) : ProverM Unit :=
 def setVerifiedInhabitedTypes (verifiedInhabitedTypes : abstractedMVarList) : ProverM Unit :=
   modify fun s => {s with verifiedInhabitedTypes := verifiedInhabitedTypes}
 
-def setInhabitedTypeWitnesses (inhabitedTypeWitnesses : ClauseSet) : ProverM Unit :=
-  modify fun s => {s with inhabitedTypeWitnesses := inhabitedTypeWitnesses}
+def setVerifiedNonemptyTypes (verifiedNonemptyTypes : abstractedMVarAndClauseList) : ProverM Unit :=
+  modify fun s => {s with verifiedNonemptyTypes := verifiedNonemptyTypes}
 
 def setPotentiallyUninhabitedTypes (potentiallyUninhabitedTypes : abstractedMVarList) : ProverM Unit :=
   modify fun s => {s with potentiallyUninhabitedTypes := potentiallyUninhabitedTypes}

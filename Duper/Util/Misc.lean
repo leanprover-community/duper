@@ -18,6 +18,14 @@ private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) 
   else
     return e
 
+private partial def instantiateForallAuxNoError (ps : Array Expr) (i : Nat) (e : Expr) : Expr :=
+  if h : i < ps.size then
+    let p := ps.get ⟨i, h⟩
+    match e with
+    | Expr.forallE _ _ b _ => instantiateForallAuxNoError ps (i+1) (b.instantiate1 p)
+    | _ => panic! "Called instantiateForallAuxNoError with too many parameters"
+  else e
+
 def Lean.getParamLevelName! : Level → Name
 | .param name => name
 | e           => panic! s!"Lean.getLevelParamName! :: Level {e} is not a parameter level."
@@ -33,6 +41,9 @@ def Lean.Expr.countForalls : Expr → Nat
 /-- Given `e` of the form `forall (a_1 : A_1) ... (a_n : A_n), B[a_1, ..., a_n]` and `p_1 : A_1, ... p_n : A_n`, return `B[p_1, ..., p_n]`. -/
 def Lean.Expr.instantiateForallNoReducing (e : Expr) (ps : Array Expr) : MetaM Expr :=
   instantiateForallAux ps 0 e
+
+def Lean.Expr.instantiateForallNoReducingNoError (e : Expr) (ps : Array Expr) : Expr :=
+  instantiateForallAuxNoError ps 0 e
 
 def Lean.Meta.withoutMVarAssignments (m : MetaM α) : MetaM α := do
   let mctx ← getMCtx
@@ -66,7 +77,17 @@ def Lean.Meta.inspectMVarAssignments : MetaM Unit := do
     lm := .compose lm "]"
     trace[Meta.inspectMVarAssignments] .compose "LevelMVar Assignments: " lm
 
-def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
+noncomputable def getInstanceFromLeftNonemptyFact (nonemptyFact : Nonempty t = True) : t :=
+  Classical.choice $ of_eq_true nonemptyFact
+
+noncomputable def getInstanceFromRightNonemptyFact (nonemptyFact : True = Nonempty t) : t :=
+  Classical.choice $ of_eq_true (Eq.symm nonemptyFact)
+
+def getInstanceFromNonemptyFact (nonemptyFact : Expr) : MetaM Expr := do
+  try Meta.mkAppM ``getInstanceFromLeftNonemptyFact #[nonemptyFact]
+  catch _ => Meta.mkAppM ``getInstanceFromRightNonemptyFact #[nonemptyFact]
+
+def Lean.Meta.findInstance (ty : Expr) (nonemptyFacts : List Expr := []) : MetaM Expr := do
   let ty ← instantiateMVars ty
   forallTelescope ty fun xs ty' => do
     let u ← do
@@ -89,7 +110,15 @@ def Lean.Meta.findInstance (ty : Expr) : MetaM Expr := do
             return Option.none
         match option_matching_expr with
         | some e => pure e
-        | none => Meta.mkAppOptM ``default #[ty', none]
+        | none =>
+          try Meta.mkAppOptM ``default #[ty', none]
+          catch _ => do
+            for nonemptyFact in nonemptyFacts do
+              trace[typeInhabitationReasoning.debug] "About to get inst from nonemptyFact: {nonemptyFact}"
+              let inst ← getInstanceFromNonemptyFact nonemptyFact
+              if (← inferType inst) == ty' then return inst
+            trace[typeInhabitationReasoning.debug] "nonemptyFacts: {nonemptyFacts}"
+            throwError "Failed to find an instance for type {ty}"
     mkLambdaFVars xs u
 
 def Lean.Meta.tryFindInstance (ty : Expr) : MetaM (Option Expr) :=
