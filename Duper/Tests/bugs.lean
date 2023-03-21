@@ -1,18 +1,7 @@
 import Duper.TPTP
 import Duper.Tactic
 
--- precCompare not working properly
-/-
-[Rule.superposition] Comparing skS.0 0 ?m.4692, skS.0 1 ?m.4692 ?m.4693, result: < 
-
-[Rule.superposition] Comparing skS.0 1 ?m.4692 ?m.4693, skS.0 0 ?m.4692, result: <
--/
-set_option trace.Prover.saturate true in
-set_option trace.Rule.superposition true in
-tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
-  by duper
-
--- precCompare bug
+-- βη reduction bug
 set_option trace.Meta.debug true in
 set_option trace.Prover.saturate true in
 tptp NUM020_1 "../TPTP-v8.0.0/Problems/NUM/NUM020^1.p"

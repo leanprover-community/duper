@@ -105,7 +105,7 @@ abbrev ClauseStreamHeap.empty σ : ClauseStreamHeap σ :=
   let map' := csh.map.insert nextId (ns, x)
   if ns.size != csh.heaps.size then
     have : Inhabited (ClauseStreamHeap σ) := ⟨csh⟩
-    panic! "IdStrategyHeap.insert :: Size of heap array is not equal to size of input precedence array"
+    panic! "ClauseStreamHeap.insertWithNProbed :: Size of heap array is not equal to size of input precedence array"
   else
     let zipped := csh.heaps.zip ns
     let heaps' := zipped.map (fun (heap, prec) => heap.insert (prec, nextId))
@@ -118,6 +118,8 @@ abbrev ClauseStreamHeap.empty σ : ClauseStreamHeap σ :=
 -- Delete the minimal element from heap `n`, with "nProbed"
 @[inline] partial def ClauseStreamHeap.deleteMinWithNProbed
   (oh : ClauseStreamHeap σ) (n : Nat) : Option ((Nat × Array Nat × σ) × ClauseStreamHeap σ) := Id.run <| do
+  if oh.map.size == 0 then
+    return none
   if let some heap := oh.heaps[n]? then
     let mut heap := heap
     while true do
@@ -129,7 +131,9 @@ abbrev ClauseStreamHeap.empty σ : ClauseStreamHeap σ :=
           let Q' := {oh with heaps := oh.heaps.set! n heap'}
           return some ((nProbed, res), ClauseStreamHeap.eraseWithNProbed Q' id)
         else
-          break
-    return none
+          continue
+      else
+        break
+    panic! s!"ClauseStreamHeap.deleteMinWithNProbed :: Map of size {oh.map.size} is not empty, but deletion failed"
   else
-    panic!"ClauseStreamHeap.deleteMinWithNProbed :: The id of selected heap >= number of heaps"
+    panic! s!"ClauseStreamHeap.deleteMinWithNProbed :: The id of selected heap >= number of heaps"

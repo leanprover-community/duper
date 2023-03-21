@@ -243,7 +243,7 @@ structure ClausePos extends LitPos where
 deriving Inhabited, BEq, Hashable
 
 def ClausePos.format (pos : ClausePos) : MessageData :=
-  m!"(lit: {pos.lit}, side: {pos.side}, ExprPos: {pos.pos}"
+  m!"\{lit: {pos.lit}, side: {pos.side}, ExprPos: {pos.pos}}"
 
 instance : ToMessageData ClausePos := ⟨ClausePos.format⟩
 

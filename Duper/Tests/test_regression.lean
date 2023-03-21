@@ -525,3 +525,40 @@ def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ =>
   by duper
 
 end NegativeBoolSimpTests
+
+/- ClauseStreamHeap tests -/
+
+tptp MGT008 "../TPTP-v8.0.0/Problems/MGT/MGT008+1.p"
+  by duper
+
+example (f : Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat)
+  (g : Nat → Nat → Nat → Nat → Nat → Nat)
+  (inertia : TPTP.iota → TPTP.iota → TPTP.iota → Prop)
+  (goodInertia goodChance : TPTP.iota → Prop)
+  (organization: TPTP.iota → TPTP.iota → Prop)
+  -- good inertia implies good survival chance
+  (dummy: ∀ (Y T2 I2 P2 : TPTP.iota), organization Y T2 ∧ inertia Y I2 T2 ∧ goodInertia I2 → goodChance P2)
+  : ∃ x : Nat,
+       f (g x x x x x) (g x 1 x x x) (g x x x x x) (g x 1 x x x) (g x x x x x) (g x 1 x x x) (g x x x x x)
+     = f (g 1 x x x x) (g x x x x x) (g x 1 x x x) (g x x x x x) (g x 1 x x x) (g x x x x x) (g x 1 x x x) :=
+  by duper
+
+example
+(inertia : TPTP.iota → TPTP.iota → TPTP.iota → Prop)
+(goodInertia goodChance : TPTP.iota → Prop)
+(dummy: TPTP.iota → TPTP.iota → TPTP.iota → TPTP.iota → Prop)
+(organization: TPTP.iota → TPTP.iota → Prop)
+(h1: ∀ (X T : TPTP.iota), organization X T → ∃ I, inertia X I T)
+(h2: ∀ (Y I2 T2 : TPTP.iota),
+-- good size implies good inertia
+  organization Y T2 → inertia Y I2 T2 →
+    goodInertia I2)
+-- good inertia implies good survival chance
+(h3: ∀ (Y T2 I2 P2 : TPTP.iota),
+  (((organization Y T2 ∧ inertia Y I2 T2))) ∧
+      goodInertia I2 →
+    goodChance P2)
+-- to show: good size implies good survival chance
+(h4: ¬∀ (X Y P1 P2 S2 T1 T2 : TPTP.iota),
+    organization Y T2 → dummy X P1 T1 S2 →
+      goodChance P2) : False := by duper
