@@ -242,7 +242,6 @@ partial def saturate : ProverM Unit := do
       setResult ProverM.Result.contradiction
       return
     | e =>
-      -- trace[Timeout.debug] "Active set at timeout: {(← getActiveSet).toArray}"
       checkSaturationTimeout startTime
       trace[Timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
       trace[Timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"

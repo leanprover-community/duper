@@ -34,7 +34,19 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
   for mvar in mvars do
     let mvarId := mvar.mvarId!
     if s.emap.contains mvarId then
-      continue -- mvar appears in mclause, so it is not vanished and we do not have to check for inhabitation
+      let mvarType ← inferType mvar
+      let abstractedType ← abstractMVars mvarType
+      if verifiedInhabitedTypes.contains abstractedType then
+        continue -- Don't add mvar to mvarIdsToRemove since the mvarId appears in mclause
+      match verifiedNonemptyTypes.find? (fun (t, c) => t == abstractedType) with
+      | some (_, c) => continue -- Don't add mvar to mvarIdsToRemove since the mvarId appears in mclause
+      | none =>
+        if potentiallyUninhabitedTypes.contains abstractedType then
+          return (PotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
+        else -- This is a type we haven't seen yet. Try to synthesize inhabited
+          match ← Meta.tryFindInstance mvarType with
+          | none => return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
+          | some _ => verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
     else
       let mvarType ← inferType mvar
       let abstractedType ← abstractMVars mvarType
