@@ -50,7 +50,7 @@ def mkBoolHoistProof (pos : ClausePos) (sgn : Bool) (premises : List Expr)
           let lit' ← lit.replaceAtPos! lp h
           let f := lit'.toExpr
           Meta.mkLambdaFVars #[h] f
-        let e := lit.getAtPos! lp
+        let e ← lit.getAtPos! lp
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let mut pr := h
           if sgn then

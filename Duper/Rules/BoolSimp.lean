@@ -731,7 +731,7 @@ def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (ijOpt 
       let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
         if(i == substPos.lit) then
           let substLitPos : LitPos := ⟨substPos.side, substPos.pos⟩
-          let boolSimpRuleThm ← getBoolSimpRuleTheorem boolSimpRule (parentLits[substPos.lit]!.getAtPos! substLitPos) ijOpt
+          let boolSimpRuleThm ← getBoolSimpRuleTheorem boolSimpRule (← parentLits[substPos.lit]!.getAtPos! substLitPos) ijOpt
 
           let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr

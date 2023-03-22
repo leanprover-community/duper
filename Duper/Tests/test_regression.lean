@@ -474,9 +474,6 @@ example (x : Type u) (f g : Type u → Type v) (H : f = g) : f x = g x :=
 example (x y z : Type u) (f g : Type u → Type u → Type u → Type v) (H : f = g) : f x y z = g x y z :=
   by duper
 
--- Note to self for the future: This currently passes because of identBoolHoist, but fails if identBoolHoist
--- is disabled. I think that makes sense since fluidBoolHoist and fluidLoobHoist haven't been implemented yet,
--- but once they are, confirm whether this test can be solved even when identBoolHoist is disabled
 tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
   by duper
 

@@ -30,7 +30,7 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
         let lit := mainParentLits[i]!
         let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           if(i == mainPremisePos.lit) then
-            let motiveTy ← inferType (lit.lhs.getAtPos! mainPremisePos.pos)
+            let motiveTy ← inferType (← lit.lhs.getAtPos! mainPremisePos.pos)
             if mainPremisePos.side == LitSide.lhs then -- the lhs of the side clause can be matched onto mainPremisePos.pos of lit.lhs
               let motive :=
                 mkLambda .anonymous BinderInfo.default motiveTy $
@@ -96,8 +96,8 @@ def forwardPositiveSimplifyReflectWithPartner (mainPremise : MClause) (mainPremi
     let sidePremiseLit := sidePremise.lits[0]!
     let mainPremiseLit := mainPremise.lits[mainPremisePos.lit]!.makeLhs mainPremisePos.side
     let matchSuccess ← -- Try to match lhs of sidePremise to mainPremisePos.side of mainPremise and rhs of sidePremise to other side of main premise
-      performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs),
-                          (mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds
+      performMatch #[(← mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs),
+                     (← mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds
     if matchSuccess then
       let mainPremiseLitsExceptSimplifiedLit :=
         mainPremise.lits.extract 0 mainPremisePos.lit ++ mainPremise.lits.extract (mainPremisePos.lit + 1) (mainPremise.lits.size)
@@ -136,7 +136,7 @@ def forwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : MSimpRu
         4. t (the rhs of the side clause) can be matched onto position p of c[pos.lit].rhs
         Conditions 1 and 2 are checked here, conditions 3 and 4 are checked in forwardPositiveSimplifyReflectAtExpr.
       -/
-      let sidesAgree := Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
+      let sidesAgree ← Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
       if sidesAgree then forwardPositiveSimplifyReflectAtExpr c pos potentialSideClauses cMVarIds
       else return none
     | some cp => return some cp
@@ -211,13 +211,13 @@ def backwardPositiveSimplifyReflect (subsumptionTrie : SubsumptionTrie) : Backwa
             3. s (the lhs of the side clause) can be matched onto position p of mainClauseLit.lhs
             4. t (the rhs of the side clause) can be matched onto position p of mainClauseLit.rhs
           -/
-          let sidesAgree := Expr.expressionsAgreeExceptAtPos mainClause.lits[pos.lit]!.lhs mainClause.lits[pos.lit]!.rhs pos.pos
+          let sidesAgree ← Expr.expressionsAgreeExceptAtPos mainClause.lits[pos.lit]!.lhs mainClause.lits[pos.lit]!.rhs pos.pos
           if(!mainClause.lits[pos.lit]!.sign && sidesAgree) then
             let sideClauseLit := givenSideClause.lits[0]!
             let mainClauseLit := mainClause.lits[pos.lit]!.makeLhs pos.side
             let matchSuccess ← -- Try to match lhs of sidePremise to pos.side of mclause and rhs of sidePremise to other side of mclause
-              performMatch #[(mainClauseLit.lhs.getAtPos! pos.pos, sideClauseLit.lhs),
-                                  (mainClauseLit.rhs.getAtPos! pos.pos, sideClauseLit.rhs)] mclauseMVarIds
+              performMatch #[(← mainClauseLit.lhs.getAtPos! pos.pos, sideClauseLit.lhs),
+                             (← mainClauseLit.rhs.getAtPos! pos.pos, sideClauseLit.rhs)] mclauseMVarIds
             if matchSuccess then
               let mainClauseLitsExceptSimplifiedLit := mainClause.lits.extract 0 pos.lit ++ mainClause.lits.extract (pos.lit + 1) mainClause.lits.size
               let res := MClause.mk mainClauseLitsExceptSimplifiedLit

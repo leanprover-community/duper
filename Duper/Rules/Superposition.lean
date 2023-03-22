@@ -96,7 +96,7 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
             let lit := mainParentLits[i]!
             let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
               let idx := sideParentLits.size - 1 + i
-              let abstr := (lit.mapByPos Expr.abstractAtPoses! poseses[i]!).toExpr
+              let abstr := (← lit.mapMByPos Expr.abstractAtPoses! poseses[i]!).toExpr
               let abstr := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstr
               let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstr,eq], h]
               Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
@@ -174,7 +174,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       if simultaneousSuperposition then
         let mainPremise ← mainPremise.mapM instantiateMVars
         let sidePremiseLhs ← instantiateMVars sidePremiseLhs
-        (mainPremiseReplaced, poses) := mainPremise.mapWithPos <|
+        (mainPremiseReplaced, poses) ← mainPremise.mapMWithPos <|
           Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs
       else
         mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
@@ -204,7 +204,7 @@ def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie)
       let c ← loadClause mainClause
       let mainLit := c.lits[mainPos.lit]!.makeLhs mainPos.side
       if (← RuleM.compare mainLit.lhs mainLit.rhs) != Comparison.LessThan then
-        superpositionAtLitWithPartner c mainClauseNum (c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
+        superpositionAtLitWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
           given (givenIsMain := false) simultaneousSuperposition
       else
         return #[]

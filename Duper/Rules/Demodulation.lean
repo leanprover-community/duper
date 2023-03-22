@@ -177,7 +177,7 @@ def backwardDemodulation (mainIdx : RootCFPTrie) : BackwardMSimpRule := fun give
         withoutModifyingMCtx do
           let (mclauseMVarIds, mclause) ← loadClauseCore partnerClause
           let mclauseMVarIds := mclauseMVarIds.map Expr.mvarId!
-          backwardDemodulationWithPartner mclause mclauseMVarIds (mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs
+          backwardDemodulationWithPartner mclause mclauseMVarIds (← mclause.getAtPos! partnerPos) partnerPos givenSideClause givenSideClauseLhs
     if let some cp := backwardDemodulationRes then
       result := result.push (partnerClause, some cp)
       clausesToRemove := clausesToRemove.push partnerClause

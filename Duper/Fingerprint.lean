@@ -110,17 +110,17 @@ namespace RootCFPTrie
 
 /-- General fingerprint feature function (see: http://www.eprover.eu/EXPDATA/FP_INDEX/schulz_fp-index_ext.pdf)
     Note that this function assumes that e already has had its metavariables instantiated -/
-def gfpf (e : Expr) (pos : ExprPos) : FingerprintFeatureValue :=
-  match e.getAtPos? pos with
+def gfpf [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : ExprPos) : m FingerprintFeatureValue := do
+  match ← e.getAtPos? pos with
   | none =>
-    if e.canInstantiateToGetAtPos pos then B
-    else N
+    if ← e.canInstantiateToGetAtPos pos then return B
+    else return N
   | some e' =>
-    if e'.isMVar then A
-    else F e.getTopSymbol
+    if e'.isMVar then return A
+    else return F e.getTopSymbol
 
-def getFingerprint (e : Expr) : Fingerprint :=
-  fingerprintFeatures.map (fun pos => gfpf e pos)
+def getFingerprint [Monad m] [MonadLiftT MetaM m] (e : Expr) : m Fingerprint :=
+  fingerprintFeatures.mapM (fun pos => gfpf e pos)
 
 /-- Given a fingerprint f, yields a ClauseFingerprintTrie whose depth equals the length of f and whose
     only value is v (located at the position indiced by f) -/
@@ -166,7 +166,7 @@ def insertHelper (t : ClauseFingerprintTrie) (f : Fingerprint)
 def insert (t : RootCFPTrie) (e : Expr) (v : (Nat × Clause × ClausePos)) : RuleM RootCFPTrie :=
   -- TODO: This is a hack
   let e := e.stripLevels
-  return ⟨← insertHelper t.root (getFingerprint e) v, t.filterSet.erase v.2.1⟩
+  return ⟨← insertHelper t.root (← getFingerprint e) v, t.filterSet.erase v.2.1⟩
 
 /-- Adds c to t.filterSet so that Clause × ClausePos pairs with c as the clause are ignored going forward -/
 def delete (t : RootCFPTrie) (c : Clause) : RuleM RootCFPTrie :=
@@ -209,10 +209,10 @@ private def getUnificationPartnersHelper (t : ClauseFingerprintTrie) (f : Finger
 def getUnificationPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos)) := do
   -- Hack
   let e := e.stripLevels
-  trace[Fingerprint.debug] "About to call getUnificationPartnersHelper with {t.root} and {getFingerprint e}"
-  let unfilteredRes ← getUnificationPartnersHelper t.root (getFingerprint e)
+  trace[Fingerprint.debug] "About to call getUnificationPartnersHelper with {t.root} and {← getFingerprint e}"
+  let unfilteredRes ← getUnificationPartnersHelper t.root (← getFingerprint e)
   trace[Fingerprint.debug] "Unfiltered result from getUnificationPartners {e}: {unfilteredRes}"
-  trace[Fingerprint.debug] "{e} fingerprint: {getFingerprint e}"
+  trace[Fingerprint.debug] "{e} fingerprint: {← getFingerprint e}"
   trace[Fingerprint.debug] "Current RootCFPTrie: {t.root}"
   return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes
 
@@ -246,7 +246,7 @@ private def getMatchOntoPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerpr
 def getMatchOntoPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos)) := do
   -- Hack
   let e := e.stripLevels
-  let unfilteredRes ← getMatchOntoPartnersHelper t.root (getFingerprint e)
+  let unfilteredRes ← getMatchOntoPartnersHelper t.root (← getFingerprint e)
   return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes
 
 private def getMatchFromPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerprint) :
@@ -279,5 +279,5 @@ private def getMatchFromPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerpr
 def getMatchFromPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos)) := do
   -- Hack
   let e := e.stripLevels
-  let unfilteredRes ← getMatchFromPartnersHelper t.root (getFingerprint e)
+  let unfilteredRes ← getMatchFromPartnersHelper t.root (← getFingerprint e)
   return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes

@@ -82,6 +82,15 @@ def mapWithPos (f : Expr → Expr × Array ExprPos) (l : Lit) :=
   let rp' := rposes.map (fun p => LitPos.mk .rhs p)
   (lit', lp' ++ rp')
 
+def mapMWithPos [Monad m] [MonadLiftT MetaM m] (f : Expr → m (Expr × Array ExprPos)) (l : Lit) : m (Lit × Array LitPos) := do
+  let (l', lposes) ← f l.lhs
+  let (r', rposes) ← f l.rhs
+  -- Does not map into `ty`
+  let lit' := {l with lhs := l', rhs := r'}
+  let lp' := lposes.map (fun p => LitPos.mk .lhs p)
+  let rp' := rposes.map (fun p => LitPos.mk .rhs p)
+  return (lit', lp' ++ rp')
+
 def mapByPos (f : Expr → Array ExprPos → Expr) (l : Lit) (poses : Array LitPos) := Id.run <| do
   let mut lposes := #[]
   let mut rposes := #[]
@@ -93,6 +102,19 @@ def mapByPos (f : Expr → Array ExprPos → Expr) (l : Lit) (poses : Array LitP
   -- Does not map into `ty`
   let l' := f l.lhs lposes
   let r' := f l.rhs rposes
+  return {l with lhs := l', rhs := r'}
+
+def mapMByPos [Monad m] [MonadLiftT MetaM m] (f : Expr → Array ExprPos → m Expr) (l : Lit) (poses : Array LitPos) : m Lit := do
+  let mut lposes := #[]
+  let mut rposes := #[]
+  for ⟨side, pos⟩ in poses do
+    if side == .lhs then
+      lposes := lposes.push pos
+    else
+      rposes := rposes.push pos
+  -- Does not map into `ty`
+  let l' ← f l.lhs lposes
+  let r' ← f l.rhs rposes
   return {l with lhs := l', rhs := r'}
 
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (l : Lit) : m Lit := do
@@ -109,29 +131,29 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
   f (← f init l.lhs ⟨LitSide.lhs, ExprPos.empty⟩) l.rhs ⟨LitSide.rhs, ExprPos.empty⟩
 
-def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
+def foldGreenM {β : Type} [Monad m] [MonadLiftT MetaM m]
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
   let fLhs := fun acc e p => f acc e ⟨LitSide.lhs, p⟩
   let fRhs := fun acc e p => f acc e ⟨LitSide.rhs, p⟩
   l.rhs.foldGreenM fRhs (← l.lhs.foldGreenM fLhs init) 
 
-def getAtPos! (l : Lit) (pos : LitPos) : Expr :=
+def getAtPos! [Monad m] [MonadLiftT MetaM m] (l : Lit) (pos : LitPos) : m Expr :=
   match pos.side with
   | LitSide.lhs => l.lhs.getAtPos! pos.pos
   | LitSide.rhs => l.rhs.getAtPos! pos.pos
 
-def replaceAtPos? (l : Lit) (pos : LitPos) (replacement : Expr) : Option Lit :=
+def replaceAtPos? [Monad m] [MonadLiftT MetaM m] (l : Lit) (pos : LitPos) (replacement : Expr) : m (Option Lit) := do
   match pos.side with
   | LitSide.lhs =>
-    match l.lhs.replaceAtPos? pos.pos replacement with
-    | some newLhs => some {l with lhs := newLhs}
-    | none => none
+    match ← l.lhs.replaceAtPos? pos.pos replacement with
+    | some newLhs => return some {l with lhs := newLhs}
+    | none => return none
   | LitSide.rhs =>
-    match l.rhs.replaceAtPos? pos.pos replacement with
-    | some newRhs => some {l with rhs := newRhs}
-    | none => none
+    match ← l.rhs.replaceAtPos? pos.pos replacement with
+    | some newRhs => return some {l with rhs := newRhs}
+    | none => return none
 
-def replaceAtPos! (l : Lit) (pos : LitPos) (replacement : Expr) [Monad m] [MonadError m] : m Lit :=
+def replaceAtPos! [Monad m] [MonadLiftT MetaM m] [MonadError m] (l : Lit) (pos : LitPos) (replacement : Expr) : m Lit :=
   match pos.side with
   | LitSide.lhs => return {l with lhs := ← l.lhs.replaceAtPos! pos.pos replacement}
   | LitSide.rhs => return {l with rhs := ← l.rhs.replaceAtPos! pos.pos replacement}
@@ -270,7 +292,7 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     acc ← c.lits[i]!.foldM f' acc
   return acc
 
-def getAtPos! (c : Clause) (pos : ClausePos) : Expr :=
+def getAtPos! [Monad m] [MonadLiftT MetaM m] (c : Clause) (pos : ClausePos) : m Expr :=
   c.lits[pos.lit]!.getAtPos! ⟨pos.side, pos.pos⟩
 
 def mapMUpdateType [instMonad : Monad m] (c : Clause) (f : Expr → m Expr) := do

@@ -22,8 +22,8 @@ def equalitySubsumptionWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
     -- can match with main premise lit's other side at the same ExprPos
     let sidePremiseLit := sidePremise.lits[0]!
     let mainPremiseLit := mainPremise.lits[mainPremisePos.lit]!.makeLhs mainPremisePos.side
-    if (← performMatch #[(mainPremiseLit.lhs.getAtPos! mainPremisePos.pos, sidePremiseLit.lhs)] mainPremiseMVarIds) then
-      if (← performMatch #[(mainPremiseLit.rhs.getAtPos! mainPremisePos.pos, sidePremiseLit.rhs)] mainPremiseMVarIds) then
+    if (← performMatch #[((← mainPremiseLit.lhs.getAtPos! mainPremisePos.pos), sidePremiseLit.lhs)] mainPremiseMVarIds) then
+      if (← performMatch #[((← mainPremiseLit.rhs.getAtPos! mainPremisePos.pos), sidePremiseLit.rhs)] mainPremiseMVarIds) then
         return Removed
       else return Unapplicable
     else return Unapplicable
@@ -61,7 +61,7 @@ def forwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : MSimpRule :
 
         Conditions 1 and 2 are checked here, conditions 3 and 4 are checked in forwardEqualitySubsumptionAtExpr.
       -/
-      let sidesAgree := Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
+      let sidesAgree ← Expr.expressionsAgreeExceptAtPos c.lits[pos.lit]!.lhs c.lits[pos.lit]!.rhs pos.pos
       if(c.lits[pos.lit]!.sign && sidesAgree) then
         forwardEqualitySubsumptionAtExpr c pos potentialSubsumingClauses cMVarIds
       else return false
@@ -89,7 +89,7 @@ def backwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMS
       let inner_fold_fn := fun acc _ pos => do
         match acc with
         | false =>
-          let sidesAgree := Expr.expressionsAgreeExceptAtPos nextClause.lits[pos.lit]!.lhs nextClause.lits[pos.lit]!.rhs pos.pos
+          let sidesAgree ← Expr.expressionsAgreeExceptAtPos nextClause.lits[pos.lit]!.lhs nextClause.lits[pos.lit]!.rhs pos.pos
           if(nextClause.lits[pos.lit]!.sign && sidesAgree) then
             match ← equalitySubsumptionWithPartner nextClauseM nextClauseMVarIds pos givenSubsumingClause with
             | SimpResult.Removed => return true

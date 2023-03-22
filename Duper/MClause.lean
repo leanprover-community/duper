@@ -47,6 +47,12 @@ def mapWithPos (f : Expr → Expr × Array ExprPos) (c : MClause) : MClause × A
   let cps := mapres.mapIdx (fun i x => x.snd.map (fun pos => {pos with lit := i}))
   (c', cps.concatMap id)
 
+def mapMWithPos [Monad m] [MonadLiftT MetaM m] (f : Expr → m (Expr × Array ExprPos)) (c : MClause) : m (MClause × Array ClausePos) := do
+  let mapres ← c.lits.mapM (fun l => l.mapMWithPos f)
+  let c' := ⟨mapres.map (fun x => x.fst)⟩
+  let cps := mapres.mapIdx (fun i x => x.snd.map (fun pos => {pos with lit := i}))
+  return (c', cps.concatMap id)
+
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (c : MClause) : m MClause := do
   return ⟨← c.lits.mapM (fun l => l.mapM f)⟩
 
@@ -65,7 +71,7 @@ def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     acc ← c.lits[i]!.foldM f' acc
   return acc
 
-def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m] 
+def foldGreenM {β : Type} [Monad m] [MonadLiftT MetaM m]
     (f : β → Expr → ClausePos → m β) (init : β) (c : MClause) : m β := do
   let mut acc := init
   for i in [:c.lits.size] do
@@ -73,18 +79,18 @@ def foldGreenM {β : Type v} {m : Type v → Type w} [Monad m]
     acc ← c.lits[i]!.foldGreenM f' acc
   return acc
 
-def getAtPos! (c : MClause) (pos : ClausePos) : Expr :=
+def getAtPos! [Monad m] [MonadLiftT MetaM m] (c : MClause) (pos : ClausePos) : m Expr :=
   c.lits[pos.lit]!.getAtPos! ⟨pos.side, pos.pos⟩
 
-def replaceAtPos? (c : MClause) (pos : ClausePos) (replacement : Expr) : Option MClause :=
-  if (pos.lit ≥ c.lits.size) then none
+def replaceAtPos? [Monad m] [MonadLiftT MetaM m] (c : MClause) (pos : ClausePos) (replacement : Expr) : m (Option MClause) := do
+  if (pos.lit ≥ c.lits.size) then return none
   else
     let litPos : LitPos := {side := pos.side, pos := pos.pos}
-    match c.lits[pos.lit]!.replaceAtPos? litPos replacement with
-    | some newLit => some {lits := Array.set! c.lits pos.lit newLit}
-    | none => none
+    match ← c.lits[pos.lit]!.replaceAtPos? litPos replacement with
+    | some newLit => return some {lits := Array.set! c.lits pos.lit newLit}
+    | none => return none
 
-def replaceAtPos! (c : MClause) (pos : ClausePos) (replacement : Expr) [Monad m] [MonadError m]
+def replaceAtPos! [Monad m] [MonadLiftT MetaM m] [MonadError m] (c : MClause) (pos : ClausePos) (replacement : Expr)
   : m MClause := do
   let litPos : LitPos := {side := pos.side, pos := pos.pos}
   let replacedLit ← c.lits[pos.lit]!.replaceAtPos! litPos replacement
