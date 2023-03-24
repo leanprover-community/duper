@@ -46,40 +46,53 @@ partial def processThfAtomicType (stx : Syntax) : MacroM Syntax := do
     `($ts)
   | _ => Macro.throwError s!"Unsupported thf_atomic_type: {stx}"
 
-partial def processThfType (stx : Syntax) : MacroM Syntax := do
+/-- In addition to returning the syntax that corresponds to the type of `stx`, if the
+    type of `stx` is `Type` or has the form `A → B → ... → Type`, then we also return
+    an Array containing the stx for `A`, `B`, etc. (in reverse order. So `A → B → Type` would
+    have the stx array #[B, A]) This is so that we can add the appropriate `Inhabited` constraints
+    to the newly declared type. -/
+partial def processThfType (stx : Syntax) : MacroM (Syntax × Option (Array Syntax)) := do
   match stx with
   | `(thf_type| ( $t:thf_type ) ) => processThfType t
   | `(thf_type| $ty:thf_atomic_type) =>
-    processThfAtomicType ty
+    let res ← processThfAtomicType ty
+    let typeStx ← `(Type)
+    if res == typeStx then return (res, some #[])
+    else return (res, none)
   | `(thf_type| $arg:thf_type > $ret:thf_type) =>
     -- Although the current parser syntax has thf_type > thf_type, this pattern should
     -- only appear in TPTP files when both arg and ret are of the category thf_atomic_type
-    let ret ← processThfType ret
-    let arg ← processThfType arg
-    `($arg → $ret)
+    let (ret, stxListOpt) ← processThfType ret
+    let (arg, _) ← processThfType arg
+    let res ← `($arg → $ret)
+    match stxListOpt with
+    | none => return (res, none)
+    | some stxList => return (res, some (stxList.push arg))
   | `(thf_type| ( $args:thf_xprod_args ) > $ret:thf_atomic_type) =>
     let ret ← processThfAtomicType ret
     let args : Array Syntax := @Syntax.SepArray.mk "*" args.raw[0].getArgs
-    let stx ← args.foldrM (fun (a acc : Syntax) => do
-      let a ← processThfAtomicType a
-      `($a → $acc)) ret
-    return stx
+    let args ← args.mapM (fun a => processThfAtomicType a)
+    let res ← args.foldrM (fun (a acc : Syntax) => `($a → $acc)) ret
+    let typeStx ← `(Type)
+    if ret == typeStx then return (res, some args.reverse)
+    else return (res, none)
   | `(thf_type| $q:th1_quantifier [ $vs,* ] : $ty) =>
-    let ty ← processThfType ty
+    let (ty, _) ← processThfType ty
     let vs : Array Syntax := vs
-    vs.foldrM
+    let res ← vs.foldrM
       fun v acc => do
         let (v, v_ty) ← match v with
         | `(thf_variable| $v:ident) =>
           -- throw Error?
           pure (v, (← `(_) : Syntax))
         | `(thf_variable| $v:ident : $v_ty:thf_type) =>
-          pure (v, ← processThfType v_ty)
+          pure (v, (← processThfType v_ty).1)
         | _ => Macro.throwError s!"Unsupported thf_variable: {v} when trying to process a tf1_quantified_type"
         match q.raw[0].getKind with
         | Name.str _ "!>" => `(∀ ($v : $v_ty), $acc)
         | _ => Macro.throwError s!"Unsupported th1_quantifier: {q.raw[0].getKind}"
       ty
+    return (res, none)
   | _ => Macro.throwError s!"Unsupported thf_type: {stx}"
 
 partial def processThfTerm (stx : Syntax) (is_untyped : Bool) : MacroM Syntax := do
@@ -135,7 +148,7 @@ partial def processThfTerm (stx : Syntax) (is_untyped : Bool) : MacroM Syntax :=
             -- throw Error?
             pure (v, (← `(_) : Syntax))
         | `(thf_variable| $v:ident : $ty:thf_type) =>
-          pure (v, ← processThfType ty)
+          pure (v, (← processThfType ty).1)
         | _ => Macro.throwError s!"Unsupported thf_variable: {v}"
         match q.raw[0].getKind with
         | Name.str _ "!" => `(∀ ($v : $ty), $acc)
@@ -289,8 +302,24 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
       else
         hyps := hyps.push (← `(explicitBinder| ($name : $term)))
     | `(TPTP_input| tff($n:ident,type,$name:ident : $ty:thf_type $annotation:annotation ?).) =>
-      let ty ← processThfType ty
+      let (ty, stxArrOpt) ← processThfType ty
       hyps := hyps.push (← `(explicitBinder| ($name : $ty)))
+      match stxArrOpt with
+      | none => continue
+      | some stxArr =>
+        let typeArgName := `typeArg
+        let mut counter := 0
+        let mut nameApp ← `($name)
+        let mut typeArgs : Array Ident := #[]
+        for _ in stxArr do
+          let typeArg := mkIdent $ typeArgName.appendAfter (toString counter)
+          nameApp ← `($nameApp $typeArg)
+          counter := counter + 1
+          typeArgs := typeArgs.push typeArg
+        let mut quantifiedNameApp ← `(Inhabited $nameApp)
+        for (stx, typeArg) in stxArr.zip typeArgs.reverse do
+          quantifiedNameApp ← `(∀ $typeArg : $stx, $quantifiedNameApp)
+        hyps := hyps.push (← `(explicitBinder| (_ : $quantifiedNameApp)))
     | `(TPTP_input| thf($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
       let term ← processThfTerm term false
       let name := (mkIdent $ name.getId.appendBefore "h")
@@ -299,8 +328,24 @@ macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
       else
         hyps := hyps.push (← `(explicitBinder| ($name : $term)))
     | `(TPTP_input| thf($n:ident,type,$name:ident : $ty:thf_type $annotation:annotation ?).) =>
-      let ty ← processThfType ty
+      let (ty, stxArrOpt) ← processThfType ty
       hyps := hyps.push (← `(explicitBinder| ($name : $ty)))
+      match stxArrOpt with
+      | none => continue
+      | some stxArr =>
+        let typeArgName := `typeArg
+        let mut counter := 0
+        let mut nameApp ← `($name)
+        let mut typeArgs : Array Ident := #[]
+        for _ in stxArr do
+          let typeArg := mkIdent $ typeArgName.appendAfter (toString counter)
+          nameApp ← `($nameApp $typeArg)
+          counter := counter + 1
+          typeArgs := typeArgs.push typeArg
+        let mut quantifiedNameApp ← `(Inhabited $nameApp)
+        for (stx, typeArg) in stxArr.zip typeArgs.reverse do
+          quantifiedNameApp ← `(∀ $typeArg : $stx, $quantifiedNameApp)
+        hyps := hyps.push (← `(explicitBinder| (_ : $quantifiedNameApp)))
     | `(TPTP_input| cnf($name:ident,$role,$term:thf_term $annotation:annotation ?).) =>
       let term ← processCnfTerm term
       let name := (mkIdent $ name.getId.appendBefore "h")
