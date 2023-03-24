@@ -317,10 +317,9 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   setMCtx mctx
   return res
 
-def addPotentiallyVacuousToActive (c : Clause) : ProverM Unit := do
+def addPotentiallyVacuousClause (c : Clause) : ProverM Unit := do
   trace[typeInhabitationReasoning.debug] "Registering {c} as potentially vacuous"
   setPotentiallyVacuousClauses $ (← getPotentiallyVacuousClauses).insert c
-  setActiveSet $ (← getActiveSet).insert c
 
 def addToActive (c : Clause) : ProverM Unit := do
   let cInfo ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found

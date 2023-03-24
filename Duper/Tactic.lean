@@ -412,6 +412,10 @@ def evalDuperUnsafe : Tactic
     | Result.saturated =>
       trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
       trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+      trace[Saturate.debug] "Verified Inhabited Types: {state.verifiedInhabitedTypes.map (fun x => x.expr)}"
+      trace[Saturate.debug] "Verified Nonempty Types: {state.verifiedNonemptyTypes.map (fun x => x.1.expr)}"
+      trace[Saturate.debug] "Potentially Uninhabited Types: {state.potentiallyUninhabitedTypes.map (fun x => x.expr)}"
+      trace[Saturate.debug] "Potentially Vacuous Clauses: {state.potentiallyVacuousClauses.toArray}"
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident [$facts,*]) => withMainContext do

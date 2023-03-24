@@ -484,6 +484,8 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
   have inhabited_bird : Inhabited bird := sorry
   have inhabited_fox : Inhabited fox := sorry
   have inhabited_wolf : Inhabited wolf := sorry
+  have inhabited_animal : Inhabited animal := sorry
+  have inhabited_caterpillar : Inhabited caterpillar := sorry
   duper
   -- If these instances are not provided, duper will fail
 

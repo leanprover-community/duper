@@ -35,7 +35,6 @@ import Duper.Rules.NeHoist
 import Duper.Rules.ArgumentCongruence
 -- Type inhabitation reasoning rules
 import Duper.Util.TypeInhabitationReasoning
-import Duper.Rules.Nonempty
 
 namespace Duper
 
@@ -84,8 +83,7 @@ def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
       (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
       (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
       (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
-      (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule,
-      (removeInhabitedConstraint (← getPotentiallyVacuousClauses)).toBackwardSimpRule
+      (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
     ]
   else
     return #[

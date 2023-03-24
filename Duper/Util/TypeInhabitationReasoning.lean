@@ -3,7 +3,6 @@ import Duper.Util.Misc
 import Duper.ProverM
 import Duper.Util.ProofReconstruction
 import Duper.Simp
-import Duper.Rules.Nonempty
 
 namespace Duper
 
@@ -22,6 +21,15 @@ inductive VarRemovalRes
 | NoVanishedVars : VarRemovalRes
 
 open VarRemovalRes
+
+def getNonemptyType (c : MClause) : Option Expr :=
+  if c.lits.size != 1 then none
+  else
+    let lit := c.lits[0]!
+    match lit.lhs, lit.rhs with
+    | .app (.const ``Nonempty _) t, .const ``True _ => some t
+    | .const ``True _, .app (.const ``Nonempty _) t => some t
+    | _, _ => none
 
 /-- Attempts to remove the vanished variables that appear in c, updating verifiedInhabitedTypes and potentiallyUninhabitedTypes as it
     encounters types whose inhabitation status has not previously been checked. -/
@@ -86,7 +94,7 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option Clause) := do
   match res with
   | NoVanishedVars => return givenClause -- Continue the main saturation loop with givenClause
   | PotentiallyVacuous =>
-    addPotentiallyVacuousToActive givenClause
+    addPotentiallyVacuousClause givenClause
     return none
   | Success (c, cProof) =>
     removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated c
@@ -105,14 +113,35 @@ def registerNewInhabitedTypesHelper (givenClause : Clause) : RuleM (Option Abstr
     | return none
   abstractMVars t
 
+/-- Returns true if any of `c`'s bVarTypes match `abstractedT`. If this is the case, then said clause should be returned to the passive set
+    (and removed from the set of potentially vacuous clauses) so that it can be re-evaluated. -/
+def clauseHasAbstractedT (c : Clause) (abstractedT : AbstractMVarsResult) : RuleM Bool := do
+  let (mvars, _) ← loadClauseCore c
+  mvars.anyM
+    (fun mvar => do
+      let mvarType ← inferType mvar
+      let abstractedMVarType ← abstractMVars mvarType
+      return abstractedMVarType == abstractedT
+    )
+
 /-- If givenClause has the form `Nonempty t = True` or `True = Nonempty t`, then add `t` to verifiedInhabitedTypes and add `givenClause`
     to inhabitedTypeWitnesses -/
 def registerNewInhabitedTypes (givenClause : Clause) : ProverM Unit := do
   if givenClause.lits.size != 1 then return
-  let some abstractedT ← runRuleM $  registerNewInhabitedTypesHelper givenClause
+  let some abstractedT ← runRuleM $ registerNewInhabitedTypesHelper givenClause
     | return -- If registerNewInhabitedTypesHelper returns none, then givenClause is not of the appropriate form
   let verifiedInhabitedTypes ← getVerifiedInhabitedTypes
   let verifiedNonemptyTypes ← getVerifiedNonemptyTypes
   if verifiedInhabitedTypes.contains abstractedT then return
   else if verifiedNonemptyTypes.any (fun (t, c) => t == abstractedT) then return
-  else setVerifiedNonemptyTypes ((abstractedT, givenClause) :: verifiedNonemptyTypes)
+  else
+    setVerifiedNonemptyTypes ((abstractedT, givenClause) :: verifiedNonemptyTypes)
+    let mut potentiallyVacuousClauses ← getPotentiallyVacuousClauses
+    let mut passiveSet ← getPassiveSet
+    for c in potentiallyVacuousClauses do
+      if ← runRuleM (clauseHasAbstractedT c abstractedT) then
+        potentiallyVacuousClauses := potentiallyVacuousClauses.erase c
+        let ci ← getClauseInfo! c -- ci definitely exists because c has already been put into potentiallyVacuousClauses
+        passiveSet := passiveSet.insert c c.weight ci.number
+    setPotentiallyVacuousClauses potentiallyVacuousClauses
+    setPassiveSet passiveSet
