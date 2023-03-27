@@ -121,7 +121,7 @@ def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (l : Lit) : m Lit
   return {l with ty := ← f l.ty, lhs := ← f l.lhs, rhs := ← f l.rhs}
 
 def fold {α : Type v} (f : α → Expr → α) (init : α) (l : Lit) : α :=
-  f (f (f init l.ty) l.lhs) l.rhs
+  f (f init l.lhs) l.rhs
 
 def foldWithTypeM {β : Type v} {m : Type v → Type w} [Monad m] 
     (f : β → Expr → m β) (init : β) (l : Lit) : m β := do
