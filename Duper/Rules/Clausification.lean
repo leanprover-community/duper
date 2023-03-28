@@ -246,18 +246,18 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         Meta.mkAppM ``clausify_forall #[tr, premise]
       let mvar ← mkFreshExprMVar ty
       return #[⟨#[Lit.fromSingleExpr $ b.instantiate1 mvar], pr, #[mvar]⟩]
-  | true, Expr.app (Expr.app (Expr.const ``Exists lvls) ty) (Expr.lam _ _ b _) => do
+  | true, Expr.app (Expr.app (Expr.const ``Exists lvls) ty) tran@(Expr.lam _ _ b _) => do
     let (skTerm, newmvar) ← makeSkTerm ty b
     let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
-      let #[tr] := trs
+      let #[tr, trp] := trs
           | throwError "clausificationStepE :: Wrong number of transferExprs"
       return ← Meta.mkAppM ``eq_true
-        #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``of_eq_true #[premise]]]
+        #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``of_eq_true #[premise]]]
     let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``nonempty_of_exists #[premise]
     let [ty_lvl] := lvls
       | throwError "Wrong number of levels in {lvls} for exists statement {e}"
     return #[
-        ⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr1, #[newmvar]⟩,
+        ⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr1, #[newmvar, tran]⟩,
         ⟨#[Lit.fromSingleExpr $ .app (.const ``Nonempty [ty_lvl]) ty], pr2, #[]⟩
       ]
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
@@ -269,7 +269,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
     /- e₂ and pr₂ are placed first in the list because "∨" is right-associative. So if we decompose "a ∨ b ∨ c ∨ d... = False" we want
        "b ∨ c ∨ d... = False" to be the first clause (which will return to Saturate's simpLoop to receive further clausification) -/
     return #[⟨#[Lit.fromSingleExpr e₂ false], pr₂, #[]⟩, ⟨#[Lit.fromSingleExpr e₁ false], pr₁, #[]⟩]
-  | false, Expr.forallE _ ty b _ => do
+  | false, Expr.forallE name ty b bi => do
     if (← inferType ty).isProp && !b.hasLooseBVars then
       let pr₁ : Expr → Array Expr → MetaM Expr := fun premise _ =>
         Meta.mkAppM ``clausify_imp_false_left #[premise]
@@ -279,12 +279,12 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
     else
       let (skTerm, newmvar) ← makeSkTerm ty (mkNot b)
       let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
-        let #[tr] := trs
+        let #[tr, trp] := trs
           | throwError "clausificationStepE :: Wrong number of transferExprs"
-        Meta.mkAppM ``eq_true #[← Meta.mkAppM ``Skolem.spec #[tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
+        Meta.mkAppM ``eq_true #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
       let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``nonempty_of_forall_eq_false #[premise]
       return #[
-          ⟨#[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr1, #[newmvar]⟩,
+          ⟨#[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr1, #[newmvar, Expr.lam name ty (← Meta.mkAppM ``Not #[b]) bi]⟩,
           ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
         ]
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do

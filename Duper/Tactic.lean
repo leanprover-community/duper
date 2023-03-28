@@ -192,6 +192,7 @@ partial def mkClauseProof : List Clause → PRM Expr
         m!": {instC.paramNames} ↦ {req} @ {instC}, Rule Name: {info.proof.ruleName}"
       )
     let instTr := info.proof.transferExprs.map (fun e => e.instantiateLevelParamsArray c.paramNames req)
+    let instTr ← instTr.mapM (fun e => Core.transform e PRM.matchSkolem)
     let newProof ← (do
       let prf ← runMetaAsPRM <|
         info.proof.mkProof parents.data instantiatedProofParents.data instTr instC
