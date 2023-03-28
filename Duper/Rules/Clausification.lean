@@ -282,7 +282,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         | throwError "clausificationStepE :: Wrong number of transferExprs"
       Meta.mkAppM ``eq_true #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
     let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``nonempty_of_forall_eq_false #[premise]
-    let res1 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ (mkNot b).instantiate1 skTerm], pr1, #[newmvar, Expr.lam name ty (← Meta.mkAppM ``Not #[b]) bi]⟩
+    let res1 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ mkNot (b.instantiate1 skTerm)], pr1, #[newmvar, Expr.lam name ty (mkNot b) bi]⟩
     let res2 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
     if ← getInhabitationReasoningM then
       return #[res1, res2]

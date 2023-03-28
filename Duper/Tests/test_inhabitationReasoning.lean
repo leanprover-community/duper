@@ -37,3 +37,7 @@ example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
 
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
   by duper
+
+set_option trace.ProofReconstruction true in
+example : ((∀ (A : Type) (f : Nat → A) (x : Nat), f x = f x) = True) :=
+  by duper
