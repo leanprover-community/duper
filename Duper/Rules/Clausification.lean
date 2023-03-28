@@ -253,7 +253,9 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
           | throwError "clausificationStepE :: Wrong number of transferExprs"
       return ← Meta.mkAppM ``eq_true
         #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``of_eq_true #[premise]]]
-    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``nonempty_of_exists #[premise]
+    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => do
+      let nonempty ← Meta.mkAppM ``nonempty_of_exists #[premise]
+      Meta.mkAppM ``eq_true #[nonempty]
     let res1 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr1, #[newmvar, tran]⟩
     let res2 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
     if ← getInhabitationReasoningM then
@@ -281,7 +283,9 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       let #[tr, trp] := trs
         | throwError "clausificationStepE :: Wrong number of transferExprs"
       Meta.mkAppM ``eq_true #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
-    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``nonempty_of_forall_eq_false #[premise]
+    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => do
+      let nonempty ← Meta.mkAppM ``nonempty_of_forall_eq_false #[premise]
+      Meta.mkAppM ``eq_true #[nonempty]
     let res1 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ mkNot (b.instantiate1 skTerm)], pr1, #[newmvar, Expr.lam name ty (mkNot b) bi]⟩
     let res2 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
     if ← getInhabitationReasoningM then
