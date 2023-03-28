@@ -16,8 +16,6 @@ open Std
 open RuleM
 open Expr
 
-def enableTypeInhabitationReasoning := false
-
 initialize
   registerTraceClass `Simplification.debug
   registerTraceClass `ImmediateSimplification.debug
@@ -258,7 +256,7 @@ def addNewClause (c : Clause) (proof : Proof) (generatingAncestors : Array Claus
         isOrphan := false
       }
       setAllClauses (allClauses.insert c ci)
-      if enableTypeInhabitationReasoning then
+      if ← getInhabitationReasoningM then
         if c.lits.size == 0 && c.bVarTypes.size == 0 then 
           setEmptyClause c
           throwEmptyClauseException

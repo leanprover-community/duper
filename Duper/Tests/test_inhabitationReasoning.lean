@@ -1,6 +1,7 @@
 import Duper.Tactic
 import Duper.TPTP
 
+set_option inhabitationReasoning true
 set_option trace.typeInhabitationReasoning.debug true
 
 theorem optionTest1 (t : Type) (f : Option t) : ∃ x : Option t, True := by duper

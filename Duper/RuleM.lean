@@ -11,7 +11,17 @@ namespace Duper
 namespace RuleM
 open Lean
 
-def enableTypeInhabitationReasoning := false
+register_option inhabitationReasoning : Bool := {
+  defValue := false
+  descr := "Whether to enable type inhabitation reasoning"
+}
+
+def getInhabitationReasoning (opts : Options) : Bool :=
+  inhabitationReasoning.get opts
+
+def getInhabitationReasoningM : CoreM Bool := do
+  let opts ← getOptions
+  return getInhabitationReasoning opts
 
 structure Context where
   order : Expr → Expr → MetaM Comparison
@@ -311,7 +321,7 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
   (transferExprs : Array Expr := #[]) (mvarIdsToRemove : Array MVarId := #[]) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents, transferExprs), st) :=
-    if enableTypeInhabitationReasoning then
+    if ← getInhabitationReasoningM then
       neutralizeMClauseInhabitedReasoningOn mc (← getLoadedClauses) transferExprs mvarIdsToRemove
         { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
     else

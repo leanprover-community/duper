@@ -76,7 +76,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
   let subsumptionTrie ← getSubsumptionTrie
-  if enableTypeInhabitationReasoning then
+  if ← getInhabitationReasoningM then
     return #[
       (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule,
       (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
@@ -130,7 +130,7 @@ partial def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := 
   Core.checkMaxHeartbeats "forwardSimpLoop"
   let activeSet ← getActiveSet
   if activeSet.contains givenClause then return none
-  if enableTypeInhabitationReasoning then
+  if ← getInhabitationReasoningM then
     let some givenClause ← removeVanishedVars givenClause
       | return none -- givenClause is potentially vacuous, so we cannot safely use it for any rules
     match ← applyForwardSimpRules givenClause with
@@ -219,7 +219,7 @@ partial def saturate : ProverM Unit := do
       let some simplifiedGivenClause ← forwardSimplify givenClause
         | continue
       trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause}"
-      if enableTypeInhabitationReasoning then registerNewInhabitedTypes simplifiedGivenClause
+      if ← getInhabitationReasoningM then registerNewInhabitedTypes simplifiedGivenClause
       backwardSimplify simplifiedGivenClause
       addToActive simplifiedGivenClause
       let inferenceRules ← inferenceRules
