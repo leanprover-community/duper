@@ -31,6 +31,14 @@ def getNonemptyType (c : MClause) : Option Expr :=
     | .const ``True _, .app (.const ``Nonempty _) t => some t
     | _, _ => none
 
+def mkTypeInhabitationReasoningProof (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
+  (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
+    let size := appliedPremises.length
+    let appliedPremise := appliedPremises[size - 1]!
+    Meta.mkLambdaFVars xs $ appliedPremise
+
 /-- Attempts to remove the vanished variables that appear in c, updating verifiedInhabitedTypes and potentiallyUninhabitedTypes as it
     encounters types whose inhabitation status has not previously been checked. -/
 def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMVarList) (verifiedNonemptyTypes : abstractedMVarAndClauseList)
@@ -52,7 +60,7 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
         if potentiallyUninhabitedTypes.contains abstractedType then
           return (PotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
         else -- This is a type we haven't seen yet. Try to synthesize inhabited
-          match ← Meta.tryFindInstance mvarType with
+          match ← Meta.findInstance mvarType with
           | none => return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
           | some _ => verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
     else
@@ -63,13 +71,16 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
         continue
       match verifiedNonemptyTypes.find? (fun (t, c) => t == abstractedType) with
       | some (_, c) =>
-        let _ ← loadClause c -- Adding c as a parent so that its proof is available to proof reconstruction
+        let _ ← loadClause c -- Adding c as a parent so that its proof will
+                             -- be reconstructed by proof reconstruction,
+                             -- and we'll be able to obtain the inhabitation
+                             -- proof in `findInstance`
         mvarIdsToRemove := mvarIdsToRemove.push mvarId
       | none =>
         if potentiallyUninhabitedTypes.contains abstractedType then
           return (PotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
         else -- This is a type we haven't seen yet. Try to synthesize inhabited
-          match ← Meta.tryFindInstance mvarType with
+          match ← Meta.findInstance mvarType with
           | none => return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
           | some _ =>
             verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
@@ -77,7 +88,7 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
   if mvarIdsToRemove.size == 0 then
     return (NoVanishedVars, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
   else
-    let cp ← yieldClause mclause "removeVanishedVars" none (mvarIdsToRemove := mvarIdsToRemove)
+    let cp ← yieldClause mclause "removeVanishedVars" mkTypeInhabitationReasoningProof (mvarIdsToRemove := mvarIdsToRemove)
     return (Success cp, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
 
 /-- Iterates through c's bVarTypes and removes each bVarType whose bvar does not appear in c. If `removeVanishedVars`

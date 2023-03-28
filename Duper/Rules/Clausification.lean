@@ -103,8 +103,8 @@ theorem clausify_exists {p : α → Prop} (h : (∃ x, p x) = True) :
   p (Classical.choose (of_eq_true h)) = True := 
 eq_true $ Classical.choose_spec _
 
-theorem nonempty_of_exists {p : α → Prop} (h : (∃ x : α, p x) = True) : Nonempty α = True :=
-  eq_true (Nonempty.intro (Classical.choose (of_eq_true h)))
+theorem nonempty_of_exists {p : α → Prop} (h : (∃ x : α, p x) = True) : Nonempty α :=
+  Nonempty.intro (Classical.choose (of_eq_true h))
 
 --TODO: move?
 theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False := 

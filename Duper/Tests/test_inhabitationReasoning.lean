@@ -23,6 +23,7 @@ theorem finTest3 (mult_Nats : ∃ y : Nat, y ≠ 0)
   (h : ∀ x : Nat, x ≠ 0 → ∃ f : Fin x → Fin x, ∃ y : Fin x, ∀ z : Fin x, (f y ≠ y) ∧ (f z = y)) : False := by duper
 
 -- Needs to synthesize Inhabited person
+set_option trace.ProofReconstruction true in
 theorem barber_paradox1 {person : Type} {shaves : person → person → Prop}
   (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := 
   by duper

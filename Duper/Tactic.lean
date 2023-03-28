@@ -210,8 +210,6 @@ partial def mkClauseProof : List Clause → PRM Expr
     let fvarId ← mkFreshFVarId
     let declName := (Name.mkNum (Name.mkNum `clause info.number) reqid)
     PRM.mkLetDecl fvarId declName newTarget newProof
-    runMetaAsPRM <| do
-      trace[ProofReconstruction] "FVarId: {mkFVar fvarId}, name: {declName}, target: {newTarget}, proof: {newProof}"
     modify fun ctrc => ctrc.insertConstructedClauses (info.number, req) (mkFVar fvarId)
   mkClauseProof cs
 

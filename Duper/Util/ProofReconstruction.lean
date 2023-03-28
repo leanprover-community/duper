@@ -22,7 +22,10 @@ def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs 
     for m in mvars do
       let ty ← Meta.inferType m
       let id := m.mvarId!
-      id.assign (← Meta.findInstance ty)
+      if let some inst ← Meta.findInstance ty then
+        id.assign inst
+      else
+        throwError "instantiatePremises :: Failed to find instance for {ty}"
     -- `parentInstantiations = mvars[fvars]`
     let parentInstantiations := finstantiatedparent.getAppArgs
     trace[InstantiatePremises] "parentInstantiations: {parentInstantiations}"

@@ -87,43 +87,83 @@ def getInstanceFromNonemptyFact (nonemptyFact : Expr) : MetaM Expr := do
   try Meta.mkAppM ``getInstanceFromLeftNonemptyFact #[nonemptyFact]
   catch _ => Meta.mkAppM ``getInstanceFromRightNonemptyFact #[nonemptyFact]
 
-def Lean.Meta.findInstance (ty : Expr) (nonemptyFacts : List Expr := []) : MetaM Expr := do
+private def Lean.withoutModifyingMCtx (x : MetaM α) : MetaM α := do
+  let s ← getMCtx
+  try
+    x
+  finally
+    setMCtx s
+
+partial def Lean.Meta.findInstance (ty : Expr) : MetaM (Option Expr) := do
   let ty ← instantiateMVars ty
   forallTelescope ty fun xs ty' => do
-    let u ← do
+    let u ← (do
       if ty' == .sort (.succ .zero) then
-        pure <| mkConst ``Nat
+        pure <| some (mkConst ``Nat)
       else if let .sort (.succ l) := ty then
-        pure <| mkSort l
+        pure <| some (mkSort l)
       else try
-        Meta.mkAppOptM ``inferInstanceAs #[ty', none]
-      catch _ =>
+        let inst ← Meta.mkAppOptM ``inferInstanceAs #[ty', none]
+        return some inst
+      catch _ => do
         -- Find assumption in Local Context
         let ctx ← getLCtx
-        let option_matching_expr ← ctx.findDeclM? fun decl : Lean.LocalDecl => do
-          let declExpr := decl.toExpr
-          let declType ← Lean.Meta.inferType declExpr
-          if ← Lean.Meta.isDefEq declType ty'
-          then
-            return Option.some declExpr
-          else
-            return Option.none
+        let option_matching_expr ← ctx.findDeclM? fun decl : Lean.LocalDecl =>
+          simpleApply decl.toExpr ty' xs
         match option_matching_expr with
         | some e => pure e
         | none =>
-          try Meta.mkAppOptM ``default #[ty', none]
-          catch _ => do
-            for nonemptyFact in nonemptyFacts do
-              trace[typeInhabitationReasoning.debug] "About to get inst from nonemptyFact: {nonemptyFact}"
-              let inst ← getInstanceFromNonemptyFact nonemptyFact
-              if (← inferType inst) == ty' then return inst
-            trace[typeInhabitationReasoning.debug] "nonemptyFacts: {nonemptyFacts}"
-            throwError "Failed to find an instance for type {ty}"
-    mkLambdaFVars xs u
-
-def Lean.Meta.tryFindInstance (ty : Expr) : MetaM (Option Expr) :=
-  try Lean.Meta.findInstance ty
-  catch _ => return none
+          try
+            let inst ← Meta.mkAppOptM ``default #[ty', none]
+            return some inst
+          catch _ =>
+            return none)
+    if let some u := u then
+      return some (← mkLambdaFVars xs u)
+    return none
+where
+  simpleApply (lemmaProof goal : Expr) (fvars : Array Expr) : MetaM (Option Expr) :=
+    Lean.withoutModifyingMCtx <| Meta.withNewMCtxDepth <| do
+      let lemmaTy ← Meta.inferType lemmaProof
+      let (xs, _, instLemmaTy) ← Meta.forallMetaTelescope lemmaTy
+      -- A declaration of type `α`
+      let optExpr ← Lean.withoutModifyingMCtx <| do
+        if ← Lean.Meta.isDefEq instLemmaTy goal then
+          let prf ← Lean.instantiateMVars (mkAppN lemmaProof xs)
+          if (← findInstanceForUninstantiatedMVars prf fvars) then
+            return some (← Lean.instantiateMVars prf)
+        return none
+      if let some expr := optExpr then
+        return some expr
+      -- A declaration of type `Nonempty α = True`
+      let optExpr ← Lean.withoutModifyingMCtx <| do
+        -- lemmaTy = `∀ [x], Nonempty (∀ [y], t [x] [y]) = True`
+        -- instLemmaTy = `Nonempty (∀ [y], t [mx] [y]) = True`
+        -- inst : `∀ [y], t [mx] [y]` (noneType)
+        if let .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) noneType)) (.const ``True []) := instLemmaTy then
+          let instLemma := mkAppN lemmaProof xs
+          let nonempty ← Meta.mkAppM ``of_eq_true #[instLemma]
+          let inst ← Meta.mkAppOptM ``Classical.ofNonempty #[none, nonempty]
+          let (ys, _, instNoneType) ← Meta.forallMetaTelescope noneType
+          if ← Lean.Meta.isDefEq instNoneType goal then
+            let prf ← Lean.instantiateMVars (mkAppN inst ys)
+            if (← findInstanceForUninstantiatedMVars prf fvars) then
+              return some (← Lean.instantiateMVars prf)
+        return none
+      return optExpr
+  findInstanceForUninstantiatedMVars (prf : Expr) (fvars : Array Expr) : MetaM Bool := do
+    let mvars ← Meta.getMVars prf
+    let mut fvarMap : HashMap Expr Expr := HashMap.empty
+    for fvar in fvars do
+      fvarMap := fvarMap.insert (← Meta.inferType fvar) fvar
+    for mvarId in mvars do
+      if ! (← mvarId.isReadOnly) then
+        let mvarTy ← Lean.instantiateMVars (← Meta.inferType (mkMVar mvarId))
+        if let some e := fvarMap.find? mvarTy then
+          mvarId.assign e
+        else
+          return false
+    return true
 
 /-- Returns the arity of e -/
 partial def getArity (e : Expr) : Nat :=
