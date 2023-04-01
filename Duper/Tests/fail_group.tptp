@@ -1,0 +1,25 @@
+fof(left_identity,axiom,
+    ! [X] : mult(e,X) = X).
+
+fof(left_inverse,axiom,
+    ! [X] : mult(inverse(X),X) = e).
+
+fof(associativity,axiom,
+    ! [X,Y,Z] : mult(mult(X,Y),Z) = mult(X,mult(Y,Z))).
+
+fof(cube_definition,hypothesis,
+    ! [X] : cube(X) = mult(X, mult(X, X))).
+
+fof(cube_injective,hypothesis,
+    ! [X,Y] : cube(X) = cube(Y) => X = Y).
+
+fof(cube_surjective,hypothesis,
+    ! [X] : ? [Y] : X = cube(Y)).
+
+fof(cube_homomorphism,hypothesis,
+    ! [X,Y] : cube(mult(X,Y)) = mult(cube(X),cube(Y))).
+
+fof(commutivity,conjecture,
+    ! [X,Y] : mult(X,Y) = mult(Y,X)).
+
+%---cmd: ./vampire_z3_Release_static_master_4764 -m 12000 -t 1h Group_Theory/CubeIsom.tptp --mode casc

@@ -1,0 +1,28 @@
+fof(union_comm,axiom,
+    ! [A,B] : union(A,B) = union(B,A)).
+
+fof(inter_comm,axiom,
+    ! [A,B] : inter(A,B) = inter(B,A)).
+
+fof(union_assoc,axiom,
+    ! [A,B,C] : union(A,union(B,C)) = union(union(A,B),C)).
+
+fof(inter_assoc,axiom,
+    ! [A,B,C] : inter(A,inter(B,C)) = inter(inter(A,B),C)).
+
+fof(lattice_U,axiom,
+    ! [A,B] : union(A,inter(A,B)) = A).
+
+fof(lattice_A,axiom,
+    ! [A,B] : inter(A,union(A,B)) = A).
+
+fof(modLat_A,axiom,
+    ! [A,X,B] : union(inter(A,B),inter(X,B)) = inter(union(inter(A,B),X),B)).
+
+fof(hyp,hypothesis,
+    inter(a,union(b,c)) = union(inter(a,b),inter(a,c))).
+
+fof(conj,conjecture,
+    union(a,inter(b,c)) = inter(union(a,b),union(a,c))).
+
+%---cmd: ./vampire_z3_Release_static_master_4764 -m 12000 -t 1h Group_Theory/ModLattice.tptp --mode casc

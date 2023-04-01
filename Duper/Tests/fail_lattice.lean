@@ -10,6 +10,8 @@ infix:90 "⋃" => U
 instance : LE L where
   le a b := a = a ⋂ b
 
+-- vampire succeeds on this example
+
 theorem mod_lattice1
   (U_Comm : ∀ a b, U a b = U b a)
   (A_Comm : ∀ a b, A a b = A b a)
@@ -20,10 +22,4 @@ theorem mod_lattice1
   (ModLatA : ∀ a x b, U (A a b) (A x b) = A (U (A a b) x) b)
   (a b c : L)
   (Hyp : A a (U b c) = U (A a b) (A a c))
-  : U a (A b c) = A (U a b) (U a c) := by
-  have MainLemma : ∀ a b c, a ⋃ (b ⋂ c) = (a ⋃ b) ⋂ (a ⋃ c) ↔ (a ⋃ b) ⋂ c = (a ⋂ c) ⋃ (b ⋂ c) := by
-    clear ModLatA Hyp; intros a b c; apply Iff.intro
-    case mp => sorry
-    case mpr => sorry
-  clear L_Lattice_U L_Lattice_A U_Assoc A_Assoc
-  duper
+  : U a (A b c) = A (U a b) (U a c) := by duper
