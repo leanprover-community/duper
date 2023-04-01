@@ -380,6 +380,9 @@ example (h : (∃ y : Nat, True) = False) : False := by duper
 example (h : ∀ y : Nat, False) : False := by duper
 example (h : (∀ y : Nat, True) = False) : False := by duper
 
+-- Checks β/η reduction
+example : (let f := (fun x => (x, x)); (fun x => f x) 1) = (1, 1) := by duper
+
 --###############################################################################################################################
 -- Tests for providing facts to duper
 theorem add_assoc : ∀ x : Nat, ∀ y : Nat, ∀ z : Nat, (x + y) + z = x + (y + z) := sorry
