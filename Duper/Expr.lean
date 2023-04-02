@@ -97,6 +97,20 @@ partial def getAtPos? [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : ExprPos) 
     | none => return none
   return cur
 
+/-- "Untyped" positions are positions on potentially ill-typed expressions produced by the ⌊e⌋ function described
+    in https://matryoshka-project.github.io/pubs/hounif_article.pdf and implemented in Fingerprint.lean's
+    transformToUntypedFirstOrderTerm. Untyped positions are not intended to be consistent with ordinary expression
+    positions, both because of the transformations performed by the ⌊e⌋ function, and because we cannot distinguish
+    implications from arbitrary forallE expressions in potentially ill-typed expressions. Consequently, this function
+    should only be used internally by Fingerprint.lean. -/
+partial def getAtUntypedPos [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : ExprPos) : m (Option Expr) := do
+  let mut cur := e
+  for i in pos do
+    match cur.getAppRevArgs[i]? with
+    | some e => cur := e
+    | none => return none
+  return cur
+
 /-- Returns true if either the subexpression indiced by pos exists in e, or if it may be possible to instantiate metavariables in
     e in such a way that the subexpression indiced by pos would exist.
 
@@ -110,6 +124,15 @@ partial def canInstantiateToGetAtPos [Monad m] [MonadLiftT MetaM m] (e : Expr) (
     match e'_opt with
     | none => return false
     | some e' => canInstantiateToGetAtPos e' pos (startIndex := startIndex + 1)
+
+partial def canInstantiateToGetAtUntypedPos (e : Expr) (pos : ExprPos) (startIndex := 0) : Bool :=
+  if e.isMVar then true
+  else if pos.size ≤ startIndex then true
+  else
+    let e'_opt := (e.getAppRevArgs)[pos[startIndex]!]?
+    match e'_opt with
+    | none => false
+    | some e' => canInstantiateToGetAtUntypedPos e' pos (startIndex := startIndex + 1)
 
 partial def getTopSymbol (e : Expr) : Expr :=
   match e.consumeMData with

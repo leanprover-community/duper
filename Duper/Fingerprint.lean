@@ -111,15 +111,47 @@ namespace RootCFPTrie
 /-- General fingerprint feature function (see: http://www.eprover.eu/EXPDATA/FP_INDEX/schulz_fp-index_ext.pdf)
     Note that this function assumes that e already has had its metavariables instantiated -/
 def gfpf [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : ExprPos) : m FingerprintFeatureValue := do
-  match ← e.getAtPos? pos with
+  match ← e.getAtUntypedPos pos with
   | none =>
-    if ← e.canInstantiateToGetAtPos pos then return B
+    if e.canInstantiateToGetAtUntypedPos pos then return B
     else return N
   | some e' =>
     if e'.isMVar then return A
     else return F e.getTopSymbol
 
-def getFingerprint [Monad m] [MonadLiftT MetaM m] (e : Expr) : m Fingerprint :=
+/-- This implements the ⌊e⌋ function described in https://matryoshka-project.github.io/pubs/hounif_article.pdf.
+    Although the ⌊e⌋ function description assumes that e is in η-long β-reduced normal form, this function assumes
+    e is an expression on which beta, eta, and zeta reduction have been applied exhaustively. I believe that the
+    same specification descrbied in the paper can be used with this assumption, but if it turns out I'm mistaken,
+    we can add a step to the beginning to this function that converts e to η-long β-reduced normal form.
+
+    Note: The output of this function is not guaranteed (or expected) to be well-formed. -/
+def transformToUntypedFirstOrderTerm [Monad m] [MonadLiftT MetaM m] (e : Expr) : m Expr := do
+  match e with
+  | Expr.forallE _ _ b _ => transformToUntypedFirstOrderTerm b
+  | Expr.lam _ _ b _ => transformToUntypedFirstOrderTerm b
+  | Expr.app f a =>
+    match e.getTopSymbol with
+    | Expr.mvar mvarId => return .mvar mvarId
+    | _ => return .app (← transformToUntypedFirstOrderTerm f) (← transformToUntypedFirstOrderTerm a)
+  | Expr.proj tyName idx e => return .proj tyName idx (← transformToUntypedFirstOrderTerm e)
+  | Expr.bvar bvarNum =>
+    /-
+      The specification of ⌊e⌋ calls for a fresh constant for each type and bvarNum, but since there isn't a
+      great way to track the type of each bvar (it could be done in principle by tracking the type each time
+      we enter a .lam or .forallE expression, but it's not clear at present that the effort would be worthwhile),
+      what we essentially want to implement is a fresh constant for each bvarNum. We could do this by calling
+      mkFreshFVarId and keeping a map from bvarNums to fresh fVarIds (and if we later decide to distinguish by the
+      type of the bvar, then I think this is the approach we would need to take), but since we currently only
+      need a distinct expression for each bvarNum, the expression `.bvar bvarNum` works as well as anything else.
+     -/
+    return .bvar bvarNum
+  | Expr.mdata _ e => transformToUntypedFirstOrderTerm e
+  | Expr.letE _ _ _ _ _ => panic! "The letE expression {e} should have been removed by zeta reduction"
+  | _ => return e -- Expr.fvar, Expr.mvar, Expr.lit, Expr.const, and Expr.sort cases
+
+def getFingerprint [Monad m] [MonadLiftT MetaM m] (e : Expr) : m Fingerprint := do
+  let e ← transformToUntypedFirstOrderTerm e
   fingerprintFeatures.mapM (fun pos => gfpf e pos)
 
 /-- Given a fingerprint f, yields a ClauseFingerprintTrie whose depth equals the length of f and whose
