@@ -74,13 +74,17 @@ instance [ToMessageData α] [BEq α] [Hashable α] : ToMessageData (FingerprintT
   ⟨FingerprintTrie.printElems⟩
 -----------------------------------------------------------------------------------------------------------
 
-/-- Fingerprint features that will define levels of the fingerprint trie. The current value is just what is described
-    in (http://www.eprover.eu/EXPDATA/FP_INDEX/schulz_fp-index_ext.pdf). Finding an actually good fingerprint function
-    is an item in TODO.md -/
+/-- Fingerprint features that will define levels of the fingerprint trie. The current value is Zipperposition's
+    default fingerprint function fp7m defined at
+    https://github.com/sneeuwballen/zipperposition/blob/master/src/core/Fingerprint.ml#L135 -/
 def fingerprintFeatures : List ExprPos := [
   #[],
   #[0],
-  #[1]
+  #[1],
+  #[2],
+  #[0, 0],
+  #[3],
+  #[0, 1]
 ]
 
 /-- Every ClauseFingerprintTrie (that isn't a subtrie of a different ClauseFingerprintTrie) must have a depth equal

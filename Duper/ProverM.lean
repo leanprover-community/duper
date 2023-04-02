@@ -60,8 +60,10 @@ structure State where
   qStreamSet : ClauseStreamHeap ClauseStream := ClauseStreamHeap.empty ClauseStream
   symbolPrecMap : SymbolPrecMap := HashMap.empty
   highesetPrecSymbolHasArityZero : Bool := false
-  mainPremiseIdx : RootCFPTrie := {}
+  supMainPremiseIdx : RootCFPTrie := {}
+  fluidSupMainPremiseIdx : RootCFPTrie := {} -- Stores fluid subterms but not deeply occurring variables which must be found separately
   supSidePremiseIdx : RootCFPTrie := {}
+  demodMainPremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
   skolemMap : HashMap Nat SkolemInfo := HashMap.empty
@@ -115,11 +117,17 @@ def getSymbolPrecMap : ProverM SymbolPrecMap :=
 def getHighesetPrecSymbolHasArityZero : ProverM Bool :=
   return (← get).highesetPrecSymbolHasArityZero
 
-def getMainPremiseIdx : ProverM RootCFPTrie :=
-  return (← get).mainPremiseIdx
+def getSupMainPremiseIdx : ProverM RootCFPTrie :=
+  return (← get).supMainPremiseIdx
+
+def getFluidSupMainPremiseIdx : ProverM RootCFPTrie :=
+  return (← get).fluidSupMainPremiseIdx
 
 def getSupSidePremiseIdx : ProverM RootCFPTrie :=
   return (← get).supSidePremiseIdx
+
+def getDemodMainPremiseIdx : ProverM RootCFPTrie :=
+  return (← get).demodMainPremiseIdx
 
 def getDemodSidePremiseIdx : ProverM RootCFPTrie :=
   return (← get).demodSidePremiseIdx
@@ -177,11 +185,17 @@ def setHighesetPrecSymbolHasArityZero (highesetPrecSymbolHasArityZero : Bool) : 
 def setSupSidePremiseIdx (supSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with supSidePremiseIdx := supSidePremiseIdx }
 
+def setDemodMainPremiseIdx (demodMainPremiseIdx : RootCFPTrie) : ProverM Unit :=
+  modify fun s => { s with demodMainPremiseIdx := demodMainPremiseIdx }
+
 def setDemodSidePremiseIdx (demodSidePremiseIdx : RootCFPTrie) : ProverM Unit :=
   modify fun s => { s with demodSidePremiseIdx := demodSidePremiseIdx }
 
-def setMainPremiseIdx (mainPremiseIdx : RootCFPTrie) : ProverM Unit :=
-  modify fun s => { s with mainPremiseIdx := mainPremiseIdx }
+def setSupMainPremiseIdx (supMainPremiseIdx : RootCFPTrie) : ProverM Unit :=
+  modify fun s => { s with supMainPremiseIdx := supMainPremiseIdx }
+
+def setFluidSupMainPremiseIdx (fluidSupMainPremiseIdx : RootCFPTrie) : ProverM Unit :=
+  modify fun s => { s with fluidSupMainPremiseIdx := fluidSupMainPremiseIdx }
 
 def setSubsumptionTrie (subsumptionTrie : SubsumptionTrie) : ProverM Unit :=
   modify fun s => { s with subsumptionTrie := subsumptionTrie }
@@ -346,23 +360,56 @@ def addToActive (c : Clause) : ProverM Unit := do
       let (_, mclause) ← loadClauseCore c
       mclause.foldM (fun idx e pos => idx.insert e (cNum, c, pos)) idx
     setDemodSidePremiseIdx idx
-  -- Add to main premise index:
-  let idx ← getMainPremiseIdx
+  -- Add to demodMainPremiseIdx:
+  let idx ← getDemodMainPremiseIdx
+  let idx ← runRuleM do
+    let (_, mclause) ← loadClauseCore c
+    mclause.foldGreenM
+      fun idx e pos => do
+        -- Only restriction for demodulation is that we can't rewrite variables
+        -- (see https://github.com/sneeuwballen/zipperposition/blob/master/src/prover_calculi/superposition.ml#L350)
+        if not e.isMVar then idx.insert e (cNum, c, pos)
+        else return idx
+      idx
+  setDemodMainPremiseIdx idx
+  -- Add to supMainPremiseIdx:
+  let idx ← getSupMainPremiseIdx
   let idx ← runRuleM do
     let (_, mclause) ← loadClauseCore c
     let sel := getSelections mclause
     mclause.foldGreenM
       fun idx e pos => do
         let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) pos.lit
+        let isFluid := Order.isFluid e
         let eligible :=
           if e.isMVar then false
           else if(sel.contains pos.lit) then true
           else if(sel == []) then not canNeverBeMaximal
           else false
-        if eligible then idx.insert e (cNum, c, pos)
+        if (not isFluid) && eligible then idx.insert e (cNum, c, pos)
         else return idx
       idx
-  setMainPremiseIdx idx
+  setSupMainPremiseIdx idx
+  -- Add to fluidSupMainPremiseIdx
+  let idx ← getFluidSupMainPremiseIdx
+  let idx ← runRuleM do
+    let (_, mclause) ← loadClauseCore c
+    let sel := getSelections mclause
+    mclause.foldGreenM
+      fun idx e pos => do
+        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) pos.lit
+        let isFluid := Order.isFluid e
+        let eligible :=
+          -- Although fluidSup can act on mvars (unlike regular superposition), we use this indexing
+          -- structure only for fluid terms, and handle deeply occurring variables separately
+          if e.isMVar then false
+          else if(sel.contains pos.lit) then true
+          else if(sel == []) then not canNeverBeMaximal
+          else false
+        if isFluid && eligible then idx.insert e (cNum, c, pos)
+        else return idx
+      idx
+  setFluidSupMainPremiseIdx idx
   -- Add to subsumption trie
   let idx ← getSubsumptionTrie
   let idx ← runRuleM $ idx.insert c
@@ -372,12 +419,16 @@ def addToActive (c : Clause) : ProverM Unit := do
 
 /-- Remove c from mainPremiseIdx, supSidePremiseIdx, demodSidePremiseIdx, and subsumptionTrie -/
 def removeFromDiscriminationTrees (c : Clause) : ProverM Unit := do
-  let mainIdx ← getMainPremiseIdx
+  let supMainIdx ← getSupMainPremiseIdx
+  let fluidSupMainIdx ← getFluidSupMainPremiseIdx
   let supSideIdx ← getSupSidePremiseIdx
+  let demodMainIdx ← getDemodMainPremiseIdx
   let demodSideIdx ← getDemodSidePremiseIdx
   let subsumptionTrie ← getSubsumptionTrie
-  setMainPremiseIdx (← runRuleM $ mainIdx.delete c)
+  setSupMainPremiseIdx (← runRuleM $ supMainIdx.delete c)
+  setFluidSupMainPremiseIdx (← runRuleM $ fluidSupMainIdx.delete c)
   setSupSidePremiseIdx (← runRuleM $ supSideIdx.delete c)
+  setDemodMainPremiseIdx (← runRuleM $ demodMainIdx.delete c)
   setDemodSidePremiseIdx (← runRuleM $ demodSideIdx.delete c)
   setSubsumptionTrie (← runRuleM $ subsumptionTrie.delete c)
 

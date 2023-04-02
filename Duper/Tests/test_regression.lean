@@ -529,7 +529,7 @@ def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ =>
 end NegativeBoolSimpTests
 
 /- ClauseStreamHeap tests -/
-
+set_option maxHeartbeats 300000 in
 tptp MGT008 "../TPTP-v8.0.0/Problems/MGT/MGT008+1.p"
   by duper
 

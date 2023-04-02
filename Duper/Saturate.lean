@@ -78,24 +78,14 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
 
 def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
   let subsumptionTrie ← getSubsumptionTrie
-  if ← getInhabitationReasoningM then
-    return #[
-      (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule,
-      (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
-      (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
-      (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
-      (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
-      (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
-    ]
-  else
-    return #[
-      (backwardDemodulation (← getMainPremiseIdx)).toBackwardSimpRule,
-      (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
-      (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
-      (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
-      (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
-      (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
-    ]
+  return #[
+    (backwardDemodulation (← getDemodMainPremiseIdx)).toBackwardSimpRule,
+    (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
+    (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
+    (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
+    (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
+    (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
+  ]
 
 -- The first `Clause` is the given clause
 -- The second `MClause` is a loaded clause
@@ -103,7 +93,7 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
   return [
   equalityResolution,
   clausifyPropEq,
-  superposition (← getMainPremiseIdx) (← getSupSidePremiseIdx),
+  superposition (← getSupMainPremiseIdx) (← getSupSidePremiseIdx),
   equalityFactoring,
   -- Prop specific rules
   falseElim,
