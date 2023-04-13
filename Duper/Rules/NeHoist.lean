@@ -60,7 +60,7 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
       if otherSide != (mkConst ``True) && otherSide != (mkConst ``False) && not otherSide.getTopSymbol.isMVar then
         return #[] -- The other side is not True, False, or variable headed, so the affected literal cannot have the required form
     -- Check conditions 1 and 3 (condition 2 is guaranteed by construction)
-    let eligibility ← eligibilityPreUnificationCheck c pos.lit
+    let eligibility ← eligibilityPreUnificationCheck c (alreadyReduced := true) pos.lit
     if eligibility == Eligibility.notEligible then
       return #[]
     -- Make freshVars, freshVarInequality, and freshVarEquality
@@ -74,11 +74,11 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
     let loaded ← getLoadedClauses
     let yC := do
       setLoadedClauses loaded
-      if not $ ← eligibilityPostUnificationCheck c pos.lit eligibility (strict := lit.sign) then
+      if not $ ← eligibilityPostUnificationCheck c (alreadyReduced := false) pos.lit eligibility (strict := lit.sign) then
         return none
       let eSide ← instantiateMVars $ lit.getSide pos.side
       let otherSide ← instantiateMVars $ lit.getOtherSide pos.side
-      let cmp ← compare eSide otherSide
+      let cmp ← compare eSide otherSide false
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none
       -- All side conditions have been met. Yield the appropriate clause

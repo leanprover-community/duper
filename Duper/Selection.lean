@@ -51,9 +51,9 @@ instance : ToMessageData (Eligibility) := ⟨Eligibility.format⟩
 
 A literal L is (strictly) eligible in C if it is selected in C or there are no selected literals
 in C and L is (strictly) maximal in C. -/
-def eligibilityNoUnificationCheck (c : MClause) (i : Nat) (strict := false) : RuleM Bool := do
+def eligibilityNoUnificationCheck (c : MClause) (alreadyReduced := true) (i : Nat) (strict := false) : RuleM Bool := do
   match getSelections c with
-  | [] => c.isMaximalLit (← getOrder) i strict
+  | [] => c.isMaximalLit (← getOrder) alreadyReduced i strict
   | sel => do
     let isSelected := sel.contains i
     if isSelected ∧ ¬ isSelectableLit c i then
@@ -65,12 +65,12 @@ def eligibilityNoUnificationCheck (c : MClause) (i : Nat) (strict := false) : Ru
 A literal L is (strictly) eligible w.r.t. a substitution σ
 in C if it is selected in C or there are no selected literals
 in C and Lσ is (strictly) maximal in Cσ. -/
-def eligibilityPreUnificationCheck (c : MClause) (i : Nat) : RuleM Eligibility := do
+def eligibilityPreUnificationCheck (c : MClause) (alreadyReduced := true) (i : Nat) : RuleM Eligibility := do
   let sel := getSelections c
   if(sel.contains i) then
     return Eligibility.eligible -- literal is eligible and the post unification check is not necessary
   else if(sel == []) then do
-    if (← c.canNeverBeMaximal (← getOrder) i) then
+    if (← c.canNeverBeMaximal (← getOrder) alreadyReduced i) then
       return Eligibility.notEligible
     else
       return Eligibility.potentiallyEligible -- literal may be eligible but the post unification check is needed to confirm maximality
@@ -82,11 +82,11 @@ def eligibilityPreUnificationCheck (c : MClause) (i : Nat) : RuleM Eligibility :
 A literal L is (strictly) eligible w.r.t. a substitution σ
 in C if it is selected in C or there are no selected literals
 in C and Lσ is (strictly) maximal in Cσ. -/
-def eligibilityPostUnificationCheck (c : MClause) (i : Nat) (preUnificationResult : Eligibility) (strict := false) : RuleM Bool := do
+def eligibilityPostUnificationCheck (c : MClause) (alreadyReduced := false) (i : Nat) (preUnificationResult : Eligibility) (strict := false) : RuleM Bool := do
   if preUnificationResult == Eligibility.eligible then return true
   else if preUnificationResult == Eligibility.notEligible then return false
   else
     let c ← c.mapM instantiateMVars
-    c.isMaximalLit (← getOrder) i (strict := strict)
+    c.isMaximalLit (← getOrder) alreadyReduced i (strict := strict)
 
 end Duper

@@ -1,5 +1,6 @@
 import Lean
 import Duper.Util.Misc
+import Duper.Util.BetaEtaReduce
 
 namespace Duper
 open Lean
@@ -365,14 +366,22 @@ def isFluid (t : Expr) :=
   let t := t.consumeMData
   (t.isApp && t.getAppFn.isMVar) || (t.isLambda && t.hasMVar)
 
+
+
 /-- Higher-Order KBO, inspired by `https://github.com/sneeuwballen/zipperposition/blob/master/src/core/Ordering.ml`.
 
 Follows Section 3.9 of `https://matryoshka-project.github.io/pubs/hosup_article.pdf`
 and the article "Things to Know when Implementing KBO" by Bernd Löchner.
 -/
-partial def kbo (t1 t2 : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
-  let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false)
-  return res
+partial def kbo (t1 t2 : Expr) (alreadyReduced : Bool) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
+  if alreadyReduced then
+    let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false)
+    return res
+  else
+    let t1 ← betaEtaReduce t1
+    let t2 ← betaEtaReduce t2
+    let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false)
+    return res
 where
   /- Update variable balance, weight balance, and check whether the term contains the fluid term s.
     The argument `pos` determines whether weights and variables will be counted positively or negatively,

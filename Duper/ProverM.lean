@@ -323,7 +323,7 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   let mctx ← getMCtx
   let symbolPrecMap ← getSymbolPrecMap
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
-  let order := λ e1 e2 => Order.kbo e1 e2 symbolPrecMap highesetPrecSymbolHasArityZero
+  let order := λ e1 e2 alreadyReduced => Order.kbo e1 e2 alreadyReduced symbolPrecMap highesetPrecSymbolHasArityZero
   let (res, state) ← RuleM.run x (ctx := {order := order, skolemSorryName := ← getSkolemSorryName}) (s := {skolemMap := ← getSkolemMap})
   ProverM.setSkolemMap state.skolemMap
   setMCtx mctx
@@ -343,7 +343,8 @@ def addToActive (c : Clause) : ProverM Unit := do
     let sel := getSelections mclause
     mclause.foldM
       fun idx e pos => do
-        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) pos.lit
+        -- alreadyReduced is true because c must have been simplified by BetaEtaZetaReduction.lean
+        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) (alreadyReduced := true) pos.lit
         let eligible :=
           if not mclause.lits[pos.lit]!.sign then false
           else if(sel.contains pos.lit) then true
@@ -379,7 +380,8 @@ def addToActive (c : Clause) : ProverM Unit := do
     let sel := getSelections mclause
     mclause.foldGreenM
       fun idx e pos => do
-        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) pos.lit
+        -- alreadyReduced is true because c must have been simplified by BetaEtaZetaReduction.lean
+        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) (alreadyReduced := true) pos.lit
         let isFluid := Order.isFluid e
         let eligible :=
           if e.isMVar then false
@@ -397,7 +399,8 @@ def addToActive (c : Clause) : ProverM Unit := do
     let sel := getSelections mclause
     mclause.foldGreenM
       fun idx e pos => do
-        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) pos.lit
+        -- alreadyReduced is true because c must have been simplified by BetaEtaZetaReduction.lean
+        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) (alreadyReduced := true) pos.lit
         let isFluid := Order.isFluid e
         let eligible :=
           -- Although fluidSup can act on mvars (unlike regular superposition), we use this indexing

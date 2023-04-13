@@ -42,13 +42,13 @@ def mkEqualityResolutionProof (i : Nat) (premises : List Expr) (parents : List P
 def equalityResolutionAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
-    let eligibility ← eligibilityPreUnificationCheck c i
+    let eligibility ← eligibilityPreUnificationCheck c (alreadyReduced := true) i
     if eligibility == Eligibility.notEligible then return #[]
     let loaded ← getLoadedClauses
     let ug ← unifierGenerator #[(lit.lhs, lit.rhs)]
     let yC := do
       setLoadedClauses loaded
-      if not $ ← eligibilityPostUnificationCheck c i eligibility then
+      if not $ ← eligibilityPostUnificationCheck c (alreadyReduced := false) i eligibility then
         return none
       let c := c.eraseLit i
       some <$> yieldClause c "equality resolution" 

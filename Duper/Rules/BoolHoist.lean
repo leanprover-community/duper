@@ -20,7 +20,7 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
       return #[]
     if (e.isFullyAppliedLogicalSymbol) then -- e cannot be a fully applied logical symbol
       return #[]
-    if not (← eligibilityNoUnificationCheck c pos.lit) then
+    if not (← eligibilityNoUnificationCheck c (alreadyReduced := true) pos.lit) then
       -- No unificaiton check rather than PreUnification check because condition 3 talks about the position being eligible in
       -- the original clause (as opposed to being eligible in the clause with respect to the substitution σ)
       return #[]
@@ -32,7 +32,7 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
       let lit := c.lits[pos.lit]!
       let eSide ← instantiateMVars $ lit.getSide pos.side
       let otherSide ← instantiateMVars $ lit.getOtherSide pos.side
-      let cmp ← compare eSide otherSide
+      let cmp ← compare eSide otherSide false
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none
       -- All side conditions have been met. Yield the appropriate clause

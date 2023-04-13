@@ -101,10 +101,10 @@ def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat)
     let ug ← unifierGenerator #[(Lit.getSide lit_i litside_i, Lit.getSide lit_j litside_j)]
     let yC := do
       setLoadedClauses loaded
-      match ← compare (Lit.getSide lit_i litside_i) (Lit.getOtherSide lit_i litside_i) with
+      match ← compare (Lit.getSide lit_i litside_i) (Lit.getOtherSide lit_i litside_i) (alreadyReduced := false) with
       | Comparison.LessThan => return none
       | _ =>
-        if (getSelections c).isEmpty ∧ (← c.isMaximalLit (← getOrder) i) then
+        if (getSelections c).isEmpty && (← c.isMaximalLit (← getOrder) (alreadyReduced := false) i) then
           let new_lit : Lit := 
             { sign := false,
               lvl := lit_i.lvl -- lit_i.lvl = lit_j.lvl
@@ -147,7 +147,7 @@ def equalityFactoringAtLit (given : Clause) (c : MClause) (i : Nat) (j : Nat) : 
   All this to say, though its counterintuitive, it is intentional that c.lits[i].lhs and c.lits[i].rhs are compared before unification in this function
   and after unification in equalityFactoringWithAllConstraints
   -/
-  match ← compare c.lits[i]!.lhs c.lits[i]!.rhs with
+  match ← compare c.lits[i]!.lhs c.lits[i]!.rhs (alreadyReduced := true) with
   | Comparison.LessThan =>
     trace[Rule.equalityFactoring] "{c.lits[i]!.lhs} < {c.lits[i]!.rhs} by the ground reduction ordering"
     let str1 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs

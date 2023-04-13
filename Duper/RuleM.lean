@@ -24,7 +24,7 @@ def getInhabitationReasoningM : CoreM Bool := do
   return getInhabitationReasoning opts
 
 structure Context where
-  order : Expr → Expr → MetaM Comparison
+  order : Expr → Expr → Bool → MetaM Comparison
   skolemSorryName : Name
 deriving Inhabited
 
@@ -92,7 +92,7 @@ initialize registerTraceClass `Rule
 @[inline] def RuleM.run' (x : RuleM α) (ctx : Context) (s : State) : MetaM α :=
   Prod.fst <$> x.run ctx s
 
-def getOrder : RuleM (Expr → Expr → MetaM Comparison) :=
+def getOrder : RuleM (Expr → Expr → Bool → MetaM Comparison) :=
   return (← read).order
 
 def getSkolemSorryName : RuleM Name :=
@@ -345,9 +345,9 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
   }
   return (c, proof)
 
-def compare (s t : Expr) : RuleM Comparison := do
+def compare (s t : Expr) (alreadyReduced : Bool) : RuleM Comparison := do
   let ord ← getOrder
-  ord s t
+  ord s t alreadyReduced
 
 end RuleM
 

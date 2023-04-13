@@ -68,16 +68,17 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
   Core.checkMaxHeartbeats "forward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
-    let isMaximalLit ← mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit
+    let isMaximalLit ← mainPremise.isMaximalLit (← getOrder) true mainPremisePos.lit
     let mainPremiseSideComparison ← compare
       (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
+      true -- alreadyReduced is true because we have not modified the main premise yet (we have not called performMatch yet)
     let atTopPos := Array.isEmpty mainPremisePos.pos
     if isMaximalLit && (mainPremiseSideComparison == Comparison.GreaterThan) && atTopPos then
       return none -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
-  if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
+  if (← compare sidePremiseLit.lhs sidePremiseLit.rhs false) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
   let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
   return some (mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))
@@ -121,7 +122,7 @@ def forwardDemodulation (sideIdx : RootCFPTrie) : MSimpRule := fun c => do
       1. sidePremise.sidePremiseLhs must match mainPremiseSubterm
       2. sidePremise.sidePremiseLhs must be greater than sidePremise.getOtherSide sidePremiseLhs after matching is performed
       3. At least one of the following must be false:
-        - mainPremise.lits[mainPremisePos.lit] is eligible for paramodulation
+        - mainPremise.lits[mainPremisePos.lit] is eligible for paramodulation (note, we replace this by the literal being maximal)
         - mainPremise.lits[mainPremisePos.lit].side > mainPremise.lits[mainPremisePos.lit].otherside
         - mainPremiseSubterm = λ (note, we do not check this, so we may miss some opportunities for demodulation, but I don't believe
           we ever perform demodulation when it should not be allowed)
@@ -136,16 +137,17 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
   Core.checkMaxHeartbeats "backward demodulation"
   let sidePremiseLit := sidePremise.lits[0]!.makeLhs sidePremiseLhs
   if (mainPremise.lits[mainPremisePos.lit]!.sign) then
-    let isMaximalLit ← mainPremise.isMaximalLit (← getOrder) mainPremisePos.lit
+    let isMaximalLit ← mainPremise.isMaximalLit (← getOrder) true mainPremisePos.lit
     let mainPremiseSideComparison ← compare
       (mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side)
       (mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side)
+      true -- alreadyReduced is true because we have not modified the main premise yet (we have not called performMatch yet)
     let atTopPos := Array.isEmpty mainPremisePos.pos
     if isMaximalLit && (mainPremiseSideComparison == Comparison.GreaterThan) && atTopPos then
       return none -- Cannot perform demodulation because Schulz's side conditions are not met
   if not (← performMatch #[(mainPremiseSubterm, sidePremiseLit.lhs)] mainPremiseMVarIds) then
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
-  if (← compare sidePremiseLit.lhs sidePremiseLit.rhs) != Comparison.GreaterThan then
+  if (← compare sidePremiseLit.lhs sidePremiseLit.rhs false) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
   let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
   trace[Rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
@@ -159,7 +161,7 @@ def backwardDemodulation (mainIdx : RootCFPTrie) : BackwardMSimpRule := fun give
   let givenSideClause ← loadClause givenSideClause
   if givenSideClause.lits.size != 1 || not givenSideClause.lits[0]!.sign then return #[]
   let l := givenSideClause.lits[0]!
-  let c ← compare l.lhs l.rhs
+  let c ← compare l.lhs l.rhs true -- alreadyReduced is true because we have not modified l.lhs or l.rhs yet
   if (c == Incomparable || c == Equal) then return #[]
 
   let givenSideClauseLhs := -- givenSideClause.getSide givenSideClauseLhs is will function as the lhs of the side clause

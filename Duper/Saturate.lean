@@ -5,7 +5,7 @@ import Duper.RuleM
 import Duper.MClause
 import Duper.Simp
 import Duper.Preprocessing
-import Duper.Rules.BetaEtaReduce
+import Duper.Rules.BetaEtaZetaReduction
 import Duper.Rules.BoolSimp
 import Duper.Rules.ClauseSubsumption
 import Duper.Rules.Clausification
@@ -55,7 +55,7 @@ open SimpResult
 def forwardSimpRules : ProverM (Array SimpRule) := do
   let subsumptionTrie ← getSubsumptionTrie
   return #[
-    betaEtaReduce.toSimpRule,
+    betaEtaZetaReduction.toSimpRule,
     clausificationStep.toSimpRule,
     syntacticTautologyDeletion1.toSimpRule,
     syntacticTautologyDeletion2.toSimpRule,

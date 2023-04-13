@@ -54,7 +54,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
     let mut streams := #[]
-    if ← eligibilityNoUnificationCheck c i (strict := true) then
+    if ← eligibilityNoUnificationCheck c (alreadyReduced := true) i (strict := true) then
       let ty ← inferType lit.lhs
       let (mVars, _, _) ← forallMetaTelescope ty
       trace[Rule.argCong] s!"Lhs: {lit.lhs}, Level: {lit.lvl}, Type of lhs: {ty}, Telescope: {mVars}"

@@ -203,14 +203,21 @@ instance : ToMessageData Lit :=
 
 
 open Comparison
-def compare (ord : Expr → Expr → MetaM Comparison) (l₁ l₂ : Lit) : MetaM Comparison := do
-  let cll ← ord l₁.lhs l₂.lhs
+def compare (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (l₁ l₂ : Lit) : MetaM Comparison := do
+  let l₁ :=
+    if alreadyReduced then l₁
+    else ← l₁.mapM (fun e => betaEtaReduce e)
+  let l₂ :=
+    if alreadyReduced then l₂
+    else ← l₂.mapM (fun e => betaEtaReduce e)
+
+  let cll ← ord l₁.lhs l₂.lhs true
   if cll == Incomparable then return Incomparable
-  let clr ← ord l₁.lhs l₂.rhs
+  let clr ← ord l₁.lhs l₂.rhs true
   if clr == Incomparable then return Incomparable
-  let crl ← ord l₁.rhs l₂.lhs
+  let crl ← ord l₁.rhs l₂.lhs true
   if crl == Incomparable then return Incomparable
-  let crr ← ord l₁.rhs l₂.rhs
+  let crr ← ord l₁.rhs l₂.rhs true
   if crr == Incomparable then return Incomparable
 
   match cll, clr, crl, crr with

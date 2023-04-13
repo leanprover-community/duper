@@ -122,11 +122,14 @@ def isTrivial (c : MClause) : Bool := Id.run do
   return false
 
 open Comparison
-def isMaximalLit (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx : Nat) (strict := false) : MetaM Bool := do
+def isMaximalLit (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) (strict := false) : MetaM Bool := do
+  let c :=
+    if alreadyReduced then c
+    else ← c.mapM (fun e => betaEtaReduce e)
   for j in [:c.lits.size] do
     if j == idx then continue
-    let c ← Lit.compare ord c.lits[idx]! c.lits[j]!
-    if c == GreaterThan || (not strict && c == Equal) || c == Incomparable
+    let cmp ← Lit.compare ord true c.lits[idx]! c.lits[j]!
+    if cmp == GreaterThan || (not strict && cmp == Equal) || cmp == Incomparable
       then continue
     else return false
   return true
@@ -137,9 +140,12 @@ def isMaximalLit (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx :
     Note that for this function, strictness does not actually matter, because regardless of whether we are considering potential strict maximality
     or potential nonstrict maximality, we can only determine that idx can never be maximal if we find an idx' that is strictly gerater than it
 -/
-def canNeverBeMaximal (ord : Expr → Expr → MetaM Comparison) (c : MClause) (idx : Nat) : MetaM Bool := do
+def canNeverBeMaximal (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) : MetaM Bool := do
+  let c :=
+    if alreadyReduced then c
+    else ← c.mapM (fun e => betaEtaReduce e)
   for j in [:c.lits.size] do
-    if j != idx && (← Lit.compare ord c.lits[idx]! c.lits[j]!) == LessThan then
+    if j != idx && (← Lit.compare ord true c.lits[idx]! c.lits[j]!) == LessThan then
       return true
     else continue
   return false
