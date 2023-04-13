@@ -7,6 +7,7 @@ import Duper.Util.ClauseSubsumptionCheck
 import Duper.Util.StrategyHeap
 import Duper.Util.IdStrategyHeap
 import Duper.Util.AbstractMVars
+import Duper.Util.DeeplyOccurringVars
 
 namespace Duper
 namespace ProverM
@@ -61,7 +62,7 @@ structure State where
   symbolPrecMap : SymbolPrecMap := HashMap.empty
   highesetPrecSymbolHasArityZero : Bool := false
   supMainPremiseIdx : RootCFPTrie := {}
-  fluidSupMainPremiseIdx : RootCFPTrie := {} -- Stores fluid subterms but not deeply occurring variables which must be found separately
+  fluidSupMainPremiseIdx : RootCFPTrie := {} -- Stores fluid subterms and variables that appear in green positions and are also deeply occurring
   supSidePremiseIdx : RootCFPTrie := {}
   demodMainPremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
@@ -401,15 +402,12 @@ def addToActive (c : Clause) : ProverM Unit := do
       fun idx e pos => do
         -- alreadyReduced is true because c must have been simplified by BetaEtaZetaReduction.lean
         let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) (alreadyReduced := true) pos.lit
-        let isFluid := Order.isFluid e
+        let isFluidOrDeep := isFluidOrDeep mclause e
         let eligible :=
-          -- Although fluidSup can act on mvars (unlike regular superposition), we use this indexing
-          -- structure only for fluid terms, and handle deeply occurring variables separately
-          if e.isMVar then false
-          else if(sel.contains pos.lit) then true
+          if(sel.contains pos.lit) then true
           else if(sel == []) then not canNeverBeMaximal
           else false
-        if isFluid && eligible then idx.insert e (cNum, c, pos)
+        if isFluidOrDeep && eligible then idx.insert e (cNum, c, pos)
         else return idx
       idx
   setFluidSupMainPremiseIdx idx

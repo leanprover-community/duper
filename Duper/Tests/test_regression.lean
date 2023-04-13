@@ -350,7 +350,6 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
 --###############################################################################################################################
 -- Tests that (in the current commit at least) use positive simplify reflect
 set_option trace.Rule.simplifyReflect true in
-set_option maxHeartbeats 300000 in
 tptp NUN004_5 "../TPTP-v8.0.0/Problems/NUN/NUN004_5.p"
   by duper
 
@@ -530,11 +529,9 @@ def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ =>
 end NegativeBoolSimpTests
 
 /- ClauseStreamHeap tests -/
-/-
-set_option maxHeartbeats 400000 in
+set_option maxHeartbeats 300000 in
 tptp MGT008 "../TPTP-v8.0.0/Problems/MGT/MGT008+1.p"
   by duper
--/
 
 example (f : Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat)
   (g : Nat → Nat → Nat → Nat → Nat → Nat)

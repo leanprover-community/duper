@@ -366,8 +366,6 @@ def isFluid (t : Expr) :=
   let t := t.consumeMData
   (t.isApp && t.getAppFn.isMVar) || (t.isLambda && t.hasMVar)
 
-
-
 /-- Higher-Order KBO, inspired by `https://github.com/sneeuwballen/zipperposition/blob/master/src/core/Ordering.ml`.
 
 Follows Section 3.9 of `https://matryoshka-project.github.io/pubs/hosup_article.pdf`

@@ -245,7 +245,7 @@ def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) 
   -- With given clause as main premise
   let cs ← givenClause.foldGreenM fun acc e pos => do
       let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
-      if (← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true) == Comparison.LessThan then
+      if e.isMVar || (Order.isFluid e) || (← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true) == Comparison.LessThan then
         return acc
       else
         let cs ← superpositionWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum simultaneousSuperposition

@@ -10,48 +10,33 @@ open Meta
 
 initialize registerTraceClass `Rule.fluidSup
 
-/-- Note: This function currently excludes lambdas that appear in forallE, lam, or letE types. -/
-def occursInLambdaNotDirectlyBelowQuantifier (c : MClause) (t : Expr) : Bool :=
-  -- For the visit function, inLambda is only set to true if the lambda visit is currently in is not directly below a quantifier
-  let rec @[specialize] visit (e : Expr) (directlyBelowQuantifier : Bool) (inLambda : Bool) :=
-    if inLambda && e == t then true else
-    match e with
-    | Expr.forallE _ ty b _ => visit b true inLambda
-    | Expr.lam _ ty b _ =>
-      if directlyBelowQuantifier then visit b false false
-      else visit b false true
-    | Expr.mdata _ e => visit e directlyBelowQuantifier inLambda
-    | Expr.letE _ t v b _ =>
-      -- Not sure if this is the best way to handle letE expressions
-      -- For example, in `∃ x : ty, let y := s; t`, `t` is sort of directly below the quantifier even though it's technically under the letE expression
-      visit v false inLambda || visit b false inLambda
-    | Expr.app f a => visit f false inLambda || visit a false inLambda
-    | Expr.proj _ _ e => visit e false inLambda
-    | _ => false
-  c.fold (fun b e => b || visit e false false) false
+def fluidSupWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
+  (sidePremiseSide : LitSide) : RuleM (Array ClauseStream) := do
+  sorry
 
-def occursInArgumentOfAppliedVariable (c : MClause) (t : Expr) : Bool :=
-  let rec @[specialize] visit (e : Expr) (inArgumentOfAppliedVariable : Bool) :=
-    if inArgumentOfAppliedVariable && e == t then true else
-    match e with
-    | Expr.forallE _ d b _ => visit d inArgumentOfAppliedVariable || visit b inArgumentOfAppliedVariable
-    | Expr.lam _ d b _ => visit d inArgumentOfAppliedVariable || visit b inArgumentOfAppliedVariable
-    | Expr.mdata _ e => visit e inArgumentOfAppliedVariable
-    | Expr.letE _ t v b _ => visit t inArgumentOfAppliedVariable || visit v inArgumentOfAppliedVariable || visit b inArgumentOfAppliedVariable
-    | Expr.app f a =>
-      if visit f inArgumentOfAppliedVariable then true
-      else if f.getAppFn.isMVar then visit a true
-      else visit a inArgumentOfAppliedVariable
-    | Expr.proj _ _ e => visit e inArgumentOfAppliedVariable
-    | _ => false
-  c.fold (fun b e => b || visit e false) false
+def fluidSupWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
+  (mainPremise : MClause) (mainPremiseNum : Nat) : RuleM (Array ClauseStream) := do
+  sorry
 
-/-- Returns true if `t` is an mvar that occurs deeply in MClause `c`.
-
-    A variable occurs deeply in an mclause `c` if it occurs inside an argument of an applied
-    variable or inside a λ-expression that is not directly below a quantifier. -/
-def isDeep (c : MClause) (t : Expr) : Bool :=
-  t.isMVar && (occursInArgumentOfAppliedVariable c t || occursInLambdaNotDirectlyBelowQuantifier c t)
-
-/-- A syntactic overapproximation of fluid or deep terms -/
-def isFluidOrDeep (c : MClause) (t : Expr) : Bool := Order.isFluid t || isDeep c t
+def fluidSup (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (given : Clause) (givenClause : MClause)
+  (givenClauseNum : Nat) : RuleM (Array ClauseStream) := do
+  let mut streams := #[]
+  -- With given clause as side premise:
+  for i in [:givenClause.lits.size] do
+    if givenClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenClause i then
+      for side in #[LitSide.lhs, LitSide.rhs] do
+        let flippedLit := givenClause.lits[i]!.makeLhs side
+        if (← RuleM.compare flippedLit.lhs flippedLit.rhs true) == Comparison.LessThan then
+          continue
+        let cs ← fluidSupWithGivenAsSide given mainPremiseIdx givenClause givenClauseNum i side
+        streams := streams.append cs
+  -- With given clause as main premise
+  let cs ← givenClause.foldGreenM fun acc e pos => do
+      let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
+      if (not (isFluidOrDeep givenClause e)) || (← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true) == Comparison.LessThan then
+        return acc
+      else
+        let cs ← fluidSupWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum
+        return acc.append cs
+    #[]
+  return streams.append cs
