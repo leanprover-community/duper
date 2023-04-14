@@ -23,13 +23,8 @@ def fluidSupWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sid
   for (mainClauseNum, mainClause, mainPos) in potentialPartners do
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
-      let mainLit := c.lits[mainPos.lit]!.makeLhs mainPos.side
-      -- TODO: I think that if I index positions correctly, this comparison check should be unnecessary
-      if (← RuleM.compare mainLit.lhs mainLit.rhs true) != Comparison.LessThan then
-        fluidSupWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
-          given (givenIsMain := false)
-      else
-        return #[]
+      fluidSupWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
+        given (givenIsMain := false)
     streams := streams.append newStreams
   return streams
 
@@ -40,12 +35,7 @@ def fluidSupWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (sideP
   for (sideClauseNum, sideClause, sidePos) in potentialPartners do
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause sideClause
-      let sideLit := c.lits[sidePos.lit]!.makeLhs sidePos.side
-      -- TODO: I think that if I index positions correctly, this comparison check should be unnecessary
-      if (← RuleM.compare sideLit.lhs sideLit.rhs true) != Comparison.LessThan then
-        fluidSupWithPartner mainPremise mainPremiseNum e pos c sideClauseNum sidePos.lit sidePos.side given (givenIsMain := true)
-      else
-        return #[]
+      fluidSupWithPartner mainPremise mainPremiseNum e pos c sideClauseNum sidePos.lit sidePos.side given (givenIsMain := true)
     streams := streams.append newStreams
   return streams
 

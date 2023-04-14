@@ -122,9 +122,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
   withoutModifyingMCtx $ do
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
-    if mainPremiseSubterm.isMVar then
-      return #[] -- No superposition into variables
-    
+
     /-
       To efficiently approximate condition 7 in https://matryoshka-project.github.io/pubs/hosup_report.pdf, if the main
       premise literal is positive and the main premise subterm is directly below the equality, then we require that the
@@ -133,6 +131,12 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
     if mainPremise.lits[mainPremisePos.lit]!.sign && mainPremisePos.pos == #[] && mainPremiseNum > sidePremiseNum then
       return #[]
 
+    /-
+      TODO: Since we perform an eligibilityPreUnificationCheck when adding an expression to the index and we can
+      perform an eligibilityPreUnificationCheck for each subterm of the givenClause, it should be possible to remove
+      these preunification checks here (since the results will have already been computed either when the term was
+      indexed or in the main superposition function)
+    -/
     let sidePremiseEligibility ← eligibilityPreUnificationCheck sidePremise true sidePremiseLitIdx
     let mainPremiseEligibility ← eligibilityPreUnificationCheck mainPremise true mainPremisePos.lit
 
@@ -202,13 +206,8 @@ def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie)
   for (mainClauseNum, mainClause, mainPos) in potentialPartners do
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
-      let mainLit := c.lits[mainPos.lit]!.makeLhs mainPos.side
-      -- TODO: I think that if I index positions correctly, I can make this comparison check unnecessary
-      if (← RuleM.compare mainLit.lhs mainLit.rhs true) != Comparison.LessThan then
-        superpositionAtLitWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
-          given (givenIsMain := false) simultaneousSuperposition
-      else
-        return #[]
+      superpositionAtLitWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
+        given (givenIsMain := false) simultaneousSuperposition
     streams := streams.append newStreams
   return streams
 
@@ -219,13 +218,8 @@ def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (
   for (sideClauseNum, sideClause, sidePos) in potentialPartners do
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause sideClause
-      let sideLit := c.lits[sidePos.lit]!.makeLhs sidePos.side
-      -- TODO: I think that if I index positions correctly, I can make this comparison check unnecessary
-      if (← RuleM.compare sideLit.lhs sideLit.rhs true) != Comparison.LessThan then
-        superpositionAtLitWithPartner mainPremise mainPremiseNum e pos c sideClauseNum sidePos.lit sidePos.side
-          given (givenIsMain := true) simultaneousSuperposition
-      else
-        return #[]
+      superpositionAtLitWithPartner mainPremise mainPremiseNum e pos c sideClauseNum sidePos.lit sidePos.side
+        given (givenIsMain := true) simultaneousSuperposition
     streams := streams.append newStreams
   return streams
 
@@ -237,7 +231,8 @@ def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) 
   let mut streams := #[]
   -- With given clause as side premise:
   for i in [:givenClause.lits.size] do
-    if givenClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenClause i then
+    let litEligibility ← eligibilityPreUnificationCheck givenClause true i
+    if givenClause.lits[i]!.sign = true && (litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible) then
       for side in #[LitSide.lhs, LitSide.rhs] do
         let flippedLit := givenClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs true) == Comparison.LessThan then
@@ -247,7 +242,9 @@ def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) 
   -- With given clause as main premise
   let cs ← givenClause.foldGreenM fun acc e pos => do
       let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
-      if e.isMVar || (Order.isFluid e) || (← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true) == Comparison.LessThan then
+      let litEligibility ← eligibilityPreUnificationCheck givenClause true pos.lit
+      let sideComparison ← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true
+      if e.isMVar || (Order.isFluid e) || litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then
         return acc
       else
         let cs ← superpositionWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum simultaneousSuperposition

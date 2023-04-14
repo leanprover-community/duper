@@ -337,85 +337,75 @@ def addPotentiallyVacuousClause (c : Clause) : ProverM Unit := do
 def addToActive (c : Clause) : ProverM Unit := do
   let cInfo ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
   let cNum := cInfo.number
-  -- Add to superposition's side premise index:
-  let idx ← getSupSidePremiseIdx
-  let idx ← runRuleM do
+  let supSidePremiseIdx ← getSupSidePremiseIdx
+  let supMainPremiseIdx ← getSupMainPremiseIdx
+  let fluidSupMainPremiseIdx ← getFluidSupMainPremiseIdx
+  let demodSidePremiseIdx ← getDemodSidePremiseIdx
+  let demodMainPremiseIdx ← getDemodMainPremiseIdx
+  let subsumptionTrie ← getSubsumptionTrie
+  -- Compute new indices
+  let (supSidePremiseIdx, supMainPremiseIdx, fluidSupMainPremiseIdx, demodSidePremiseIdx, demodMainPremiseIdx, subsumptionTrie) ← runRuleM do
     let (_, mclause) ← loadClauseCore c
-    let sel := getSelections mclause
-    mclause.foldM
-      fun idx e pos => do
-        -- alreadyReduced is true because c must have been simplified by BetaEtaZetaReduction.lean
-        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) (alreadyReduced := true) pos.lit
-        let eligible :=
-          if not mclause.lits[pos.lit]!.sign then false
-          else if(sel.contains pos.lit) then true
-          else if(sel == []) then not canNeverBeMaximal
-          else false
-        if eligible then idx.insert e (cNum, c, pos)
-        else return idx
-      idx
-  setSupSidePremiseIdx idx
-  -- Add to demodulation's side premise index iff c consists of exactly one positive literal:
-  if(c.lits.size = 1 && c.lits[0]!.sign) then
-    let idx ← getDemodSidePremiseIdx
-    let idx ← runRuleM do
-      let (_, mclause) ← loadClauseCore c
-      mclause.foldM (fun idx e pos => idx.insert e (cNum, c, pos)) idx
-    setDemodSidePremiseIdx idx
-  -- Add to demodMainPremiseIdx:
-  let idx ← getDemodMainPremiseIdx
-  let idx ← runRuleM do
-    let (_, mclause) ← loadClauseCore c
-    mclause.foldGreenM
-      fun idx e pos => do
-        -- Only restriction for demodulation is that we can't rewrite variables
-        -- (see https://github.com/sneeuwballen/zipperposition/blob/master/src/prover_calculi/superposition.ml#L350)
-        if not e.isMVar then idx.insert e (cNum, c, pos)
-        else return idx
-      idx
-  setDemodMainPremiseIdx idx
-  -- Add to supMainPremiseIdx:
-  let idx ← getSupMainPremiseIdx
-  let idx ← runRuleM do
-    let (_, mclause) ← loadClauseCore c
-    let sel := getSelections mclause
-    mclause.foldGreenM
-      fun idx e pos => do
-        -- alreadyReduced is true because c must have been simplified by BetaEtaZetaReduction.lean
-        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) (alreadyReduced := true) pos.lit
-        let isFluid := Order.isFluid e
-        let eligible :=
-          if e.isMVar then false
-          else if(sel.contains pos.lit) then true
-          else if(sel == []) then not canNeverBeMaximal
-          else false
-        if (not isFluid) && eligible then idx.insert e (cNum, c, pos)
-        else return idx
-      idx
-  setSupMainPremiseIdx idx
-  -- Add to fluidSupMainPremiseIdx
-  let idx ← getFluidSupMainPremiseIdx
-  let idx ← runRuleM do
-    let (_, mclause) ← loadClauseCore c
-    let sel := getSelections mclause
-    mclause.foldGreenM
-      fun idx e pos => do
-        -- alreadyReduced is true because c must have been simplified by BetaEtaZetaReduction.lean
-        let canNeverBeMaximal ← mclause.canNeverBeMaximal (← getOrder) (alreadyReduced := true) pos.lit
-        let isFluidOrDeep := isFluidOrDeep mclause e
-        let eligible :=
-          if(sel.contains pos.lit) then true
-          else if(sel == []) then not canNeverBeMaximal
-          else false
-        if isFluidOrDeep && eligible then idx.insert e (cNum, c, pos)
-        else return idx
-      idx
-  setFluidSupMainPremiseIdx idx
-  -- Add to subsumption trie
-  let idx ← getSubsumptionTrie
-  let idx ← runRuleM $ idx.insert c
-  setSubsumptionTrie idx
-  -- add to active set:
+    -- Update side premise indices with foldM pass (only looking at lhs and rhs)
+    let (supSidePremiseIdx, demodSidePremiseIdx) ←
+      mclause.foldM
+        fun (supSidePremiseIdx, demodSidePremiseIdx) e pos => do
+          -- Update supSidePremiseIdx
+          let litEligibility ← eligibilityPreUnificationCheck mclause (alreadyReduced := true) pos.lit
+          let eligibleLit := litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible
+          let lit := mclause.lits[pos.lit]!.makeLhs pos.side
+          -- If lit.lhs < lit.rhs, then σ(lit.lhs) < σ(lit.rhs) for all σ, meaning this position will violate superposition's condition 5
+          let eligibleSide := (← RuleM.compare lit.lhs lit.rhs true) != Comparison.LessThan
+          let supSidePremiseIdx ←
+            if mclause.lits[pos.lit]!.sign && eligibleLit && eligibleSide then supSidePremiseIdx.insert e (cNum, c, pos)
+            else pure supSidePremiseIdx
+          -- Update demodSidePremiseIdx
+          let demodSidePremiseIdx ←
+            if (c.lits.size = 1 && c.lits[0]!.sign) then demodSidePremiseIdx.insert e (cNum, c, pos)
+            else pure demodSidePremiseIdx
+          -- Return side premise indices
+          return (supSidePremiseIdx, demodSidePremiseIdx)
+        (supSidePremiseIdx, demodSidePremiseIdx)
+    -- Update main premise indices with foldGreenM pass (looking at all green subterms)
+    let (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx) ←
+      mclause.foldGreenM
+        fun (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx) e pos => do
+          let isFluidOrDeep := isFluidOrDeep mclause e
+          let isFluid := isFluidOrDeep && (not e.isMVar) -- This is more efficient than recalculating (Order.isFluid e)
+          let litEligibility ← eligibilityPreUnificationCheck mclause (alreadyReduced := true) pos.lit -- alreadyReduced true because c has been simplified
+          let eligibleLit := litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible
+          let lit := mclause.lits[pos.lit]!.makeLhs pos.side
+          -- Update demodMainPremiseIdx
+          -- Only restriction for demodulation is that we can't rewrite variables
+          -- (see https://github.com/sneeuwballen/zipperposition/blob/master/src/prover_calculi/superposition.ml#L350)
+          let demodMainPremiseIdx ←
+            if not e.isMVar then demodMainPremiseIdx.insert e (cNum, c, pos)
+            else pure demodMainPremiseIdx
+          -- Update supMainPremiseIdx
+          let supMainPremiseIdx ← do
+            -- If lit.lhs < lit.rhs, then σ(lit.lhs) < σ(lit.rhs) for all σ, meaning this position will violate superposition's condition 6
+            let eligibleSide := (← RuleM.compare lit.lhs lit.rhs true) != Comparison.LessThan
+            if (not e.isMVar) && (not isFluid) && eligibleLit && eligibleSide then supMainPremiseIdx.insert e (cNum, c, pos)
+            else pure supMainPremiseIdx
+          -- Update fluidSupMainPremiseIdx
+          let fluidSupMainPremiseIdx ← do
+            -- If lit.lhs < lit.rhs, then σ(lit.lhs) < σ(lit.rhs) for all σ, meaning this position will violate superposition's condition 6
+            let eligibleSide := (← RuleM.compare lit.lhs lit.rhs true) != Comparison.LessThan
+            if isFluidOrDeep && eligibleLit && eligibleSide then fluidSupMainPremiseIdx.insert e (cNum, c, pos)
+            else pure fluidSupMainPremiseIdx
+          return (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx)
+        (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx)
+    -- Update subsumption trie
+    let subsumptionTrie ← subsumptionTrie.insert c
+    -- Return all indices
+    return (supSidePremiseIdx, supMainPremiseIdx, fluidSupMainPremiseIdx, demodSidePremiseIdx, demodMainPremiseIdx, subsumptionTrie)
+  -- Update indices and add to active set:
+  setSupSidePremiseIdx supSidePremiseIdx
+  setSupMainPremiseIdx supMainPremiseIdx
+  setFluidSupMainPremiseIdx fluidSupMainPremiseIdx
+  setDemodSidePremiseIdx demodSidePremiseIdx
+  setDemodMainPremiseIdx demodMainPremiseIdx
+  setSubsumptionTrie subsumptionTrie
   setActiveSet $ (← getActiveSet).insert c
 
 /-- Remove c from mainPremiseIdx, supSidePremiseIdx, demodSidePremiseIdx, and subsumptionTrie -/

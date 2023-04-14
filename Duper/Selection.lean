@@ -67,9 +67,9 @@ in C if it is selected in C or there are no selected literals
 in C and Lσ is (strictly) maximal in Cσ. -/
 def eligibilityPreUnificationCheck (c : MClause) (alreadyReduced := true) (i : Nat) : RuleM Eligibility := do
   let sel := getSelections c
-  if(sel.contains i) then
+  if (sel.contains i) then
     return Eligibility.eligible -- literal is eligible and the post unification check is not necessary
-  else if(sel == []) then do
+  else if (sel == []) then do
     if (← c.canNeverBeMaximal (← getOrder) alreadyReduced i) then
       return Eligibility.notEligible
     else
