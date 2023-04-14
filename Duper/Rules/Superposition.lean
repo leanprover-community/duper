@@ -203,6 +203,7 @@ def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie)
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
       let mainLit := c.lits[mainPos.lit]!.makeLhs mainPos.side
+      -- TODO: I think that if I index positions correctly, I can make this comparison check unnecessary
       if (← RuleM.compare mainLit.lhs mainLit.rhs true) != Comparison.LessThan then
         superpositionAtLitWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
           given (givenIsMain := false) simultaneousSuperposition
@@ -219,6 +220,7 @@ def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause sideClause
       let sideLit := c.lits[sidePos.lit]!.makeLhs sidePos.side
+      -- TODO: I think that if I index positions correctly, I can make this comparison check unnecessary
       if (← RuleM.compare sideLit.lhs sideLit.rhs true) != Comparison.LessThan then
         superpositionAtLitWithPartner mainPremise mainPremiseNum e pos c sideClauseNum sidePos.lit sidePos.side
           given (givenIsMain := true) simultaneousSuperposition

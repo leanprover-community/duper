@@ -63,7 +63,7 @@ structure State where
   highesetPrecSymbolHasArityZero : Bool := false
   supMainPremiseIdx : RootCFPTrie := {}
   fluidSupMainPremiseIdx : RootCFPTrie := {} -- Stores fluid subterms and variables that appear in green positions and are also deeply occurring
-  supSidePremiseIdx : RootCFPTrie := {}
+  supSidePremiseIdx : RootCFPTrie := {} -- This index is also used as fluid superposition's side premise index (since the conditions are identical)
   demodMainPremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode

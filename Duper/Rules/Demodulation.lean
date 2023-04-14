@@ -111,8 +111,6 @@ def forwardDemodulation (sideIdx : RootCFPTrie) : MSimpRule := fun c => do
     match acc with
     | some cp => return some cp -- If forwardDemodulationAtExpr ever succeeds, just return on first success
     | none => forwardDemodulationAtExpr e pos sideIdx c cMVarIds
-  -- TODO: Determine if foldGreenM is an appropriate function here or if I need one that considers all subexpressions,
-  -- rather than just green ones
   c.foldGreenM fold_fn none
 
 /- Attempts to perform backward demodulation with the given mainPremise and sidePremise. Returns true iff successful.
