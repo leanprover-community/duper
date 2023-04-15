@@ -2,6 +2,7 @@ import Duper.RuleM
 import Duper.Selection
 import Duper.Util.Misc
 import Duper.Util.ProofReconstruction
+import Duper.Expr
 
 namespace Duper
 open RuleM
@@ -244,7 +245,7 @@ def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) 
       let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
       let litEligibility ← eligibilityPreUnificationCheck givenClause true pos.lit
       let sideComparison ← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true
-      if e.isMVar || (Order.isFluid e) || litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then
+      if e.isMVar' || (Order.isFluid e) || litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then
         return acc
       else
         let cs ← superpositionWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum simultaneousSuperposition

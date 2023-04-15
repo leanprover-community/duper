@@ -2,6 +2,7 @@ import Lean
 import Duper.Util.Misc
 import Duper.Order
 import Duper.MClause
+import Duper.Expr
 
 namespace Duper
 open Lean
@@ -36,7 +37,7 @@ def occursInArgumentOfAppliedVariable (c : MClause) (t : Expr) : Bool :=
     | Expr.letE _ t v b _ => visit t inArgumentOfAppliedVariable || visit v inArgumentOfAppliedVariable || visit b inArgumentOfAppliedVariable
     | Expr.app f a =>
       if visit f inArgumentOfAppliedVariable then true
-      else if f.getAppFn.isMVar then visit a true
+      else if f.getAppFn.isMVar' then visit a true
       else visit a inArgumentOfAppliedVariable
     | Expr.proj _ _ e => visit e inArgumentOfAppliedVariable
     | _ => false
@@ -47,7 +48,7 @@ def occursInArgumentOfAppliedVariable (c : MClause) (t : Expr) : Bool :=
     A variable occurs deeply in an mclause `c` if it occurs inside an argument of an applied
     variable or inside a λ-expression that is not directly below a quantifier. -/
 def isDeep (c : MClause) (t : Expr) : Bool :=
-  t.isMVar && (occursInArgumentOfAppliedVariable c t || occursInLambdaNotDirectlyBelowQuantifier c t)
+  t.isMVar' && (occursInArgumentOfAppliedVariable c t || occursInLambdaNotDirectlyBelowQuantifier c t)
 
 /-- A syntactic overapproximation of fluid or deep terms -/
 def isFluidOrDeep (c : MClause) (t : Expr) : Bool := Order.isFluid t || isDeep c t

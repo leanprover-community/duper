@@ -8,6 +8,7 @@ import Duper.Util.StrategyHeap
 import Duper.Util.IdStrategyHeap
 import Duper.Util.AbstractMVars
 import Duper.Util.DeeplyOccurringVars
+import Duper.Expr
 
 namespace Duper
 namespace ProverM
@@ -371,7 +372,7 @@ def addToActive (c : Clause) : ProverM Unit := do
       mclause.foldGreenM
         fun (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx) e pos => do
           let isFluidOrDeep := isFluidOrDeep mclause e
-          let isFluid := isFluidOrDeep && (not e.isMVar) -- This is more efficient than recalculating (Order.isFluid e)
+          let isFluid := isFluidOrDeep && (not e.isMVar') -- This is more efficient than recalculating (Order.isFluid e)
           let litEligibility ← eligibilityPreUnificationCheck mclause (alreadyReduced := true) pos.lit -- alreadyReduced true because c has been simplified
           let eligibleLit := litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible
           let lit := mclause.lits[pos.lit]!.makeLhs pos.side
@@ -379,13 +380,13 @@ def addToActive (c : Clause) : ProverM Unit := do
           -- Only restriction for demodulation is that we can't rewrite variables
           -- (see https://github.com/sneeuwballen/zipperposition/blob/master/src/prover_calculi/superposition.ml#L350)
           let demodMainPremiseIdx ←
-            if not e.isMVar then demodMainPremiseIdx.insert e (cNum, c, pos)
+            if not e.isMVar' then demodMainPremiseIdx.insert e (cNum, c, pos)
             else pure demodMainPremiseIdx
           -- Update supMainPremiseIdx
           let supMainPremiseIdx ← do
             -- If lit.lhs < lit.rhs, then σ(lit.lhs) < σ(lit.rhs) for all σ, meaning this position will violate superposition's condition 6
             let eligibleSide := (← RuleM.compare lit.lhs lit.rhs true) != Comparison.LessThan
-            if (not e.isMVar) && (not isFluid) && eligibleLit && eligibleSide then supMainPremiseIdx.insert e (cNum, c, pos)
+            if (not e.isMVar') && (not isFluid) && eligibleLit && eligibleSide then supMainPremiseIdx.insert e (cNum, c, pos)
             else pure supMainPremiseIdx
           -- Update fluidSupMainPremiseIdx
           let fluidSupMainPremiseIdx ← do

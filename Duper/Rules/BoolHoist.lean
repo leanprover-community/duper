@@ -16,7 +16,7 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
   withoutModifyingMCtx do
     if c.lits[pos.lit]!.sign && pos.pos == #[] then -- e cannot be at the top level of a positive literal
       return #[]
-    if (e.getTopSymbol).isMVar then -- e cannot be variable headed
+    if (e.getTopSymbol).isMVar' then -- e cannot be variable headed
       return #[]
     if (e.isFullyAppliedLogicalSymbol) then -- e cannot be a fully applied logical symbol
       return #[]

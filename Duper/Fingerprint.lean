@@ -122,7 +122,7 @@ def gfpf [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : ExprPos) : m Fingerpri
     if e.canInstantiateToGetAtUntypedPos pos then return B
     else return N
   | some e' =>
-    if e'.isMVar then return A
+    if e'.isMVar' then return A
     else return F e.getTopSymbol
 
 /-- This implements the ⌊e⌋ function described in https://matryoshka-project.github.io/pubs/hounif_article.pdf.

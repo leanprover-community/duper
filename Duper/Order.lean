@@ -1,6 +1,7 @@
 import Lean
 import Duper.Util.Misc
 import Duper.Util.BetaEtaReduce
+import Duper.Expr
 
 namespace Duper
 open Lean
@@ -364,7 +365,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 /-- Overapproximation of being fluid -/
 def isFluid (t : Expr) := 
   let t := t.consumeMData
-  (t.isApp && t.getAppFn.isMVar) || (t.isLambda && t.hasMVar)
+  (t.isApp && t.getAppFn.isMVar') || (t.isLambda && t.hasMVar)
 
 /-- Higher-Order KBO, inspired by `https://github.com/sneeuwballen/zipperposition/blob/master/src/core/Ordering.ml`.
 
@@ -387,7 +388,7 @@ where
     Returns the weight balance and whether `s` was found. -/
   balance_weight (wb : Weight) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool) (belowLam : Bool)
       : MetaM (Weight × VarBalance × Bool) := do
-    if t.isMVar || isFluid t then
+    if t.isMVar' || isFluid t then
       return ← balance_weight_var wb vb t s pos belowLam
     else
       match getHead t, getArgs t with

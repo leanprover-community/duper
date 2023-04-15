@@ -49,7 +49,7 @@ def mkExistsHoistProof (pos : ClausePos) (premises : List Expr) (parents : List 
 def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     let lit := c.lits[pos.lit]!
-    if e.getTopSymbol.isMVar then -- Check condition 4
+    if e.getTopSymbol.isMVar' then -- Check condition 4
       -- If the head of e is a variable then it must be applied and the affected literal must be either
       -- e = True, e = False, or e = e' where e' is another variable headed term
       if not e.isApp then -- e is a non-applied variable and so we cannot apply neHoist
@@ -59,7 +59,7 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       if not lit.sign then
         return #[] -- The affected literal is not positive and so it cannot have the form e = ...
       let otherSide := lit.getOtherSide pos.side
-      if otherSide != (mkConst ``True) && otherSide != (mkConst ``False) && not otherSide.getTopSymbol.isMVar then
+      if otherSide != (mkConst ``True) && otherSide != (mkConst ``False) && not otherSide.getTopSymbol.isMVar' then
         return #[] -- The other side is not True, False, or variable headed, so the affected literal cannot have the required form
     -- Check conditions 1 and 3 (condition 2 is guaranteed by construction)
     let eligibility ← eligibilityPreUnificationCheck c (alreadyReduced := true) pos.lit

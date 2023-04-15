@@ -19,6 +19,9 @@ end Duper
 namespace Lean.Expr
 open Duper
 
+/-- This should be used in place of Lean.Expr.isMVar so that mvars surrounded by mdata are not missed. -/
+def isMVar' (e : Expr) := e.consumeMData.isMVar
+
 -- To support universe levels, we strip universe levels to allow fingerprint
 -- function to identify constants with uninstantiated universe levels
 def stripLevels : Expr → Expr
@@ -117,7 +120,7 @@ partial def getAtUntypedPos [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : Exp
     For example, if e = "f 2 ?m.0", then canInstantiateToGetAtPos would return true for pos #[0, 1] (becuase "?m.0" could be instantiated
     as an application) but would return false for pos #[1, 1] (because 2 does not and can not have any arguments) -/
 partial def canInstantiateToGetAtPos [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : ExprPos) (startIndex := 0) : m Bool :=
-  if e.isMVar then return true
+  if e.isMVar' then return true
   else if pos.size ≤ startIndex then return true
   else do
     let e'_opt := (← e.impAwareGetAppRevArgs)[pos[startIndex]!]?
@@ -126,7 +129,7 @@ partial def canInstantiateToGetAtPos [Monad m] [MonadLiftT MetaM m] (e : Expr) (
     | some e' => canInstantiateToGetAtPos e' pos (startIndex := startIndex + 1)
 
 partial def canInstantiateToGetAtUntypedPos (e : Expr) (pos : ExprPos) (startIndex := 0) : Bool :=
-  if e.isMVar then true
+  if e.isMVar' then true
   else if pos.size ≤ startIndex then true
   else
     let e'_opt := (e.getAppRevArgs)[pos[startIndex]!]?

@@ -1,5 +1,6 @@
 import Lean
 import Duper.DUnif.UnifRules
+import Duper.Expr
 open Lean
 
 namespace DUnif
@@ -85,7 +86,7 @@ def evaldapply : Elab.Tactic.Tactic := fun stx =>
   match stx with
   | `(tactic| dapply $e attempt $nAttempt unifier $nunif contains $cont) => Elab.Tactic.withMainContext do
     let mut val ← instantiateMVars (← Elab.Tactic.elabTermForApply e)
-    if val.isMVar then
+    if val.isMVar' then
       Elab.Term.synthesizeSyntheticMVarsNoPostponing
       val ← instantiateMVars val
     let mvarIds' ← execdapply (← Elab.Tactic.getMainGoal) val nAttempt.getNat nunif.getNat cont.getNat

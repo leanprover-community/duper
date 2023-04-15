@@ -3,6 +3,7 @@ import Duper.DUnif.UnifProblem
 import Duper.DUnif.Bindings
 import Duper.DUnif.Oracles
 import Duper.Util.Misc
+import Duper.Expr
 open Lean
 open Duper
 
@@ -90,7 +91,7 @@ def structInfo (p : UnifProblem) (e : Expr) : MetaM (Expr × StructType) := do
         return (h, .Const xs.size ys.size)
     else if h.isConst ∨ h.isSort ∨ h.isLit then
       return (h, .Const xs.size ys.size)
-    else if h.isMVar then
+    else if h.isMVar' then
       let decl := (← getMCtx).getDecl h.mvarId!
       if decl.depth != (← getMCtx).depth then
         return (h, .Const xs.size ys.size)
