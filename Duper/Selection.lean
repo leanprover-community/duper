@@ -38,7 +38,7 @@ inductive Eligibility
   | eligible 
   | potentiallyEligible 
   | notEligible
-deriving Inhabited, BEq, Repr
+deriving Inhabited, BEq, Repr, Hashable
 
 def Eligibility.format : Eligibility → MessageData
   | eligible => m!"eligibile"

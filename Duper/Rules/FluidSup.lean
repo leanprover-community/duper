@@ -11,31 +11,39 @@ open Meta
 initialize registerTraceClass `Rule.fluidSup
 
 def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseSubterm : Expr)
-  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide)
-  (given : Clause) (givenIsMain : Bool) : RuleM (Array ClauseStream) := do
+  (mainPremisePos : ClausePos) (mainPremiseEligibility : Eligibility) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
+  (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (given : Clause) (givenIsMain : Bool) : RuleM (Array ClauseStream) := do
   sorry
 
 def fluidSupWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
-  (sidePremiseSide : LitSide) : RuleM (Array ClauseStream) := do
+  (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) : RuleM (Array ClauseStream) := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
   let mut streams := #[]
-  for (mainClauseNum, mainClause, mainPos) in potentialPartners do
+  for (mainClauseNum, mainClause, mainPos, mainClauseEligibilityOpt) in potentialPartners do
+    let mainClauseEligibility ←
+      match mainClauseEligibilityOpt with
+      | some eligibility => pure eligibility
+      | none => throwError "Eligibility not correctly stored in fluidSupMainPremiseIdx"
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
-      fluidSupWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
-        given (givenIsMain := false)
+      fluidSupWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos mainClauseEligibility sidePremise sidePremiseNum sidePremiseLitIdx
+        sidePremiseSide sidePremiseEligibility given (givenIsMain := false)
     streams := streams.append newStreams
   return streams
 
 def fluidSupWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
-  (mainPremise : MClause) (mainPremiseNum : Nat) : RuleM (Array ClauseStream) := do
+  (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseEligibility : Eligibility) : RuleM (Array ClauseStream) := do
   let potentialPartners ← sidePremiseIdx.getUnificationPartners e
   let mut streams := #[]
-  for (sideClauseNum, sideClause, sidePos) in potentialPartners do
+  for (sideClauseNum, sideClause, sidePos, sideClauseEligibilityOpt) in potentialPartners do
+    let sideClauseEligibility ←
+      match sideClauseEligibilityOpt with
+      | some eligibility => pure eligibility
+      | none => throwError "Eligibility not correctly stored in supSidePremiseIdx"
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause sideClause
-      fluidSupWithPartner mainPremise mainPremiseNum e pos c sideClauseNum sidePos.lit sidePos.side given (givenIsMain := true)
+      fluidSupWithPartner mainPremise mainPremiseNum e pos mainPremiseEligibility c sideClauseNum sidePos.lit sidePos.side sideClauseEligibility given (givenIsMain := true)
     streams := streams.append newStreams
   return streams
 
@@ -44,20 +52,23 @@ def fluidSup (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (give
   let mut streams := #[]
   -- With given clause as side premise:
   for i in [:givenClause.lits.size] do
-    if givenClause.lits[i]!.sign = true && litSelectedOrNothingSelected givenClause i then
+    let litEligibility ← eligibilityPreUnificationCheck givenClause true i
+    if givenClause.lits[i]!.sign = true && (litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible) then
       for side in #[LitSide.lhs, LitSide.rhs] do
         let flippedLit := givenClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs true) == Comparison.LessThan then
           continue
-        let cs ← fluidSupWithGivenAsSide given mainPremiseIdx givenClause givenClauseNum i side
+        let cs ← fluidSupWithGivenAsSide given mainPremiseIdx givenClause givenClauseNum i side litEligibility
         streams := streams.append cs
   -- With given clause as main premise
   let cs ← givenClause.foldGreenM fun acc e pos => do
       let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
-      if (not (isFluidOrDeep givenClause e)) || (← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true) == Comparison.LessThan then
+      let litEligibility ← eligibilityPreUnificationCheck givenClause true pos.lit
+      let sideComparison ← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true
+      if (not (isFluidOrDeep givenClause e)) || litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then
         return acc
       else
-        let cs ← fluidSupWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum
+        let cs ← fluidSupWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum litEligibility
         return acc.append cs
     #[]
   return streams.append cs

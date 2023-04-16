@@ -86,7 +86,7 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTrie) (givenMainClause : MClause)
   (mainClauseMVarIds : Array MVarId) : RuleM (Option (Array (Clause × Proof))) := do
   let potentialPartners ← sideIdx.getMatchFromPartners e
-  for (partnerClauseNum, partnerClause, partnerPos) in potentialPartners do
+  for (partnerClauseNum, partnerClause, partnerPos, _) in potentialPartners do
     let (mclause, cToLoad) ← prepLoadClause partnerClause
     match ← forwardDemodulationWithPartner givenMainClause mainClauseMVarIds e pos mclause partnerPos.side with
     | none => continue
@@ -169,7 +169,7 @@ def backwardDemodulation (mainIdx : RootCFPTrie) : BackwardMSimpRule := fun give
   let mut result := #[]
   let mut clausesToRemove := #[]
 
-  for (partnerClauseNum, partnerClause, partnerPos) in potentialPartners do
+  for (partnerClauseNum, partnerClause, partnerPos, _) in potentialPartners do
     -- Since demodulation is a simplification rule, we shouldn't perform multiple demodulation calls with the same partner clause
     if clausesToRemove.contains partnerClause then continue
     let backwardDemodulationRes ←

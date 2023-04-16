@@ -117,8 +117,9 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
     return proof
 
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseSubterm : Expr)
-  (mainPremisePos : ClausePos) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide)
-  (given : Clause) (givenIsMain : Bool) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
+  (mainPremisePos : ClausePos) (mainPremiseEligibility : Eligibility) (sidePremise : MClause) (sidePremiseNum : Nat)
+  (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (given : Clause) (givenIsMain : Bool)
+  (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
   Core.checkMaxHeartbeats "superposition"
   withoutModifyingMCtx $ do
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
@@ -132,17 +133,6 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
     if mainPremise.lits[mainPremisePos.lit]!.sign && mainPremisePos.pos == #[] && mainPremiseNum > sidePremiseNum then
       return #[]
 
-    /-
-      TODO: Since we perform an eligibilityPreUnificationCheck when adding an expression to the index and we can
-      perform an eligibilityPreUnificationCheck for each subterm of the givenClause, it should be possible to remove
-      these preunification checks here (since the results will have already been computed either when the term was
-      indexed or in the main superposition function)
-    -/
-    let sidePremiseEligibility ← eligibilityPreUnificationCheck sidePremise true sidePremiseLitIdx
-    let mainPremiseEligibility ← eligibilityPreUnificationCheck mainPremise true mainPremisePos.lit
-
-    if sidePremiseEligibility == Eligibility.notEligible || mainPremiseEligibility == Eligibility.notEligible then
-      return #[] -- Preunification checks determined ineligibility, so we don't need to bother with unificaiton
     let loaded ← getLoadedClauses
     let ug ← unifierGenerator #[(mainPremiseSubterm, sidePremiseLit.lhs)]
     let yC := do
@@ -200,27 +190,35 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
     return #[ClauseStream.mk ug given yC "superposition"]
 
 def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
-  (sidePremiseSide : LitSide) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
+  (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
   let mut streams := #[]
-  for (mainClauseNum, mainClause, mainPos) in potentialPartners do
+  for (mainClauseNum, mainClause, mainPos, mainClauseEligibilityOpt) in potentialPartners do
+    let mainClauseEligibility ←
+      match mainClauseEligibilityOpt with
+      | some eligibility => pure eligibility
+      | none => throwError "Eligibility not correctly stored in supMainPremiseIdx"
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
-      superpositionAtLitWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
-        given (givenIsMain := false) simultaneousSuperposition
+      superpositionAtLitWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos mainClauseEligibility sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
+        sidePremiseEligibility given (givenIsMain := false) simultaneousSuperposition
     streams := streams.append newStreams
   return streams
 
 def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
-  (mainPremise : MClause) (mainPremiseNum : Nat) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
+  (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseEligibility : Eligibility) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
   let potentialPartners ← sidePremiseIdx.getUnificationPartners e
   let mut streams := #[]
-  for (sideClauseNum, sideClause, sidePos) in potentialPartners do
+  for (sideClauseNum, sideClause, sidePos, sideClauseEligibilityOpt) in potentialPartners do
+    let sideClauseEligibility ←
+      match sideClauseEligibilityOpt with
+      | some eligibility => pure eligibility
+      | none => throwError "Eligibility not correctly stored in supSidePremiseIdx"
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause sideClause
-      superpositionAtLitWithPartner mainPremise mainPremiseNum e pos c sideClauseNum sidePos.lit sidePos.side
-        given (givenIsMain := true) simultaneousSuperposition
+      superpositionAtLitWithPartner mainPremise mainPremiseNum e pos mainPremiseEligibility c sideClauseNum sidePos.lit sidePos.side
+        sideClauseEligibility given (givenIsMain := true) simultaneousSuperposition
     streams := streams.append newStreams
   return streams
 
@@ -238,7 +236,7 @@ def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) 
         let flippedLit := givenClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs true) == Comparison.LessThan then
           continue
-        let cs ← superpositionWithGivenAsSide given mainPremiseIdx givenClause givenClauseNum i side simultaneousSuperposition
+        let cs ← superpositionWithGivenAsSide given mainPremiseIdx givenClause givenClauseNum i side litEligibility simultaneousSuperposition
         streams := streams.append cs
   -- With given clause as main premise
   let cs ← givenClause.foldGreenM fun acc e pos => do
@@ -248,7 +246,7 @@ def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) 
       if e.isMVar' || (Order.isFluid e) || litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then
         return acc
       else
-        let cs ← superpositionWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum simultaneousSuperposition
+        let cs ← superpositionWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum litEligibility simultaneousSuperposition
         return acc.append cs
     #[]
   return streams.append cs

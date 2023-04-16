@@ -358,11 +358,11 @@ def addToActive (c : Clause) : ProverM Unit := do
           -- If lit.lhs < lit.rhs, then σ(lit.lhs) < σ(lit.rhs) for all σ, meaning this position will violate superposition's condition 5
           let eligibleSide := (← RuleM.compare lit.lhs lit.rhs true) != Comparison.LessThan
           let supSidePremiseIdx ←
-            if mclause.lits[pos.lit]!.sign && eligibleLit && eligibleSide then supSidePremiseIdx.insert e (cNum, c, pos)
+            if mclause.lits[pos.lit]!.sign && eligibleLit && eligibleSide then supSidePremiseIdx.insert e (cNum, c, pos, litEligibility)
             else pure supSidePremiseIdx
           -- Update demodSidePremiseIdx
           let demodSidePremiseIdx ←
-            if (c.lits.size = 1 && c.lits[0]!.sign) then demodSidePremiseIdx.insert e (cNum, c, pos)
+            if (c.lits.size = 1 && c.lits[0]!.sign) then demodSidePremiseIdx.insert e (cNum, c, pos, none)
             else pure demodSidePremiseIdx
           -- Return side premise indices
           return (supSidePremiseIdx, demodSidePremiseIdx)
@@ -380,19 +380,19 @@ def addToActive (c : Clause) : ProverM Unit := do
           -- Only restriction for demodulation is that we can't rewrite variables
           -- (see https://github.com/sneeuwballen/zipperposition/blob/master/src/prover_calculi/superposition.ml#L350)
           let demodMainPremiseIdx ←
-            if not e.isMVar' then demodMainPremiseIdx.insert e (cNum, c, pos)
+            if not e.isMVar' then demodMainPremiseIdx.insert e (cNum, c, pos, none)
             else pure demodMainPremiseIdx
           -- Update supMainPremiseIdx
           let supMainPremiseIdx ← do
             -- If lit.lhs < lit.rhs, then σ(lit.lhs) < σ(lit.rhs) for all σ, meaning this position will violate superposition's condition 6
             let eligibleSide := (← RuleM.compare lit.lhs lit.rhs true) != Comparison.LessThan
-            if (not e.isMVar') && (not isFluid) && eligibleLit && eligibleSide then supMainPremiseIdx.insert e (cNum, c, pos)
+            if (not e.isMVar') && (not isFluid) && eligibleLit && eligibleSide then supMainPremiseIdx.insert e (cNum, c, pos, litEligibility)
             else pure supMainPremiseIdx
           -- Update fluidSupMainPremiseIdx
           let fluidSupMainPremiseIdx ← do
             -- If lit.lhs < lit.rhs, then σ(lit.lhs) < σ(lit.rhs) for all σ, meaning this position will violate superposition's condition 6
             let eligibleSide := (← RuleM.compare lit.lhs lit.rhs true) != Comparison.LessThan
-            if isFluidOrDeep && eligibleLit && eligibleSide then fluidSupMainPremiseIdx.insert e (cNum, c, pos)
+            if isFluidOrDeep && eligibleLit && eligibleSide then fluidSupMainPremiseIdx.insert e (cNum, c, pos, litEligibility)
             else pure fluidSupMainPremiseIdx
           return (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx)
         (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx)
