@@ -10,10 +10,82 @@ open Meta
 
 initialize registerTraceClass `Rule.fluidSup
 
+def mkFluidSupProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
+  (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    sorry
+
 def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseSubterm : Expr)
   (mainPremisePos : ClausePos) (mainPremiseEligibility : Eligibility) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
   (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (given : Clause) (givenIsMain : Bool) : RuleM (Array ClauseStream) := do
-  sorry
+  Core.checkMaxHeartbeats "fluidSup"
+  withoutModifyingMCtx $ do
+    let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
+    let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
+
+    let freshFunctionVarInputType := sidePremiseLit.ty
+    let freshFunctionVarOutputType ← inferType mainPremiseSubterm
+    let freshFunctionVar ← mkFreshExprMVar $ Expr.forallE .anonymous freshFunctionVarInputType freshFunctionVarOutputType default
+    let freshFunctionVarWithLhs := .app freshFunctionVar sidePremiseLit.lhs
+    let freshFunctionVarWithRhs := .app freshFunctionVar sidePremiseLit.rhs
+
+    /-
+      To efficiently approximate condition 7 in https://matryoshka-project.github.io/pubs/hosup_report.pdf, if the main
+      premise literal is positive and the main premise subterm is directly below the equality, then we require that the
+      main premise's clause id is less than or equal to the side premise's clause id (as an arbitrary tiebreaker).
+    -/
+    if mainPremise.lits[mainPremisePos.lit]!.sign && mainPremisePos.pos == #[] && mainPremiseNum > sidePremiseNum then
+      return #[]
+
+    let loaded ← getLoadedClauses
+    let ug ← unifierGenerator #[(mainPremiseSubterm, freshFunctionVarWithLhs)]
+    let yC := do
+      setLoadedClauses loaded
+      let sidePremiseFinalEligibility ←
+        eligibilityPostUnificationCheck sidePremise false sidePremiseLitIdx sidePremiseEligibility (strict := true)
+      if not sidePremiseFinalEligibility then return none
+      let mainPremiseFinalEligibility ←
+        eligibilityPostUnificationCheck mainPremise false mainPremisePos.lit mainPremiseEligibility
+          (strict := mainPremise.lits[mainPremisePos.lit]!.sign)
+      if not mainPremiseFinalEligibility then return none
+
+      -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
+      let sidePremiseLhs ← instantiateMVars sidePremiseLit.lhs
+      let sidePremiseRhs ← instantiateMVars sidePremiseLit.rhs
+      let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs false
+      if sidePremiseComparison == Comparison.LessThan || sidePremiseComparison == Comparison.Equal then
+        return none
+
+      let mainPremiseLhs := mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side
+      let mainPremiseRhs := mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side
+      let mainPremiseComparison ← compare mainPremiseLhs mainPremiseRhs false
+      if mainPremiseComparison == Comparison.LessThan || mainPremiseComparison == Comparison.Equal then
+        return none
+
+      -- Checking Sup condition 9 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
+      if sidePremiseLhs.isFullyAppliedLogicalSymbol then return none
+
+      -- Checking Sup condition 10 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
+      if sidePremiseRhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then return none
+
+      -- Checking fluidSup condition 4
+      let freshFunctionVarWithLhs ← Core.betaReduce freshFunctionVarWithLhs
+      let freshFunctionVarWithRhs ← Core.betaReduce freshFunctionVarWithRhs
+      if (freshFunctionVarWithLhs == freshFunctionVarWithRhs) then return none
+
+      let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos freshFunctionVarWithRhs
+      if mainPremiseReplaced.isTrivial then
+        trace[Rule.fluidSup] "trivial: {mainPremiseReplaced.lits}"
+        return none
+
+      let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
+      let res := MClause.append restOfSidePremise mainPremiseReplaced
+      let mkProof := mkFluidSupProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain
+      trace[Rule.fluidSup]
+        m!"FluidSup successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
+        m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
+      some <$> yieldClause res "fluidSup" none
+    return #[ClauseStream.mk ug given yC "fluidSup"]
 
 def fluidSupWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
   (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) : RuleM (Array ClauseStream) := do
