@@ -13,7 +13,61 @@ initialize registerTraceClass `Rule.fluidSup
 def mkFluidSupProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
   (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
-    sorry
+    let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
+    let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
+
+    let mainParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
+    let sideParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
+    let appliedMainPremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
+    let appliedSidePremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
+
+    let #[freshFunctionVar] := transferExprs
+      | throwError "fluidSups :: Wrong number of transferExprs"
+
+    let mut caseProofsSide := Array.mkEmpty sideParentLits.size
+    for j in [:sideParentLits.size] do
+      if j == sidePremiseLitIdx then
+        let eqLit := sideParentLits[j]!
+        let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
+          let eq :=
+            if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
+            else heq
+          let eq ← mkAppM ``congrArg #[freshFunctionVar, eq]
+          let mut caseProofsMain : Array Expr := Array.mkEmpty mainParentLits.size
+          for i in [:mainParentLits.size] do
+            let lit := mainParentLits[i]!
+            let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+              let idx := sideParentLits.size - 1 + i
+              if i == mainPremisePos.lit then
+                let litPos : LitPos := {side := mainPremisePos.side, pos := mainPremisePos.pos}
+                let abstrLit ← (lit.abstractAtPos! litPos)
+                let abstrExp := abstrLit.toExpr
+                let abstrLam := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstrExp
+                let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstrLam, eq], h]
+                Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
+              else
+                Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
+            caseProofsMain := caseProofsMain.push $ pr
+          let r ← orCases (mainParentLits.map Lit.toExpr) caseProofsMain
+          Meta.mkLambdaFVars #[heq] $ mkApp r appliedMainPremise
+        caseProofsSide := caseProofsSide.push $ pr
+      else
+        let lit := sideParentLits[j]!
+        let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
+          let idx := if j ≥ sidePremiseLitIdx then j - 1 else j
+          Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
+        caseProofsSide := caseProofsSide.push $ pr
+
+    let r ← orCases (sideParentLits.map Lit.toExpr) caseProofsSide
+    let proof ← Meta.mkLambdaFVars xs $ mkApp r appliedSidePremise
+    return proof
+
+/-- Returns the dependent lambda expression with the appropriate input and output types -/
+def mkFreshFunction (inputTy outputTy : Expr) : MetaM Expr :=
+  Meta.withLocalDeclD `_ inputTy fun fvar => do
+    let newMVar ← Meta.mkFreshExprMVar outputTy
+    let lambdaExpr ← Meta.mkLambdaFVars #[fvar] newMVar
+    return lambdaExpr
 
 def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseSubterm : Expr)
   (mainPremisePos : ClausePos) (mainPremiseEligibility : Eligibility) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
@@ -23,11 +77,11 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
 
-    let freshFunctionVarInputType := sidePremiseLit.ty
-    let freshFunctionVarOutputType ← inferType mainPremiseSubterm
-    let freshFunctionVar ← mkFreshExprMVar $ Expr.forallE .anonymous freshFunctionVarInputType freshFunctionVarOutputType default
-    let freshFunctionVarWithLhs := .app freshFunctionVar sidePremiseLit.lhs
-    let freshFunctionVarWithRhs := .app freshFunctionVar sidePremiseLit.rhs
+    let freshFunctionInputType := sidePremiseLit.ty
+    let freshFunctionOutputType ← inferType mainPremiseSubterm
+    let freshFunction ← mkFreshFunction freshFunctionInputType freshFunctionOutputType
+    let freshFunctionWithLhs ← Meta.whnf (.app freshFunction sidePremiseLit.lhs)
+    let freshFunctionWithRhs ← Meta.whnf (.app freshFunction sidePremiseLit.rhs)
 
     /-
       To efficiently approximate condition 7 in https://matryoshka-project.github.io/pubs/hosup_report.pdf, if the main
@@ -38,7 +92,7 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
       return #[]
 
     let loaded ← getLoadedClauses
-    let ug ← unifierGenerator #[(mainPremiseSubterm, freshFunctionVarWithLhs)]
+    let ug ← unifierGenerator #[(mainPremiseSubterm, freshFunctionWithLhs)]
     let yC := do
       setLoadedClauses loaded
       let sidePremiseFinalEligibility ←
@@ -69,11 +123,11 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
       if sidePremiseRhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then return none
 
       -- Checking fluidSup condition 4
-      let freshFunctionVarWithLhs ← Core.betaReduce freshFunctionVarWithLhs
-      let freshFunctionVarWithRhs ← Core.betaReduce freshFunctionVarWithRhs
-      if (freshFunctionVarWithLhs == freshFunctionVarWithRhs) then return none
+      let freshFunctionWithLhs ← Core.betaReduce freshFunctionWithLhs
+      let freshFunctionWithRhs ← Core.betaReduce freshFunctionWithRhs
+      if (freshFunctionWithLhs == freshFunctionWithRhs) then return none
 
-      let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos freshFunctionVarWithRhs
+      let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos freshFunctionWithRhs
       if mainPremiseReplaced.isTrivial then
         trace[Rule.fluidSup] "trivial: {mainPremiseReplaced.lits}"
         return none
@@ -84,7 +138,7 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
       trace[Rule.fluidSup]
         m!"FluidSup successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
         m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
-      some <$> yieldClause res "fluidSup" none
+      some <$> yieldClause res "fluidSup" mkProof (transferExprs := #[freshFunction])
     return #[ClauseStream.mk ug given yC "fluidSup"]
 
 def fluidSupWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)

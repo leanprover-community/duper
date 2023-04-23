@@ -26,7 +26,7 @@ def mkExistsHoistProof (pos : ClausePos) (premises : List Expr) (parents : List 
     let appliedPremise := appliedPremises[0]!
 
     let #[freshVar1] := transferExprs
-      | throwError "mkExistsHoistProof :: Wrong number of number of newVarIndices"
+      | throwError "mkExistsHoistProof :: Wrong number of transferExprs"
 
     let mut caseProofs := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
