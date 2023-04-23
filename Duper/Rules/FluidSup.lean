@@ -104,9 +104,9 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
       if not mainPremiseFinalEligibility then return none
 
       -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
-      let sidePremiseLhs ← instantiateMVars sidePremiseLit.lhs
-      let sidePremiseRhs ← instantiateMVars sidePremiseLit.rhs
-      let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs false
+      let sidePremiseLhs ← betaEtaReduce sidePremiseLit.lhs -- Need to betaEtaReduce for condition 9 check
+      let sidePremiseRhs ← betaEtaReduce sidePremiseLit.rhs -- Need to betaEtaReduce for condition 10 check
+      let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs true
       if sidePremiseComparison == Comparison.LessThan || sidePremiseComparison == Comparison.Equal then
         return none
 
@@ -132,7 +132,6 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
         trace[Rule.fluidSup] "trivial: {mainPremiseReplaced.lits}"
         return none
 
-      let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
       let res := MClause.append restOfSidePremise mainPremiseReplaced
       let mkProof := mkFluidSupProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain
       trace[Rule.fluidSup]

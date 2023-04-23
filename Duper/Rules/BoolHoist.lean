@@ -30,8 +30,8 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
     let yC := do
       setLoadedClauses loaded
       let lit := c.lits[pos.lit]!
-      let eSide ← instantiateMVars $ lit.getSide pos.side
-      let otherSide ← instantiateMVars $ lit.getOtherSide pos.side
+      let eSide := lit.getSide pos.side
+      let otherSide := lit.getOtherSide pos.side
       let cmp ← compare eSide otherSide false
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none

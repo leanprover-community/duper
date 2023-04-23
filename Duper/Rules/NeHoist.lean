@@ -18,13 +18,16 @@ theorem ne_hoist_proof (x y : α) (f : Prop → Prop) (h : f (x ≠ y)) : f True
     have x_ne_y_true := eq_true x_ne_y
     exact Or.inl $ x_ne_y_true ▸ h
 
-def mkNeHoistProof (pos : ClausePos) (freshVar1 freshVar2 : Expr) (premises : List Expr)
+def mkNeHoistProof (pos : ClausePos) (premises : List Expr)
   (parents : List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
+
+    let #[freshVar1, freshVar2] := transferExprs
+      | throwError "mkNeHoistProof :: Wrong number of transferExprs"
 
     let mut caseProofs := Array.mkEmpty parentLits.size
     for i in [:parentLits.size] do
@@ -76,20 +79,17 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
       setLoadedClauses loaded
       if not $ ← eligibilityPostUnificationCheck c (alreadyReduced := false) pos.lit eligibility (strict := lit.sign) then
         return none
-      let eSide ← instantiateMVars $ lit.getSide pos.side
-      let otherSide ← instantiateMVars $ lit.getOtherSide pos.side
+      let eSide := lit.getSide pos.side
+      let otherSide := lit.getOtherSide pos.side
       let cmp ← compare eSide otherSide false
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
-      -- Need to instantiate mvars in freshVar1, freshVar2, and freshVarEquality because unification assigned to mvars in each of them
-      let freshVar1 ← instantiateMVars freshVar1
-      let freshVar2 ← instantiateMVars freshVar2
-      let freshVarEquality ← instantiateMVars freshVarEquality 
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromExpr freshVarEquality]
       trace[Rule.neHoist] "Created {newClause.lits} from {c.lits}"
-      yieldClause newClause "neHoist" $ some (mkNeHoistProof pos freshVar1 freshVar2)
+      let mkProof := mkNeHoistProof pos
+      yieldClause newClause "neHoist" mkProof (transferExprs := #[freshVar1, freshVar2])
     return #[ClauseStream.mk ug given yC "neHoist"]
 
 def neHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do

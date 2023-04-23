@@ -62,9 +62,11 @@ def eligibilityNoUnificationCheck (c : MClause) (alreadyReduced := true) (i : Na
 
 /-- Checks whether a literal might be eligible before attempting to run the unification algorithm.
 
-A literal L is (strictly) eligible w.r.t. a substitution σ
-in C if it is selected in C or there are no selected literals
-in C and Lσ is (strictly) maximal in Cσ. -/
+    A literal L is (strictly) eligible w.r.t. a substitution σ in C if it is selected in C or there are no selected literals
+    in C and Lσ is (strictly) maximal in Cσ.
+
+    The alreadyReduced variable indicates whether c has been betaEta reduced as well as whether its mvars have been instantiated
+    (alreadyReduced is only set to true if both of these things are true) -/
 def eligibilityPreUnificationCheck (c : MClause) (alreadyReduced := true) (i : Nat) : RuleM Eligibility := do
   let sel := getSelections c
   if (sel.contains i) then
@@ -79,14 +81,14 @@ def eligibilityPreUnificationCheck (c : MClause) (alreadyReduced := true) (i : N
 
 /-- Checks whether a literal might be eligible based on the result of `eligibilityPreUnificationCheck`.
 
-A literal L is (strictly) eligible w.r.t. a substitution σ
-in C if it is selected in C or there are no selected literals
-in C and Lσ is (strictly) maximal in Cσ. -/
+    A literal L is (strictly) eligible w.r.t. a substitution σ in C if it is selected in C or there are no selected literals
+    in C and Lσ is (strictly) maximal in Cσ.
+
+    The alreadyReduced variable indicates whether c has been betaEta reduced as well as whether its mvars have been instantiated
+    (alreadyReduced is only set to true if both of these things are true) -/
 def eligibilityPostUnificationCheck (c : MClause) (alreadyReduced := false) (i : Nat) (preUnificationResult : Eligibility) (strict := false) : RuleM Bool := do
   if preUnificationResult == Eligibility.eligible then return true
   else if preUnificationResult == Eligibility.notEligible then return false
-  else
-    let c ← c.mapM instantiateMVars
-    c.isMaximalLit (← getOrder) alreadyReduced i (strict := strict)
+  else c.isMaximalLit (← getOrder) alreadyReduced i (strict := strict)
 
 end Duper

@@ -6,8 +6,9 @@ open Lean
 open Meta
 open Core
 
-/-- Applies beta and eta reduction exhaustively. -/
+/-- Instantiates mvars then applies beta and eta reduction exhaustively. -/
 def betaEtaReduce (e : Expr) : MetaM Expr := do
+  let e ← instantiateMVars e
   let e ← Core.betaReduce e
   match e.etaExpanded? with
   | some e => return e

@@ -79,15 +79,13 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       setLoadedClauses loaded
       if not $ ← eligibilityPostUnificationCheck c (alreadyReduced := false) pos.lit eligibility (strict := lit.sign) then
         return none
-      let eSide ← instantiateMVars $ lit.getSide pos.side
-      let otherSide ← instantiateMVars $ lit.getOtherSide pos.side
+      let eSide := lit.getSide pos.side
+      let otherSide := lit.getOtherSide pos.side
       let cmp ← compare eSide otherSide false
       if cmp == Comparison.LessThan || cmp == Comparison.Equal then -- If eSide ≤ otherSide then e is not in an eligible position
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
-      -- Need to instantiate mvars in newLitLhs because unification assigned to mvars in it
-      let newLitLhs ← instantiateMVars newLitLhs
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
       trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (transferExprs := #[freshVar1])

@@ -80,7 +80,7 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs false) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
-  let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
+  let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseLit.rhs
   return some (mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))
 
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTrie) (givenMainClause : MClause)
@@ -147,7 +147,7 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs false) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
-  let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos $ ← instantiateMVars sidePremiseLit.rhs
+  let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseLit.rhs
   trace[Rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
   trace[Rule.demodulation] "(Backward) Side clause (after matching): {sidePremise.lits}"
   trace[Rule.demodulation] "(Backward) Result: {mainPremiseReplaced.lits}"

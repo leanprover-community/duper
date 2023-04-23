@@ -146,9 +146,9 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       if not mainPremiseFinalEligibility then return none
   
       -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
-      let sidePremiseLhs ← instantiateMVars sidePremiseLit.lhs
-      let sidePremiseRhs ← instantiateMVars sidePremiseLit.rhs
-      let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs false
+      let sidePremiseLhs ← betaEtaReduce sidePremiseLit.lhs -- Need to betaEtaReduce for condition 9 check
+      let sidePremiseRhs ← betaEtaReduce sidePremiseLit.rhs -- Need to betaEtaReduce for condition 10 check
+      let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs true
       if sidePremiseComparison == Comparison.LessThan || sidePremiseComparison == Comparison.Equal then
         return none
   
@@ -157,28 +157,26 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       let mainPremiseComparison ← compare mainPremiseLhs mainPremiseRhs false
       if mainPremiseComparison == Comparison.LessThan || mainPremiseComparison == Comparison.Equal then
         return none
-  
+
       -- Checking Sup condition 9 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
       if sidePremiseLhs.isFullyAppliedLogicalSymbol then return none
-  
+
       -- Checking Sup condition 10 in https://matryoshka-project.github.io/pubs/hosup_report.pdf
       if sidePremiseRhs == mkConst ``False && (!mainPremise.lits[mainPremisePos.lit]!.sign || mainPremisePos.pos != #[]) then return none
-  
+
       let mut mainPremiseReplaced : MClause := Inhabited.default
       let mut poses : Array ClausePos := #[]
       if simultaneousSuperposition then
         let mainPremise ← mainPremise.mapM instantiateMVars
-        let sidePremiseLhs ← instantiateMVars sidePremiseLhs
         (mainPremiseReplaced, poses) ← mainPremise.mapMWithPos <|
           Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs
       else
         mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
-  
+
       if mainPremiseReplaced.isTrivial then
         trace[Rule.superposition] "trivial: {mainPremiseReplaced.lits}"
         return none
-  
-      let restOfSidePremise ← restOfSidePremise.mapM fun e => instantiateMVars e
+
       let res := MClause.append restOfSidePremise mainPremiseReplaced
       let mkProof :=
         if simultaneousSuperposition then mkSimultaneousSuperpositionProof sidePremiseLitIdx sidePremiseSide givenIsMain poses
