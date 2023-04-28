@@ -201,7 +201,7 @@ partial def saturate : ProverM Unit := do
       -- If the passive set is empty
       if (← getPassiveSet).isEmpty then
         -- ForceProbe
-        runProbe ClauseStreamHeap.forceProbe
+        runForceProbe
         -- If the passive set is still empty, the the prover has saturated
         if (← getPassiveSet).isEmpty then
           setResult saturated

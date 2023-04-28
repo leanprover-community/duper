@@ -122,26 +122,6 @@ def ClauseStreamHeap.fairProbe {σ} [OptionMStream ProverM σ ClauseProof]
     Q := Q'
   return (collectedClauses, Q)
 
-def ClauseStreamHeap.forceProbe {σ} [OptionMStream ProverM σ ClauseProof]
-  (Q : ClauseStreamHeap σ) : ProverM (Array ClauseProof × ClauseStreamHeap σ) := do
-  let mut collectedClauses := #[]
-  let mut Q := Q
-  -- Check whether forceProbeRetry is exceeded
-  let mut iter := 0
-  let maxiter := getForceProbeRetry (← getOptions)
-  while collectedClauses.size == 0 ∧ Q.size != 0 do
-    let (clauses, Q') ← Q.fairProbe Q.size
-    Q := Q'
-    if clauses.size != 0 then
-      collectedClauses := clauses
-      break
-    -- Check whether forceProbeRetry is exceeded
-    iter := iter + 1
-    if iter >= maxiter then
-      logForceProbeRetry maxiter
-      return (#[], Q)
-  return (collectedClauses, Q)
-
 -- Here `c` is `simplifiedGivenClause`
 -- Note: This function is responsible for adding results of inference rules to the passive set.
 def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
@@ -182,3 +162,19 @@ def ProverM.runProbe
   let (arrcp, Q') ← probe Q
   setQStreamSet Q'
   let _ ← arrcp.mapM ProverM.postProcessInferenceResult
+
+-- We have to repeatedly call `runProbe` and test `(← getPassiveSet).isEmpty`
+-- If we return immediately when `fairProbe` yields a nonempty
+--   list of clauses, it is possible that all of these clauses
+--   are redundant and `postProcessInferenceResult` will remove all
+--   of them, which will cause `saturate` to think that the prover
+--   has saturated.
+def ProverM.runForceProbe : ProverM Unit := do
+    let maxIter := getForceProbeRetry (← getOptions)
+    let mut fpiter := 0
+    while (← getQStreamSet).size != 0 ∧ (← getPassiveSet).isEmpty do
+      runProbe (ClauseStreamHeap.fairProbe (← getQStreamSet).size)
+      fpiter := fpiter + 1
+      if fpiter >= maxIter then
+        logForceProbeRetry maxIter
+        break
