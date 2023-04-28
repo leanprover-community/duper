@@ -131,10 +131,10 @@ def ClauseStreamHeap.forceProbe {σ} [OptionMStream ProverM σ ClauseProof]
   let maxiter := getForceProbeRetry (← getOptions)
   while collectedClauses.size == 0 ∧ Q.size != 0 do
     let (clauses, Q') ← Q.fairProbe Q.size
+    Q := Q'
     if clauses.size != 0 then
       collectedClauses := clauses
       break
-    Q := Q'
     -- Check whether forceProbeRetry is exceeded
     iter := iter + 1
     if iter >= maxiter then
