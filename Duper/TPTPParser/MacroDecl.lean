@@ -29,6 +29,8 @@ def processThfDefinedTerm (term : Syntax) : MacroM Syntax := do
     match id.getId with
     | `true => `(True)
     | `false => `(False)
+    | `i => `(TPTP.iota)
+    | `o => `(Prop)
     | _ => Macro.throwError s!"Unsupported thf_defined_term: {term}"
   | _ => Macro.throwError s!"{term} is not a defined term" 
 
@@ -68,6 +70,16 @@ partial def processThfType (stx : Syntax) : MacroM (Syntax × Option (Array Synt
     match stxListOpt with
     | none => return (res, none)
     | some stxList => return (res, some (stxList.push arg))
+  | `(thf_type| $t₁:thf_type @ $t₂:thf_type) =>
+    let (ret₁, stxListOpt₁) ← processThfType t₁
+    let (ret₂, stxListOpt₂) ← processThfType t₂
+    let res ← `(($ret₁ $ret₂))
+    match stxListOpt₁ with
+    | none => return (res, stxListOpt₂)
+    | some stxList₁ =>
+      match stxListOpt₂ with
+      | none => return (res, some stxList₁)
+      | some stxList₂ => return (res, some (stxList₁.append stxList₂))
   | `(thf_type| ( $args:thf_xprod_args ) > $ret:thf_atomic_type) =>
     let ret ← processThfAtomicType ret
     let args : Array Syntax := @Syntax.SepArray.mk "*" args.raw[0].getArgs
@@ -118,6 +130,10 @@ partial def processThfTerm (stx : Syntax) (is_untyped : Bool) : MacroM Syntax :=
     | Name.str _ "~|" => `(¬ ($t₁ ∨ $t₂))
     | Name.str _ "~&" => `(¬ ($t₁ ∧ $t₂))
     | _ => Macro.throwError s!"Unsupported bexpOp: {conn.raw[0].getKind}"
+  | `(thf_term| $t₁:thf_term > $t₂:thf_term) => do
+    let t₁ ← processThfTerm t₁ is_untyped
+    let t₂ ← processThfTerm t₂ is_untyped
+    `(($t₁ → $t₂))
   | `(thf_term| $t₁:thf_term $conn:eqOp $t₂:thf_term ) => do
     let t₁ ← processThfTerm t₁ is_untyped
     let t₂ ← processThfTerm t₂ is_untyped

@@ -23,6 +23,8 @@ syntax:max defined_term : thf_term
 syntax:60 thf_term:60 "@" thf_term:61 : thf_term
 syntax bexpOp := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<=" <|> "<~>" <|> "~|" <|> "~&"
 syntax:60 thf_term:60 bexpOp thf_term:61 : thf_term
+-- Approximation of `thf_binary_type`
+syntax:60 thf_term:61 ">" thf_term:60 : thf_term
 
 -- <infix_equality>       ::= =
 -- <infix_inequality>     ::= !=
@@ -44,8 +46,8 @@ syntax rawIdent : thf_atomic_type
 syntax thf_atomic_type : thf_type
 syntax:max "(" thf_type ")" : thf_type
 
-def tffXProdArgsParser := sepBy1 (categoryParser `thf_atomic_type 0) "*"
-syntax thf_xprod_args := tffXProdArgsParser
+def thfXProdArgsParser := sepBy1 (categoryParser `thf_atomic_type 0) "*"
+syntax thf_xprod_args := thfXProdArgsParser
 
 --thf_mapping_type
 /-
@@ -60,6 +62,9 @@ syntax "(" thf_xprod_args ")" ">" thf_atomic_type : thf_type
 --thf_type_arguments are needed because <type_functor>(<thf_type_arguments>) is a thf_atomic_type
 syntax thf_type_arguments := "(" thf_atomic_type,* ")"
 syntax rawIdent thf_type_arguments : thf_atomic_type
+
+--thf_apply_type
+syntax:130 thf_type:130 "@" thf_type:131 : thf_type
 
 syntax quantifier := "!" <|> "?" <|> "^"
 syntax thf_variable := rawIdent (":" thf_type) ?
