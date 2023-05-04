@@ -20,7 +20,7 @@ syntax:max "(" thf_term ")" : thf_term
 -- Higher-order Application
 syntax defined_term := "🍉" noWs ident
 syntax:max defined_term : thf_term
-syntax:80 thf_term:80 "@" thf_term:81 : thf_term
+syntax:60 thf_term:60 "@" thf_term:61 : thf_term
 syntax bexpOp := "|" <|> "&" <|> "<=>" <|> "=>" <|> "<=" <|> "<~>" <|> "~|" <|> "~&"
 syntax:60 thf_term:60 bexpOp thf_term:61 : thf_term
 
