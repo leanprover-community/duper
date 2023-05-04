@@ -35,6 +35,7 @@ import Duper.Rules.NeHoist
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
 import Duper.Rules.FluidSup
+import Duper.Rules.FluidBoolHoist
 -- Type inhabitation reasoning rules
 import Duper.Util.TypeInhabitationReasoning
 
@@ -98,14 +99,15 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
   equalityFactoring,
   -- Prop specific rules
   falseElim,
-  -- Higher order rules
-  argCong,
   boolHoist,
   eqHoist,
   neHoist,
   existsHoist,
   forallHoist,
+  -- Higher order rules
+  argCong,
   fluidSup (← getFluidSupMainPremiseIdx) (← getSupSidePremiseIdx)
+  -- fluidBoolHoist
 ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
