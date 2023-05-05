@@ -180,6 +180,9 @@ partial def mkClauseProof : List Clause → PRM Expr
       let parentClause := parent.clause.instantiateLevelParamsArray parent.clause.paramNames instantiatedParentParamSubst
       let parentClause ← parentClause.mapMUpdateType (fun e => Core.transform e PRM.matchSkolem)
       let parentExpr := parent.expr.instantiateLevelParamsArray parentClause.paramNames instantiatedParentParamSubst
+      -- We need to instantiate `c`'s params with `req`. This is because universe metavariables
+      --   might be introduces during unification
+      let parentExpr := parentExpr.instantiateLevelParamsArray c.paramNames req
       let parentExpr ← Core.transform parentExpr PRM.matchSkolem
       let instPP := {parent with expr := parentExpr, clause := parentClause}
       instantiatedProofParents := instantiatedProofParents.push instPP

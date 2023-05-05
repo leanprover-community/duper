@@ -38,7 +38,6 @@ example
 set_option trace.Print_Proof true in
 set_option trace.Rule.neHoist true in
 set_option trace.ProofReconstruction true in
-set_option pp.all true in
 theorem ex27 (t : Type) (g : Prop → t) (h : t → t) (A B : t)
   (eq1 : A ≠ B)
   (eq2 : ∀ y : t → t, h (y B) ≠ h (g False) ∨ h (y A) ≠ h (g True)) : False :=

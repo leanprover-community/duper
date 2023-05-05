@@ -54,7 +54,7 @@ namespace ComplexUniverse
 #check Lean.Level
 
 -- Just checking whether universe level works correctly
-set_option trace.Prover.saturate true in
+set_option trace.ProofReconstruction true in
 def rec₁ : False := by
   duper [Nat.rec]
 
