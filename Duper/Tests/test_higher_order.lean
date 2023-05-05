@@ -23,18 +23,7 @@ example
   (hthree_ax: three = fun X Y => X (X (X Y)))
   (hthm: ¬∃ N, mult N three = three) : False := by duper
 
-/-
-  Ex27 is example 27 from https://matryoshka-project.github.io/pubs/hosup_report.pdf
-
-  The issue is in a (hidden) implicit arg for Eq/Ne. Setting pp.all to true reveals the issue.
-  After unification, the parent's literal has _abstMVar.0 as the level of @Eq when it should have the level 1.
-  During unification, a metavariable is instantiated with a function that checks for equality, but that Eq call
-  does not have the current level metavariable.
-
-  This problem only occurs when fluidBoolHoist is enabled, but as far as I can tell, the problem is not
-  directly being cause by any bug in fluidBoolHoist. Rather, it seems that fluidBoolHoist creates a clause
-  that wouldn't otherwise be generated which exposes the bug.
--/
+-- Ex27 is example 27 from https://matryoshka-project.github.io/pubs/hosup_report.pdf
 set_option trace.Print_Proof true in
 set_option trace.Rule.neHoist true in
 set_option trace.ProofReconstruction true in
