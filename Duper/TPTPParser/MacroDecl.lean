@@ -23,6 +23,7 @@ def processThfDefinedType (ty : Syntax) : MacroM Syntax := do
     | _ => Macro.throwError s!"Unsupported thf_defined_type: {ty}"
   | _ => Macro.throwError s!"{ty} is not a defined type"
 
+-- TODO: Add support for `int` and `real`?
 def processThfDefinedTerm (term : Syntax) : MacroM Syntax := do
   match term with
   | `(defined_term|🍉$id) =>

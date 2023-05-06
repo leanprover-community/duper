@@ -1,5 +1,4 @@
 import Lean
-import Duper.TPTPParser.Hooks
 
 open Lean
 open Lean.Parser
@@ -15,6 +14,8 @@ declare_syntax_cat thf_atomic_type
 
 syntax thf_arguments := "(" thf_term,* ")"
 syntax:120 rawIdent thf_arguments ? : thf_term
+-- TODO : Add support for float?
+syntax:max num : thf_term
 syntax:max "(" thf_term ")" : thf_term
 
 -- Higher-order Application
@@ -80,6 +81,6 @@ syntax "thf" "(" rawIdent "," rawIdent "," thf_term annotation ? ")" "." : TPTP_
 syntax "thf" "(" rawIdent "," &"type" "," rawIdent ":" thf_type annotation ? ")" "." : TPTP_input
 syntax "cnf" "(" rawIdent "," rawIdent "," thf_term annotation ? ")" "." : TPTP_input
 syntax "fof" "(" rawIdent "," rawIdent "," thf_term annotation ? ")" "." : TPTP_input
-syntax "include" "(" sqstr ")" "." : TPTP_input
+syntax "include" "(" rawIdent ")" "." : TPTP_input
 
 syntax TPTP_input * : TPTP_file

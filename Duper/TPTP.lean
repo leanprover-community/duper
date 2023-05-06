@@ -28,6 +28,25 @@ partial def parseTPTPInput (s : String) : CommandElabM Syntax := do
   | Except.error e => throwError e
   | Except.ok r => return r
 
+def sqstrToIdent (s : String) : String := Id.run <| do
+  let mut ret := ""
+  let mut curr : String.Pos := ⟨0⟩
+  let mut sqcnt := 0
+  while true do
+    match s.get? curr with
+    | some ch =>
+      if ch == '\'' then
+        if sqcnt == 0 then
+          ret := ret.push '«'
+        else
+          ret := ret.push '»'
+        sqcnt := (sqcnt + 1) % 2
+      else
+        ret := ret.push ch
+      curr := curr + ch
+    | none => break
+  return ret
+
 def splitOnOutermostPeriod (s : String) : Array String := Id.run <| do
   let mut ret := #[]
   let mut last : String.Pos := ⟨0⟩
@@ -53,7 +72,7 @@ def loadTptp (path : System.FilePath) : CommandElabM (Syntax × Nat) := do
   let s := String.join lines.toList
   -- Replace `$` with `🍉` so that it won't conflict with Lean's antiquot
   let s := s.replace "$" "🍉"
-  let sarr := splitOnOutermostPeriod s
+  let sarr := (splitOnOutermostPeriod s).map sqstrToIdent
   let mut stxarr : Array (TSyntax `TPTP_file) := #[]
   -- Parse input-by-input so that the parser is easier to debug
   for s in sarr do
@@ -69,12 +88,12 @@ partial def resolveInclude (leadingPath : System.FilePath) : Syntax → CommandE
     lines := lines + lineno
     match stx with
     |`(TPTP_file| $[$g]*) => result := result.append g
-    |`(TPTP_input| include( $ ).) => throwError "resolveInclude :: include is not resolved in {stx}"
+    |`(TPTP_input| include( $_ ).) => throwError "resolveInclude :: include is not resolved in {stx}"
     | other => result := result.push other
   let stx ← `(TPTP_file| $[$result]*)
   return (stx, lines)
-|`(TPTP_input| include( $sqstr ).) => do
-  let path := leadingPath / (Lean.Syntax.getSingleQuotedStr sqstr)
+|`(TPTP_input| include( $ri ).) => do
+  let path := leadingPath / (Lean.Syntax.getId ri.raw).getString!
   loadTptp path
 | other => return (other, 0)
 

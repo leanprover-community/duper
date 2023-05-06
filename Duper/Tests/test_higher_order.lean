@@ -10,7 +10,6 @@ tptp AGT033 "../TPTP-v8.0.0/Problems/AGT/AGT033^1.p" by sorry
 set_option trace.Meta.debug true in
 tptp ANA047 "../TPTP-v8.0.0/Problems/ANA/ANA047^1.p" by sorry
 
-set_option trace.Meta.debug true in
 tptp DAT113 "../TPTP-v8.0.0/Problems/DAT/DAT113^1.p" by sorry
 
 -- Higher order tests
