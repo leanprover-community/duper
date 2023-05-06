@@ -61,7 +61,7 @@ def mkFluidBoolHoistProof (pos : ClausePos) (isFluidLoobHoist : Bool) (premises 
           let idx := if j ≥ i then j - 1 else j
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
         caseProofs := caseProofs.push pr
-    
+
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
@@ -100,7 +100,8 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
 
       -- All side conditions for fluidBoolHoist have been met
       let cErased := c.eraseLit pos.lit
-      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ freshFunctionGivenFalse, Lit.fromSingleExpr freshPropVar true]
+      let litOriginal := c.lits[pos.lit]! -- No lhs/rhs swap
+      let newClause := cErased.appendLits #[← litOriginal.replaceAtPos! ⟨pos.side, pos.pos⟩ freshFunctionGivenFalse, Lit.fromSingleExpr freshPropVar true]
       trace[Rule.fluidBoolHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkFluidBoolHoistProof pos false -- Is fluidBoolHoist not fluidLoobHoist
       yieldClause newClause "fluidBoolHoist" mkProof (transferExprs := #[freshFunctionOutputType, freshFunction, freshPropVar])
@@ -123,7 +124,8 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
 
       -- All side conditions for fluidLoobHoist have been met
       let cErased := c.eraseLit pos.lit
-      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ freshFunctionGivenTrue, Lit.fromSingleExpr freshPropVar false]
+      let litOriginal := c.lits[pos.lit]! -- No lhs/rhs swap
+      let newClause := cErased.appendLits #[← litOriginal.replaceAtPos! ⟨pos.side, pos.pos⟩ freshFunctionGivenTrue, Lit.fromSingleExpr freshPropVar false]
       trace[Rule.fluidLoobHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkFluidBoolHoistProof pos true -- True because this is fluidLoobHoist
       yieldClause newClause "fluidLoobHoist" mkProof (transferExprs := #[freshFunctionOutputType, freshFunction, freshPropVar])

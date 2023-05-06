@@ -106,8 +106,8 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
   forallHoist,
   -- Higher order rules
   argCong,
-  fluidSup (← getFluidSupMainPremiseIdx) (← getSupSidePremiseIdx)
-  -- fluidBoolHoist
+  fluidSup (← getFluidSupMainPremiseIdx) (← getSupSidePremiseIdx),
+  fluidBoolHoist
 ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
