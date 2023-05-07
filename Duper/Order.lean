@@ -375,11 +375,13 @@ and the article "Things to Know when Implementing KBO" by Bernd Löchner.
 partial def kbo (t1 t2 : Expr) (alreadyReduced : Bool) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
   if alreadyReduced then
     let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false)
+    trace[Unary_first.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
     return res
   else
     let t1 ← betaEtaReduce t1
     let t2 ← betaEtaReduce t2
     let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false)
+    trace[Unary_first.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
     return res
 where
   /- Update variable balance, weight balance, and check whether the term contains the fluid term s.

@@ -135,8 +135,16 @@ def buildSymbolPrecMap (clauses : List Clause) : ProverM (SymbolPrecMap × Bool)
           | Symbol.FVarId fVarId1, Symbol.FVarId fVarId2 =>
               -- Tiebreaking fVarId1 and fVarId2 by name would cause duper's behavior to depend on the environment in unexpected ways,
               -- so we instead tiebreak based on whether fVarId1 or fVarId2 appears first in the local context
-              match lctx.fvarIdToDecl.toList.find? (fun (fVarId, _) => fVarId == fVarId1 || fVarId == fVarId2) with
-              | some (firstFVarId, _) =>
+              let firstFVarIdInDecls :=
+                lctx.decls.findSome?
+                  (fun declOpt =>
+                    match declOpt with
+                    | some decl =>
+                        if decl.fvarId == fVarId1 || decl.fvarId == fVarId2 then some decl.fvarId
+                        else none
+                    | none => none)
+              match firstFVarIdInDecls with
+              | some firstFVarId =>
                 if firstFVarId == fVarId1 then true
                 else false
               | none => false -- This case isn't possible because fVarId1 and fVarId2 must both appear in the local context
