@@ -564,3 +564,40 @@ example
 (h4: ¬∀ (X Y P1 P2 S2 T1 T2 : TPTP.iota),
     organization Y T2 → dummy X P1 T1 S2 →
       goodChance P2) : False := by duper
+
+-- Universe level tests
+
+namespace UniverseTest
+
+axiom f.{u} : Type u → Prop
+
+axiom ftrue.{u} : f.{u} (Sort u)
+
+set_option trace.Print_Proof true in
+def unitst₁ : f.{max u v} (Sort (max u v)) ∧ f.{v} (Sort v) := by
+  duper [ftrue]
+
+axiom fmoretrue.{u} : ∀ (x : Type u), f x
+
+set_option trace.Print_Proof true in
+def unitst₂ : ∀ (x : Type v), f x := by
+  duper [fmoretrue]
+
+axiom exftrue.{u} : ∃ (x : Type u), f x
+
+set_option trace.ProofReconstruction true in
+def skuniverse.{u} : ∃ (x : Type u), f x := by
+  duper [exftrue]
+
+end UniverseTest
+
+
+-- Negative tests
+
+-- This example is intended to test duper's ability of
+--   handling dependent types. It should fail with
+--   "deterministic timeout".
+-- If it fails in any other way, it's an indication of a bug.
+set_option trace.Meta.debug true in
+def rec₁ : False := by
+  duper [Nat.rec]

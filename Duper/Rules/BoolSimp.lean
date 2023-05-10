@@ -573,7 +573,7 @@ def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) (i
   | rule1 => -- s ∨ s ↦ s
     match originalExp.consumeMData with
     | Expr.app (Expr.app (Expr.const ``Or _) e1) _ => return mkApp (mkConst ``rule1Theorem) e1
-    | _ => throwError "Invalid orignalExp {originalExp} for rule1"
+    | _ => throwError "Invalid originalExp {originalExp} for rule1"
   | rule2 => -- ¬s ∨ s ↦ True
     match originalExp.consumeMData with
     | Expr.app (Expr.app (Expr.const ``Or _) _) e2 => return mkApp (mkConst ``rule2Theorem) e2
@@ -617,7 +617,7 @@ def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) (i
   | rule8 => -- s ∧ s ↦ s
     match originalExp.consumeMData with
     | Expr.app (Expr.app (Expr.const ``And _) e1) _ => return mkApp (mkConst ``rule8Theorem) e1
-    | _ => throwError "Invalid orignalExp {originalExp} for rule8"
+    | _ => throwError "Invalid originalExp {originalExp} for rule8"
   | rule9 => -- ¬s ∧ s ↦ False
     match originalExp.consumeMData with
     | Expr.app (Expr.app (Expr.const ``And _) _) e2 => return mkApp (mkConst ``rule9Theorem) e2

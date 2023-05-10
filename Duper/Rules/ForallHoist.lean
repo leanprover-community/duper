@@ -57,6 +57,8 @@ def mkForallAndLambda (freshVar1Ty : Expr) : MetaM (Expr × Expr) :=
 def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     let lit := c.lits[pos.lit]!
+    -- Avoid replacing dependent type
+    -- e.g.  id (∀ (z : α), p z) x ⇒ id False x   will cause type error
     if e.getTopSymbol.isMVar' then -- Check condition 4
       -- If the head of e is a variable then it must be applied and the affected literal must be either
       -- e = True, e = False, or e = e' where e' is another variable headed term
@@ -94,7 +96,9 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
-      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr newLitLhs (sign := true)]
+      let some replacedLit ← lit.replaceAtPosUpdateType? ⟨pos.side, pos.pos⟩ (mkConst ``False)
+        | return none
+      let newClause := cErased.appendLits #[replacedLit, Lit.fromSingleExpr newLitLhs (sign := true)]
       trace[Rule.forallHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (transferExprs := #[freshVar1])
     return #[ClauseStream.mk ug given yC "forallHoist"]

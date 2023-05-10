@@ -48,14 +48,3 @@ def skuniverse.{u} : ∃ (x : Type u), f x := by
   duper [exftrue]
 
 end UniverseTest
-
-namespace ComplexUniverse
-
-#check Lean.Level
-
--- Just checking whether universe level works correctly
-set_option trace.ProofReconstruction true in
-def rec₁ : False := by
-  duper [Nat.rec]
-
-end ComplexUniverse

@@ -163,7 +163,12 @@ def replaceAtPosUpdateType? (l : Lit) (pos : LitPos) (replacement : Expr) : Meta
   let repPos ← replaceAtPos! l pos replacement
   try
     let ty ← Meta.inferType repPos.lhs
-    let lvl := (← Meta.inferType ty).sortLevel!
+    let sort ← Meta.inferType ty
+    let sortReduced ← Meta.reduce sort false false true
+    if ! sortReduced.isSort then
+      trace[Meta.debug] "replaceAtPosUpdateType? :: {sortReduced} is not a sort"
+      return none
+    let lvl := sortReduced.sortLevel!
     let res : Lit := {repPos with ty := ty, lvl := lvl}
     if ← Meta.isTypeCorrect res.toExpr then
       return some res

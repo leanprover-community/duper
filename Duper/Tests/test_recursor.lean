@@ -1,11 +1,6 @@
 import Duper.Tactic
 import Duper.TPTP
 
-def rec₁ : False := by
-  duper [Nat.rec]
-
-#check Nat.rec
-
 namespace Color1
 
 inductive Color :=
@@ -33,7 +28,6 @@ set_option pp.match false
 #print Color.casesOn
 
 -- Not sure why this does not work:
-set_option trace.Prover.saturate true in
 example : test .red = .green := by
   duper [test, test.match_1, Color.rec, Color.casesOn]
 

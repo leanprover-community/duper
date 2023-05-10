@@ -86,7 +86,9 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
-      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromSingleExpr newLitLhs (sign := false)]
+      let some replacedLit ← lit.replaceAtPosUpdateType? ⟨pos.side, pos.pos⟩ (mkConst ``True)
+        | return none
+      let newClause := cErased.appendLits #[replacedLit, Lit.fromSingleExpr newLitLhs (sign := false)]
       trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (transferExprs := #[freshVar1])
     return #[ClauseStream.mk ug given yC "existsHoist"]
