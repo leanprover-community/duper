@@ -290,10 +290,18 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
       let facts ← facts.mapM fun (fact, proof, paramNames) => do
         return (← instantiateMVars fact, ← instantiateMVars proof, paramNames)
       return facts.toArray
-    | some (.defnInfo val) =>
-      let some eqns ← getEqnsFor? expr.constName! (nonRec := true)
-        | throwError "Could not generate definition equations for {expr.constName!}"
-        eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq)))
+    | some (.defnInfo defval) =>
+      let term := defval.value
+      let type ← Meta.inferType term
+      let sort ← Meta.reduce (← Meta.inferType type) true true false
+      -- If the fact is of sort `Prop`, add itself as a fact
+      let mut ret := #[]
+      if sort.isProp then
+        ret := ret.push (← elabFactAux stx)
+      -- Generate definitional equation for the fact
+      if let some eqns ← getEqnsFor? expr.constName! (nonRec := true) then
+        ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
+      return ret
     | some (.axiomInfo _)  => return #[← elabFactAux stx]
     | some (.thmInfo _)    => return #[← elabFactAux stx]
     | some (.opaqueInfo _) => throwError "Opaque constants cannot be provided as facts"
@@ -332,6 +340,19 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Arr
 def collectedAssumptionToMessageData : Expr × Expr × Array Name → MessageData
 | (ty, term, names) => MessageData.compose (.compose m!"{names} @ " m!"{term} : ") m!"{ty}"
 
+-- We save the `CoreM` state. This is because we will add a constant
+-- `skolemSorry` to the environment to support skolem constants with
+-- universe levels. We want to erase this constant after the saturation
+-- procedure ends
+def withoutModifyingCoreEnv (m : TacticM α) : TacticM α :=
+  try
+    let env := (← liftM (get : CoreM Core.State)).env
+    let ret ← m
+    liftM (modify fun s => {s with env := env} : CoreM Unit)
+    return ret
+  catch e =>
+    throwError e.toMessageData
+
 -- Add the constant `skolemSorry` to the environment.
 -- Add suitable postfix to avoid name conflict.
 def addSkolemSorry : CoreM Name := do
@@ -346,6 +367,7 @@ def addSkolemSorry : CoreM Name := do
     else
       break
   let name := Name.num (Name.str currNameSpace nameS) cnt
+  trace[Meta.debug] "Created Skolem Sorry, name = {name}"
   let vlvlName := `v
   let vlvl := Level.param vlvlName
   let ulvlName := `u
@@ -391,16 +413,21 @@ macro_rules
 
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
-  -- Add the constant `skolemSorry` to the environment
-  let skSorryName ← addSkolemSorry
   trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
-  let (_, state) ←
-    ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
-      ProverM.saturateNoPreprocessingClausification
-      formulas
-  return state
+  -- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv`
+  --   because new definitional equations might be generated during
+  --   `collectAssumptions`
+  withoutModifyingCoreEnv <| do
+    -- Add the constant `skolemSorry` to the environment
+    let skSorryName ← addSkolemSorry
+    let (_, state) ←
+      ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
+        ProverM.saturateNoPreprocessingClausification
+        formulas
+    return state
 
-def evalDuperUnsafe : Tactic
+@[tactic duper]
+def evalDuper : Tactic
 | `(tactic| duper [$facts,*]) => withMainContext do
   let startTime ← IO.monoMsNow
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
@@ -439,30 +466,13 @@ def evalDuperUnsafe : Tactic
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
 
--- We save the `CoreM` state. This is because we will add a constant
--- `skolemSorry` to the environment to support skolem constants with
--- universe levels. We want to erase this constant after the saturation
--- procedure ends
-def withoutModifyingCoreEnv (m : TacticM α) : TacticM α :=
-  try
-    let env := (← liftM (get : CoreM Core.State)).env
-    let ret ← m
-    liftM (modify fun s => {s with env := env} : CoreM Unit)
-    return ret
-  catch e =>
-    throwError e.toMessageData
-
-@[tactic duper]
-def evalDuper : Tactic
-| `(tactic| $stx) => withoutModifyingCoreEnv <|
-  evalDuperUnsafe stx
-
 syntax (name := duper_no_timing) "duper_no_timing" ("[" term,* "]")? : tactic
 
 macro_rules
 | `(tactic| duper_no_timing) => `(tactic| duper_no_timing [])
 
-def evalDuperNoTimingUnsafe : Tactic
+@[tactic duper_no_timing]
+def evalDuperNoTiming : Tactic
 | `(tactic| duper_no_timing [$facts,*]) => withMainContext do
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
@@ -479,10 +489,5 @@ def evalDuperNoTimingUnsafe : Tactic
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
 | _ => throwUnsupportedSyntax
-
-@[tactic duper_no_timing]
-def evalDuperNoTiming : Tactic
-| `(tactic| $stx) => withoutModifyingCoreEnv <|
-  evalDuperNoTimingUnsafe stx
 
 end Lean.Elab.Tactic

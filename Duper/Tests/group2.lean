@@ -22,7 +22,6 @@ by duper [Group.mul_one]
 theorem exists_right_inv (x : G) : inv x ⬝ x = one :=
 by duper [Group.mul_assoc, Group.mul_one, Group.mul_inv]
 
-set_option trace.Prover.saturate true in
 theorem left_neutral_unique (x : G) : (∀ y, x ⬝ y = y) → x = one :=
 by duper [Group.mul_assoc, Group.mul_one, Group.mul_inv]
 
