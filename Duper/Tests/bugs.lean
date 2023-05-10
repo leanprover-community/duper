@@ -21,3 +21,28 @@ tptp ITP222 "../TPTP-v8.0.0/Problems/ITP/ITP222_2.p"
 set_option maxTPTPProblemLines 10000 in
 tptp ITP010_7 "../TPTP-v8.0.0/Problems/ITP/ITP010_7.p"
   by sorry
+
+
+
+namespace Color2
+
+inductive Color :=
+| red : Color
+| green : Color
+
+example : @Color.rec (fun _ => Nat) a b .red = a := by duper [Color.rec]
+
+def test : Color → Color
+| .red => .green
+| .green => .red
+
+set_option pp.match false
+#print test
+#print test.match_1
+#print Color.casesOn
+
+-- Not sure why this does not work:
+example : test .red = .green := by
+  duper [test, test.match_1, Color.rec, Color.casesOn]
+
+end Color2
