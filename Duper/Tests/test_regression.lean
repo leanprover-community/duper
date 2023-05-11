@@ -607,15 +607,3 @@ set_option simultaneousSuperposition false in
 example : ∀ a b, @Nat.rec (fun _ => Bool) a b Nat.zero = a := by duper [Nat.rec]
 
 end RecursorTests
-
-
--- Negative tests
-
--- This example is intended to test duper's ability of
---   handling dependent types. It should fail with
---   "deterministic timeout".
--- If it fails in any other way, it's an indication of a bug.
-
-set_option trace.Meta.debug true in
-def rec₁ : False := by
-  duper [Nat.rec]

@@ -25,3 +25,13 @@ f (f (f a)) = d ∨ f (f b) = d ∨ f c = d)
 (h2 : f (f (f a)) ≠ d)
 (h3 : f (f b) ≠ d)
 : False := by duper
+
+-- Tests where duper should time out
+-- This example is intended to test duper's ability of
+--   handling dependent types. It should fail with
+--   "deterministic timeout".
+-- If it fails in any other way, it's an indication of a bug.
+
+set_option trace.Meta.debug true in
+def rec₁ : False := by
+  duper [Nat.rec]
