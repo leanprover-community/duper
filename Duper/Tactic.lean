@@ -345,18 +345,12 @@ partial def reduceInstances (e : Expr) : TacticM Expr := do
       Meta.forallBoundedTelescope e (some 1) fun xs body => do
         Meta.mkForallFVars xs (← reduceInstances body)
     | e@(Expr.lam _ d b _)     => -- Need to suitably do abstraction for body so bvars don't break
-      let e := e.updateLambdaE! (← reduceInstances d) b
-      -- Ideally, we would call Meta.lambdaBoundedTelescope here analogous to how we called Meta.forallBoundedTelescope in the forallE
-      -- case. Unfortunately, Meta.lambdaBoundedTelescope no longer exists, so we have to iterate through the lambdas manually and call
-      -- reduceInstances on each binderType before calling Meta.lambdaTelescope
-      let rec getFinalBody (b : Expr) : TacticM Expr := do
-        match b with
-        | Expr.lam _ d2 b2 _ =>
-          let finalB2 ← getFinalBody b2
-          return b.updateLambdaE! (← reduceInstances d2) finalB2
-        | _ => return b
+      let e := e.updateLambdaE! (← reduceInstances d) (mkMData .empty b)
+      -- Ideally, we would use Meta.lambdaBoundedTelescope analogous to how Meta.forallTelescope was used for the forallE case.
+      -- But Meta.lambdaBoundedTelescope no longer exists, so we add an mdata around b to ensure that Meta.lambdaTelescope's body
+      -- corresponds to b (rather than the body of an inner lambda expression)
       Meta.lambdaTelescope e fun xs body => do
-        Meta.mkLambdaFVars xs (← reduceInstances body)
+        Meta.mkLambdaFVars xs (← reduceInstances body.consumeMData)
     | e@(Expr.letE _ t v b _)  => -- Let expressions can have bvars in the body, so rather than deal with that, we just zetaReduce
       let e ← zetaReduce e
       reduceInstances e
