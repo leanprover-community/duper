@@ -28,7 +28,6 @@ theorem barber_paradox1 {person : Type} {shaves : person → person → Prop}
   (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := 
   by duper
 
--- Currently causes the output: "(kernel) let-declaration type mismatch 'clause.5.0'"
 theorem letDecBug {t : Type} (h : (∀ p : t, p = p) = False) : False := 
   by duper
 

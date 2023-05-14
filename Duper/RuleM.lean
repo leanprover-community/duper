@@ -12,7 +12,7 @@ namespace RuleM
 open Lean
 
 register_option inhabitationReasoning : Bool := {
-  defValue := false
+  defValue := true
   descr := "Whether to enable type inhabitation reasoning"
 }
 
@@ -299,7 +299,7 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
     let fvarDecl := lctx.getFVar! fvar
     let fvarType := fvarDecl.type
     if abstractedTypes.contains fvarType then
-      if !fec.containsFVar fvarId && transferExprs.all (fun transferExpr => !transferExpr.containsFVar fvarId) then
+      if !fec.containsFVar fvarId && ftransferExprs.all (fun transferExpr => !transferExpr.containsFVar fvarId) then
         -- fvar is redundant
         lctx := lctx.erase fvarId
         fvars := fvars.erase fvar

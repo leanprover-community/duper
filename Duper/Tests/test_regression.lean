@@ -463,9 +463,14 @@ example (f g : Nat → Nat) (h : ∀ a, ∃ d, f a = d) :
 set_option trace.Meta.debug true in
 example : ((∀ (f : Nat → Nat) (x : Nat), f x = f x) = True) := by duper
 
+-- Duper cannot yet solve this example with inhabitation reasoning enabled because this example requires
+-- inferring that type A is inhabited from the fact that type B is inhabited and there exists a function from B to A
+set_option inhabitationReasoning false in
 example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
   by duper
 
+-- Duper cannot yet solve this example with inhabitation reasoning enabled for the same sort of reason as the above example
+set_option inhabitationReasoning false in
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
   by duper
 

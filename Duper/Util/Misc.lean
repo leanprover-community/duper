@@ -114,8 +114,18 @@ partial def Lean.Meta.findInstance (ty : Expr) : MetaM (Option Expr) := do
         | some e => pure e
         | none =>
           try
-            let inst ← Meta.mkAppOptM ``default #[ty', none]
-            return some inst
+            -- Even when simpleApply fails, it is possible that isDefEq will succeed
+            let declExprOpt ← ctx.findDeclM? fun decl : Lean.LocalDecl => do
+              let declExpr := decl.toExpr
+              let declType ← Lean.Meta.inferType declExpr
+              if ← Lean.Meta.isDefEq declType ty then pure $ some declExpr
+              else pure none
+            match declExprOpt with
+            | some declExpr =>
+              return some declExpr
+            | none =>
+              let inst ← Meta.mkAppOptM ``default #[ty', none]
+              return some inst
           catch _ =>
             return none)
     if let some u := u then
