@@ -167,7 +167,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       let mut mainPremiseReplaced : MClause := Inhabited.default
       let mut poses : Array ClausePos := #[]
       if simultaneousSuperposition then
-        let mainPremise ← mainPremise.mapM instantiateMVars
+        let mainPremise ← mainPremise.mapM (fun e => betaEtaReduce e)
         (mainPremiseReplaced, poses) ← mainPremise.mapMWithPos <|
           Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs
       else
