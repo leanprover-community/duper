@@ -1,26 +1,5 @@
 import Duper.Tactic
 
-
-
-
-namespace Axioms
-
-axiom X : Type
-axiom f : (X → Prop) → Prop
-
-
-theorem about (s : X → Prop) : f s :=
-sorry
-
--- This should be really easy
-example (s : X → Prop) : f s :=
-by duper [about]
-
-end Axioms
-
-
-
-
 namespace Seq
 
 instance : Neg Nat := sorry

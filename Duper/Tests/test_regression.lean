@@ -504,6 +504,21 @@ set_option trace.Rule.superposition true in
 tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
   by duper
 
+--###############################################################################################################################
+-- Tests that were previously in morebugs.lean
+namespace Axioms
+
+axiom X : Type
+axiom f : (X → Prop) → Prop
+
+theorem about (s : X → Prop) : f s :=
+sorry
+
+example (s : X → Prop) : f s :=
+by duper [about]
+
+end Axioms
+--###############################################################################################################################
 /- BoolSimp tests -/
 
 theorem boolSimpRule26TestDep₁ (a b y z r : Prop) (dep : a → Prop) (h : ((x : a) → b → dep x → (dep x ∨ y ∨ z)) = r) : r :=
