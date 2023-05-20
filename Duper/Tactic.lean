@@ -321,53 +321,19 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     let paramNames := abstres.paramNames
     return (← inferType e, e, paramNames)
 
-partial def reduceInstances (e : Expr) : TacticM Expr := do
-  trace[Prover.saturate] "Calling reduceInstances on {e}"
-  let eType ← inferType e
-  if (← Meta.isClass? eType) != none then
-    trace[Prover.saturate] "reduceInstances is reducing {e} with type {eType}"
-    reduceAll e
-  else
-    match e with
-    | e@(Expr.lit _)           => return e
-    | e@(Expr.bvar _)          => return e
-    | e@(Expr.fvar _)          => return e
-    | e@(Expr.sort u)          => return e
-    | e@(Expr.const _ us)      => return e
-    | e@(Expr.mvar mvarId)     => return e
-    | e@(Expr.proj _ _ s)      => return e.updateProj! (← reduceInstances s)
-    | e@(Expr.app f a)         => return e.updateApp! (← reduceInstances f) (← reduceInstances a)
-    | e@(Expr.mdata _ b)       => return e.updateMData! (← reduceInstances b)
-    | e@(Expr.forallE _ d b _) => -- Need to suitably do abstraction for body so bvars don't break
-      let e := e.updateForallE! (← reduceInstances d) b
-      -- Meta.forallTelescope doesn't work because if I have p → q → r, then d will be p and b will be r and I'll have missed q.
-      -- So we use a bounded telescope with a maxFVar limit of 1 to ensure that body corresponds with b
-      Meta.forallBoundedTelescope e (some 1) fun xs body => do
-        Meta.mkForallFVars xs (← reduceInstances body)
-    | e@(Expr.lam _ d b _)     => -- Need to suitably do abstraction for body so bvars don't break
-      let e := e.updateLambdaE! (← reduceInstances d) (mkMData .empty b)
-      -- Ideally, we would use Meta.lambdaBoundedTelescope analogous to how Meta.forallTelescope was used for the forallE case.
-      -- But Meta.lambdaBoundedTelescope no longer exists, so we add an mdata around b to ensure that Meta.lambdaTelescope's body
-      -- corresponds to b (rather than the body of an inner lambda expression)
-      Meta.lambdaTelescope e fun xs body => do
-        Meta.mkLambdaFVars xs (← reduceInstances body.consumeMData)
-    | e@(Expr.letE _ t v b _)  => -- Let expressions can have bvars in the body, so rather than deal with that, we just zetaReduce
-      let e ← zetaReduce e
-      reduceInstances e
-
 def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Array Name)) := do
   let mut formulas := []
   -- Load all local decls:
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
-      let ldecltype ← reduceInstances (← instantiateMVars ldecl.type)
-      formulas := (← instantiateMVars ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
+      let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
+      formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
   -- load user-provided facts
   for facts in ← facts.mapM elabFact do
     for (fact, proof, params) in facts do
       if ← isProp fact then
-        let fact ← reduceInstances fact
+        let fact ← preprocessFact (← instantiateMVars fact)
         formulas := (fact, ← mkAppM ``eq_true #[proof], params) :: formulas
       else
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"

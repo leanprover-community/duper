@@ -1,6 +1,6 @@
 import Lean
 import Duper.Util.Misc
-import Duper.Util.BetaEtaReduce
+import Duper.Util.Reduction
 import Duper.Expr
 
 namespace Duper

@@ -1,6 +1,6 @@
 import Duper.Simp
 import Duper.Util.ProofReconstruction
-import Duper.Util.BetaEtaReduce
+import Duper.Util.Reduction
 
 namespace Duper
 open Std
@@ -26,5 +26,5 @@ def betaEtaZetaReduction : MSimpRule := fun c => do
   if reducedC == c then
     return none
   else
-    let yc ← yieldClause reducedC "betaEtaReduce" $ some mkBetaEtaZetaReductionProof
+    let yc ← yieldClause reducedC "betaEtaZetaReduce" $ some mkBetaEtaZetaReductionProof
     return some #[yc]

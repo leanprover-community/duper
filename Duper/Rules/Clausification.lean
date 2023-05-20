@@ -246,7 +246,10 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         Meta.mkAppM ``clausify_forall #[tr, premise]
       let mvar ← mkFreshExprMVar ty
       return #[⟨#[Lit.fromSingleExpr $ b.instantiate1 mvar], pr, #[mvar]⟩]
-  | true, Expr.app (Expr.app (Expr.const ``Exists lvls) ty) tran@(Expr.lam _ _ b _) => do
+  | true, Expr.app (Expr.app (Expr.const ``Exists lvls) ty) tran => do
+    let b := match tran with
+             | .lam _ _ b _ => b
+             | _ => mkApp tran (.bvar 0)
     let (skTerm, newmvar) ← makeSkTerm ty b
     let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
       let #[tr, trp] := trs
@@ -292,13 +295,16 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       return #[res1, res2]
     else
       return #[res1]
-  | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) (Expr.lam _ _ b _) => do
+  | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) f => do
     let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
       let #[tr] := trs
         | throwError "clausificationStepE :: Wrong number of transferExprs"
       Meta.mkAppM ``clausify_exists_false #[tr, premise]
     let mvar ← mkFreshExprMVar ty
-    return #[⟨#[Lit.fromSingleExpr (b.instantiate1 mvar) false], pr, #[mvar]⟩]
+    let apf := match f with
+               | .lam _ _ b _ => b.instantiate1 mvar
+               | _ => mkApp f mvar
+    return #[⟨#[Lit.fromSingleExpr apf false], pr, #[mvar]⟩]
   | true, Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl]) ty) e₁) e₂  =>
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``of_eq_true #[premise]
     return #[⟨#[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, #[]⟩]

@@ -349,6 +349,7 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
 #print PUZ012_1
 --###############################################################################################################################
 -- Tests that (in the current commit at least) use positive simplify reflect
+set_option maxHeartbeats 250000 in
 set_option trace.Rule.simplifyReflect true in
 tptp NUN004_5 "../TPTP-v8.0.0/Problems/NUN/NUN004_5.p"
   by duper
@@ -382,15 +383,16 @@ example (h : (∀ y : Nat, True) = False) : False := by duper
 
 -- Checks β/η reduction
 example : (let f := (fun x => (x, x)); (fun x => f x) 1) = (1, 1) := by duper
+example : ((fun (x y : Nat) => x + y) = Nat.add → False) → False := by duper
+example : x + Nat.zero = x := by duper [Nat.add]
+theorem test_duper_with_fact : 1 + 1 = 2 := by duper
+theorem test_duper_with_facts : 1 + 1 + 1 + 1 = 4 := by duper
 
 --###############################################################################################################################
 -- Tests for providing facts to duper
-theorem add_assoc : ∀ x : Nat, ∀ y : Nat, ∀ z : Nat, (x + y) + z = x + (y + z) := sorry
-theorem one_add_one_eq_two : 1 + 1 = 2 := by simp
-theorem two_add_two_eq_four : 2 + 2 = 4 := by simp
 
-theorem test_duper_with_fact : 1 + 1 = 2 := by duper [one_add_one_eq_two]
-theorem test_duper_with_facts : 1 + 1 + 1 + 1 = 4 := by duper [one_add_one_eq_two, two_add_two_eq_four, add_assoc]
+theorem comm_test : Nat.add x y = Nat.add y x := by duper [Nat.add_comm]
+theorem assoc_test : Nat.add (Nat.add x y) z = Nat.add x (Nat.add y z) := by duper [Nat.add_assoc]
 
 --###############################################################################################################################
 -- Hoist tests (note: forallHoist and existsHoist are only truly tested if identBoolHoist is diabled)
@@ -549,7 +551,6 @@ def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ =>
 end NegativeBoolSimpTests
 
 /- ClauseStreamHeap tests -/
-set_option maxHeartbeats 300000 in
 tptp MGT008 "../TPTP-v8.0.0/Problems/MGT/MGT008+1.p"
   by duper
 
