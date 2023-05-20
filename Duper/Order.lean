@@ -378,8 +378,8 @@ partial def kbo (t1 t2 : Expr) (alreadyReduced : Bool) (symbolPrecMap : SymbolPr
     trace[Unary_first.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
     return res
   else
-    let t1 ← betaEtaReduce t1
-    let t2 ← betaEtaReduce t2
+    let t1 ← betaEtaReduceInstMVars t1
+    let t2 ← betaEtaReduceInstMVars t2
     let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false)
     trace[Unary_first.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
     return res

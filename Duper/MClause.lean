@@ -125,7 +125,7 @@ open Comparison
 def isMaximalLit (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) (strict := false) : MetaM Bool := do
   let c :=
     if alreadyReduced then c
-    else ← c.mapM (fun e => betaEtaReduce e)
+    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
   for j in [:c.lits.size] do
     if j == idx then continue
     let cmp ← Lit.compare ord true c.lits[idx]! c.lits[j]!
@@ -143,7 +143,7 @@ def isMaximalLit (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyRed
 def canNeverBeMaximal (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) : MetaM Bool := do
   let c :=
     if alreadyReduced then c
-    else ← c.mapM (fun e => betaEtaReduce e)
+    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
   for j in [:c.lits.size] do
     if j != idx && (← Lit.compare ord true c.lits[idx]! c.lits[j]!) == LessThan then
       return true

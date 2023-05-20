@@ -146,8 +146,8 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       if not mainPremiseFinalEligibility then return none
   
       -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
-      let sidePremiseLhs ← betaEtaReduce sidePremiseLit.lhs -- Need to betaEtaReduce for condition 9 check
-      let sidePremiseRhs ← betaEtaReduce sidePremiseLit.rhs -- Need to betaEtaReduce for condition 10 check
+      let sidePremiseLhs ← betaEtaReduceInstMVars sidePremiseLit.lhs -- Need to betaEtaReduce for condition 9 check
+      let sidePremiseRhs ← betaEtaReduceInstMVars sidePremiseLit.rhs -- Need to betaEtaReduce for condition 10 check
       let sidePremiseComparison ← compare sidePremiseLhs sidePremiseRhs true
       if sidePremiseComparison == Comparison.LessThan || sidePremiseComparison == Comparison.Equal then
         return none
@@ -167,7 +167,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       let mut mainPremiseReplaced : MClause := Inhabited.default
       let mut poses : Array ClausePos := #[]
       if simultaneousSuperposition then
-        let mainPremise ← mainPremise.mapM (fun e => betaEtaReduce e)
+        let mainPremise ← mainPremise.mapM (fun e => betaEtaReduceInstMVars e)
         (mainPremiseReplaced, poses) ← mainPremise.mapMWithPos <|
           Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs
       else

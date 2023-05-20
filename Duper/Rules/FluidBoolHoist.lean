@@ -90,12 +90,12 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
         return none
 
       -- Check condition 5
-      let freshPropVar ← betaEtaReduce freshPropVar
+      let freshPropVar ← betaEtaReduceInstMVars freshPropVar
       if (freshPropVar == mkConst ``True || freshPropVar == mkConst ``False) then return none
 
       -- Check condition 4 (boolhoist)
-      let freshFunctionApp ← betaEtaReduce freshFunctionApp
-      let freshFunctionGivenFalse := ← betaEtaReduce (.app freshFunction (mkConst ``False))
+      let freshFunctionApp ← betaEtaReduceInstMVars freshFunctionApp
+      let freshFunctionGivenFalse := ← betaEtaReduceInstMVars (.app freshFunction (mkConst ``False))
       if (freshFunctionGivenFalse == freshFunctionApp) then return none
 
       -- All side conditions for fluidBoolHoist have been met
@@ -114,12 +114,12 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
         return none
 
       -- Check condition 5
-      let freshPropVar ← betaEtaReduce freshPropVar
+      let freshPropVar ← betaEtaReduceInstMVars freshPropVar
       if (freshPropVar == mkConst ``True || freshPropVar == mkConst ``False) then return none
 
       -- Check condition 4 (loobHoist)
-      let freshFunctionApp ← betaEtaReduce freshFunctionApp
-      let freshFunctionGivenTrue := ← betaEtaReduce (.app freshFunction (mkConst ``True))
+      let freshFunctionApp ← betaEtaReduceInstMVars freshFunctionApp
+      let freshFunctionGivenTrue := ← betaEtaReduceInstMVars (.app freshFunction (mkConst ``True))
       if (freshFunctionGivenTrue == freshFunctionApp) then return none
 
       -- All side conditions for fluidLoobHoist have been met

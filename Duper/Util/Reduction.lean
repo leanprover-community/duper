@@ -78,12 +78,12 @@ partial def etaReduce (e : Expr) : MetaM Expr := do
   Meta.transform e (post := post) (usedLetOnly := true)
 
 /-- Instantiates mvars then applies beta, eta and zeta reduction exhaustively. -/
-def betaEtaReduce (e : Expr) : MetaM Expr := do
+def betaEtaReduceInstMVars (e : Expr) : MetaM Expr := do
   let e ← instantiateMVars e
   let e ← Core.betaReduce e
   etaReduce e
 
 /-- Applies beta, eta and zeta reduction exhaustively -/
-def betaEtaZetaReduce (e : Expr) : MetaM Expr := do
+def betaEtaReduce (e : Expr) : MetaM Expr := do
   let e ← Core.betaReduce e
   etaReduce e
