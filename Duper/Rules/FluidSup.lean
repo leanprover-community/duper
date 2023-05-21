@@ -21,7 +21,7 @@ def mkFluidSupProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (ma
     let appliedMainPremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
     let appliedSidePremise := if givenIsMain then appliedPremises[0]! else appliedPremises[1]!
 
-    let #[freshFunctionVar] := transferExprs
+    let #[freshFunctionVar, freshFunctionOutputType] := transferExprs
       | throwError "fluidSups :: Wrong number of transferExprs"
 
     let mut caseProofsSide := Array.mkEmpty sideParentLits.size
@@ -42,7 +42,7 @@ def mkFluidSupProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (ma
                 let litPos : LitPos := {side := mainPremisePos.side, pos := mainPremisePos.pos}
                 let abstrLit ← (lit.abstractAtPos! litPos)
                 let abstrExp := abstrLit.toExpr
-                let abstrLam := mkLambda `x BinderInfo.default (← Meta.inferType eqLit.lhs) abstrExp
+                let abstrLam := mkLambda `x BinderInfo.default freshFunctionOutputType abstrExp
                 let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstrLam, eq], h]
                 Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx $ rwproof
               else
@@ -137,7 +137,7 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
       trace[Rule.fluidSup]
         m!"FluidSup successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
         m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
-      some <$> yieldClause res "fluidSup" mkProof (transferExprs := #[freshFunction])
+      some <$> yieldClause res "fluidSup" mkProof (transferExprs := #[freshFunction, freshFunctionOutputType])
     return #[ClauseStream.mk ug given yC "fluidSup"]
 
 def fluidSupWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
