@@ -240,6 +240,8 @@ partial def saturate : ProverM Unit := do
       trace[Timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
       trace[Timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
       trace[Timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
+      trace[Timeout.debug] m!"Active set unit clause numbers: " ++
+        m!"{← ((← getActiveSet).toArray.filter (fun x => x.lits.size = 1)).mapM (fun c => return (← getClauseInfo! c).number)}"
       trace[Timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
       -- trace[Timeout.debug] "All clauses at timeout: {Array.map (fun x => x.1) (← getAllClauses).toArray}"
       throw e
