@@ -17,7 +17,8 @@ open RuleM
 
 def kFair := 70
 def kBest := 3
-def kRetry := 40
+def kStep := 40
+def kHighest := 10
 
 register_option forceProbeRetry : Nat := {
   defValue := 500
@@ -42,7 +43,7 @@ def ClauseStream.takeAsProverM (cs : ClauseStream)
   -- No more unification problem left
   if cs.ug.isEmpty then
     return none
-  let (opu, ug') ← cs.ug.takeWithRetry kRetry
+  let (opu, ug') ← cs.ug.takeWithRetry kStep
   if let some u := opu then
     let res ← ProverM.runRuleM <| do
       -- set `mctx` as the mctx of the unification problem
@@ -53,7 +54,10 @@ def ClauseStream.takeAsProverM (cs : ClauseStream)
     else
       return some (none, {cs with ug := ug'})
   else
-    return some (none, {cs with ug := ug'})
+    if ug'.isEmpty then
+      return none
+    else
+      return some (none, {cs with ug := ug'})
 
 instance : OptionMStream ProverM ClauseStream ClauseProof where
   next? (s : ClauseStream) := s.takeAsProverM
@@ -87,19 +91,21 @@ def ClauseStreamHeap.extractClause {σ} [OptionMStream ProverM σ ClauseProof]
 
 def ClauseStreamHeap.heuristicProbe {σ} [OptionMStream ProverM σ ClauseProof]
   (Q : ClauseStreamHeap σ) : ProverM (Array ClauseProof × ClauseStreamHeap σ) := do
-  let mut i := 0
-  let mut Q := Q
   let mut collectedClauses := #[]
-  while i < kBest ∧ ¬ Q.isEmpty do
+  let mut highestStream := #[]
+  let mut Q := Q
+  for _ in List.range kHighest do
     let res := Q.deleteMinWithNProbed 0
-    if let some ((nProbed, precs, stream), Q') := res then
-      let (mc, Q') ← ClauseStreamHeap.extractClause Q' nProbed precs stream
-      if let some mc := mc then
-        collectedClauses := collectedClauses.push mc
-        Q := Q'
-      else
-        Q := Q'
-    i := i + 1
+    if let some (str, Q') := res then
+      highestStream := highestStream.push str
+      Q := Q'
+    else
+      break
+  for (nProbed, precs, stream) in highestStream do
+    let (mc, Q') ← ClauseStreamHeap.extractClause Q nProbed precs stream
+    if let some mc := mc then
+      collectedClauses := collectedClauses.push mc
+    Q := Q'
   return (collectedClauses, Q)
 
 def ClauseStreamHeap.fairProbe {σ} [OptionMStream ProverM σ ClauseProof]
