@@ -26,15 +26,18 @@ partial def printProof (state : ProverM.State) : MetaM Unit := do
     let info ← getClauseInfo! state c
     if hm.contains (info.number, c) then return hm
     let mut hm := hm.push (info.number, c)
-    let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! state pp.clause) 
-    let parentIds := parentInfo.map fun info => info.number
-    trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
     for proofParent in info.proof.parents do
       hm ← go proofParent.clause hm
     return hm
   let some emptyClause := state.emptyClause
     | throwError "applyProof :: Can't find empty clause in ProverM's state"
-  let _ ← go emptyClause
+  let proofClauses ← go emptyClause
+  let proofClauses := proofClauses.qsort (fun (n1, _) => fun (n2, _) => n1 < n2)
+  for (_, c) in proofClauses do
+    let info ← getClauseInfo! state c
+    let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! state pp.clause)
+    let parentIds := parentInfo.map fun info => info.number
+    trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
 
 abbrev ClauseHeap := Std.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 
