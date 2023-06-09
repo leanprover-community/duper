@@ -331,13 +331,13 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Arr
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-      formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
+      formulas := (ldecltype, mkFVar fVarId, #[]) :: formulas
   -- load user-provided facts
   for facts in ← facts.mapM elabFact do
     for (fact, proof, params) in facts do
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
-        formulas := (fact, ← mkAppM ``eq_true #[proof], params) :: formulas
+        formulas := (fact, proof, params) :: formulas
       else
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
   return formulas
@@ -416,8 +416,31 @@ syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
 macro_rules
 | `(tactic| duper) => `(tactic| duper [])
 
+theorem aaa (f : Nat → Prop) (h : a = b) (ha : f a) : f b := 
+Eq.rec ha h
+
+def unfoldDefinitions (formulas : List (Expr × Expr × Array Name)) : MetaM (List (Expr × Expr × Array Name)) := do
+  let mut newFormulas := formulas
+  for (e, proof, paramNames) in formulas do
+    match e with
+    | .app ( .app ( .app (.const ``Eq _) ty) (.fvar fid)) rhs =>
+      trace[Meta.debug] "{mkFVar fid}"
+      newFormulas ← newFormulas.mapM fun (f, fproof, fparamNames) => do
+        let abstracted ← Meta.kabstract f (.fvar fid)
+        let f := abstracted.instantiate1 rhs
+        let fproof ← mkAppOptM ``Eq.ndrec #[none, 
+          some $ .fvar fid, 
+          some $ mkLambda `x .default ty abstracted,
+          fproof,
+          rhs,
+          proof]
+        return (f, fproof, fparamNames)
+    | _ => pure ()
+  return newFormulas
+
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
+  let formulas ← unfoldDefinitions formulas
   trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
   -- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv`
   --   because new definitional equations might be generated during

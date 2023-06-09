@@ -317,7 +317,7 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   ProverM.run (s := s) (ctx := ctx) do
     for (e, proof, paramNames) in es do
       let c := Clause.fromSingleExpr paramNames e
-      let mkProof := fun _ _ _ _ => pure proof
+      let mkProof := fun _ _ _ _ => do return ← Meta.mkAppM ``eq_true #[proof]
       addNewToPassive c {parents := #[], ruleName := "assumption", mkProof := mkProof} #[]
     x
 
