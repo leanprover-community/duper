@@ -424,7 +424,8 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name)) : MetaM (Li
   for (e, proof, paramNames) in formulas do
     match e with
     | .app ( .app ( .app (.const ``Eq _) ty) (.fvar fid)) rhs =>
-      trace[Meta.debug] "{mkFVar fid}"
+      -- TODO: Do the same for constants
+      -- TODO: Check that rhs does not contain `fid`
       newFormulas ← newFormulas.mapM fun (f, fproof, fparamNames) => do
         let abstracted ← Meta.kabstract f (.fvar fid)
         let f := abstracted.instantiate1 rhs
