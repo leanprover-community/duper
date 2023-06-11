@@ -331,13 +331,13 @@ def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Arr
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-      formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
+      formulas := (ldecltype, mkFVar fVarId, #[]) :: formulas
   -- load user-provided facts
   for facts in ← facts.mapM elabFact do
     for (fact, proof, params) in facts do
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
-        formulas := (fact, ← mkAppM ``eq_true #[proof], params) :: formulas
+        formulas := (fact, proof, params) :: formulas
       else
         throwError "invalid fact for duper, proposition expected {indentExpr fact}"
   return formulas
@@ -411,13 +411,33 @@ def addSkolemSorry : CoreM Name := do
   | Except.error ex  => throwKernelException ex
   return name
 
-syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
+syntax (name := duper) "duper" (colGt ident) ("[" term,* "]")? : tactic
 
 macro_rules
-| `(tactic| duper) => `(tactic| duper [])
+| `(tactic| duper $ident) => `(tactic| duper $ident [])
+
+def unfoldDefinitions (formulas : List (Expr × Expr × Array Name)) : MetaM (List (Expr × Expr × Array Name)) := do
+  let mut newFormulas := formulas
+  for (e, proof, paramNames) in formulas do
+    match e with
+    | .app ( .app ( .app (.const ``Eq _) ty) (.fvar fid)) rhs =>
+      trace[Meta.debug] "{mkFVar fid}"
+      newFormulas ← newFormulas.mapM fun (f, fproof, fparamNames) => do
+        let abstracted ← Meta.kabstract f (.fvar fid)
+        let f := abstracted.instantiate1 rhs
+        let fproof ← mkAppOptM ``Eq.ndrec #[none,
+          some $ .fvar fid,
+          some $ mkLambda `x .default ty abstracted,
+          fproof,
+          rhs,
+          proof]
+        return (f, fproof, fparamNames)
+    | _ => pure ()
+  return newFormulas
 
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
+  let formulas ← unfoldDefinitions formulas
   trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
   -- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv`
   --   because new definitional equations might be generated during
@@ -433,66 +453,29 @@ def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := wit
 
 @[tactic duper]
 def evalDuper : Tactic
-| `(tactic| duper [$facts,*]) => withMainContext do
-  let startTime ← IO.monoMsNow
-  Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
-  withMainContext do
-    let state ← runDuper facts
-    match state.result with
-    | Result.contradiction => do
-      IO.println s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
-      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-      printProof state
-      applyProof state
-      IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
-    | Result.saturated =>
-      trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
-      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
-      trace[Saturate.debug] "Verified Inhabited Types: {state.verifiedInhabitedTypes.map (fun x => x.expr)}"
-      trace[Saturate.debug] "Verified Nonempty Types: {state.verifiedNonemptyTypes.map (fun x => x.1.expr)}"
-      trace[Saturate.debug] "Potentially Uninhabited Types: {state.potentiallyUninhabitedTypes.map (fun x => x.expr)}"
-      trace[Saturate.debug] "Potentially Vacuous Clauses: {state.potentiallyVacuousClauses.toArray}"
-      throwError "Prover saturated."
-    | Result.unknown => throwError "Prover was terminated."
 | `(tactic| duper $ident:ident [$facts,*]) => withMainContext do
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
     let state ← runDuper facts
     match state.result with
     | Result.contradiction => do
-      IO.println s!"{ident} test succeeded in finding a contradiction"
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-      printProof state
-      applyProof state
+      try
+        applyProof state
+        IO.println s!"SZS status Theorem for {ident}"
+        IO.println s!"SZS output start Proof for {ident}"
+        printProof state
+        IO.println s!"SZS output end Proof for {ident}"
+      catch
+      | _ => IO.println s!"SZS status Error for {ident}"
     | Result.saturated =>
-      IO.println s!"{ident} test resulted in prover saturation"
+      IO.println s!"SZS status GaveUp for {ident}"
       trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
       Lean.Elab.Tactic.evalTactic (← `(tactic| sorry))
-    | Result.unknown => throwError "Prover was terminated."
-| _ => throwUnsupportedSyntax
-
-syntax (name := duper_no_timing) "duper_no_timing" ("[" term,* "]")? : tactic
-
-macro_rules
-| `(tactic| duper_no_timing) => `(tactic| duper_no_timing [])
-
-@[tactic duper_no_timing]
-def evalDuperNoTiming : Tactic
-| `(tactic| duper_no_timing [$facts,*]) => withMainContext do
-  Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
-  withMainContext do
-    let state ← runDuper facts
-    match state.result with
-    | Result.contradiction => do
-      IO.println s!"Contradiction found"
-      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-      printProof state
-      applyProof state
-      IO.println s!"Constructed proof"
-    | Result.saturated =>
+    | Result.unknown =>
+      IO.println s!"SZS status Timeout for {ident}"
       trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
-      throwError "Prover saturated."
-    | Result.unknown => throwError "Prover was terminated."
+      Lean.Elab.Tactic.evalTactic (← `(tactic| sorry))
 | _ => throwUnsupportedSyntax
 
 end Lean.Elab.Tactic

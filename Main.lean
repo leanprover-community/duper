@@ -3,7 +3,7 @@ import Duper.TPTP -- Note: this import is needed to make sure that TPTP is compi
 
 def main : List String → IO UInt32 := fun args => do
   let propInequalityTest1 {p : Prop} {q : Prop} (h : p ≠ q) : p ∨ q :=
-    by duper
+    by duper propInequalityTest1
   let propInequalityTest2 {p : Prop} {q : Prop} (h : p ≠ q) : p ∨ q :=
-    by duper
+    by duper propInequalityTest2
   return 0
