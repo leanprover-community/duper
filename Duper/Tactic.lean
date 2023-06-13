@@ -304,9 +304,8 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
       else if let some eqns ← getEqnsFor? expr.constName! then -- Generate definitional equation for the fact
         ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
       else
-        let eq ← instantiateMVars $ ← mkEq (.const defval.name (defval.levelParams.map Level.param)) defval.value
-        let proof ← instantiateMVars $ ← mkEqRefl defval.value
-        let proof ← mkExpectedTypeHint proof eq
+        let eq ← mkEq (.const defval.name (defval.levelParams.map Level.param)) defval.value
+        let proof ← mkEqRefl defval.value
         ret := ret.push (
           eq, 
           proof, 
@@ -441,7 +440,7 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name)) : MetaM (Li
             let proof' := proof.instantiateLevelParamsArray paramNames us
             let abstracted ← Meta.kabstract f lhs'
             let f := abstracted.instantiate1 rhs'
-            let fproof ← mkAppOptM ``Eq.ndrec #[none,
+            let fproof ← withTransparency .default do mkAppOptM ``Eq.ndrec #[none,
               some $ lhs,
               some $ mkLambda `x .default ty' abstracted,
               fproof,
