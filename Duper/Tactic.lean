@@ -301,9 +301,17 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
       let mut ret := #[]
       if sort.isProp then
         ret := ret.push (← elabFactAux stx)
-      -- Generate definitional equation for the fact
-      if let some eqns ← getEqnsFor? expr.constName! (nonRec := true) then
+      else if let some eqns ← getEqnsFor? expr.constName! then -- Generate definitional equation for the fact
         ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
+      else
+        let eq ← instantiateMVars $ ← mkEq (.const defval.name (defval.levelParams.map Level.param)) defval.value
+        let proof ← instantiateMVars $ ← mkEqRefl defval.value
+        let proof ← mkExpectedTypeHint proof eq
+        ret := ret.push (
+          eq, 
+          proof, 
+          defval.levelParams.toArray
+        )
       return ret
     | some (.axiomInfo _)  => return #[← elabFactAux stx]
     | some (.thmInfo _)    => return #[← elabFactAux stx]
@@ -416,26 +424,37 @@ syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
 macro_rules
 | `(tactic| duper) => `(tactic| duper [])
 
-theorem aaa (f : Nat → Prop) (h : a = b) (ha : f a) : f b := 
-Eq.rec ha h
-
 def unfoldDefinitions (formulas : List (Expr × Expr × Array Name)) : MetaM (List (Expr × Expr × Array Name)) := do
+  withTransparency .reducible do
   let mut newFormulas := formulas
   for (e, proof, paramNames) in formulas do
+    let update (ty lhs rhs : Expr) newFormulas (containedIn : Expr → Bool) : MetaM _ := do
+      if containedIn rhs then pure newFormulas else
+        newFormulas.mapM fun (f, fproof, fparamNames) => do
+          if !containedIn f then
+            return (f, fproof, fparamNames)
+          else
+            let us ← paramNames.mapM fun _ => mkFreshLevelMVar
+            let lhs'   := lhs.instantiateLevelParamsArray paramNames us
+            let ty'    := ty.instantiateLevelParamsArray paramNames us
+            let rhs'   := rhs.instantiateLevelParamsArray paramNames us
+            let proof' := proof.instantiateLevelParamsArray paramNames us
+            let abstracted ← Meta.kabstract f lhs'
+            let f := abstracted.instantiate1 rhs'
+            let fproof ← mkAppOptM ``Eq.ndrec #[none,
+              some $ lhs,
+              some $ mkLambda `x .default ty' abstracted,
+              fproof,
+              rhs',
+              proof']
+            return (f, ← instantiateMVars $ fproof, fparamNames)
     match e with
     | .app ( .app ( .app (.const ``Eq _) ty) (.fvar fid)) rhs =>
-      -- TODO: Do the same for constants
-      -- TODO: Check that rhs does not contain `fid`
-      newFormulas ← newFormulas.mapM fun (f, fproof, fparamNames) => do
-        let abstracted ← Meta.kabstract f (.fvar fid)
-        let f := abstracted.instantiate1 rhs
-        let fproof ← mkAppOptM ``Eq.ndrec #[none, 
-          some $ .fvar fid, 
-          some $ mkLambda `x .default ty abstracted,
-          fproof,
-          rhs,
-          proof]
-        return (f, fproof, fparamNames)
+      let containedIn := fun e => (e.find? (· == .fvar fid)).isSome
+      newFormulas ← update ty (.fvar fid) rhs newFormulas containedIn
+    | .app ( .app ( .app (.const ``Eq _) ty) (.const cname lvls)) rhs =>
+      let containedIn := fun e => (e.find? (·.isConstOf cname)).isSome
+      newFormulas ← update ty (.const cname lvls) rhs newFormulas containedIn
     | _ => pure ()
   return newFormulas
 
