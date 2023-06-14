@@ -17,19 +17,17 @@ def uniformly_continuous (f : Real → Real) :=
 
 theorem dist_self (a : Real) : dist a a = zero := sorry
 
-theorem zero_lt_one (a : Real) : lt zero one := sorry
-
 example (a : Real) : continuous (λ _ => a) :=
-  by simp only [continuous_at, continuous]; duper [dist_self]
+  by duper [continuous_at, continuous, dist_self]
 
 example (a : Real) : uniformly_continuous (λ _ => a) :=
-  by duper [uniformly_continuous, dist_self, zero_lt_one]
+  by duper [uniformly_continuous, dist_self]
 
 example (a : Real) : continuous (λ x => x) :=
   by duper [continuous_at, continuous, dist_self]
 
 example (a : Real) : uniformly_continuous (λ x => x) :=
-  by duper [uniformly_continuous, dist_self, zero_lt_one]
+  by duper [uniformly_continuous, dist_self]
 
 example (f : Real → Real) : uniformly_continuous f → continuous f :=
   by simp only [continuous, continuous_at, uniformly_continuous]; duper
