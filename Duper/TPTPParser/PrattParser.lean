@@ -141,6 +141,10 @@ def prefixBindingPower? : String → Option Nat
 | "~" => some 70
 | _ => none
 
+def BinderBindingPower? : String → Option Nat
+| "!" | "?" | "^" => some 70
+| _ => none
+
 inductive Term where
 | mk : Token → List Term → Term
 deriving Inhabited, Repr
@@ -148,19 +152,37 @@ deriving Inhabited, Repr
 def Term.func : Term → Token := fun ⟨n, _⟩ => n
 def Term.args : Term → List Term := fun ⟨_, as⟩ => as
 
+def parseToken (t : Token) : ParserM Unit := do
+  let nextToken ← next
+  if nextToken != t then throw $ IO.userError s!"Expected '{t.toString}', got '{repr nextToken}'"
+
+def parseIdent : ParserM String := do
+  let nextToken ← next
+  let .ident id := nextToken
+    | throw $ IO.userError s!"Expected identifier, got '{repr nextToken}'"
+  return id
+
 partial def parseTerm (minbp : Nat := 0) : ParserM Term := do
   let parseLhs : ParserM Term := do
     let nextToken ← next
     if let .ident _ := nextToken then
       return Term.mk nextToken [] 
-    if nextToken == .op "(" then
+    else if nextToken == .op "(" then
       let lhs ← parseTerm 0
-      let nextToken ← next
-      if nextToken != .op ")" then throw $ IO.userError s!"Expected ')', got '{repr nextToken}'"
+      parseToken (.op ")")
       return lhs
+    else if let some rbp := BinderBindingPower? nextToken.toString then
+      parseToken (.op "[")
+      let ident ← parseIdent
+      parseToken (.op ":")
+      let ty ← parseTerm 0
+      parseToken (.op "]")
+      parseToken (.op ":")
+      let rhs ← parseTerm rbp
+      return Term.mk nextToken [Term.mk (.ident ident) [ty], rhs]
     else if let some rbp := prefixBindingPower? nextToken.toString then
-        let rhs ← parseTerm rbp
-        return Term.mk nextToken [rhs]
+      let rhs ← parseTerm rbp
+      return Term.mk nextToken [rhs]
     else
       throw $ IO.userError s!"Expected term, got '{repr nextToken}'"
   let rec addOpAndRhs (lhs : Term) : ParserM Term := do
@@ -189,19 +211,25 @@ def parse (s : String) : IO Term := do
 
 open Tokenizer
 #eval tokenize "(a)"
-#eval parse "(a)"
-
-
+#eval parse "![a:$i] : a"
 
 end Parser
 
 open Parser
 open Lean
 open Meta
+axiom Iota : Type
 
 def Parser.Term.toLeanExpr (t : Parser.Term) : MetaM Expr := do
   match t with
-  | ⟨.ident n, []⟩ => return mkConst n
+  | ⟨.ident "$i", []⟩ => return mkConst `Iota
+  | ⟨.ident "$o", []⟩ => return mkConst `Prop
+  | ⟨.ident "$true", []⟩ => return mkConst `True
+  | ⟨.ident "$false", []⟩ => return mkConst `False
+  | ⟨.ident n, []⟩ => 
+    let some decl := (← getLCtx).findFromUserName? n
+      | throwError "Unknown variable name {n}"
+    return mkFVar decl.fvarId
   | ⟨.op "=", [a, b]⟩ =>
     let a ← a.toLeanExpr
     let b ← b.toLeanExpr
@@ -210,12 +238,21 @@ def Parser.Term.toLeanExpr (t : Parser.Term) : MetaM Expr := do
     let a ← a.toLeanExpr
     let b ← b.toLeanExpr
     return ← mkAppM `Ne #[a, b]
+  | ⟨.op "!", [⟨.ident v, [ty]⟩, b]⟩ =>
+    let ty ← ty.toLeanExpr
+    withLocalDeclD v ty fun v => do
+      mkForallFVars #[v] (← b.toLeanExpr)
+  | ⟨.op "^", [⟨.ident v, [ty]⟩, b]⟩ =>
+    let ty ← ty.toLeanExpr
+    withLocalDeclD v ty fun v => do
+      mkLambdaFVars #[v] (← b.toLeanExpr)
   | _ => throwError ":-( {repr t}"
 
 def toLeanExpr (s : String) : MetaM Expr := do
   let t ← Parser.parse s
   return ← t.toLeanExpr
 
-#eval toLeanExpr "Nat != Nat"
+#eval toLeanExpr "![a : $i]: a"
+#eval toLeanExpr "$true != $true"
 
 end TPTP
