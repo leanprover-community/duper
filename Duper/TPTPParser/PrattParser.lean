@@ -10,10 +10,19 @@ inductive Status :=
 | ident
 deriving Repr
 
+inductive Token :=
+| op (op : String)
+| ident (ident : String)
+deriving Repr, Inhabited, BEq
+
+def Token.toString : Token → String
+| .op a => a
+| .ident a => a
+
 structure State where
 (status : Status := .default)
 (currToken : String := "")
-(res : Array String := #[])
+(res : Array Token := #[])
 deriving Repr
 
 def tokens := [
@@ -49,7 +58,11 @@ def getCurrToken : TokenizerM String := do
   return (← get).currToken
   
 def addCurrToken : TokenizerM Unit := do
-  modify (fun (s : State) => {s with res := s.res.push s.currToken, currToken := ""})
+  modify fun (s : State) => 
+    {s with 
+      res := s.res.push $ match s.status with | .default => .op s.currToken | .ident => .ident s.currToken, 
+      currToken := ""
+    }
 
 def finalizeToken : TokenizerM Unit := do
   if (← getCurrToken) != "" then
@@ -63,53 +76,55 @@ def finalizeToken : TokenizerM Unit := do
 
 def tokenizeAux (str : String) : TokenizerM Unit := do
   for char in str.data do
-    match ← getStatus with
-    | .default =>
-      if char.isAlpha || char == '$' then
+    if char.isWhitespace then
         finalizeToken
-        setStatus .ident
-        addToCurrToken char
-      else if char.isWhitespace then
-        finalizeToken
-      else if tokenPrefixes.contains ((← getCurrToken).push char) then
-        addToCurrToken char
-      else if tokenPrefixes.contains (⟨[char]⟩) then
-        finalizeToken
-        addToCurrToken char
-      else throw $ IO.userError s!"Invalid token: {char}"
-    | .ident => 
-      if char.isAlpha
-      then addToCurrToken char
-      else
-        finalizeToken
-        addToCurrToken char
-        setStatus .default
+    else
+      match ← getStatus with
+      | .default =>
+        if char.isAlpha || char == '$' then
+          finalizeToken
+          setStatus .ident
+          addToCurrToken char
+        else if tokenPrefixes.contains ((← getCurrToken).push char) then
+          addToCurrToken char
+        else if tokenPrefixes.contains (⟨[char]⟩) then
+          finalizeToken
+          addToCurrToken char
+        else throw $ IO.userError s!"Invalid token: {char}"
+      | .ident => 
+        if char.isAlpha
+        then addToCurrToken char
+        else
+          finalizeToken
+          addToCurrToken char
+          setStatus .default
   
   finalizeToken
 
-  def tokenize (s : String) : IO (Array String) := do
+  def tokenize (s : String) : IO (Array Token) := do
     return (← (tokenizeAux s).run {}).2.res
 
 end Tokenizer
 
 namespace Parser
+open Tokenizer
 /- Pratt parser following `https://matklad.github.io/2020/04/13/simple-but-powerful-pratt-parsing.html`-/
 
 structure State where
-(tokens : Array String)
+(tokens : Array Token)
 (curr : Nat := 0)
 deriving Repr
 
 
 abbrev ParserM := StateRefT State IO
 
-def peek : ParserM String := do
+def peek : ParserM Token := do
   let i := (← get).curr
   let ts := (← get).tokens
   if i >= ts.size then throw $ IO.userError "Unexpected end of file"
   return ts[i]!
 
-def next : ParserM String := do
+def next : ParserM Token := do
   let c ← peek
   modify (fun (s : State) => {s with curr := s.curr + 1})
   return c
@@ -127,28 +142,33 @@ def prefixBindingPower? : String → Option Nat
 | _ => none
 
 inductive Term where
-| mk : String → List Term → Term
+| mk : Token → List Term → Term
 deriving Inhabited, Repr
+
+def Term.func : Term → Token := fun ⟨n, _⟩ => n
+def Term.args : Term → List Term := fun ⟨_, as⟩ => as
 
 partial def parseTerm (minbp : Nat := 0) : ParserM Term := do
   let parseLhs : ParserM Term := do
     let nextToken ← next
-    if nextToken == "(" then
+    if let .ident _ := nextToken then
+      return Term.mk nextToken [] 
+    if nextToken == .op "(" then
       let lhs ← parseTerm 0
       let nextToken ← next
-      if nextToken != ")" then throw $ IO.userError s!"Expected ')', got '{nextToken}'"
+      if nextToken != .op ")" then throw $ IO.userError s!"Expected ')', got '{repr nextToken}'"
       return lhs
-    else if let some rbp := prefixBindingPower? nextToken then
+    else if let some rbp := prefixBindingPower? nextToken.toString then
         let rhs ← parseTerm rbp
         return Term.mk nextToken [rhs]
-    else -- Must be identifier (TODO: add check?)
-      return Term.mk nextToken [] 
+    else
+      throw $ IO.userError s!"Expected term, got '{repr nextToken}'"
   let rec addOpAndRhs (lhs : Term) : ParserM Term := do
       if ← isEOF then
         return lhs
       else
         let op ← peek
-        let some (lbp, rbp) := infixBindingPower? op
+        let some (lbp, rbp) := infixBindingPower? op.toString
           | return lhs
         if lbp < minbp then
           return lhs
@@ -175,5 +195,27 @@ open Tokenizer
 
 end Parser
 
+open Parser
+open Lean
+open Meta
+
+def Parser.Term.toLeanExpr (t : Parser.Term) : MetaM Expr := do
+  match t with
+  | ⟨.ident n, []⟩ => return mkConst n
+  | ⟨.op "=", [a, b]⟩ =>
+    let a ← a.toLeanExpr
+    let b ← b.toLeanExpr
+    return ← mkEq a b
+  | ⟨.op "!=", [a, b]⟩ =>
+    let a ← a.toLeanExpr
+    let b ← b.toLeanExpr
+    return ← mkAppM `Ne #[a, b]
+  | _ => throwError ":-( {repr t}"
+
+def toLeanExpr (s : String) : MetaM Expr := do
+  let t ← Parser.parse s
+  return ← t.toLeanExpr
+
+#eval toLeanExpr "Nat != Nat"
 
 end TPTP
