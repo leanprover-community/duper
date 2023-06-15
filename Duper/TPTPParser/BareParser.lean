@@ -1,37 +1,44 @@
 
-
 namespace TPTP
 
 structure Context where
 (input : String)
-
-inductive DeclType where
-| typeDecl
-| axiomDecl
-| conjectureDecl
-deriving Repr
 
 inductive TPTPType where
 | type
 | i
 | o
 | ident (s : String)
-deriving Repr
+deriving Repr, Inhabited
+
+inductive DeclKind where
+| typeDecl
+| axiomDecl
+| conjectureDecl
+deriving Repr, Inhabited
 
 inductive TPTPParse where
+| typeDecl (id : String) (type : TPTPParse)
+| term (id : String) (type : TPTPType)
 | ident : String → TPTPParse
-| decl : DeclType → TPTPParse
-| declType : DeclType → TPTPParse
+| decl : String → DeclKind → TPTPParse → TPTPParse
+| declKind : DeclKind → TPTPParse
 | type : TPTPType → TPTPParse
-deriving Repr
+| token : String → TPTPParse
+| eqOp : TPTPParse → TPTPParse → TPTPParse → TPTPParse
+deriving Repr, Inhabited
 
 def TPTPParse.ident! : TPTPParse → String
 | .ident str => str
 | e => panic! s!"TPTPParse.ident! failed: {repr e}"
 
+def TPTPParse.declKind! : TPTPParse → DeclKind
+| .declKind ty => ty
+| e => panic! s!"TPTPParse.declKind! failed: {repr e}"
+
 structure State where
 (pos : String.Pos := 0)
-(stack : List TPTPParse := [])
+(stack : Array TPTPParse := #[])
 (error : Option String := none)
 deriving Repr, Inhabited
 
@@ -62,7 +69,7 @@ partial def parseIdent (c : Context) (s : State) : State :=
         (i, acc)
   let (i, name) := go s.pos ""
   if i > s.pos then
-    parseWhitespace c ⟨i, .ident name :: s.stack, s.error⟩ 
+    parseWhitespace c ⟨i, s.stack.push $ .ident name, s.error⟩ 
   else 
     {s with error := "expected identifier"}
 
@@ -114,22 +121,27 @@ partial def alternatives (alts : Array (Context → State → State)) (c : Conte
   return {s with error := "No valid parse found:" ++ "\\n·".intercalate errors.toList}
 
 partial def pushStack (elem : TPTPParse) (c : Context) (s : State) : State :=
-  {s with stack := elem :: s.stack}
-
-partial def parseThfDeclKind (c : Context) (s : State) : State :=
-  alternatives #[
-    parseToken "type" >> pushStack (.declType .typeDecl),
-    parseToken "axiom" >> pushStack (.declType .axiomDecl),
-    parseToken "conjecture" >> pushStack (.declType .conjectureDecl)
-  ] c s
+  {s with stack := s.stack.push elem}
 
 partial def popStack (f : TPTPParse → Context → State → State) (c : Context) (s : State) : State :=
-  match s.stack with
-  | a :: as => f a c {s with stack := as}
-  | [] => panic! "popStack requires nonempty stack"
+  f s.stack.back c {s with stack := s.stack.pop}
+
+partial def shrinkStack (iniStackSz : Nat) (c : Context) (s : State) : State :=
+  {s with stack := s.stack.shrink iniStackSz}
 
 partial def modifyLatestStack (f : TPTPParse → TPTPParse) (c : Context) (s : State) : State :=
   popStack (fun e => pushStack (f e)) c s
+
+partial def parseTokenAndPush (str : String) (c : Context) (s : State) : State :=
+  let s := parseToken str c s
+  if s.error.isNone then pushStack (.token str) c s else s
+
+partial def parseDeclKind (c : Context) (s : State) : State :=
+  alternatives #[
+    parseToken "type" >> pushStack (.declKind .typeDecl),
+    parseToken "axiom" >> pushStack (.declKind .axiomDecl),
+    parseToken "conjecture" >> pushStack (.declKind .conjectureDecl)
+  ] c s
 
 partial def parseType (c : Context) (s : State) : State :=
   alternatives #[
@@ -140,24 +152,58 @@ partial def parseType (c : Context) (s : State) : State :=
   ] c s
 
 partial def parseTypeDecl (c : Context) (s : State) : State :=
+  let iniStackSz := s.stack.size
   let s := (parseIdent >> parseToken ":" >> parseType) c s
-  -- {s with stack := s.stack}
+  if s.error.isSome then s else
+  let id :=  s.stack[iniStackSz + 0]!
+  let type :=  s.stack[iniStackSz + 1]!
+  let s := shrinkStack iniStackSz c s
+  let s := pushStack (.typeDecl id.ident! type) c s
   s
+
+def parseTerm (c : Context) (s : State) : State :=
+  parseIdent c s
 
 partial def parseThfDecl (c : Context) (s : State) : State :=
-  let s := (parseToken "thf" >> parseToken "(" >> parseIdent >> parseToken ","
-    >> parseToken "type" >> parseToken "," >> parseTypeDecl >> parseToken ")") c s
-  -- let s := (parseToken "thf" >> parseToken "(" >> parseIdent >> parseToken "," >> parseThfDeclKind >> parseToken "," >> parseToken ")") c s
-  -- {s with stack := s.stack}
+  let iniStackSz := s.stack.size
+  let s := (parseToken "thf" >> parseToken "("
+    >> parseIdent >> parseToken ","
+    >> parseDeclKind >> parseToken ","
+    >> alternatives #[parseTypeDecl, parseTerm] >> parseToken ")" >> parseToken ".") c s
+  if s.error.isSome then s else
+  let declName :=  s.stack[iniStackSz + 0]!
+  let declKind :=  s.stack[iniStackSz + 1]!
+  let declValue := s.stack[iniStackSz + 2]!
+  let s := shrinkStack iniStackSz c s
+  let s := pushStack (.decl declName.ident! declKind.declKind! declValue) c s
+  s
+
+def parseEqOp (c : Context) (s : State) : State :=
+  let iniStackSz := s.stack.size
+  let s := (
+    parseTerm >>
+    alternatives #[
+      parseTokenAndPush "=",
+      parseTokenAndPush "!="
+    ] >>
+    parseTerm
+  ) c s
+  if s.error.isSome then s else
+  let term₁ :=  s.stack[iniStackSz + 0]!
+  let op :=  s.stack[iniStackSz + 1]!
+  let term₂ := s.stack[iniStackSz + 2]!
+  let s := shrinkStack iniStackSz c s
+  let s := pushStack (.eqOp op term₁ term₂) c s
   s
 
 
-#eval parseThfDeclKind ⟨"axiom"⟩ {} 
-#eval parseThfDecl ⟨"thf(atype,type,a:t)"⟩ {} 
+#eval parseEqOp ⟨"a != a"⟩ {} 
+#eval parseThfDecl ⟨"thf(atype,type,a:$type)."⟩ {} 
+#eval parseThfDecl ⟨"thf(atype,conjecture,a != a)."⟩ {} 
 
-#eval sepBy ',' parseIdent ⟨""⟩ {} 
+#eval sepBy "," parseIdent ⟨""⟩ {} 
 
 #eval parseIdent ⟨"saassss"⟩ {} 
-#eval (parseChar '(' >> parseIdent >> parseChar ')') ⟨"(s)"⟩ {} 
+-- #eval (parseChar '(' >> parseIdent >> parseToken "s") ⟨"(s)"⟩ {} 
 
 end TPTP
