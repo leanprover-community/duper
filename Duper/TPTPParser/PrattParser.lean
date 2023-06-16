@@ -1,5 +1,7 @@
 import Lean
 
+axiom Iota : Type
+
 namespace TPTP
 
 namespace Tokenizer
@@ -176,60 +178,62 @@ partial def parseSep (sep : Token) (p : ParserM α) : ParserM (List α) := do
   else
     return [t]
 
-partial def parseTerm (minbp : Nat := 0) : ParserM Term := do
-  let parseLhs : ParserM Term := do
-    let nextToken ← next
-    if let .ident _ := nextToken then
-      if (← peek?) == some (.op "(") then
-        parseToken (.op "(")
-        let args ← parseSep (.op ",") (parseTerm 0)
-        parseToken (.op ")")
-        return Term.mk nextToken args
-      else
-        return Term.mk nextToken []
-    else if nextToken == .op "(" then
-      let lhs ← parseTerm 0
-      parseToken (.op ")")
-      return lhs
-    else if let some rbp := BinderBindingPower? nextToken.toString then
-      parseToken (.op "[")
-      let vars ← parseSep (.op ",") do
-        let ident ← parseIdent
-        parseToken (.op ":")
-        let ty ← parseTerm 0
-        return Term.mk (.ident ident) [ty]
-      parseToken (.op "]")
-      parseToken (.op ":")
-      let rhs ← parseTerm rbp
-      return Term.mk nextToken (rhs :: vars)
-    else if let some rbp := prefixBindingPower? nextToken.toString then
-      let rhs ← parseTerm rbp
-      return Term.mk nextToken [rhs]
-    else
-      throw $ IO.userError s!"Expected term, got '{repr nextToken}'"
-  let rec addOpAndRhs (lhs : Term) : ParserM Term := do
-      if ← isEOF then
-        return lhs
-      else
-        let op ← peek
-        let some (lbp, rbp) := infixBindingPower? op.toString
-          | return lhs
-        if lbp < minbp then
-          return lhs
-        else
-          let op ← next
-          let rhs ← parseTerm rbp
-          return ← addOpAndRhs (Term.mk op [lhs, rhs])
-          
+mutual
+partial def parseTerm (minbp : Nat := 0) : ParserM Term := do        
   let lhs ← parseLhs 
-  let res ← addOpAndRhs lhs
+  let res ← addOpAndRhs lhs minbp
   return res
 
-def parseTypeDecl : ParserM Term := do
+partial def parseLhs : ParserM Term := do
+  let nextToken ← next
+  if let .ident _ := nextToken then
+    if (← peek?) == some (.op "(") then
+      parseToken (.op "(")
+      let args ← parseSep (.op ",") (parseTerm 0)
+      parseToken (.op ")")
+      return Term.mk nextToken args
+    else
+      return Term.mk nextToken []
+  else if nextToken == .op "(" then
+    let lhs ← parseTerm 0
+    parseToken (.op ")")
+    return lhs
+  else if let some rbp := BinderBindingPower? nextToken.toString then
+    parseToken (.op "[")
+    let vars ← parseSep (.op ",") parseTypeDecl
+    parseToken (.op "]")
+    parseToken (.op ":")
+    let rhs ← parseTerm rbp
+    return Term.mk nextToken (rhs :: vars)
+  else if let some rbp := prefixBindingPower? nextToken.toString then
+    let rhs ← parseTerm rbp
+    return Term.mk nextToken [rhs]
+  else
+    throw $ IO.userError s!"Expected term, got '{repr nextToken}'"
+
+partial def addOpAndRhs (lhs : Term) (minbp : Nat) : ParserM Term := do
+  if ← isEOF then
+    return lhs
+  else
+    let op ← peek
+    let some (lbp, rbp) := infixBindingPower? op.toString
+      | return lhs
+    if lbp < minbp then
+      return lhs
+    else
+      let op ← next
+      let rhs ← parseTerm rbp
+      return ← addOpAndRhs (Term.mk op [lhs, rhs]) minbp
+
+partial def parseTypeDecl : ParserM Term := do
   let ident ← parseIdent
-  parseToken (.op ":")
-  let ty ← parseTerm
-  return Term.mk (.ident ident) [ty]
+  if (← peek?) == some (.op ":") then
+    parseToken (.op ":")
+    let ty ← parseTerm
+    return Term.mk (.ident ident) [ty]
+  else
+    return Term.mk (.ident ident) []
+end
 
 structure Command where
 (cmd : String)
@@ -316,13 +320,16 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   | ⟨.op "=>", [a,b]⟩ | ⟨.op "<=", [b,a]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
   | ⟨.op ">", [⟨.op "*", [a, b]⟩, c]⟩   => toLeanExpr ⟨.op ">", [a, ⟨.op ">", [b, c]⟩]⟩
   | ⟨.op ">", [a, b]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
-  | _ => throwError ":-( {repr t}"
+  | _ => throwError "Could not translate to Lean Expr: {repr t}"
 where
   makeLocalDecls (body : Term) (vars : List Term): MetaM (Array (Name × (Array Expr → MetaM Expr))) := do
     let decls : List (Name × (Array Expr → MetaM Expr)) ← vars.mapM fun var => do
       match var with
-      | ⟨.ident v, [ty]⟩ =>
-        let ty ← ty.toLeanExpr
+      | ⟨.ident v, ty⟩ =>
+        let ty ← match ty with
+        | [ty] => ty.toLeanExpr
+        | [] => pure $ mkConst `Iota
+        | _ => throwError "invalid bound var: {repr var}"
         return (v, fun (_ : Array Expr) => pure ty)
       | _ => throwError "invalid bound var: {repr var}"
     return decls.toArray
@@ -346,16 +353,12 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
       | [_, ⟨.ident "type", _⟩, ⟨.ident id, [ty]⟩]  =>
         withLocalDeclD id (← ty.toLeanExpr) fun _ => do
           compileCmds cs acc k
-      | [⟨.ident name, []⟩, ⟨.ident "axiom", _⟩, val] 
-      | [⟨.ident name, []⟩, ⟨.ident "hypothesis", _⟩, val] =>
+      | [⟨.ident name, []⟩, ⟨.ident kind@"axiom", _⟩, val] 
+      | [⟨.ident name, []⟩, ⟨.ident kind@"hypothesis", _⟩, val]
+      | [⟨.ident name, []⟩, ⟨.ident kind@"conjecture", _⟩, val] =>
         let val ← val.toLeanExpr
-        withLocalDeclD name val fun x => do
-          let acc := acc.push (val, x, #[])
-          compileCmds cs acc k
-      | [⟨.ident name, []⟩, ⟨.ident "conjecture", _⟩, val] =>
-        let val ← val.toLeanExpr
-        let val ← mkAppM ``Not #[val] 
-        withLocalDeclD name val fun x => do
+        let val := if kind == "conjecture" then ← mkAppM ``Not #[val] else val
+        withLocalDeclD ("H_" ++ name) val fun x => do
           let acc := acc.push (val, x, #[])
           compileCmds cs acc k
       | _ => throwError "Unknown declaration kind: {args.map repr}"
@@ -363,15 +366,59 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
     | cmd => throwError "Unknown command: {cmd}"
   | [] => k acc
 
+/-- Collect all constants (lower case variables) since these are not explicitly declared in FOF and CNF format. -/
+partial def collectConstantsOfCmd (topLevel : Bool) (acc : HashMap String Expr) (t : Parser.Term): MetaM (HashMap String Expr) := do
+  match t with
+  | ⟨.ident n, as⟩ => do
+    let acc ← as.foldlM (collectConstantsOfCmd false) acc
+    if n.data[0]!.isLower && n.data[0]! != '$' && !acc.contains n
+    then 
+      let ty ← as.foldlM 
+        (fun acc _ => mkArrow (mkConst `Iota) acc)
+        (if topLevel then mkSort levelZero else mkConst `Iota)
+      let acc := acc.insert n ty
+      return acc
+    else 
+      return acc
+  | ⟨.op "!", body :: _⟩ | ⟨.op "?", body :: _⟩ =>
+    collectConstantsOfCmd topLevel acc body
+  | ⟨.op "~", as⟩
+  | ⟨.op "|", as⟩
+  | ⟨.op "&", as⟩
+  | ⟨.op "<=>", as⟩ 
+  | ⟨.op "=>", as⟩ | ⟨.op "<=", as⟩ 
+  | ⟨.op "~|", as⟩ 
+  | ⟨.op "~&", as⟩  
+  | ⟨.op "<~>", as⟩ => 
+    as.foldlM (collectConstantsOfCmd topLevel) acc
+  | ⟨.op "!=", as⟩ 
+  | ⟨.op "=", as⟩ =>
+    as.foldlM (collectConstantsOfCmd false) acc
+  | _ => throwError "Failed to collect constants: {repr t}"
 
-def compile (s : String) (k : Formulas → MetaM α): MetaM α := do
+def collectCnfFofConstants (cmds : List Parser.Command) : MetaM (HashMap String Expr) := do
+  let mut acc := HashMap.empty
+  for cmd in cmds do
+    match cmd with
+    | ⟨"cnf", [_, _, val]⟩ | ⟨"fof", [_, _, val]⟩ =>
+      acc ← collectConstantsOfCmd true acc val
+    | _ => pure ()
+  return acc
+
+
+def compile [Inhabited α] (s : String) (k : Formulas → MetaM α) : MetaM α := do
   let cmds ← Parser.parse s
-  compileCmds cmds #[] k
-
+  let constants ← collectCnfFofConstants cmds
+  withLocalDeclsD (constants.toArray.map fun (n, ty) => (n, fun _ => pure ty)) fun _ => do
+    compileCmds cmds #[] k
 
 
 elab "hello" : tactic => 
-  compile ""
+  compile "fof(goal_ax,axiom,
+    ! [A] :
+      ( ( reflexive_rewrite(b,A)
+        & reflexive_rewrite(c,A) )
+     => goal ) )."
     fun formulas => do
       for (x, _ , _) in formulas do
         logInfo m!"{x}"
