@@ -209,7 +209,12 @@ def parseTypeDecl : ParserM Term := do
   let ty ← parseTerm
   return Term.mk (.ident ident) [ty]
 
-def parseCommandAux : ParserM Term := do
+structure Command where
+(cmd : String)
+(args : List Term)
+deriving Repr
+
+def parseCommand : ParserM Command := do
   let cmd ← parseIdent
   match cmd with
   | "thf" | "tff" | "cnf" | "fof" =>
@@ -224,28 +229,27 @@ def parseCommandAux : ParserM Term := do
     | _ => throw $ IO.userError s!"unknown declaration kind: {kind}"
     parseToken (.op ")")
     parseToken (.op ".")
-    return Term.mk (.ident cmd) [Term.mk (.ident name) [], Term.mk (.ident kind) [], val]
+    return ⟨cmd, [Term.mk (.ident name) [], Term.mk (.ident kind) [], val]⟩
   | "include" => throw $ IO.userError "includes are not yet implemented"
   | _ => throw $ IO.userError "Command '{cmd}' not supported"
 
 
-def parseCommand (s : String) : IO Term := do
+partial def parseFile : ParserM (List Command) := do
+  if ← isEOF 
+  then return []
+  else
+    let c ← parseCommand
+    return c :: (← parseFile)
+
+def parse (s : String) : IO (List Command) := do
   let tokens ← Tokenizer.tokenize s
-  let res ← parseCommandAux.run {tokens}
+  let res ← parseFile.run {tokens}
   return res.1
 
-#eval parseCommand "thf(name, axiom, $o = $o)."
-
-
-def parse (s : String) : IO Term := do
-  let tokens ← Tokenizer.tokenize s
-  let res ← parseTerm.run {tokens}
-  return res.1
-
+#eval parse "thf(name, axiom, $o = $o). thf(name, axiom, $o = $o)."
 
 open Tokenizer
 #eval tokenize "(a)"
-#eval parse "![a:$i] : a"
 
 
 namespace Term
@@ -295,7 +299,8 @@ open Lean
 open Meta
 
 def toLeanExpr (s : String) : MetaM Expr := do
-  let t ← Parser.parse s
+  let tokens ← Tokenizer.tokenize s
+  let (t, _) ← parseTerm.run {tokens}
   return ← t.toLeanExpr
 
 #eval toLeanExpr "![a : $i]: a"
