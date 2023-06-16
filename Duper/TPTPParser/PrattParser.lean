@@ -27,7 +27,7 @@ deriving Repr
 
 def tokens := [
   "@", "|", "&", "<=>", "=>", "<=", "<~>", "~|", "~&", ">", "=", "!=",
-  "~", ",", "(", ")", "*", "!", "?", "^", ":", "[", "]", "!>", "."
+  "~", ",", "(", ")", "*", "!", "?", "^", ":", "[", "]", "!>", ".", "*"
 ]
 
 def tokenHashMap : HashSet String := 
@@ -92,7 +92,7 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
           addToCurrToken char
         else throw $ IO.userError s!"Invalid token: {char}"
       | .ident => 
-        if char.isAlphanum
+        if char.isAlphanum || char == '_'
         then addToCurrToken char
         else
           finalizeToken
@@ -118,23 +118,28 @@ deriving Repr
 
 abbrev ParserM := StateRefT State IO
 
+def isEOF : ParserM Bool := do return (← get).curr ==  (← get).tokens.size
+
 def peek : ParserM Token := do
   let i := (← get).curr
   let ts := (← get).tokens
   if i >= ts.size then throw $ IO.userError "Unexpected end of file"
   return ts[i]!
 
+def peek? : ParserM (Option Token) := do
+  if ← isEOF then return none else return ← peek 
+
 def next : ParserM Token := do
   let c ← peek
   modify (fun (s : State) => {s with curr := s.curr + 1})
   return c
 
-def isEOF : ParserM Bool := do return (← get).curr ==  (← get).tokens.size
-
 def infixBindingPower? : String → Option (Nat × Nat)
-| "@" | "|" | "&" | "<=>" | "=>" | "<=" | "<~>" | "~|" | "~&" => (60,61)
-| ">" => (61, 60)
+| "|" | "&" | "<=>" | "=>" | "<=" | "<~>" | "~|" | "~&" => (60,61)
 | "=" | "!=" => (90, 90)
+| "*" => (111, 110)
+| ">" => (121, 120)
+| "@" => (130, 131)
 | _ => none
 
 def prefixBindingPower? : String → Option Nat
@@ -162,24 +167,41 @@ def parseIdent : ParserM String := do
     | throw $ IO.userError s!"Expected identifier, got '{repr nextToken}'"
   return id
 
+partial def parseSep (sep : Token) (p : ParserM α) : ParserM (List α) := do
+  let t ← p
+  if (← peek?) == some sep then
+    parseToken sep
+    let l ← parseSep sep p
+    return t :: l
+  else
+    return [t]
+
 partial def parseTerm (minbp : Nat := 0) : ParserM Term := do
   let parseLhs : ParserM Term := do
     let nextToken ← next
     if let .ident _ := nextToken then
-      return Term.mk nextToken [] 
+      if (← peek?) == some (.op "(") then
+        parseToken (.op "(")
+        let args ← parseSep (.op ",") (parseTerm 0)
+        parseToken (.op ")")
+        return Term.mk nextToken args
+      else
+        return Term.mk nextToken []
     else if nextToken == .op "(" then
       let lhs ← parseTerm 0
       parseToken (.op ")")
       return lhs
     else if let some rbp := BinderBindingPower? nextToken.toString then
       parseToken (.op "[")
-      let ident ← parseIdent
-      parseToken (.op ":")
-      let ty ← parseTerm 0
+      let vars ← parseSep (.op ",") do
+        let ident ← parseIdent
+        parseToken (.op ":")
+        let ty ← parseTerm 0
+        return Term.mk (.ident ident) [ty]
       parseToken (.op "]")
       parseToken (.op ":")
       let rhs ← parseTerm rbp
-      return Term.mk nextToken [Term.mk (.ident ident) [ty], rhs]
+      return Term.mk nextToken (rhs :: vars)
     else if let some rbp := prefixBindingPower? nextToken.toString then
       let rhs ← parseTerm rbp
       return Term.mk nextToken [rhs]
@@ -256,6 +278,8 @@ open Parser
 open Lean
 open Meta
 
+#check MetavarContext.mkLambda
+
 partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   match t with
   | ⟨.ident "$i", []⟩ => return mkConst `Iota
@@ -263,22 +287,22 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   | ⟨.ident "$o", []⟩ => return mkSort levelZero
   | ⟨.ident "$true", []⟩ => return mkConst `True
   | ⟨.ident "$false", []⟩ => return mkConst `False
-  | ⟨.ident n, []⟩ => 
+  | ⟨.ident n, as⟩ => do
     let some decl := (← getLCtx).findFromUserName? n
       | throwError "Unknown variable name {n}"
-    return mkFVar decl.fvarId
-  | ⟨.op "!", [⟨.ident v, [ty]⟩, b]⟩ => -- TODO: multiple variables
-    let ty ← ty.toLeanExpr
-    withLocalDeclD v ty fun v => do
-      mkForallFVars #[v] (← b.toLeanExpr)
-  | ⟨.op "^", [⟨.ident v, [ty]⟩, b]⟩ =>
-    let ty ← ty.toLeanExpr
-    withLocalDeclD v ty fun v => do
-      mkLambdaFVars #[v] (← b.toLeanExpr)
-  | ⟨.op "?", [⟨.ident v, [ty]⟩, b]⟩ =>
-    let ty ← ty.toLeanExpr
-    withLocalDeclD v ty fun v => do
-      return ← mkAppM `Exists #[← mkLambdaFVars #[v] (← b.toLeanExpr)]
+    return mkAppN (mkFVar decl.fvarId) (← as.mapM toLeanExpr).toArray
+  | ⟨.op "!", body :: vars⟩ => 
+    withLocalDeclsD (← makeLocalDecls body vars) fun vs => do
+      mkForallFVars vs (← body.toLeanExpr)
+  | ⟨.op "^", body :: vars⟩ =>
+    withLocalDeclsD (← makeLocalDecls body vars) fun vs => do
+      mkLambdaFVars vs (← body.toLeanExpr)
+  | ⟨.op "?", body :: vars⟩ =>
+    withLocalDeclsD (← makeLocalDecls body vars) fun vs => do
+      let mut res ← body.toLeanExpr
+      for v in vs.reverse do
+        res ← mkAppM `Exists #[← mkLambdaFVars #[v] res]
+      return res
   | ⟨.op "~", [a]⟩   => mkAppM `Not #[← a.toLeanExpr]
   | ⟨.op "|", as⟩   => mkAppM `Or (← as.mapM toLeanExpr).toArray
   | ⟨.op "&", as⟩   => mkAppM `And (← as.mapM toLeanExpr).toArray
@@ -290,9 +314,19 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   | ⟨.op "<~>", as⟩ => mkAppM ``Not #[← mkAppM `Iff (← as.mapM toLeanExpr).toArray]
   | ⟨.op "@", [a,b]⟩ => return mkApp (← a.toLeanExpr) (← b.toLeanExpr)
   | ⟨.op "=>", [a,b]⟩ | ⟨.op "<=", [b,a]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
-  | ⟨.op ">", [a, b]⟩   => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
+  | ⟨.op ">", [⟨.op "*", [a, b]⟩, c]⟩   => toLeanExpr ⟨.op ">", [a, ⟨.op ">", [b, c]⟩]⟩
+  | ⟨.op ">", [a, b]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
   | _ => throwError ":-( {repr t}"
- 
+where
+  makeLocalDecls (body : Term) (vars : List Term): MetaM (Array (Name × (Array Expr → MetaM Expr))) := do
+    let decls : List (Name × (Array Expr → MetaM Expr)) ← vars.mapM fun var => do
+      match var with
+      | ⟨.ident v, [ty]⟩ =>
+        let ty ← ty.toLeanExpr
+        return (v, fun (_ : Array Expr) => pure ty)
+      | _ => throwError "invalid bound var: {repr var}"
+    return decls.toArray
+
 end Term
 
 end Parser
@@ -336,10 +370,7 @@ def compile (s : String) (k : Formulas → MetaM α): MetaM α := do
 
 
 elab "hello" : tactic => 
-  compile "
-  thf(peter,type, peter: $i ).thf(says,type,    says: $i > $o > $o ).
-  thf(ax1,axiom, ( says @ peter    @ ! [X: $o] : ( ( says @ peter @ X ) => ~ X ) ) ).
-  thf(thm,conjecture, ! [X: $o] : ( says @ peter @ X ) )."
+  compile ""
     fun formulas => do
       for (x, _ , _) in formulas do
         logInfo m!"{x}"
@@ -357,7 +388,7 @@ def toLeanExpr (s : String) : MetaM Expr := do
   return r
 
 set_option trace.Meta.debug true
-#eval toLeanExpr "?[a : $tType]: a = a"
+#eval toLeanExpr "?[a : $tType, b : $tType]: a = b"
 #eval toLeanExpr "![x : $tType]: ![a : x]: a != a"
 #eval toLeanExpr "$true != $true"
 #eval toLeanExpr "$true & $true"
