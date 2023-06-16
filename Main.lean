@@ -9,7 +9,7 @@ open Lean.Elab.Tactic
 open Duper
 open ProverM
 
-def run (path : String) : MetaM Unit := do
+def run (path : String) (proofOutput : Bool) : MetaM Unit := do
   let lines ← IO.FS.lines path
   let lines := lines.filter fun l => ¬ l.startsWith "%"
   let code := String.join lines.toList
@@ -48,9 +48,10 @@ def run (path : String) : MetaM Unit := do
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
       try
         IO.println s!"SZS status Theorem for {path}"
-        IO.println s!"SZS output start Proof for {path}"
-        printProof state
-        IO.println s!"SZS output end Proof for {path}"
+        if proofOutput then
+          IO.println s!"SZS output start Proof for {path}"
+          printProof state
+          IO.println s!"SZS output end Proof for {path}"
       catch
       | _ => IO.println s!"SZS status Error for {path}"
     | Result.saturated =>
@@ -66,5 +67,5 @@ def main : List String → IO UInt32 := fun args => do
     let env ← mkEmptyEnvironment
     let _ ← Meta.MetaM.toIO
       (ctxCore := {fileName := "none", fileMap := .ofString ""}) (sCore := {env})
-      (ctx := {}) (s := {}) (run args[0]!)
+      (ctx := {}) (s := {}) (run args[0]! !(args.length > 1 && args[1]! == "-s"))
     return 0
