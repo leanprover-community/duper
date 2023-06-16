@@ -27,7 +27,7 @@ deriving Repr
 
 def tokens := [
   "@", "|", "&", "<=>", "=>", "<=", "<~>", "~|", "~&", ">", "=", "!=",
-  "~", ",", "(", ")", "*", "!", "?", "^", ":", "[", "]", "!>"
+  "~", ",", "(", ")", "*", "!", "?", "^", ":", "[", "]", "!>", "."
 ]
 
 def tokenHashMap : HashSet String := 
@@ -203,6 +203,40 @@ partial def parseTerm (minbp : Nat := 0) : ParserM Term := do
   let res ← addOpAndRhs lhs
   return res
 
+def parseTypeDecl : ParserM Term := do
+  let ident ← parseIdent
+  parseToken (.op ":")
+  let ty ← parseTerm
+  return Term.mk (.ident ident) [ty]
+
+def parseCommandAux : ParserM Term := do
+  let cmd ← parseIdent
+  match cmd with
+  | "thf" | "tff" | "cnf" | "fof" =>
+    parseToken (.op "(")
+    let name ← parseIdent
+    parseToken (.op ",")
+    let kind ← parseIdent
+    parseToken (.op ",")
+    let val ← match kind with
+    | "axiom" | "conjecture" => parseTerm
+    | "type" => parseTypeDecl
+    | _ => throw $ IO.userError s!"unknown declaration kind: {kind}"
+    parseToken (.op ")")
+    parseToken (.op ".")
+    return Term.mk (.ident cmd) [Term.mk (.ident name) [], Term.mk (.ident kind) [], val]
+  | "include" => throw $ IO.userError "includes are not yet implemented"
+  | _ => throw $ IO.userError "Command '{cmd}' not supported"
+
+
+def parseCommand (s : String) : IO Term := do
+  let tokens ← Tokenizer.tokenize s
+  let res ← parseCommandAux.run {tokens}
+  return res.1
+
+#eval parseCommand "thf(name, axiom, $o = $o)."
+
+
 def parse (s : String) : IO Term := do
   let tokens ← Tokenizer.tokenize s
   let res ← parseTerm.run {tokens}
@@ -213,14 +247,15 @@ open Tokenizer
 #eval tokenize "(a)"
 #eval parse "![a:$i] : a"
 
-end Parser
+
+namespace Term
 
 open Parser
 open Lean
 open Meta
 axiom Iota : Type
 
-def Parser.Term.toLeanExpr (t : Parser.Term) : MetaM Expr := do
+partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   match t with
   | ⟨.ident "$i", []⟩ => return mkConst `Iota
   | ⟨.ident "$o", []⟩ => return mkConst `Prop
@@ -230,14 +265,6 @@ def Parser.Term.toLeanExpr (t : Parser.Term) : MetaM Expr := do
     let some decl := (← getLCtx).findFromUserName? n
       | throwError "Unknown variable name {n}"
     return mkFVar decl.fvarId
-  | ⟨.op "=", [a, b]⟩ =>
-    let a ← a.toLeanExpr
-    let b ← b.toLeanExpr
-    return ← mkEq a b
-  | ⟨.op "!=", [a, b]⟩ =>
-    let a ← a.toLeanExpr
-    let b ← b.toLeanExpr
-    return ← mkAppM `Ne #[a, b]
   | ⟨.op "!", [⟨.ident v, [ty]⟩, b]⟩ =>
     let ty ← ty.toLeanExpr
     withLocalDeclD v ty fun v => do
@@ -246,13 +273,34 @@ def Parser.Term.toLeanExpr (t : Parser.Term) : MetaM Expr := do
     let ty ← ty.toLeanExpr
     withLocalDeclD v ty fun v => do
       mkLambdaFVars #[v] (← b.toLeanExpr)
+  | ⟨.op "~", [a]⟩   => mkAppM `Not #[← a.toLeanExpr]
+  | ⟨.op "|", as⟩   => mkAppM `Or (← as.mapM toLeanExpr).toArray
+  | ⟨.op "&", as⟩   => mkAppM `And (← as.mapM toLeanExpr).toArray
+  | ⟨.op "<=>", as⟩ => mkAppM `Iff (← as.mapM toLeanExpr).toArray
+  | ⟨.op "!=", as⟩  => mkAppM `Ne (← as.mapM toLeanExpr).toArray
+  | ⟨.op "=", as⟩   => mkAppM `Eq (← as.mapM toLeanExpr).toArray
+  | ⟨.op "~|", as⟩  => mkAppM ``Not #[← mkAppM `Or (← as.mapM toLeanExpr).toArray]
+  | ⟨.op "~&", as⟩  => mkAppM ``Not #[← mkAppM `And (← as.mapM toLeanExpr).toArray]
+  | ⟨.op "<~>", as⟩ => mkAppM ``Not #[← mkAppM `Iff (← as.mapM toLeanExpr).toArray]
+  | ⟨.op "@", [a,b]⟩ => return mkApp (← a.toLeanExpr) (← b.toLeanExpr)
+  | ⟨.op "=>", [a,b]⟩ | ⟨.op "<=", [b,a]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
   | _ => throwError ":-( {repr t}"
+ 
+end Term
+
+end Parser
+
+open Parser
+open Lean
+open Meta
 
 def toLeanExpr (s : String) : MetaM Expr := do
   let t ← Parser.parse s
   return ← t.toLeanExpr
 
 #eval toLeanExpr "![a : $i]: a"
+#eval toLeanExpr "![a : $i]: a"
 #eval toLeanExpr "$true != $true"
+#eval toLeanExpr "$true & $true"
 
 end TPTP
