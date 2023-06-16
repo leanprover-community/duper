@@ -11,6 +11,6 @@ package Duper {
 lean_lib Duper
 
 @[default_target]
-lean_exe defaultExe {
+lean_exe duper {
   root := `Main
 }
