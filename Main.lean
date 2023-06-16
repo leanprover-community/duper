@@ -44,8 +44,19 @@ def run (path : String) : MetaM Unit := do
         ProverM.saturateNoPreprocessingClausification
         (Array.toList formulas)
     match state.result with
-    | .contradiction => IO.println "SZS status Unsatisfiable"
-    | _ => IO.println "SZS status Unknown"
+    | Result.contradiction => do
+      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
+      try
+        IO.println s!"SZS status Theorem for {path}"
+        IO.println s!"SZS output start Proof for {path}"
+        printProof state
+        IO.println s!"SZS output end Proof for {path}"
+      catch
+      | _ => IO.println s!"SZS status Error for {path}"
+    | Result.saturated =>
+      IO.println s!"SZS status GaveUp for {path}"
+    | Result.unknown =>
+      IO.println s!"SZS status Timeout for {path}"
 
 def main : List String → IO UInt32 := fun args => do
   if args.length == 0 then 
