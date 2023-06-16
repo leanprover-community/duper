@@ -1,0 +1,44 @@
+name: Test Executable
+on: [push]
+jobs:
+  Test:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository code
+        uses: actions/checkout@v3
+
+      - name: Install elan & Lean
+        run: |
+          set -o pipefail
+          curl https://raw.githubusercontent.com/leanprover/elan/master/elan-init.sh -sSf | sh -s -- --default-toolchain none -y
+          ~/.elan/bin/lean --version
+          echo "$HOME/.elan/bin" >> $GITHUB_PATH
+
+      - name: Download TPTP
+        run: |
+          set -o pipefail
+          wget https://www.tptp.org/TPTP/Archive/TPTP-v8.0.0.tgz
+          tar -zxvf TPTP-v8.0.0.tgz -C ..
+
+      - name: lake build
+        run: |
+          set -o pipefail
+          lake build
+      
+      - name: Test THF
+        run: |
+          while read p; do
+            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p"
+          done <./.github/thf_tests.txt
+
+      - name: Test TFF
+        run: |
+          while read p; do
+            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p"
+          done <./.github/tff_tests.txt
+
+      - name: Test FOF
+        run: |
+          while read p; do
+            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p"
+          done <./.github/fof_tests.txt
