@@ -147,7 +147,7 @@ def prefixBindingPower? : String → Option Nat
 | _ => none
 
 def BinderBindingPower? : String → Option Nat
-| "!" | "?" | "^" => some 70
+| "!" | "!>" | "?" | "^" => some 70
 | _ => none
 
 inductive Term where
@@ -246,7 +246,7 @@ def parseCommand : ParserM Command := do
     let kind ← parseIdent
     parseToken (.op ",")
     let val ← match kind with
-    | "axiom" | "conjecture" => parseTerm
+    | "axiom" | "conjecture" | "hypothesis" => parseTerm
     | "type" => parseTypeDecl
     | _ => throw $ IO.userError s!"unknown declaration kind: {kind}"
     parseToken (.op ")")
@@ -291,7 +291,7 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
     let some decl := (← getLCtx).findFromUserName? n
       | throwError "Unknown variable name {n}"
     return mkAppN (mkFVar decl.fvarId) (← as.mapM toLeanExpr).toArray
-  | ⟨.op "!", body :: vars⟩ => 
+  | ⟨.op "!", body :: vars⟩ | ⟨.op "!>", body :: vars⟩ => 
     withLocalDeclsD (← makeLocalDecls body vars) fun vs => do
       mkForallFVars vs (← body.toLeanExpr)
   | ⟨.op "^", body :: vars⟩ =>
@@ -346,7 +346,8 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
       | [_, ⟨.ident "type", _⟩, ⟨.ident id, [ty]⟩]  =>
         withLocalDeclD id (← ty.toLeanExpr) fun _ => do
           compileCmds cs acc k
-      | [⟨.ident name, []⟩, ⟨.ident "axiom", _⟩, val] =>
+      | [⟨.ident name, []⟩, ⟨.ident "axiom", _⟩, val] 
+      | [⟨.ident name, []⟩, ⟨.ident "hypothesis", _⟩, val] =>
         let val ← val.toLeanExpr
         withLocalDeclD name val fun x => do
           let acc := acc.push (val, x, #[])
