@@ -92,7 +92,7 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
           addToCurrToken char
         else throw $ IO.userError s!"Invalid token: {char}"
       | .ident => 
-        if char.isAlpha
+        if char.isAlphanum
         then addToCurrToken char
         else
           finalizeToken
@@ -246,8 +246,6 @@ def parse (s : String) : IO (List Command) := do
   let res ← parseFile.run {tokens}
   return res.1
 
-#eval parse "thf(name, axiom, $o = $o). thf(name, axiom, $o = $o)."
-
 open Tokenizer
 #eval tokenize "(a)"
 
@@ -257,19 +255,19 @@ namespace Term
 open Parser
 open Lean
 open Meta
-axiom Iota : Type
 
 partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   match t with
   | ⟨.ident "$i", []⟩ => return mkConst `Iota
-  | ⟨.ident "$o", []⟩ => return mkConst `Prop
+  | ⟨.ident "$tType", []⟩ => return mkSort levelOne
+  | ⟨.ident "$o", []⟩ => return mkSort levelZero
   | ⟨.ident "$true", []⟩ => return mkConst `True
   | ⟨.ident "$false", []⟩ => return mkConst `False
   | ⟨.ident n, []⟩ => 
     let some decl := (← getLCtx).findFromUserName? n
       | throwError "Unknown variable name {n}"
     return mkFVar decl.fvarId
-  | ⟨.op "!", [⟨.ident v, [ty]⟩, b]⟩ =>
+  | ⟨.op "!", [⟨.ident v, [ty]⟩, b]⟩ => -- TODO: multiple variables
     let ty ← ty.toLeanExpr
     withLocalDeclD v ty fun v => do
       mkForallFVars #[v] (← b.toLeanExpr)
@@ -277,6 +275,10 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
     let ty ← ty.toLeanExpr
     withLocalDeclD v ty fun v => do
       mkLambdaFVars #[v] (← b.toLeanExpr)
+  | ⟨.op "?", [⟨.ident v, [ty]⟩, b]⟩ =>
+    let ty ← ty.toLeanExpr
+    withLocalDeclD v ty fun v => do
+      return ← mkAppM `Exists #[← mkLambdaFVars #[v] (← b.toLeanExpr)]
   | ⟨.op "~", [a]⟩   => mkAppM `Not #[← a.toLeanExpr]
   | ⟨.op "|", as⟩   => mkAppM `Or (← as.mapM toLeanExpr).toArray
   | ⟨.op "&", as⟩   => mkAppM `And (← as.mapM toLeanExpr).toArray
@@ -288,6 +290,7 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   | ⟨.op "<~>", as⟩ => mkAppM ``Not #[← mkAppM `Iff (← as.mapM toLeanExpr).toArray]
   | ⟨.op "@", [a,b]⟩ => return mkApp (← a.toLeanExpr) (← b.toLeanExpr)
   | ⟨.op "=>", [a,b]⟩ | ⟨.op "<=", [b,a]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
+  | ⟨.op ">", [a, b]⟩   => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
   | _ => throwError ":-( {repr t}"
  
 end Term
@@ -298,13 +301,64 @@ open Parser
 open Lean
 open Meta
 
+abbrev Formulas := Array (Expr × Expr × Array Name)
+
+def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → MetaM α): MetaM α := do
+  match cmds with
+  | ⟨cmd, args⟩ :: cs =>
+    match cmd with
+    | "thf" | "tff" | "cnf" | "fof" => 
+      match args with
+      | [_, ⟨.ident "type", _⟩, ⟨.ident id, [ty]⟩]  =>
+        withLocalDeclD id (← ty.toLeanExpr) fun _ => do
+          compileCmds cs acc k
+      | [⟨.ident name, []⟩, ⟨.ident "axiom", _⟩, val] =>
+        let val ← val.toLeanExpr
+        withLocalDeclD name val fun x => do
+          let acc := acc.push (val, x, #[])
+          compileCmds cs acc k
+      | [⟨.ident name, []⟩, ⟨.ident "conjecture", _⟩, val] =>
+        let val ← val.toLeanExpr
+        let val ← mkAppM ``Not #[val] 
+        withLocalDeclD name val fun x => do
+          let acc := acc.push (val, x, #[])
+          compileCmds cs acc k
+      | _ => throwError "Unknown declaration kind: {args.map repr}"
+    | "include" => throwError "includes should have been unfolded first"
+    | cmd => throwError "Unknown command: {cmd}"
+  | [] => k acc
+
+
+def compile (s : String) (k : Formulas → MetaM α): MetaM α := do
+  let cmds ← Parser.parse s
+  compileCmds cmds #[] k
+
+
+
+elab "hello" : tactic => 
+  compile "
+  thf(peter,type, peter: $i ).thf(says,type,    says: $i > $o > $o ).
+  thf(ax1,axiom, ( says @ peter    @ ! [X: $o] : ( ( says @ peter @ X ) => ~ X ) ) ).
+  thf(thm,conjecture, ! [X: $o] : ( says @ peter @ X ) )."
+    fun formulas => do
+      for (x, _ , _) in formulas do
+        logInfo m!"{x}"
+
+example : False := by
+  hello
+  sorry
+
+
 def toLeanExpr (s : String) : MetaM Expr := do
   let tokens ← Tokenizer.tokenize s
   let (t, _) ← parseTerm.run {tokens}
-  return ← t.toLeanExpr
+  let r ← t.toLeanExpr
+  trace[Meta.debug] "{r}"
+  return r
 
-#eval toLeanExpr "![a : $i]: a"
-#eval toLeanExpr "![a : $i]: a"
+set_option trace.Meta.debug true
+#eval toLeanExpr "?[a : $tType]: a = a"
+#eval toLeanExpr "![x : $tType]: ![a : x]: a != a"
 #eval toLeanExpr "$true != $true"
 #eval toLeanExpr "$true & $true"
 
