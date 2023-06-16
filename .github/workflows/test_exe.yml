@@ -28,17 +28,20 @@ jobs:
       - name: Test THF
         run: |
           while read p; do
-            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p"
+            echo "THF Problem: $p"
+            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s
           done <./.github/thf_tests.txt
 
       - name: Test TFF
         run: |
           while read p; do
-            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p"
+            echo "TFF Problem: $p"
+            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s
           done <./.github/tff_tests.txt
 
       - name: Test FOF
         run: |
           while read p; do
-            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p"
+            echo "FOF Problem: $p"
+            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s
           done <./.github/fof_tests.txt
