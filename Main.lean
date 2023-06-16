@@ -23,8 +23,8 @@ def run (path : String) : MetaM Unit := do
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Bool, levelParams := [], type := type, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Bool.false, levelParams := [], type := mkConst `Bool, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `sorryAx, levelParams := [`u], type := mkForall `α .default sortu $ mkForall `synthetic .default (mkConst `Bool) $ mkBVar 1, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Eq, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ type, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Ne, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ type, isUnsafe := false})
+  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Eq, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ prop, isUnsafe := false})
+  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Ne, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ prop, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `True, levelParams := [], type := prop, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `False, levelParams := [], type := prop, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Or, levelParams := [], type := ← mkArrow prop (← mkArrow prop prop), isUnsafe := false})
@@ -34,17 +34,18 @@ def run (path : String) : MetaM Unit := do
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Exists, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) prop, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Duper.Skolem.some, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) $ ← mkArrow (mkBVar 1) (mkBVar 2), isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Nonempty, levelParams := [`u], type := mkForall `α .default sortu prop, isUnsafe := false})
-  setEnv env
   
+  setEnv env
+
   TPTP.compile code fun formulas => do
     let skSorryName ← addSkolemSorry
-      let (_, state) ←
-        ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
-          ProverM.saturateNoPreprocessingClausification
-          (Array.toList formulas)
-      match state.result with
-      | .contradiction => IO.println "SZS status Unsatisfiable"
-      | _ => IO.println "SZS status Unknown"
+    let (_, state) ←
+      ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
+        ProverM.saturateNoPreprocessingClausification
+        (Array.toList formulas)
+    match state.result with
+    | .contradiction => IO.println "SZS status Unsatisfiable"
+    | _ => IO.println "SZS status Unknown"
 
 def main : List String → IO UInt32 := fun args => do
   if args.length == 0 then 
