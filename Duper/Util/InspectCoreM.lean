@@ -18,7 +18,7 @@ def antiquotedTokens (s : String) : Array String := Id.run <| do
         if curr != last + ch ∧ last_antiquot then
           ret := ret.push (s.extract last curr')
         last := curr
-        last_antiquot := (ch == '`')
+        last_antiquot := (ch == '`') || (ch == '.' ∧ last_antiquot)
     | none => break
   return ret
 
