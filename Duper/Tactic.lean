@@ -487,7 +487,7 @@ def evalDuperNoTiming : Tactic
     | Result.contradiction => do
       IO.println s!"Contradiction found"
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-      printProof state
+      -- printProof state
       applyProof state
       IO.println s!"Constructed proof"
     | Result.saturated =>
