@@ -229,6 +229,9 @@ partial def parseLhs : ParserM Term := do
     let rhs ← parseTerm rbp
     return Term.mk nextToken (rhs :: vars)
   else if let some rbp := prefixBindingPower? nextToken.toString then
+    if (← peek?) == .some (.op ")") then -- support for `(~)` syntax
+      return Term.mk nextToken []
+    else
     let rhs ← parseTerm rbp
     return Term.mk nextToken [rhs]
   else
@@ -336,6 +339,7 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
         res ← mkAppM `Exists #[← mkLambdaFVars #[v] res]
       return res
   | ⟨.op "~", [a]⟩   => mkAppM `Not #[← a.toLeanExpr]
+  | ⟨.op "~", []⟩   => pure $ mkConst `Not
   | ⟨.op "|", as⟩   => mkAppM `Or (← as.mapM toLeanExpr).toArray
   | ⟨.op "&", as⟩   => mkAppM `And (← as.mapM toLeanExpr).toArray
   | ⟨.op "<=>", as⟩ => mkAppM `Iff (← as.mapM toLeanExpr).toArray
