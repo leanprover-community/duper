@@ -29,19 +29,19 @@ jobs:
         run: |
           while read p; do
             echo "THF Problem: $p"
-            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s || true
+            timeout 30 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s || true
           done <./.github/thf_tests.txt
 
       - name: Test TFF
         run: |
           while read p; do
             echo "TFF Problem: $p"
-            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s || true
+            timeout 30 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s || true
           done <./.github/tff_tests.txt
 
       - name: Test FOF
         run: |
           while read p; do
             echo "FOF Problem: $p"
-            timeout 5 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s || true
+            timeout 30 ./build/bin/duper "../TPTP-v8.0.0/Problems/${p:0:3}/$p.p" -s || true
           done <./.github/fof_tests.txt
