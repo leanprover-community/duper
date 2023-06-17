@@ -10,16 +10,19 @@ open Lean
 inductive Status :=
 | default
 | ident
-deriving Repr
+| string
+deriving Repr, BEq
 
 inductive Token :=
 | op (op : String)
 | ident (ident : String)
+| string (str : String)
 deriving Repr, Inhabited, BEq
 
 def Token.toString : Token → String
 | .op a => a
 | .ident a => a
+| .string a => a
 
 structure State where
 (status : Status := .default)
@@ -62,23 +65,28 @@ def getCurrToken : TokenizerM String := do
 def addCurrToken : TokenizerM Unit := do
   modify fun (s : State) => 
     {s with 
-      res := s.res.push $ match s.status with | .default => .op s.currToken | .ident => .ident s.currToken, 
+      res := s.res.push $
+        match s.status with 
+        | .default => .op s.currToken 
+        | .ident => .ident s.currToken
+        | .string => .string s.currToken,
       currToken := ""
     }
 
 def finalizeToken : TokenizerM Unit := do
-  if (← getCurrToken) != "" then
+  if (← getStatus) == .string || (← getCurrToken) != "" then
     match ← getStatus with
     | .default => 
       if tokenHashMap.contains (← getCurrToken)
       then addCurrToken
       else throw $ IO.userError s!"Invalid token: {(← getCurrToken)}"
     | .ident => addCurrToken
+    | .string => addCurrToken
     setStatus .default
 
 def tokenizeAux (str : String) : TokenizerM Unit := do
   for char in str.data do
-    if char.isWhitespace then
+    if char.isWhitespace && (← getStatus) != .string then
         finalizeToken
     else
       match ← getStatus with
@@ -87,6 +95,9 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
           finalizeToken
           setStatus .ident
           addToCurrToken char
+        else if char == 'Á' then
+          finalizeToken
+          setStatus .string
         else if tokenPrefixes.contains ((← getCurrToken).push char) then
           addToCurrToken char
         else if tokenPrefixes.contains (⟨[char]⟩) then
@@ -100,6 +111,13 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
           finalizeToken
           addToCurrToken char
           setStatus .default
+      | .string =>
+        if char == 'Á' then
+          finalizeToken
+        else
+          addToCurrToken char
+          
+          
   
   finalizeToken
 
@@ -168,6 +186,12 @@ def parseIdent : ParserM String := do
   let .ident id := nextToken
     | throw $ IO.userError s!"Expected identifier, got '{repr nextToken}'"
   return id
+
+def parseString : ParserM String := do
+  let nextToken ← next
+  let .string str := nextToken
+    | throw $ IO.userError s!"Expected string, got '{repr nextToken}'"
+  return str
 
 partial def parseSep (sep : Token) (p : ParserM α) : ParserM (List α) := do
   let t ← p
@@ -256,7 +280,12 @@ def parseCommand : ParserM Command := do
     parseToken (.op ")")
     parseToken (.op ".")
     return ⟨cmd, [Term.mk (.ident name) [], Term.mk (.ident kind) [], val]⟩
-  | "include" => throw $ IO.userError "includes are not yet implemented"
+  | "include" =>
+    parseToken (.op "(")
+    let str ← parseString
+    parseToken (.op ")")
+    parseToken (.op ".")
+    return ⟨cmd, [Term.mk (.string str) []]⟩
   | _ => throw $ IO.userError "Command '{cmd}' not supported"
 
 
@@ -341,6 +370,25 @@ end Parser
 open Parser
 open Lean
 open Meta
+
+def getCode (path : String) : IO String := do
+  let lines ← IO.FS.lines path
+  let lines := lines.filter fun l => ¬ l.startsWith "%"
+  let code := String.join lines.toList
+  return code
+
+partial def resolveIncludes (cmds : List Parser.Command) : IO (List Parser.Command) := do
+  let mut res : Array Parser.Command := #[]
+  for cmd in cmds do
+    match cmd with
+    | ⟨"include", [⟨.ident path, []⟩]⟩ =>
+      let s ← getCode path
+      let cmds' ← Parser.parse s
+      let cmds' ← resolveIncludes cmds'
+      for cmd' in cmds' do
+        res := res.push cmd'
+    | _ => res := res.push cmd   
+  return res.toList
 
 abbrev Formulas := Array (Expr × Expr × Array Name)
 

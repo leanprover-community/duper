@@ -10,9 +10,7 @@ open Duper
 open ProverM
 
 def run (path : String) (proofOutput : Bool) : MetaM Unit := do
-  let lines ← IO.FS.lines path
-  let lines := lines.filter fun l => ¬ l.startsWith "%"
-  let code := String.join lines.toList
+  let code ← TPTP.getCode path
 
   let env ← getEnv
   let prop := mkSort levelZero
