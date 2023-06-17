@@ -95,7 +95,7 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
           finalizeToken
           setStatus .ident
           addToCurrToken char
-        else if char == 'Á' then
+        else if char == '\'' then
           finalizeToken
           setStatus .string
         else if tokenPrefixes.contains ((← getCurrToken).push char) then
@@ -112,7 +112,7 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
           addToCurrToken char
           setStatus .default
       | .string =>
-        if char == 'Á' then
+        if char == '\'' then
           finalizeToken
         else
           addToCurrToken char
