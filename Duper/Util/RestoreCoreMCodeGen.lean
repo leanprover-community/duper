@@ -19,6 +19,6 @@ def codegen : CoreM Unit := do
   for name in names do
     file := file.push ("  -- " ++ name.toString)
   file := file.push (← Duper.addNamesToCoreM "restoreCoreM" names)
-  IO.FS.writeFile "RestoreCoreM.lean" (String.intercalate "\n" file.toList)
+  IO.FS.writeFile "Duper/Util/RestoreCoreM.lean" (String.intercalate "\n" file.toList)
 
 #eval codegen

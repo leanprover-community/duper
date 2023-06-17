@@ -99,20 +99,24 @@ partial def exprToMeta (e : Expr) : String :=
   | Expr.fvar id => "Expr.fvar (Lean.FVarId.mk " ++ id.name.toString ++ ")"
   | Expr.bvar n => "Expr.bvar " ++ n.repr
 
-partial def add_name_to_closure (name : Name) (closure : HashSet Name) : CoreM (HashSet Name) := do
-  if closure.contains name then
-    return closure
-  let mut ret := closure.insert name
+partial def add_name_to_closure (name : Name) (state : HashSet Name) : CoreM (Array Name × HashSet Name) := do
+  let mut arr := #[]
+  let mut arr' := #[]
+  if state.contains name then
+    return (arr, state)
+  let mut retcl := state.insert name
   let decls := (← get).env.constants
   let ty := (decls.find! name).type
   let names := (Expr.findall (fun e => e.isConst) ty).map Expr.constName!
   for name in names do
-    ret ← add_name_to_closure name ret
-  return ret
+    (arr', retcl) ← add_name_to_closure name retcl
+    arr := arr ++ arr'
+  arr := arr.push name
+  return (arr, retcl)
 
 #eval (do
   let res ← add_name_to_closure ``Nat.add_assoc HashSet.empty
-  let res := res.toList
+  let res := res.1
   IO.println res : CoreM _)
 
 def inspectCoreM (filterpath : String) : CoreM (Array Name) := do
@@ -137,9 +141,12 @@ def inspectCoreM (filterpath : String) : CoreM (Array Name) := do
       continue
     nameset := nameset.insert name
   let mut nameset_closure : HashSet Name := HashSet.empty
+  let mut name_array : Array _ := #[]
+  let mut name_array_tmp : Array Name := #[]
   for name in nameset do
-    nameset_closure ← add_name_to_closure name nameset_closure
-  return nameset_closure.toArray
+    (name_array_tmp, nameset_closure) ← add_name_to_closure name nameset_closure
+    name_array := name_array.push name_array_tmp
+  return name_array.concatMap id
 
 -- Lean's "repr" does not deal with LevelMVarId correctly
 def constInfoToMeta (ci : ConstantInfo) : String :=
@@ -148,7 +155,7 @@ def constInfoToMeta (ci : ConstantInfo) : String :=
   let levelParams := "[" ++ String.intercalate ", " (cv.levelParams.map (fun n => "`" ++ n.toString)) ++ "]"
   let ty := exprToMeta cv.type
   "Declaration.axiomDecl {name := `" ++ name ++ ", levelParams := " ++ levelParams ++ ", type := " ++ ty ++ ", isUnsafe := false}"
-  
+
 def addNamesToCoreM (funcname : String) (names : Array Name) : CoreM String := do
   let signature := "def " ++ funcname ++ " : CoreM Unit := do"
   let mut lines := #[]
