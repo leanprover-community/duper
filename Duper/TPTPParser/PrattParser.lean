@@ -276,9 +276,8 @@ def parseCommand : ParserM Command := do
     let kind ← parseIdent
     parseToken (.op ",")
     let val ← match kind with
-    | "axiom" | "conjecture" | "hypothesis" => parseTerm
     | "type" => parseTypeDecl
-    | _ => throw $ IO.userError s!"unknown declaration kind: {kind}"
+    | _ => parseTerm
     parseToken (.op ")")
     parseToken (.op ".")
     return ⟨cmd, [Term.mk (.ident name) [], Term.mk (.ident kind) [], val]⟩
@@ -404,9 +403,7 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
       | [_, ⟨.ident "type", _⟩, ⟨.ident id, [ty]⟩]  =>
         withLocalDeclD id (← ty.toLeanExpr) fun _ => do
           compileCmds cs acc k
-      | [⟨.ident name, []⟩, ⟨.ident kind@"axiom", _⟩, val] 
-      | [⟨.ident name, []⟩, ⟨.ident kind@"hypothesis", _⟩, val]
-      | [⟨.ident name, []⟩, ⟨.ident kind@"conjecture", _⟩, val] =>
+      | [⟨.ident name, []⟩, ⟨.ident kind, _⟩, val] =>
         let val ← val.toLeanExpr
         let val := if kind == "conjecture" then ← mkAppM ``Not #[val] else val
         withLocalDeclD ("H_" ++ name) val fun x => do
