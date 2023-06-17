@@ -155,11 +155,10 @@ def next : ParserM Token := do
   return c
 
 def infixBindingPower? : String → Option (Nat × Nat)
-| "|" | "&" | "<=>" | "=>" | "<=" | "<~>" | "~|" | "~&" => (60,61)
+| "|" | "&" | "<=>" | "=>" | "<=" | "<~>" | "~|" | "~&" | "@" => (60,61)
 | "=" | "!=" => (90, 90)
-| "*" => (111, 110)
-| ">" => (121, 120)
-| "@" => (130, 131)
+| "*" => (41, 40)
+| ">" => (51, 50)
 | _ => none
 
 def prefixBindingPower? : String → Option Nat
