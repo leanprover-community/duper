@@ -379,14 +379,14 @@ def getCode (path : String) : IO String := do
   let code := String.join lines.toList
   return code
 
-partial def resolveIncludes (cmds : List Parser.Command) : IO (List Parser.Command) := do
+partial def resolveIncludes (cmds : List Parser.Command) (leadingPath : System.FilePath) : IO (List Parser.Command) := do
   let mut res : Array Parser.Command := #[]
   for cmd in cmds do
     match cmd with
-    | ⟨"include", [⟨.ident path, []⟩]⟩ =>
-      let s ← getCode path
+    | ⟨"include", [⟨.string path, []⟩]⟩ =>
+      let s ← getCode (leadingPath / path).toString
       let cmds' ← Parser.parse s
-      let cmds' ← resolveIncludes cmds'
+      let cmds' ← resolveIncludes cmds' leadingPath
       for cmd' in cmds' do
         res := res.push cmd'
     | _ => res := res.push cmd   
@@ -410,7 +410,7 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
           let acc := acc.push (val, x, #[])
           compileCmds cs acc k
       | _ => throwError "Unknown declaration kind: {args.map repr}"
-    | "include" => throwError "includes should have been unfolded first"
+    | "include" => throwError "includes should have been unfolded first: {args.map repr}"
     | cmd => throwError "Unknown command: {cmd}"
   | [] => k acc
 
@@ -454,12 +454,18 @@ def collectCnfFofConstants (cmds : List Parser.Command) : MetaM (HashMap String 
   return acc
 
 
-def compile [Inhabited α] (s : String) (k : Formulas → MetaM α) : MetaM α := do
-  let cmds ← Parser.parse s
+def compile [Inhabited α] (code : String) (leadingPath : System.FilePath) (k : Formulas → MetaM α) : MetaM α := do
+  let cmds ← Parser.parse code
+  let cmds ← resolveIncludes cmds leadingPath
   let constants ← collectCnfFofConstants cmds
   withLocalDeclsD (constants.toArray.map fun (n, ty) => (n, fun _ => pure ty)) fun _ => do
     compileCmds cmds #[] k
 
+def compileFile [Inhabited α] (path : String) (k : Formulas → MetaM α) : MetaM α := do
+  let code ← getCode path
+  let components := (⟨path⟩ : System.FilePath).components
+  let leadingPath := System.mkFilePath (components.take (components.length - 3))
+  compile code leadingPath k
 
 elab "hello" : tactic => 
   compile "fof(goal_ax,axiom,
@@ -467,6 +473,7 @@ elab "hello" : tactic =>
       ( ( reflexive_rewrite(b,A)
         & reflexive_rewrite(c,A) )
      => goal ) )."
+    ""
     fun formulas => do
       for (x, _ , _) in formulas do
         logInfo m!"{x}"
