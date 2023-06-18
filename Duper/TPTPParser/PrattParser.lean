@@ -395,20 +395,43 @@ open Parser
 open Lean
 open Meta
 
-def getCode (path : String) : IO String := do
+partial def findFile (name : String) (dir : System.FilePath) : IO (Option System.FilePath) := do
+  -- search in [dir], and its parents recursively
+  if (name : System.FilePath).isRelative
+  then match ← search dir with
+    | .none =>
+      match ← IO.getEnv "TPTP" with
+      | .none => return .none
+      | .some dir' => search dir'
+    | .some res => return res
+  else if ← System.FilePath.pathExists name
+  then return .some name
+  else return .none
+where search (dir : System.FilePath) : IO (Option System.FilePath) := do
+    let curName := dir / name
+    if ← System.FilePath.pathExists curName
+    then return .some curName
+    else
+      let some dir' := dir.parent
+        | return .none
+      return ← search dir'
+
+def getCode (path : System.FilePath) : IO String := do
   let lines ← IO.FS.lines path
   let lines := lines.filter fun l => ¬ l.startsWith "%"
   let code := String.join lines.toList
   return code
 
-partial def resolveIncludes (cmds : List Parser.Command) (leadingPath : System.FilePath) : IO (List Parser.Command) := do
+partial def resolveIncludes (cmds : List Parser.Command) (dir : System.FilePath) : IO (List Parser.Command) := do
   let mut res : Array Parser.Command := #[]
   for cmd in cmds do
     match cmd with
-    | ⟨"include", [⟨.ident path, []⟩]⟩ =>
-      let s ← getCode (leadingPath / path).toString
+    | ⟨"include", [⟨.ident name, []⟩]⟩ =>
+      let some path ← findFile (name : String) (dir : System.FilePath)
+        | throw $ IO.userError s!"Cannot find: {name}"
+      let s ← getCode path
       let cmds' ← Parser.parse s
-      let cmds' ← resolveIncludes cmds' leadingPath
+      let cmds' ← resolveIncludes cmds' dir
       for cmd' in cmds' do
         res := res.push cmd'
     | _ => res := res.push cmd   
@@ -476,18 +499,16 @@ def collectCnfFofConstants (cmds : List Parser.Command) : MetaM (HashMap String 
   return acc
 
 
-def compile [Inhabited α] (code : String) (leadingPath : System.FilePath) (k : Formulas → MetaM α) : MetaM α := do
+def compile [Inhabited α] (code : String) (dir : System.FilePath) (k : Formulas → MetaM α) : MetaM α := do
   let cmds ← Parser.parse code
-  let cmds ← resolveIncludes cmds leadingPath
+  let cmds ← resolveIncludes cmds dir
   let constants ← collectCnfFofConstants cmds
   withLocalDeclsD (constants.toArray.map fun (n, ty) => (n, fun _ => pure ty)) fun _ => do
     compileCmds cmds #[] k
 
 def compileFile [Inhabited α] (path : String) (k : Formulas → MetaM α) : MetaM α := do
   let code ← getCode path
-  let components := (⟨path⟩ : System.FilePath).components
-  let leadingPath := System.mkFilePath (components.take (components.length - 3))
-  compile code leadingPath k
+  compile code (path : System.FilePath).parent.get! k
 
 elab "hello" : tactic => 
   compile "
