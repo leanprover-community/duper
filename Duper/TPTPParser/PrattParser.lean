@@ -31,7 +31,7 @@ deriving Repr
 def tokens := [
   "@", "|", "&", "<=>", "=>", "<=", "<~>", "~|", "~&", ">", "=", "!=",
   "~", ",", "(", ")", "*", "!", "?", "^", ":", "[", "]", "!>", ".", "*"
-]
+] -- TODO: Add ?? and !!
 
 def tokenHashMap : HashSet String := 
   HashSet.empty.insertMany tokens
