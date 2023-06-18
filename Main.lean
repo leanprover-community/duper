@@ -40,21 +40,22 @@ def run (path : String) (github : Bool) : MetaM Unit := do
       ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
         ProverM.saturateNoPreprocessingClausification
         (Array.toList formulas)
+    let fileName := (path : System.FilePath).fileName.get!
     match state.result with
     | Result.contradiction => do
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
       try
-        IO.println s!"SZS status Theorem for {path}"
+        IO.println s!"SZS status Theorem for {fileName}"
         if !github then
-          IO.println s!"SZS output start Proof for {path}"
+          IO.println s!"SZS output start Proof for {fileName}"
           printProof state
-          IO.println s!"SZS output end Proof for {path}"
+          IO.println s!"SZS output end Proof for {fileName}"
       catch
-      | _ => IO.println s!"SZS status Error for {path}"
+      | _ => IO.println s!"SZS status Error for {fileName}"
     | Result.saturated =>
-      IO.println s!"SZS status GaveUp for {path}"
+      IO.println s!"SZS status GaveUp for {fileName}"
     | Result.unknown =>
-      IO.println s!"SZS status Timeout for {path}"
+      IO.println s!"SZS status Timeout for {fileName}"
 
 def main : List String → IO UInt32 := fun args => do
   if args.length == 0 then 
