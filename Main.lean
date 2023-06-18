@@ -9,7 +9,7 @@ open Lean.Elab.Tactic
 open Duper
 open ProverM
 
-def run (path : String) (proofOutput : Bool) : MetaM Unit := do
+def run (path : String) (github : Bool) : MetaM Unit := do
 
   let env ← getEnv
   let prop := mkSort levelZero
@@ -45,7 +45,7 @@ def run (path : String) (proofOutput : Bool) : MetaM Unit := do
       trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
       try
         IO.println s!"SZS status Theorem for {path}"
-        if proofOutput then
+        if !github then
           IO.println s!"SZS output start Proof for {path}"
           printProof state
           IO.println s!"SZS output end Proof for {path}"
@@ -62,7 +62,9 @@ def main : List String → IO UInt32 := fun args => do
     return 1
   else
     let env ← mkEmptyEnvironment
+    let github := (args.length > 1 && args[1]! == "--github")
+    let maxHeartbeats := if github then 200000 * 1000 else 0
     let _ ← Meta.MetaM.toIO
-      (ctxCore := {fileName := "none", fileMap := .ofString ""}) (sCore := {env})
-      (ctx := {}) (s := {}) (run args[0]! !(args.length > 1 && args[1]! == "-s"))
+      (ctxCore := {fileName := "none", fileMap := .ofString "", maxHeartbeats := maxHeartbeats}) (sCore := {env})
+      (ctx := {}) (s := {}) (run args[0]! github)
     return 0
