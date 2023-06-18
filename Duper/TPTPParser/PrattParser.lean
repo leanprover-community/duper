@@ -210,6 +210,13 @@ partial def parseLhs : ParserM Term := do
     else
       return Term.mk nextToken []
   else if nextToken == .op "(" then
+    let p ← peek
+    if (infixBindingPower? p.toString).isSome then
+      -- support for (&) syntax
+      let p ← next
+      parseToken (.op ")")
+      return ⟨p, []⟩
+    else      
     let lhs ← parseTerm 0
     parseToken (.op ")")
     return lhs
@@ -331,18 +338,41 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
       mkAppM `Exists #[← mkLambdaFVars #[v] (← toLeanExpr ⟨.op "?", body :: tail⟩)]
   | ⟨.op "!", body :: []⟩ | ⟨.op "!>", body :: []⟩ | ⟨.op "^", body :: []⟩ | ⟨.op "?", body :: []⟩ =>
     body.toLeanExpr
-  | ⟨.op "~", [a]⟩   => mkAppM `Not #[← a.toLeanExpr]
-  | ⟨.op "~", []⟩   => pure $ mkConst `Not
-  | ⟨.op "|", as⟩   => mkAppM `Or (← as.mapM toLeanExpr).toArray
-  | ⟨.op "&", as⟩   => mkAppM `And (← as.mapM toLeanExpr).toArray
-  | ⟨.op "<=>", as⟩ => mkAppM `Iff (← as.mapM toLeanExpr).toArray
-  | ⟨.op "!=", as⟩  => mkAppM `Ne (← as.mapM toLeanExpr).toArray
-  | ⟨.op "=", as⟩   => mkAppM `Eq (← as.mapM toLeanExpr).toArray
-  | ⟨.op "~|", as⟩  => mkAppM ``Not #[← mkAppM `Or (← as.mapM toLeanExpr).toArray]
-  | ⟨.op "~&", as⟩  => mkAppM ``Not #[← mkAppM `And (← as.mapM toLeanExpr).toArray]
-  | ⟨.op "<~>", as⟩ => mkAppM ``Not #[← mkAppM `Iff (← as.mapM toLeanExpr).toArray]
-  | ⟨.op "@", [a,b]⟩ => return mkApp (← a.toLeanExpr) (← b.toLeanExpr)
+
+  | ⟨.op "~", [a]⟩     => mkAppM `Not #[← a.toLeanExpr]
+  | ⟨.op "|", [a,b]⟩   => mkAppM `Or (← [a,b].mapM toLeanExpr).toArray
+  | ⟨.op "&", [a,b]⟩   => mkAppM `And (← [a,b].mapM toLeanExpr).toArray
+  | ⟨.op "<=>", [a,b]⟩ => mkAppM `Iff (← [a,b].mapM toLeanExpr).toArray
+  | ⟨.op "!=", [a,b]⟩  => mkAppM `Ne (← [a,b].mapM toLeanExpr).toArray
+  | ⟨.op "=", [a,b]⟩   => mkAppM `Eq (← [a,b].mapM toLeanExpr).toArray
+  | ⟨.op "~|", [a,b]⟩  => mkAppM ``Not #[← mkAppM `Or (← [a,b].mapM toLeanExpr).toArray]
+  | ⟨.op "~&", [a,b]⟩  => mkAppM ``Not #[← mkAppM `And (← [a,b].mapM toLeanExpr).toArray]
+  | ⟨.op "<~>", [a,b]⟩ => mkAppM ``Not #[← mkAppM `Iff (← [a,b].mapM toLeanExpr).toArray]
+  | ⟨.op "@", [a,b]⟩   => return mkApp (← a.toLeanExpr) (← b.toLeanExpr)
   | ⟨.op "=>", [a,b]⟩ | ⟨.op "<=", [b,a]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
+
+  | ⟨.op "~", []⟩   => pure $ mkConst `Not
+  | ⟨.op "|", []⟩   => pure $ mkConst `Or
+  | ⟨.op "&", []⟩   => pure $ mkConst `And
+  | ⟨.op "<=>", []⟩ => pure $ mkConst `Iff
+  | ⟨.op "!=", []⟩  => pure $ mkConst `Ne
+  | ⟨.op "=", []⟩   => pure $ mkConst `Eq
+  | ⟨.op "~|", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
+                         mkLambda `y .default (mkSort levelZero) $ 
+                           mkAppN (mkConst ``Not) #[mkAppN (mkConst ``Or) #[.bvar 1, .bvar 0]]
+  | ⟨.op "~&", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
+                         mkLambda `y .default (mkSort levelZero) $ 
+                           mkAppN (mkConst ``Not) #[mkAppN (mkConst ``And) #[.bvar 1, .bvar 0]]
+  | ⟨.op "<~>", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
+                         mkLambda `y .default (mkSort levelZero) $ 
+                           mkAppN (mkConst ``Not) #[mkAppN (mkConst ``Iff) #[.bvar 1, .bvar 0]]
+  | ⟨.op "=>", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
+                         mkLambda `y .default (mkSort levelZero) $ 
+                           Lean.mkForall `i BinderInfo.default (.bvar 1) (.bvar 1)
+  | ⟨.op "<=", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
+                         mkLambda `y .default (mkSort levelZero) $ 
+                           Lean.mkForall `i BinderInfo.default (.bvar 0) (.bvar 2)
+
   | ⟨.op ">", [⟨.op "*", [a, b]⟩, c]⟩   => toLeanExpr ⟨.op ">", [a, ⟨.op ">", [b, c]⟩]⟩
   | ⟨.op ">", [a, b]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
   | _ => throwError "Could not translate to Lean Expr: {repr t}"
@@ -493,5 +523,6 @@ set_option trace.Meta.debug true
 #eval toLeanExpr "![x : $tType]: ![a : x]: a != a"
 #eval toLeanExpr "$true != $true"
 #eval toLeanExpr "$true & $true"
+#eval toLeanExpr "(<=)"
 
 end TPTP
