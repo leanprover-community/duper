@@ -412,6 +412,40 @@ def addSkolemSorry : CoreM Name := do
   | Except.error ex  => throwKernelException ex
   return name
 
+def unfoldDefinitions (formulas : List (Expr × Expr × Array Name)) : MetaM (List (Expr × Expr × Array Name)) := do
+  withTransparency .reducible do
+  let mut newFormulas := formulas
+  for (e, proof, paramNames) in formulas do
+    let update (ty lhs rhs : Expr) newFormulas (containedIn : Expr → Bool) : MetaM _ := do
+      if containedIn rhs then pure newFormulas else
+        newFormulas.mapM fun (f, fproof, fparamNames) => do
+          if !containedIn f then
+            return (f, fproof, fparamNames)
+          else
+            let us ← paramNames.mapM fun _ => mkFreshLevelMVar
+            let lhs'   := lhs.instantiateLevelParamsArray paramNames us
+            let ty'    := ty.instantiateLevelParamsArray paramNames us
+            let rhs'   := rhs.instantiateLevelParamsArray paramNames us
+            let proof' := proof.instantiateLevelParamsArray paramNames us
+            let abstracted ← Meta.kabstract f lhs'
+            let f := abstracted.instantiate1 rhs'
+            let fproof ← withTransparency .default do mkAppOptM ``Eq.ndrec #[none,
+              some $ lhs,
+              some $ mkLambda `x .default ty' abstracted,
+              fproof,
+              rhs',
+              proof']
+            return (f, ← instantiateMVars $ fproof, fparamNames)
+    match e with
+    | .app ( .app ( .app (.const ``Eq _) ty) (.fvar fid)) rhs =>
+      let containedIn := fun e => (e.find? (· == .fvar fid)).isSome
+      newFormulas ← update ty (.fvar fid) rhs newFormulas containedIn
+    | .app ( .app ( .app (.const ``Eq _) ty) (.const cname lvls)) rhs =>
+      let containedIn := fun e => (e.find? (·.isConstOf cname)).isSome
+      newFormulas ← update ty (.const cname lvls) rhs newFormulas containedIn
+    | _ => pure ()
+  return newFormulas
+
 syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
 
 macro_rules
@@ -419,6 +453,7 @@ macro_rules
 
 def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
+  let formulas ← unfoldDefinitions formulas
   trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
   -- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv`
   --   because new definitional equations might be generated during
