@@ -1,3 +1,3 @@
 #!/bin/sh
- 
-./duper $1
+
+./duper "$1"
