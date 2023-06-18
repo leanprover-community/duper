@@ -16,13 +16,11 @@ deriving Repr, BEq
 inductive Token :=
 | op (op : String)
 | ident (ident : String)
-| string (str : String)
 deriving Repr, Inhabited, BEq
 
 def Token.toString : Token → String
 | .op a => a
 | .ident a => a
-| .string a => a
 
 structure State where
 (status : Status := .default)
@@ -69,7 +67,7 @@ def addCurrToken : TokenizerM Unit := do
         match s.status with 
         | .default => .op s.currToken 
         | .ident => .ident s.currToken
-        | .string => .string s.currToken,
+        | .string => .ident s.currToken,
       currToken := ""
     }
 
@@ -186,12 +184,6 @@ def parseIdent : ParserM String := do
     | throw $ IO.userError s!"Expected identifier, got '{repr nextToken}'"
   return id
 
-def parseString : ParserM String := do
-  let nextToken ← next
-  let .string str := nextToken
-    | throw $ IO.userError s!"Expected string, got '{repr nextToken}'"
-  return str
-
 partial def parseSep (sep : Token) (p : ParserM α) : ParserM (List α) := do
   let t ← p
   if (← peek?) == some sep then
@@ -283,10 +275,10 @@ def parseCommand : ParserM Command := do
     return ⟨cmd, [Term.mk (.ident name) [], Term.mk (.ident kind) [], val]⟩
   | "include" =>
     parseToken (.op "(")
-    let str ← parseString
+    let str ← parseIdent
     parseToken (.op ")")
     parseToken (.op ".")
-    return ⟨cmd, [Term.mk (.string str) []]⟩
+    return ⟨cmd, [Term.mk (.ident str) []]⟩
   | _ => throw $ IO.userError "Command '{cmd}' not supported"
 
 
@@ -325,18 +317,20 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
     let some decl := (← getLCtx).findFromUserName? n
       | throwError "Unknown variable name {n}"
     return mkAppN (mkFVar decl.fvarId) (← as.mapM toLeanExpr).toArray
-  | ⟨.op "!", body :: vars⟩ | ⟨.op "!>", body :: vars⟩ => 
-    withLocalDeclsD (← makeLocalDecls body vars) fun vs => do
-      mkForallFVars vs (← body.toLeanExpr)
-  | ⟨.op "^", body :: vars⟩ =>
-    withLocalDeclsD (← makeLocalDecls body vars) fun vs => do
-      mkLambdaFVars vs (← body.toLeanExpr)
-  | ⟨.op "?", body :: vars⟩ =>
-    withLocalDeclsD (← makeLocalDecls body vars) fun vs => do
-      let mut res ← body.toLeanExpr
-      for v in vs.reverse do
-        res ← mkAppM `Exists #[← mkLambdaFVars #[v] res]
-      return res
+  | ⟨.op "!", body :: var :: tail⟩ =>
+    withVar var fun v => do
+      mkForallFVars #[v] (← toLeanExpr ⟨.op "!", body :: tail⟩)
+  | ⟨.op "!>", body :: var :: tail⟩ =>
+    withVar var fun v => do
+      mkForallFVars #[v] (← toLeanExpr ⟨.op "!>", body :: tail⟩)
+  | ⟨.op "^", body :: var :: tail⟩ =>
+    withVar var fun v => do
+      mkLambdaFVars #[v] (← toLeanExpr ⟨.op "^", body :: tail⟩)
+  | ⟨.op "?", body :: var :: tail⟩ =>
+    withVar var fun v => do
+      mkAppM `Exists #[← mkLambdaFVars #[v] (← toLeanExpr ⟨.op "?", body :: tail⟩)]
+  | ⟨.op "!", body :: []⟩ | ⟨.op "!>", body :: []⟩ | ⟨.op "^", body :: []⟩ | ⟨.op "?", body :: []⟩ =>
+    body.toLeanExpr
   | ⟨.op "~", [a]⟩   => mkAppM `Not #[← a.toLeanExpr]
   | ⟨.op "~", []⟩   => pure $ mkConst `Not
   | ⟨.op "|", as⟩   => mkAppM `Or (← as.mapM toLeanExpr).toArray
@@ -353,17 +347,15 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   | ⟨.op ">", [a, b]⟩ => mkArrow (← a.toLeanExpr) (← b.toLeanExpr)
   | _ => throwError "Could not translate to Lean Expr: {repr t}"
 where
-  makeLocalDecls (body : Term) (vars : List Term): MetaM (Array (Name × (Array Expr → MetaM Expr))) := do
-    let decls : List (Name × (Array Expr → MetaM Expr)) ← vars.mapM fun var => do
-      match var with
-      | ⟨.ident v, ty⟩ =>
-        let ty ← match ty with
-        | [ty] => ty.toLeanExpr
-        | [] => pure $ mkConst `Iota
-        | _ => throwError "invalid bound var: {repr var}"
-        return (v, fun (_ : Array Expr) => pure ty)
+  withVar {α : Type _} (var : Term) (k : Expr → MetaM α) : MetaM α := do
+    match var with
+    | ⟨.ident v, ty⟩ =>
+      let ty ← match ty with
+      | [ty] => ty.toLeanExpr
+      | [] => pure $ mkConst `Iota
       | _ => throwError "invalid bound var: {repr var}"
-    return decls.toArray
+      withLocalDeclD v ty k
+    | _ => throwError "invalid bound var: {repr var}"
 
 end Term
 
@@ -383,7 +375,7 @@ partial def resolveIncludes (cmds : List Parser.Command) (leadingPath : System.F
   let mut res : Array Parser.Command := #[]
   for cmd in cmds do
     match cmd with
-    | ⟨"include", [⟨.string path, []⟩]⟩ =>
+    | ⟨"include", [⟨.ident path, []⟩]⟩ =>
       let s ← getCode (leadingPath / path).toString
       let cmds' ← Parser.parse s
       let cmds' ← resolveIncludes cmds' leadingPath
@@ -468,12 +460,18 @@ def compileFile [Inhabited α] (path : String) (k : Formulas → MetaM α) : Met
   compile code leadingPath k
 
 elab "hello" : tactic => 
-  compile "fof(goal_ax,axiom,
-    ! [A] :
-      ( ( reflexive_rewrite(b,A)
-        & reflexive_rewrite(c,A) )
-     => goal ) )."
-    ""
+  compile "
+      thf(ty_t_itself,type,
+          itself: $tType > $tType ).
+
+      thf(ty_tf_rule,type,
+          rule: $tType ).
+
+      thf(sy_cl_Finite__Set_Ofinite,type,
+          finite_finite: 
+            !>[A: $tType] : ( ( itself @ A ) > $o ) ).
+      " 
+      ""
     fun formulas => do
       for (x, _ , _) in formulas do
         logInfo m!"{x}"
