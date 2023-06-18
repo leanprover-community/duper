@@ -10,7 +10,6 @@ open Duper
 open ProverM
 
 def run (path : String) (proofOutput : Bool) : MetaM Unit := do
-  let code ← TPTP.getCode path
 
   let env ← getEnv
   let prop := mkSort levelZero
@@ -35,7 +34,7 @@ def run (path : String) (proofOutput : Bool) : MetaM Unit := do
   
   setEnv env
 
-  TPTP.compile code fun formulas => do
+  TPTP.compileFile path fun formulas => do
     let skSorryName ← addSkolemSorry
     let (_, state) ←
       ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
