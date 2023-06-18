@@ -15,6 +15,8 @@ def run (path : String) (github : Bool) : MetaM Unit := do
   let prop := mkSort levelZero
   let type := mkSort levelOne
   let sortu := mkSort (.param `u)
+  let sortu1 := mkSort (.param `u1)
+  let sortu2 := mkSort (.param `u2)
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Nat, levelParams := [], type := type, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Iota, levelParams := [], type := type, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Bool, levelParams := [], type := type, isUnsafe := false})
@@ -31,15 +33,28 @@ def run (path : String) (github : Bool) : MetaM Unit := do
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Exists, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) prop, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Duper.Skolem.some, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) $ ← mkArrow (mkBVar 1) (mkBVar 2), isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Nonempty, levelParams := [`u], type := mkForall `α .default sortu prop, isUnsafe := false})
-  
+  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl 
+    { name := `Eq.ndrec, levelParams := [`u1, `u2],
+      type := 
+        mkForall `α .implicit sortu2 $ 
+        mkForall `a .implicit (.bvar 0) $
+        mkForall `motive .implicit (mkForall `x .default (.bvar 1) sortu1) $
+        mkForall `m .default (mkApp (.bvar 0) (.bvar 1)) $
+        mkForall `b .implicit (.bvar 3) $
+        mkForall `h .default (mkApp3 (mkConst ``Eq [.param `u2]) (.bvar 4) (.bvar 3) (.bvar 0)) $
+        (mkApp (.bvar 3) (.bvar 1)),
+      isUnsafe := false})
+
   setEnv env
 
   TPTP.compileFile path fun formulas => do
+    let formulas := Array.toList formulas
+    let formulas ← unfoldDefinitions formulas
     let skSorryName ← addSkolemSorry
     let (_, state) ←
       ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
         ProverM.saturateNoPreprocessingClausification
-        (Array.toList formulas)
+        formulas
     let fileName := (path : System.FilePath).fileName.get!
     match state.result with
     | Result.contradiction => do
