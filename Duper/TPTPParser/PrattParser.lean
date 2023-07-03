@@ -11,6 +11,7 @@ inductive Status :=
 | default
 | ident
 | string
+| comment
 deriving Repr, BEq
 
 inductive Token :=
@@ -67,7 +68,8 @@ def addCurrToken : TokenizerM Unit := do
         match s.status with 
         | .default => .op s.currToken 
         | .ident => .ident s.currToken
-        | .string => .ident s.currToken,
+        | .string => .ident s.currToken
+        | .comment => panic! s!"Cannot add comment as token"
       currToken := ""
     }
 
@@ -80,40 +82,48 @@ def finalizeToken : TokenizerM Unit := do
       else throw $ IO.userError s!"Invalid token: {(← getCurrToken)}"
     | .ident => addCurrToken
     | .string => addCurrToken
+    | .comment => throw $ IO.userError s!"Cannot finalize comment"
     setStatus .default
 
 def tokenizeAux (str : String) : TokenizerM Unit := do
   for char in str.data do
-    if char.isWhitespace && (← getStatus) != .string then
+    match ← getStatus with
+    | .default =>
+      if char.isWhitespace then
         finalizeToken
-    else
-      match ← getStatus with
-      | .default =>
-        if char.isAlpha || char == '$' then
-          finalizeToken
-          setStatus .ident
-          addToCurrToken char
-        else if char == '\'' then
-          finalizeToken
-          setStatus .string
-        else if tokenPrefixes.contains ((← getCurrToken).push char) then
-          addToCurrToken char
-        else if tokenPrefixes.contains (⟨[char]⟩) then
-          finalizeToken
-          addToCurrToken char
-        else throw $ IO.userError s!"Invalid token: {char}"
-      | .ident => 
-        if char.isAlphanum || char == '_'
-        then addToCurrToken char
-        else
-          finalizeToken
-          addToCurrToken char
-          setStatus .default
-      | .string =>
-        if char == '\'' then
-          finalizeToken
-        else
-          addToCurrToken char
+      else if char.isAlpha || char == '$' then
+        finalizeToken
+        setStatus .ident
+        addToCurrToken char
+      else if char == '\'' then
+        finalizeToken
+        setStatus .string
+      else if char == '%' then
+        finalizeToken
+        setStatus .comment
+      else if tokenPrefixes.contains ((← getCurrToken).push char) then
+        addToCurrToken char
+      else if tokenPrefixes.contains (⟨[char]⟩) then
+        finalizeToken
+        addToCurrToken char
+      else throw $ IO.userError s!"Invalid token: {char}"
+    | .ident =>
+      if char.isWhitespace then
+        finalizeToken
+      else if char.isAlphanum || char == '_' then
+        addToCurrToken char
+      else
+        finalizeToken
+        addToCurrToken char
+        setStatus .default
+    | .string =>
+      if char == '\'' then
+        finalizeToken
+      else
+        addToCurrToken char
+    | .comment =>
+      if char == '\n' then
+        setStatus .default
           
           
   
@@ -416,12 +426,6 @@ where search (dir : System.FilePath) : IO (Option System.FilePath) := do
         | return .none
       return ← search dir'
 
-def getCode (path : System.FilePath) : IO String := do
-  let lines ← IO.FS.lines path
-  let lines := lines.filter fun l => ¬ l.startsWith "%"
-  let code := String.join lines.toList
-  return code
-
 partial def resolveIncludes (cmds : List Parser.Command) (dir : System.FilePath) : IO (List Parser.Command) := do
   let mut res : Array Parser.Command := #[]
   for cmd in cmds do
@@ -429,7 +433,8 @@ partial def resolveIncludes (cmds : List Parser.Command) (dir : System.FilePath)
     | ⟨"include", [⟨.ident name, []⟩]⟩ =>
       let some path ← findFile (name : String) (dir : System.FilePath)
         | throw $ IO.userError s!"Cannot find: {name}"
-      let s ← getCode path
+      IO.println s!"Reading included file: {path}"
+      let s ← IO.FS.readFile path
       let cmds' ← Parser.parse s
       let cmds' ← resolveIncludes cmds' dir
       for cmd' in cmds' do
@@ -507,7 +512,7 @@ def compile [Inhabited α] (code : String) (dir : System.FilePath) (k : Formulas
     compileCmds cmds #[] k
 
 def compileFile [Inhabited α] (path : String) (k : Formulas → MetaM α) : MetaM α := do
-  let code ← getCode path
+  let code ← IO.FS.readFile path
   compile code (path : System.FilePath).parent.get! k
 
 elab "hello" : tactic => 
