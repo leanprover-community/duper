@@ -17,7 +17,7 @@ initialize Lean.registerTraceClass `Rule.equalityFactoring
   2. The reason we require four soundness proofs is that from the literals s = t and u = v, we may have s unified with u, s unified with v,
      t unified with u, or t unified with v.
 -/
-theorem equality_factoring_soundness1 {α : Type} {s : α} {t : α} (v : α) (h : s = t) : t ≠ v ∨ s = v := by
+theorem equality_factoring_soundness1 {α : Sort _} {s : α} {t : α} (v : α) (h : s = t) : t ≠ v ∨ s = v := by
   apply @Classical.byCases (s = v)
   . intro s_eq_v
     exact Or.intro_right _ s_eq_v
@@ -25,7 +25,7 @@ theorem equality_factoring_soundness1 {α : Type} {s : α} {t : α} (v : α) (h 
     rw [← h]
     exact Or.intro_left _ s_ne_v
 
-theorem equality_factoring_soundness2 {α : Type} {s : α} {t : α} (u : α) (h : s = t) : t ≠ u ∨ u = s := by
+theorem equality_factoring_soundness2 {α : Sort _} {s : α} {t : α} (u : α) (h : s = t) : t ≠ u ∨ u = s := by
   apply @Classical.byCases (u = s)
   . intro u_eq_s
     exact Or.intro_right _ u_eq_s
@@ -33,7 +33,7 @@ theorem equality_factoring_soundness2 {α : Type} {s : α} {t : α} (u : α) (h 
     rw [← h]
     exact Or.intro_left _ (Ne.symm u_ne_s)
   
-theorem equality_factoring_soundness3 {α : Type} {s : α} {t : α} (v : α) (h : s = t) : s ≠ v ∨ t = v := by
+theorem equality_factoring_soundness3 {α : Sort _} {s : α} {t : α} (v : α) (h : s = t) : s ≠ v ∨ t = v := by
   apply @Classical.byCases (t = v)
   . intro t_eq_v
     exact Or.intro_right _ t_eq_v
@@ -41,7 +41,7 @@ theorem equality_factoring_soundness3 {α : Type} {s : α} {t : α} (v : α) (h 
     rw [h]
     exact Or.intro_left _ t_ne_v
 
-theorem equality_factoring_soundness4 {α : Type} {s : α} {t : α} (u : α) (h : s = t) : s ≠ u ∨ u = t := by
+theorem equality_factoring_soundness4 {α : Sort _} {s : α} {t : α} (u : α) (h : s = t) : s ≠ u ∨ u = t := by
   apply @Classical.byCases (u = t)
   . intro u_eq_t
     exact Or.intro_right _ u_eq_t

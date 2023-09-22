@@ -108,6 +108,8 @@ theorem test2
 
 #print test2
 
+theorem test3 (f g : α → α) : (∀ x, f x = g x) = (∀ x, f x = g x) := by duper
+
 theorem puzzle1 {ι : Type} (johanna : ι) (bill : ι) (peanuts : ι)
   (food : ι → Prop) (alive : ι → Prop) 
   (likes : ι → ι → Prop) (eats : ι → ι → Prop) (was_killed_by : ι → ι → Prop)
