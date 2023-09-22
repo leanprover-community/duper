@@ -283,16 +283,13 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
     let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
     proofParentsPre := proofParentsPre.push ⟨finstantiatedparent, loadedClause, paramSubst⟩
   let cst ← get
-  let proofParents := proofParentsPre.map (fun x =>
-    -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
-    let instantiatedparent := cst.lctx.mkForall cst.fvars x.expr
-    {x with expr := instantiatedparent})
+  let lctx := cst.lctx
   -- Before building abstec, we want to process cst.lctx and cst.fvars to remove redundant abstractions
   -- An abstraction is redundant if it does not appear in fec or any transfer expression and has a type
   -- which has already been abstracted
   -- Ex: `∀ x : t, ∀ y : t, ∀ z : t, ∀ a : Nat, ∀ b : Nat, f a b` should become `∀ x : t, ∀ a : Nat, ∀ b : Nat, f a b`
-  let mut lctx := cst.lctx
   let mut fvars := cst.fvars
+  let mut erasedFVars := #[]
   let mut abstractedTypes := HashSet.empty
   for fvar in cst.fvars do
     let fvarId := fvar.fvarId!
@@ -301,20 +298,23 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
     if abstractedTypes.contains fvarType then
       if !fec.containsFVar fvarId && ftransferExprs.all (fun transferExpr => !transferExpr.containsFVar fvarId) then
         -- fvar is redundant
-        lctx := lctx.erase fvarId
         fvars := fvars.erase fvar
+        erasedFVars := erasedFVars.push fvar
     else
       abstractedTypes := abstractedTypes.insert fvarDecl.type
   -- In addition to removing redundant abstractions, we want to remove fvars that correspond to mvars that are in mvarsToRemove
   for mvarId in mvarIdsToRemove do
     let fvar := cst.emap.find! mvarId
-    let fvarId := fvar.fvarId!
-    lctx := lctx.erase fvarId
     fvars := fvars.erase fvar
+    erasedFVars := erasedFVars.push fvar
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`
   let abstec := lctx.mkForall fvars fec
   let transferExprs := ftransferExprs.map (lctx.mkLambda fvars)
   let c := Clause.fromForallExpr cst.paramNames abstec
+  let proofParents := proofParentsPre.map (fun x =>
+    -- `instantiatedparent = fun fvars => ((fun [vars] => parent[vars]) mvars[fvars])`
+    let instantiatedparent := lctx.mkForall (fvars ++ erasedFVars) x.expr
+    {x with expr := instantiatedparent})
   return (c, proofParents, transferExprs)
 
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
