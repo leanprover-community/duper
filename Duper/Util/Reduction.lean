@@ -6,15 +6,14 @@ open Lean
 open Meta
 open Core
 
-/-- This function is expensive and should only be used
-   in preprocessing -/
+/-- This function is expensive and should only be used in preprocessing -/
 partial def preprocessFact (fact : Expr) : MetaM Expr := do
   let red (e : Expr) : MetaM TransformStep := do
     let e := e.consumeMData
     let e ← whnf e
     return .continue e
   -- Reduce
-  let fact ← withTransparency .instances <| Meta.transform fact (pre := red) (usedLetOnly := false)
+  let fact ← withTransparency .instances /- .all -/ <| Meta.transform fact (pre := red) (usedLetOnly := false)
   let restoreNE (e : Expr) : MetaM TransformStep := do
     match e with
     | .app (.const ``Not []) (.app (.app (.app (.const ``Eq lvls) ty) e₁) e₂) =>
@@ -25,8 +24,7 @@ partial def preprocessFact (fact : Expr) : MetaM Expr := do
   let fact ← Core.transform fact (pre := restoreNE)
   return fact
 
-/-- Eta-expand a beta-reduced expression.
-  This function is currently unused -/
+/-- Eta-expand a beta-reduced expression. This function is currently unused -/
 partial def etaLong (e : Expr) : MetaM Expr := do
   match e with
   | Expr.forallE .. =>
@@ -68,8 +66,8 @@ where
     return ret
 
 /-- Applies eta reduction to `e` and all of its subexpressions
- TODO: Make sure that when calling this function from other files,
-   the term supplied to it does not contain loose bound variables. -/
+  TODO: Make sure that when calling this function from other files,
+  the term supplied to it does not contain loose bound variables. -/
 partial def etaReduce (e : Expr) : MetaM Expr := do
   let post (e : Expr) : MetaM TransformStep := do
     match e.etaExpanded? with

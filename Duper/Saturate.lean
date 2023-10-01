@@ -50,7 +50,9 @@ open Std
 open ProverM
 open RuleM
 
-initialize registerTraceClass `Timeout.debug
+initialize
+  registerTraceClass `Timeout.debug
+  registerTraceClass `Timeout.debug.fullActiveSet
 
 open SimpResult
 
@@ -243,7 +245,7 @@ partial def saturate : ProverM Unit := do
       trace[Timeout.debug] m!"Active set unit clause numbers: " ++
         m!"{← ((← getActiveSet).toArray.filter (fun x => x.lits.size = 1)).mapM (fun c => return (← getClauseInfo! c).number)}"
       trace[Timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
-      -- trace[Timeout.debug] "All clauses at timeout: {Array.map (fun x => x.1) (← getAllClauses).toArray}"
+      trace[Timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
       throw e
 
 def clausifyThenSaturate : ProverM Unit := do

@@ -335,7 +335,6 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
   let mkProof := match mkProof with
   | some mkProof => mkProof
   | none => fun _ _ _ _ =>
-    -- TODO: Remove sorry!?
     Lean.Meta.mkSorry c.toForallExpr (synthetic := true)
   let proof := {
     parents := proofParents,  

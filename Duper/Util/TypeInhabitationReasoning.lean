@@ -81,7 +81,8 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
           return (PotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
         else -- This is a type we haven't seen yet. Try to synthesize inhabited
           match ← Meta.findInstance mvarType with
-          | none => return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
+          | none =>
+            return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
           | some _ =>
             verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
             mvarIdsToRemove := mvarIdsToRemove.push mvarId
