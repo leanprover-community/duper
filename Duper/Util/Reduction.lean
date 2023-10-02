@@ -13,7 +13,9 @@ partial def preprocessFact (fact : Expr) : MetaM Expr := do
     let e ← whnf e
     return .continue e
   -- Reduce
-  let fact ← withTransparency .instances /- .all -/ <| Meta.transform fact (pre := red) (usedLetOnly := false)
+  trace[Preprocessing.debug] "fact before preprocessing: {fact}"
+  let fact ← withTransparency .all <| Meta.transform fact (pre := red) (usedLetOnly := false)
+  trace[Preprocessing.debug] "fact after preprocessing: {fact}"
   let restoreNE (e : Expr) : MetaM TransformStep := do
     match e with
     | .app (.const ``Not []) (.app (.app (.app (.const ``Eq lvls) ty) e₁) e₂) =>

@@ -245,6 +245,10 @@ partial def saturate : ProverM Unit := do
       trace[Timeout.debug] m!"Active set unit clause numbers: " ++
         m!"{← ((← getActiveSet).toArray.filter (fun x => x.lits.size = 1)).mapM (fun c => return (← getClauseInfo! c).number)}"
       trace[Timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
+      trace[Timeout.debug] "Verified Inhabited Types: {(← getVerifiedInhabitedTypes).map (fun x => x.expr)}"
+      trace[Timeout.debug] "Verified Nonempty Types: {(← getVerifiedNonemptyTypes).map (fun x => x.1.expr)}"
+      trace[Timeout.debug] "Potentially Uninhabited Types: {(← getPotentiallyUninhabitedTypes).map (fun x => x.expr)}"
+      trace[Timeout.debug] "Potentially Vacuous Clauses: {(← getPotentiallyVacuousClauses).toArray}"
       trace[Timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
       throw e
 

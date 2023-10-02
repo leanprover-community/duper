@@ -16,7 +16,6 @@ open SimpResult
 
 initialize
   registerTraceClass `Unary_first.debug
-  registerTraceClass `Preprocessing.debug
 
 /-- Naively applies clausificationStep.toSimpRule to everything in the passive set (and everything produced by
     clausifying clauses in the passive set) without removing anything from the passive set. This preprocessing

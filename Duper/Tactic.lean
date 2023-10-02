@@ -12,6 +12,7 @@ initialize
   registerTraceClass `Print_Proof
   registerTraceClass `ProofReconstruction
   registerTraceClass `Saturate.debug
+  registerTraceClass `Preprocessing.debug
 
 namespace Lean.Elab.Tactic
 

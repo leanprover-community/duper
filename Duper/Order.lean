@@ -126,12 +126,12 @@ def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHas
   | Expr.bvar .. => 1
   | Expr.sort .. => 1
   | Expr.lit .. => 1
+  | Expr.proj .. => 1 -- Treating projections like fvar symbols (except we don't allow projections to have the highest precedence)
   | Expr.mdata .. => panic! s!"head_weight: mdata is not a valid head symbol {f}"
   | Expr.forallE .. => panic! s!"head_weight: forall is not a valid head symbol {f}"
   | Expr.lam .. => panic! s!"head_weight: lambda is not a valid head symbol {f}"
   | Expr.app .. => panic! s!"head_weight: app is not a valid head symbol {f}"
   | Expr.letE .. => panic! s!"head_weight: let expressions must be eliminated to compute order {f}"
-  | Expr.proj .. => panic! s!"head_weight: projections must be eliminated to compute order {f}"
 
 def weightVarHeaded : Weight := 1
 
