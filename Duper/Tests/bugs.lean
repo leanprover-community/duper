@@ -19,93 +19,15 @@ set_option pp.match false
 #print test.match_1
 #print Color.casesOn
 
-set_option trace.Saturate.debug true in
-set_option trace.Timeout.debug true in
-example : test .red = .green := by
-  duper [test, test.match_1, Color.rec, Color.casesOn]
-
--- Diagnosis of the above test:
-/-
-When inhabitationReasoning is enabled, test.match_1, Color.rec, and Color.casesOn are all potentially
-vacuous. This is caused by several issues in the current inhabitationReasoning. One issue is that Color2.Color
-itself is not recognized as Inhabited, though there appear to be other issues as well that I haven't fully
-figured out. In any case, the end result is premature saturation.
-
-When inhabitationReasoning is disabled, duper spends plenty of time reasoning, but the reasoning
-generates a ton of clauses, most of which aren't even unit clauses. I'm not 100% clear on whether
-duper is currently capable of solving the goal (and just needs to wade through a ton of unneeded
-clauses before it finds the one it actually needs), or whether the fact that duper has stuff to spin
-its wheels on is obscuring the fact that duper can't actually solve this goal. In this latter case,
-it might be due to issues actually deconstructing the arguments provided to duper (e.g. Color2.Color.rec)
-
-It's notable that when inhabitationReasoning is disabled, both of the following are in the active set:
-- `∀ (a : Color2.Color), Color2.test a = Color2.Color.rec Color2.Color.green Color2.Color.red a`
-  - The full rhs is `@Color2.Color.rec (fun x => Color2.Color) Color2.Color.green Color2.Color.red a`
-    which reduces to `Color.green` when a is red  (we can see that by calling #reduce)
-- `Color2.test Color2.Color.red ≠ Color2.Color.green`
-
-In the expanded form, it's unsurprising that the first premise's lhs would be smaller than the first premise's
-rhs. But if we reduced the first premise's rhs, then the rhs would just be Color.green, which would be smaller.
-Then, by setting a to red, we should be able to unify both premise's lhs to obtain .green ≠ .green (and from that,
-we would quickly obtain our contradiction)
-
-One question maybe worth asking is, in the current calculus, are we even instructed to compare the lhs of both
-premises. Because in their current (irreducible) state, the first premise's lhs is smaller than the first premise's
-rhs. This stop being true after we instantiate a and reduce the rhs, but it is true until that point.
-
-I do think that for superposition, the lhs of the second premise should be eligible for superposition based on
-(E2) of Defition 22. However, the issue for superposition is that for the first premise, by side condition 5,
-we can't have the unifying side be less than or equal to the side we are substituting in. After we instantiate a,
-both the lhs and rhs can be reduced to .red, but that's irrelevant because we definitely don't do substitution
-midway through the superposition rule. After applying σ (which instantiates a as red), we have that the lhs of
-the first premise is less than the rhs of the first premise, so we can't replace the first premise's lhs with its
-rhs in the second premise.
-
-Additional note: The above discouse concerns why I can't combine the two noted premises. And my conclusion is that
-duper is being faithful to the calculus in refusing to do this. However, it occurs to me that maybe the thing
-we should want of duper here isn't to use test.match_1, Color.rec, and Color.casesOn to obtain the result. Maybe
-we should instead just say that `test .red` is a reducible that ought to be reduced (and if we did reduce it, our
-goal would be immediately proven trivially). Having things like test.match_1, Color.rec, and Color.casesOn would
-perhaps be useful if the goal were more abstract (e.g. if we were trying to prove `∃ x : Color, test x = .green`),
-but as is, maybe we should want duper to just reduce `test .red` to `.green`
-
-Final note: If `preprocessFact` in `Util.Reduction.lean` is modified at line 17 to use transparency .all rather than
-.instances, the above goal is solved both with and without inhabitation reasoning. I can't recall the specific reason
-we were using .instances transparency though, so I'll refrain from actually making the modification until I can check
-in with Yicheng. However, even when this change is made, the example written below fails both with and without
-inhabitationReasoning. An alternative way to handle this would be to improve Duper's awareness of definitions so that,
-having given `test` as an explicit definition, it will know to unfold `test`. Rather than modifying the preprocessing,
-this approach would instead have definitional rewriting/unfolding be an explicit simplification rule.
--/
-
 set_option inhabitationReasoning false in
 set_option trace.Saturate.debug true in
 set_option trace.Timeout.debug true in
 example : ∃ c : Color, test c = .green := by
   duper [test, test.match_1, Color.rec, Color.casesOn]
 
+-- This bug demonstrates the difficulty Duper has dealing with inductive arguments and facts such as Color.rec
+
 end Color2
-
--- Bug 2
-instance : Neg Nat := sorry
-
-def even_int_fun (f : Int → Int) := ∀ x, f (-x) = f x
-def even_nat_fun (f : Nat → Nat) := ∀ x, f (-x) = f x
-
-instance : Add (Int → Int) := (⟨fun f g x => f x + g x⟩ : Add (Int → Int))
-instance : Add (Nat → Nat) := (⟨fun f g x => f x + g x⟩ : Add (Nat → Nat))
-
--- Although it takes longer than I would prefer (~2s), duper is able to solve this
-set_option trace.Print_Proof true in
-example (f : Int → Int) (hf : ∀ x, f (-x) = f x) : even_int_fun f := by -- The goal is the same as hf
-  duper [even_int_fun]
-
--- Although duper can solve the above example, it appears to time out on this example. I haven't yet pinpointed
--- the reason why these two examples behave differently
-set_option trace.Timeout.debug true in
-set_option trace.Timeout.debug.fullActiveSet true in
-example (f : Nat → Nat) (hf : ∀ x, f (-x) = f x) : even_nat_fun f := by -- The goal is the same as hf
-  duper [even_nat_fun]
 
 -- Bug 3
 -- This example is the same as the below example except it was manually skolemized

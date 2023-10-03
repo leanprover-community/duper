@@ -629,3 +629,19 @@ set_option simultaneousSuperposition false in
 example : ∀ a b, @Nat.rec (fun _ => Bool) a b Nat.zero = a := by duper [Nat.rec]
 
 end RecursorTests
+--###############################################################################################################################
+-- Tests interaction with instances
+instance : Neg Nat := sorry
+-- @Neg.neg instNegNat gets reduced to (sorry).1, so working with this instance requires that Order.lean support projections
+
+def even_int_fun (f : Int → Int) := ∀ x, f (-x) = f x
+def even_nat_fun (f : Nat → Nat) := ∀ x, f (-x) = f x
+
+instance : Add (Int → Int) := (⟨fun f g x => f x + g x⟩ : Add (Int → Int))
+instance : Add (Nat → Nat) := (⟨fun f g x => f x + g x⟩ : Add (Nat → Nat))
+
+example (f : Int → Int) (hf : ∀ x, f (-x) = f x) : even_int_fun f := by -- The goal is the same as hf
+  duper [even_int_fun]
+
+example (f : Nat → Nat) (hf : ∀ x, f (-x) = f x) : even_nat_fun f := by -- The goal is the same as hf
+  duper [even_nat_fun]

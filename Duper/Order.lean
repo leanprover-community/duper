@@ -223,7 +223,7 @@ def symbolPrecCompare (e1 : Expr) (e2 : Expr) (s1 : Symbol) (s2 : Symbol) (symbo
 def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison := match f, g with
 
 -- TODO: quantifiers: ex/forall
--- Sort > lam > bvar > quantifier > symbols > lits > False > True
+-- Sort > lam > bvar > quantifier > symbols (projections are treated as symbols smaller than consts and fvars) > lits > False > True
 | Expr.sort .., Expr.const ``LAM _ => return GreaterThan
 | Expr.sort .., Expr.bvar .. => return GreaterThan
 | Expr.sort .., Expr.const ``FORALL _ => return GreaterThan
@@ -340,6 +340,34 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 
 | Expr.const m .., Expr.const n .. => symbolPrecCompare f g (Symbol.Const m) (Symbol.Const n) symbolPrecMap
 
+| Expr.proj .., Expr.sort .. => return LessThan
+| Expr.proj .., Expr.const ``LAM _ => return LessThan
+| Expr.proj .., Expr.bvar .. => return LessThan
+| Expr.proj .., Expr.const ``FORALL _ => return LessThan
+| Expr.proj .., Expr.const ``EXISTS _ => return LessThan
+| Expr.proj .., Expr.fvar n .. => return LessThan
+| Expr.proj .., Expr.lit _ => return GreaterThan
+| Expr.proj .., Expr.const ``False _ => return GreaterThan
+| Expr.proj .., Expr.const ``True _ => return GreaterThan
+| Expr.proj .., Expr.const .. => return LessThan -- Projections considered less than any const except False and True
+
+| Expr.sort .., Expr.proj .. => return GreaterThan
+| Expr.const ``LAM _, Expr.proj .. => return GreaterThan
+| Expr.bvar .., Expr.proj .. => return GreaterThan
+| Expr.const ``FORALL _, Expr.proj .. => return GreaterThan
+| Expr.const ``EXISTS _, Expr.proj .. => return GreaterThan
+| Expr.fvar n .., Expr.proj .. => return GreaterThan
+| Expr.lit _, Expr.proj .. => return LessThan
+| Expr.const ``False _, Expr.proj .. => return LessThan
+| Expr.const ``True _, Expr.proj .. => return LessThan
+| Expr.const .., Expr.proj .. => return GreaterThan -- Projections considered less than any const except False and True
+
+| Expr.proj _ idx1 struct1, Expr.proj _ idx2 struct2 => -- We use the projection idx to determine precedence, with struct as a tiebreaker
+  if idx1 < idx2 then return LessThan
+  else if idx1 > idx2 then return GreaterThan
+  else precCompare struct1 struct2 symbolPrecMap -- We need to recurse on struct1 and struct2 because tckbo_rec will skip pass checking
+                                                 -- the structs if precCompare returns Equal
+
 | Expr.lit l1, Expr.lit l2 =>
   if l1 < l2 then return LessThan
   else if l2 < l1 then return GreaterThan
@@ -357,8 +385,6 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | _, Expr.lam .. => panic! s!"precCompare: lambda expression is not a valid head symbol {toString f} <> {toString g}"
 | Expr.app .., _ => panic! s!"precCompare: applications are not a valid head symbol {toString f} <> {toString g}"
 | _, Expr.app .. => panic! s!"precCompare: applications are not a valid head symbol {toString f} <> {toString g}"
-| Expr.proj .., _ => panic! s!"precCompare: projections need to be eliminated before computing order {toString f} <> {toString g}"
-| _, Expr.proj .. => panic! s!"precCompare: projections need to be eliminated before computing order {toString f} <> {toString g}"
 | Expr.letE .., _ => panic! s!"precCompare: let expressions need to be eliminated before computing order {toString f} <> {toString g}"
 | _, Expr.letE .. => panic! s!"precCompare: let expressions need to be eliminated before computing order {toString f} <> {toString g}"
 
