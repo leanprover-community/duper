@@ -362,11 +362,14 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | Expr.const ``True _, Expr.proj .. => return LessThan
 | Expr.const .., Expr.proj .. => return GreaterThan -- Projections considered less than any const except False and True
 
-| Expr.proj _ idx1 struct1, Expr.proj _ idx2 struct2 => -- We use the projection idx to determine precedence, with struct as a tiebreaker
+| Expr.proj _ idx1 struct1, Expr.proj _ idx2 struct2 => -- We use the projection idx to determine precedence
   if idx1 < idx2 then return LessThan
   else if idx1 > idx2 then return GreaterThan
-  else precCompare struct1 struct2 symbolPrecMap -- We need to recurse on struct1 and struct2 because tckbo_rec will skip pass checking
-                                                 -- the structs if precCompare returns Equal
+  else if struct1 == struct2 then return Equal -- Head symbols are the same projection of the same struct
+  else return Incomparable -- We cannot attempt to use struct1 and struct2 as a tiebreaker because it may be an expression that we don't permit as
+                           -- a head symbol. I could try making precCompare mutually recursive with kbo and then call kbo to compare struct1 and struct2,
+                           -- but I expect this edge case will come up infrequently enough that it's fine to just declare the projections incompatible
+                           -- if their structs don't match
 
 | Expr.lit l1, Expr.lit l2 =>
   if l1 < l2 then return LessThan

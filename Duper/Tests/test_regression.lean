@@ -632,7 +632,7 @@ end RecursorTests
 --###############################################################################################################################
 -- Tests interaction with instances
 instance : Neg Nat := sorry
--- @Neg.neg instNegNat gets reduced to (sorry).1, so working with this instance requires that Order.lean support projections
+-- @Neg.neg instNegNat gets reduced to (sorryAx (Neg Nat)).1, so working with this instance requires that Order.lean support projections
 
 def even_int_fun (f : Int → Int) := ∀ x, f (-x) = f x
 def even_nat_fun (f : Nat → Nat) := ∀ x, f (-x) = f x
