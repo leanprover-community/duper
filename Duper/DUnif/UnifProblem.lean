@@ -3,7 +3,7 @@ import Duper.Util.MessageData
 import Duper.Util.LazyList
 open Lean
 
-namespace Duper
+namespace DUnif
 
 initialize Lean.registerTraceClass `DUnif.debug
 initialize Lean.registerTraceClass `DUnif.result
@@ -295,6 +295,105 @@ def UnifProblem.pop? (p : UnifProblem) : Option (UnifEq × UnifProblem) := Id.ru
 def UnifProblem.instantiateTrackedExpr (p : UnifProblem) : MetaM UnifProblem := do
   let trackedExpr ← p.trackedExpr.mapM instantiateMVars
   return {p with trackedExpr := trackedExpr}
+
+inductive StructType where
+  -- Things considered as `const`:
+  -- 1. constants
+  -- 2. free variables
+  -- 3. metavariables not of current depth
+  -- 4. literals
+  -- The first `Nat` is the number of `lambda`s
+  -- The second `Nat` is the number of `forall`s
+  -- The third `Nat` is the number of arguments
+  | Const : Nat → Nat → Nat → StructType
+  -- `proj _ · idx` is viewed as a function, with type
+  -- `innerTy → outerTy` (with variables abstracted).
+  -- Irreducible `proj`s are viewed as rigid
+  | Proj  : Nat → Nat → Nat → (innerTy : Expr) → (outerTy : Expr) → (name : Name) →  (idx : Nat) → StructType
+  | Bound : Nat → Nat → Nat → StructType
+  | MVar  : Nat → Nat → Nat → StructType
+  -- Currently, `mdata`, `forall`, `let`
+  | Other : Nat → Nat → Nat → StructType
+  deriving Hashable, Inhabited, BEq, Repr
+
+instance : ToString StructType where
+  toString (ht : StructType) : String :=
+  match ht with
+  | .Const l f a => s!"StructType.Const {l} {f} {a}"
+  | .Proj  l f a iTy oTy _ idx => s!"StructType.Proj {l} {f} {a} iTy = {iTy} oTy = {oTy} idx = {idx}"
+  | .Bound l f a => s!"StructType.Bound {l} {f}"
+  | .MVar  l f a => s!"StructType.MVar {l} {f} {a}"
+  | .Other l f a => s!"StructType.Other {l} {f} {a}"
+
+def StructType.getLambdaForall : StructType → Nat × Nat
+| Const a b _ => (a, b)
+| Proj a b _ _ _ _ _ => (a, b)
+| Bound a b _ => (a, b)
+| MVar a b _ => (a, b)
+| Other a b _ => (a, b)
+
+def StructType.getNArgs : StructType → Nat
+| Const _ _ a => a
+| Proj _ _ a _ _ _ _ => a
+| Bound _ _ a => a
+| MVar _ _ a => a
+| Other _ _ a => a
+
+def StructType.isFlex : StructType → Bool
+| Const _ _ _ => false
+| Proj _ _ _ _ _ _ _ => false
+| Bound _ _ _ => false
+| MVar _ _ _  => true
+| Other _ _ _ => false
+
+def StructType.isRigid : StructType → Bool
+| Const _ _ _ => true
+| Proj _ _ _ _ _ _ _ => true
+| Bound _ _ _ => true
+| MVar _ _ _ => false
+-- If headType is `other`, then we assume that the head is rigid
+| Other _ _ _ => true
+
+def projName! : Expr → Name
+  | .proj n _ _ => n
+  | _          => panic! "proj expression expected"
+
+def structInfo (p : UnifProblem) (e : Expr) : MetaM (Expr × StructType) := do
+  setMCtx p.mctx
+  Meta.lambdaTelescope e fun xs t => Meta.forallTelescope t fun ys b => do
+    let h := Expr.getAppFn b
+    let args := Expr.getAppArgs b
+    if h.isFVar then
+      let mut bound := false
+      for x in xs ++ ys do
+        if x == h then
+          bound := true
+      if bound then
+        return (h, .Bound xs.size ys.size args.size)
+      else
+        return (h, .Const xs.size ys.size args.size)
+    else if h.isConst ∨ h.isSort ∨ h.isLit then
+      return (h, .Const xs.size ys.size args.size)
+    else if h.consumeMData.isMVar then
+      let decl := (← getMCtx).getDecl h.mvarId!
+      if decl.depth != (← getMCtx).depth then
+        return (h, .Const xs.size ys.size args.size)
+      else
+        return (h, .MVar xs.size ys.size args.size)
+    else if h.isProj ∧ ys.size == 0 then
+      let idx := h.projIdx!
+      let expr := h.projExpr!
+      let name := projName! h
+      let innerTy ← Meta.inferType expr
+      let outerTy ← Meta.inferType h
+      let innerTyAbst ← Meta.mkForallFVars xs innerTy
+      let outerTyAbst ← Meta.mkForallFVars xs outerTy
+      return (.lit (.strVal "You shouldn't see me. I'm in `structInfo`"),
+              .Proj xs.size ys.size args.size innerTyAbst outerTyAbst name idx)
+    else
+      -- If the type is `other`, then free variables might
+      -- occur inside the head, so we must abstract them
+      return (← Meta.mkLambdaFVars xs (← Meta.mkForallFVars ys h), .Other xs.size ys.size args.size)
 
 -- MetaM : mvar assignments
 -- LazyList UnifProblem : unification problems being generated

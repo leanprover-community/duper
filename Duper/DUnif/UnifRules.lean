@@ -5,13 +5,6 @@ import Duper.DUnif.Oracles
 import Duper.Util.Misc
 import Duper.Expr
 open Lean
-open Duper
-
-namespace DUnif
-
-structure Config where
-  contains    : Nat
-  iterationOn : Bool
 
 -- TODO
 -- 1: How to deal with `mdata`?
@@ -22,95 +15,11 @@ structure Config where
 -- 3: Propositional extensionality
 -- 4: Whether to use `headBeta` or `whnf`
 
-inductive StructType where
-  -- Things considered as `const`:
-  -- 1. constants
-  -- 2. free variables
-  -- 3. metavariables not of current depth
-  -- 4. literals
-  -- The first `Nat` is the number of `lambda`s
-  -- The second `Nat` is the number of `forall`s
-  | Const : Nat → Nat → StructType
-  -- `proj _ · idx` is viewed as a function, with type
-  -- `innerTy → outerTy` (with variables abstracted).
-  -- Irreducible `proj`s are viewed as rigid
-  | Proj  : Nat → Nat → (innerTy : Expr) → (outerTy : Expr) → (name : Name) →  (idx : Nat) → StructType
-  | Bound : Nat → Nat → StructType
-  | MVar  : Nat → Nat → StructType
-  -- Currently, `mdata`, `forall`, `let`
-  | Other : Nat → Nat → StructType
-  deriving Hashable, Inhabited, BEq, Repr
+namespace DUnif
 
-instance : ToString StructType where
-  toString (ht : StructType) : String :=
-  match ht with
-  | .Const l f => s!"StructType.Const {l} {f}"
-  | .Proj  l f iTy oTy _ idx => s!"StructType.Proj {l} {f} iTy = {iTy} oTy = {oTy} idx = {idx}"
-  | .Bound l f => s!"StructType.Bound {l} {f}"
-  | .MVar  l f => s!"StructType.MVar {l} {f}"
-  | .Other l f => s!"StructType.Other {l} {f}"
-
-def StructType.getLambdaForall : StructType → Nat × Nat
-| Const a b => (a, b)
-| Proj a b _ _ _ _ => (a, b)
-| Bound a b => (a, b)
-| MVar a b  => (a, b)
-| Other a b => (a, b)
-
-def StructType.isFlex : StructType → Bool
-| Const _ _ => false
-| Proj _ _ _ _ _ _ => false
-| Bound _ _ => false
-| MVar _ _  => true
-| Other _ _ => false
-
-def StructType.isRigid : StructType → Bool
-| Const _ _ => true
-| Proj _ _ _ _ _ _ => true
-| Bound _ _ => true
-| MVar _ _  => false
--- If headType is `other`, then we assume that the head is rigid
-| Other _ _ => true
-
-def projName! : Expr → Name
-  | .proj n _ _ => n
-  | _          => panic! "proj expression expected"
-
-def structInfo (p : UnifProblem) (e : Expr) : MetaM (Expr × StructType) := do
-  setMCtx p.mctx
-  Meta.lambdaTelescope e fun xs t => Meta.forallTelescope t fun ys b => do
-    let h := Expr.getAppFn b
-    if h.isFVar then
-      let mut bound := false
-      for x in xs ++ ys do
-        if x == h then
-          bound := true
-      if bound then
-        return (h, .Bound xs.size ys.size)
-      else
-        return (h, .Const xs.size ys.size)
-    else if h.isConst ∨ h.isSort ∨ h.isLit then
-      return (h, .Const xs.size ys.size)
-    else if h.isMVar' then
-      let decl := (← getMCtx).getDecl h.mvarId!
-      if decl.depth != (← getMCtx).depth then
-        return (h, .Const xs.size ys.size)
-      else
-        return (h, .MVar xs.size ys.size)
-    else if h.isProj ∧ ys.size == 0 then
-      let idx := h.projIdx!
-      let expr := h.projExpr!
-      let name := projName! h
-      let innerTy ← Meta.inferType expr
-      let outerTy ← Meta.inferType h
-      let innerTyAbst ← Meta.mkForallFVars xs innerTy
-      let outerTyAbst ← Meta.mkForallFVars xs outerTy
-      return (.lit (.strVal "You shouldn't see me. I'm in `structInfo`"),
-              .Proj xs.size ys.size innerTyAbst outerTyAbst name idx)
-    else
-      -- If the type is `other`, then free variables might
-      -- occur inside the head, so we must abstract them
-      return (← Meta.mkLambdaFVars xs (← Meta.mkForallFVars ys h), .Other xs.size ys.size)
+structure Config where
+  contains    : Nat
+  iterationOn : Bool
 
 -- Given expression `e = λ [x]. ∀ [y], body`, return
 -- 1. An expression, `λ [x] [y]. body`
@@ -255,23 +164,6 @@ def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := do
 -- This function turns `forall` into `lambda`
 -- If there is `forall`, then this is a type unification problem,
 --   and it's supposed to be prioritized
-@[deprecated] def forallToLambdaSeparate (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array UnifProblem) := do
-  setMCtx p.mctx
-  let (lhs', lsort, larray) ← exprForallToLambda eq.lhs n
-  let (rhs', rsort, rarray) ← exprForallToLambda eq.rhs n
-  if let some lsort := lsort then
-    if let some rsort := rsort then
-      if ¬ (← Meta.isDefEq lsort rsort) then
-        return #[]
-  let p := p.pushPrioritized (.fromExprPair lhs' rhs')
-  let neweqs := (larray.zip rarray).map (fun (a, b) => UnifEq.fromExprPair a b)
-  -- Later types depend on previous, so we push in reverse order
-  let p := p.appendPrioritized neweqs.reverse
-  return #[{(← p.pushParentRuleIfDbgOn (.ForallToLambda eq n)) with checked := false, mctx := ← getMCtx}]
-
--- This function turns `forall` into `lambda`
--- If there is `forall`, then this is a type unification problem,
---   and it's supposed to be prioritized
 def forallToLambda (p : UnifProblem) (eq : UnifEq) (n : Nat) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let (sorteq, arreq) ← exprPairForallToLambda eq.lhs eq.rhs n
@@ -351,7 +243,6 @@ def failDecompose (is_prio : Bool) (p : UnifProblem) (eq : UnifEq) : MetaM (Arra
     -- Does not assign ExprMVars, so no need to set `Checked = False`
     return #[{p with mctx := ← getMCtx}]
 
-
 -- All rules set the `mctx` as the `mctx` of problem `p` upon entry, and
 --   might modify the `mctx`. So, `applyRules` should be run with
 --   `withoutModifyingMCtx`
@@ -371,9 +262,9 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
   if let some (eq, p') := p.pop? then
     let (lh, lhtype) ← structInfo p eq.lhs
     let (rh, rhtype) ← structInfo p eq.rhs
-    if let .Other _ _ := lhtype then
+    if let .Other _ _ _ := lhtype then
       trace[DUnif.debug] m!"applyRule :: Type of head is `Other`"
-    if let .Other _ _ := rhtype then
+    if let .Other _ _ _ := rhtype then
       trace[DUnif.debug] m!"applyRule :: Type of head is `Other`"
     if eq.lflex != lhtype.isFlex then
       trace[DUnif.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
@@ -390,7 +281,6 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
     let (ll, lf) := lhtype.getLambdaForall
     let (rl, rf) := rhtype.getLambdaForall
     if lf != 0 ∧ rf != 0 then
-      -- Different number of lambdas
       if ll != rl then
         return .NewArray #[]
       -- Same number of lambdas
@@ -421,9 +311,9 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
       if rf != 0 then
         -- lf must be `0`
         ret := ret.append (← DUnif.imitForall lh p eq)
-      if let .Proj nLam _ iTy oTy name idx := rhtype then
+      if let .Proj nLam _ _ iTy oTy name idx := rhtype then
         ret := ret.append (← DUnif.imitProj lh nLam iTy oTy name idx p eq)
-      if let .Const _ _ := rhtype then
+      if let .Const _ _ _ := rhtype then
         ret := ret.append (← DUnif.imitation lh rh p eq)
       if ¬ p.identVar.contains lh then
         ret := ret.append (← DUnif.huetProjection lh p eq)

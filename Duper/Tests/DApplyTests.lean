@@ -77,7 +77,8 @@ def idt₁ (p : Nat → Prop) (x : Nat)
          (done : Prop)
          (hq : ∀ w, p w ∧ p w → done) : done := by
   dapply hq attempt 10 unifier 0 contains 0
-  case a => dapply hp attempt 10000 unifier 700 contains 0; exact www
+  case a => dapply hp attempt 10000 unifier 66 contains 0
+            exact id; exact (fun _ => (Nat → Nat)); exact (fun _ b _ => b id)
 
 #print idt₁.proof_1
 

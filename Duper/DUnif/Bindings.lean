@@ -3,6 +3,7 @@ import Duper.Util.Misc
 import Duper.Util.OccursCheck
 import Duper.Util.LazyList
 import Duper.DUnif.UnifProblem
+import Duper.DUnif.Utils
 open Lean
 
 -- Note:
@@ -13,8 +14,6 @@ open Lean
 --    be run with "withoutModifyingMCtx"
 
 -- TODO: Use 'withLocalDeclD'
-
-open Duper
 
 namespace DUnif
 
@@ -79,7 +78,7 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
     return LazyList.interleaveN iterAtIArr
   )
 
--- `F` is a metavariable
+/-- `F` is a metavariable -/
 def jpProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
@@ -103,7 +102,7 @@ def jpProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifP
       setMCtx s₀
     return ret)
 
--- `F` is a metavariable
+/-- `F` is a metavariable -/
 def huetProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
@@ -131,7 +130,7 @@ def huetProjection (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array Uni
       ret := ret.append newProblem
     return ret)
 
--- `F` is a metavariable
+/-- `F` is a metavariable -/
 def imitForall (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
@@ -146,7 +145,7 @@ def imitForall (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifPro
     MVarId.assign F.mvarId! mt
     return #[{(← p.pushParentRuleIfDbgOn (.ImitForall eq F mt)) with checked := false, mctx := ← getMCtx}]
 
--- `F` is a metavariable
+/-- `F` is a metavariable -/
 def imitProj (F : Expr) (nLam : Nat) (iTy : Expr) (oTy : Expr) (name : Name) (idx : Nat) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
@@ -166,23 +165,67 @@ def imitProj (F : Expr) (nLam : Nat) (iTy : Expr) (oTy : Expr) (name : Name) (id
     MVarId.assign F.mvarId! mt
     return #[{(← p.pushParentRuleIfDbgOn (.ImitProj eq F idx mt)) with checked := false, mctx := ← getMCtx}]
 
--- `F` is a metavariable, and `g` is a constant
+/--
+  `F` is a metavariable, and `g` is a constant
+  Suppose
+  · The unification equation is
+    `(fun bin_F => F t₁ t₂ ⋯ tₙ) = (fun bin_g => g s₁ s₂ ⋯ sₘ)`
+  · `F` is of type `∀ (x₁ : α₁) ⋯ (xₖ : αₖ), β`
+  · `g` is of type `∀ (y₁ : γ₁) ⋯ (yₗ : γₗ), δ`
+  Then the binding for `F` should be
+    `binding := fun (x₁ : α₁) ⋯ (xₖ : αₖ) => g (?H₁ ⋯) (?H₂ ⋯) ⋯ (?Hₕ ⋯)`
+  Since the unification equation is eta-expanded, we have
+  · `k ≤ n, l ≤ m`
+  If we plug the binding into the original unification equation and headbeta
+    the left-hand side, we will see that `h + n - k - len(bin_F) = m - len(bin_g)`, i.e.
+  · `h = m + k + len(bin_F) - n - len(bin_g)`
+  The above equation can be used to determine the value of `h`.
+  
+  Now we specify the types of fresh metavariables and the resulting equations
+  · The type of `?Hᵢ (1 ≤ i ≤ min (l, h))` is taken care of by `forallMetaTelescopeReducing`
+  · If `h ≤ l`, the type of `binding` should be unified with the type of `F`. This
+    unification equation should be prioritized
+  · If `h > l`, the type of `fun (x₁ : α₁) ⋯ (xₖ : αₖ) => g (?H₁ ⋯) (?H₂ ⋯) ⋯ (?Hₗ ⋯)`
+    should be unified with `∀ (z₁ : ?η₁) ⋯ (zₙ : ?ηₕ₋ₗ), β`. This unification equation
+    should be prioritized. Moreover, the type of `?Hᵢ` should be obtained by calling
+    `forallMetaTelescope` on `∀ (z₁ : ?η₁) ⋯ (zₙ : ?ηₕ₋ₗ), β`
+-/
 def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifProblem) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   let gty ← Meta.inferType g
+  let (_, si_F) ← structInfo p eq.lhs
+  let (bin_F, _) := si_F.getLambdaForall; let nargs_F := si_F.getNArgs
+  let (_, si_g) ← structInfo p eq.rhs
+  let (bin_g, _) := si_g.getLambdaForall; let nargs_g := si_g.getNArgs
   Meta.forallTelescopeReducing Fty fun xs β => do
     let (ys, _, β') ← Meta.forallMetaTelescopeReducing gty
+    let h := nargs_g + xs.size + bin_F - nargs_F - bin_g
     let mut p := p
-    if β' != β then
-      -- We need to unify their types first
-      let β  ← Meta.mkLambdaFVars xs β
-      let β' ← Meta.mkLambdaFVars xs β'
-      p := p.pushPrioritized (UnifEq.fromExprPair β β')
-    -- Apply the binding to `F`
-    let mt ← Meta.mkLambdaFVars xs (mkAppN g ys)
-    MVarId.assign F.mvarId! mt
-    return #[{(← p.pushParentRuleIfDbgOn (.Imitation eq F g mt)) with checked := false, mctx := ← getMCtx}]
+    if h ≤ ys.size then
+      -- Override `β'`
+      let β' ← Meta.instantiateForall gty (ys.toSubarray 0 h)
+      if β' != β then
+        -- We need to unify their types first
+        let β  ← Meta.mkLambdaFVars xs β
+        let β' ← Meta.mkLambdaFVars xs β'
+        p := p.pushPrioritized (UnifEq.fromExprPair β β')
+      -- Apply the binding to `F`
+      let mt ← Meta.mkLambdaFVars xs (mkAppN g ys)
+      MVarId.assign F.mvarId! mt
+      return #[{(← p.pushParentRuleIfDbgOn (.Imitation eq F g mt)) with checked := false, mctx := ← getMCtx}]
+    else
+      let βAbst ← mkGeneralFnTy (h - ys.size) β
+      -- Put them in a block so as not to affect `βAbst` and `β` on the outside
+      if true then
+        let βAbst ← Meta.mkLambdaFVars xs βAbst
+        let β'    ← Meta.mkLambdaFVars xs β'
+        p := p.pushPrioritized (UnifEq.fromExprPair βAbst β')
+      let (ysExtra, _, _) ← Meta.forallMetaBoundedTelescope βAbst (h - ys.size)
+      -- Apply the binding to `F`
+      let mt ← Meta.mkLambdaFVars xs (mkAppN g (ys ++ ysExtra))
+      MVarId.assign F.mvarId! mt
+      return #[{(← p.pushParentRuleIfDbgOn (.Imitation eq F g mt)) with checked := false, mctx := ← getMCtx}]
 
 def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
   setMCtx p.mctx
@@ -221,22 +264,24 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| 
       return #[res]
     return indsubseqs.map nats2binding
 
--- Both `F` and `G` are metavariables
--- Proposal
---   Premises
---     F : (x₁ : α₁) → (x₂ : α₂) → ⋯ → (xₙ : αₙ) → β x₁ x₂ ⋯ xₙ (F : ∀ [x], β [x])
---     G : (y₁ : γ₁) → (y₂ : γ₂) → ⋯ → (yₘ : γₘ) → δ y₁ y₂ ⋯ yₙ (G : ∀ [y], δ [y])
----------------------------------------------------------------
---   Binding
---     η : ∀ [x] [y], Type ?u
---     H : ∀ [x] [y], η [x] [y]
---     F ↦ λ [x]. H [x] (F₁ [x]) ⋯ (Fₘ [x])
---     G ↦ λ [y]. H (G₁ [y]) ⋯ (Gₙ [y]) [y]
---   Extra Unification Problems:
---     λ[x]. η [x] (F₁ [x]) ⋯ (Fₘ [x]) =? λ[x]. β [x]
---     λ[y]. η (G₁ [y]) ⋯ (Gₙ [y]) [y] =? λ[y]. δ [y]
--- Side condition: `F` cannot depend on `G`, and `G` cannot depend on `F`.
---   If any of `F` or `G` depends on another, switch to `elimination`
+/--
+  Both `F` and `G` are metavariables
+  Proposal
+    Premises
+      F : (x₁ : α₁) → (x₂ : α₂) → ⋯ → (xₙ : αₙ) → β x₁ x₂ ⋯ xₙ (F : ∀ [x], β [x])
+      G : (y₁ : γ₁) → (y₂ : γ₂) → ⋯ → (yₘ : γₘ) → δ y₁ y₂ ⋯ yₙ (G : ∀ [y], δ [y])
+ -------------------------------------------------------------
+    Binding
+      η : ∀ [x] [y], Type ?u
+      H : ∀ [x] [y], η [x] [y]
+      F ↦ λ [x]. H [x] (F₁ [x]) ⋯ (Fₘ [x])
+      G ↦ λ [y]. H (G₁ [y]) ⋯ (Gₙ [y]) [y]
+    Extra Unification Problems:
+      λ[x]. η [x] (F₁ [x]) ⋯ (Fₘ [x]) =? λ[x]. β [x]
+      λ[y]. η (G₁ [y]) ⋯ (Gₙ [y]) [y] =? λ[y]. δ [y]
+  Side condition: `F` cannot depend on `G`, and `G` cannot depend on `F`.
+    If any of `F` or `G` depends on another, switch to `elimination`
+-/
 def identification (F : Expr) (G : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM UnifRuleResult := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F

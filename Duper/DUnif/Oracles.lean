@@ -1,9 +1,14 @@
 import Lean
+import Duper.DUnif.Utils
 import Duper.DUnif.UnifProblem
 import Duper.Util.OccursCheck
 
 open Lean
-namespace Duper
+
+namespace DUnif
+
+initialize
+  registerTraceClass `DUnif.oracles
 
 register_option oracleInstOn : Bool := {
   defValue := true
@@ -21,11 +26,11 @@ def oracleInst (p : UnifProblem) (eq : UnifEq) : MetaM (Option UnifProblem) := d
   if ¬ (← getOracleInstOn) then
     return none
   let mut eq := eq
-  if let .mvar id := eq.rhs.eta then
+  if let .some id ← metaEta eq.rhs then
     eq := eq.swapSide
     mvarId := id
   else
-    if let .mvar id := eq.lhs.eta then
+    if let .some id ← metaEta eq.lhs.eta then
       mvarId := id
     else
       return none

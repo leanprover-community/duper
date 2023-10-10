@@ -164,6 +164,61 @@ def letrefl₁  (done : Prop)
   drefl attempt 60 unifier 0 contains 0
 
 
+-- OracleInst
+
+def ora₁ (done : Prop) (inh : α → β → Nat)
+  (h : ∀ (a b : α → β → Nat), (fun x y => a y x) = (fun x y => b y x) → done) : done := by
+  apply h
+  drefl attempt 3 unifier 0 contains 0
+  exact inh
+
+def ora₂ (done : Prop) (inh : ∀ (α β : Type) (x : α) (y : β), α → β)
+  (h : ∀ (a b : ∀ (α β : Type) (x : α) (y : β), α → β),
+    (fun β y α x => a α β x y) = (fun β y α x => b α β x y) → done) : done := by
+  apply h
+  drefl attempt 3 unifier 0 contains 0
+  exact inh
+
+def ora₃ (done : Prop) (inh : ∀ (α β : Type) (x : α) (y : β), α → β)
+  (h : ∀ (a b : ∀ (α β : Type) (x : α) (y : β), α → β),
+    (fun β α y x => a α β x y) = (fun β α y x => b α β x y) → done) : done := by
+  apply h
+  drefl attempt 3 unifier 0 contains 0
+  exact inh
+
+
+-- Polymorphism
+
+def poly₁ (done : Prop) (f : ∀ (α : Type), α)
+  (h : ∀ β, @Sigma.mk _ id (Nat → Nat) (f (Nat → Nat)) = ⟨β, f β⟩ → done) : done := by
+  apply h
+  drefl attempt 20 unifier 0 contains 0
+
+def poly₂ (done : Prop) (f : ∀ (α : Type), α)
+  (h : ∀ (g : ∀ (α : Type), α), g (Nat → Nat) 2 = f (Nat → Nat) 2 → done) : done := by
+  apply h
+  drefl attempt 20 unifier 0 contains 0
+
+def poly₃
+  (done : Prop)
+  (skS : ∀ {_ : Nat} {α : Type}, α)
+  (α β : Type) (p : α → β → Prop) (f : α → β) (x : α)
+  (h : ∀ a b c d, p a (@skS (nat_lit 1) (α → β → β) a b) = p (@skS (nat_lit 0) ((α → β) → α → α) c d) (c (@skS (nat_lit 0) ((α → β) → α → α) c d)) → done) :
+  done := by
+  apply h
+  drefl attempt 35 unifier 0 contains 0
+  exact f; exact x
+
+def poly₄
+  (done : Prop)
+  (skS : ∀ {_ : Nat} {α : Type}, α)
+  (α β : Type) (p : α → β → Prop) (f : α → β) (x : α)
+  (h : ∀ a b c d e, p a (@skS (nat_lit 1) (α → β → β → β) a b e) = p (@skS (nat_lit 0) ((α → β) → α → α) c d) (c (@skS (nat_lit 0) ((α → β) → α → α) c d)) → done) :
+  done := by
+  apply h
+  drefl attempt 45 unifier 0 contains 0
+  exact f; exact f; exact x
+
 -- Negative tests
 set_option trace.DUnif.debug true in
 def neg₁ (done : Prop) (f : Nat → Nat)

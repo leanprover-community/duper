@@ -27,7 +27,6 @@ def MVarId.refl (mvarId : MVarId) (nAttempt : Nat) (nUnif : Nat) (cont : Nat) (i
 
 syntax (name := drefl) "drefl" " attempt " num "unifier " num "contains" num ("iteron")? : tactic
 
-
 @[tactic drefl] def evalRefl : Elab.Tactic.Tactic := fun stx =>
   match stx with
   | `(tactic| drefl attempt $nAttempt unifier $nunif contains $cont iteron) =>
@@ -39,3 +38,5 @@ syntax (name := drefl) "drefl" " attempt " num "unifier " num "contains" num ("i
         let ids ← DUnif.MVarId.refl mvarId nAttempt.getNat nunif.getNat cont.getNat false
         return ids.data
   | _ => Elab.throwUnsupportedSyntax
+
+end DUnif
