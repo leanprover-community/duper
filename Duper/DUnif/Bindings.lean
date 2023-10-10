@@ -15,6 +15,11 @@ open Lean
 
 -- TODO: Use 'withLocalDeclD'
 
+register_option imitDepFn : Bool := {
+  defValue := false
+  descr := "Whether to consider the most general function type when argument number exceeds binder number of imitation target"
+}
+
 namespace DUnif
 
 def withoutModifyingMCtx (x : MetaM α) : MetaM α := do
@@ -215,7 +220,8 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Arr
       MVarId.assign F.mvarId! mt
       return #[{(← p.pushParentRuleIfDbgOn (.Imitation eq F g mt)) with checked := false, mctx := ← getMCtx}]
     else
-      let βAbst ← mkGeneralFnTy (h - ys.size) β
+      let βAbst :=
+        if imitDepFn.get (← getOptions) then ← mkGeneralFnTy (h - ys.size) β else ← mkImplication (h - ys.size) β
       -- Put them in a block so as not to affect `βAbst` and `β` on the outside
       if true then
         let βAbst ← Meta.mkLambdaFVars xs βAbst

@@ -54,16 +54,23 @@ def mkGeneralFnTy (n : Nat) (resTy : Option Expr := .none) : MetaM Expr :=
   | 0 =>
     match resTy with
     | .some resTy => return resTy
-    | .none => do
-      let resTy_ty ← Meta.mkFreshLevelMVar
-      let resTy ← Meta.mkFreshExprMVar (Expr.sort resTy_ty)
-      return resTy
+    | .none => Meta.mkFreshTypeMVar
   | n + 1 => do
-    let bty_ty ← Meta.mkFreshLevelMVar
-    let bty ← Meta.mkFreshExprMVar (Expr.sort bty_ty)
+    let bty ← Meta.mkFreshTypeMVar
     let userName := Name.mkStr1 s!"gen{n}"
     Meta.withLocalDeclD userName bty fun x => do
       let res ← mkGeneralFnTy n resTy
       Meta.mkForallFVars #[x] <| res
+
+/-- Make an implication with `n` explicit binders -/
+def mkImplication (n : Nat) (resTy : Option Expr := .none) : MetaM Expr := do
+  let argTys_ty ← (Array.mk (List.range n)).mapM (fun _ => Meta.mkFreshLevelMVar)
+  let argTys ← argTys_ty.mapM (fun e => Meta.mkFreshExprMVar (Expr.sort e))
+  let declInfos := argTys.zipWithIndex.map (fun (argTy, nat) => (Name.mkStr1 s!"imp{nat}", fun _ => pure argTy))
+  let resTy ← (do
+    match resTy with
+    | .some resTy => return resTy
+    | .none => Meta.mkFreshTypeMVar)
+  Meta.withLocalDeclsD declInfos fun xs => Meta.mkForallFVars xs resTy
 
 end DUnif

@@ -206,7 +206,7 @@ def poly₃
   (h : ∀ a b c d, p a (@skS (nat_lit 1) (α → β → β) a b) = p (@skS (nat_lit 0) ((α → β) → α → α) c d) (c (@skS (nat_lit 0) ((α → β) → α → α) c d)) → done) :
   done := by
   apply h
-  drefl attempt 35 unifier 0 contains 0
+  drefl attempt 30 unifier 0 contains 0
   exact f; exact x
 
 def poly₄
@@ -216,7 +216,7 @@ def poly₄
   (h : ∀ a b c d e, p a (@skS (nat_lit 1) (α → β → β → β) a b e) = p (@skS (nat_lit 0) ((α → β) → α → α) c d) (c (@skS (nat_lit 0) ((α → β) → α → α) c d)) → done) :
   done := by
   apply h
-  drefl attempt 45 unifier 0 contains 0
+  drefl attempt 37 unifier 0 contains 0
   exact f; exact f; exact x
 
 -- Negative tests
