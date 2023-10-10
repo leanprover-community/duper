@@ -53,6 +53,7 @@ open RuleM
 initialize
   registerTraceClass `Timeout.debug
   registerTraceClass `Timeout.debug.fullActiveSet
+  registerTraceClass `Misc.debug
 
 open SimpResult
 

@@ -17,7 +17,9 @@ variable (s t u : Set α)
 
 set_option maxHeartbeats 50000
 
--- If preprocessing eliminates ⊆ entirely, duper can solve easily 
+-- If preprocessing eliminates ⊆ entirely, duper can solve easily
+set_option trace.Misc.debug true in
+set_option trace.Preprocessing.debug true in
 theorem test1a (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
   rw [subset_def]
   rw [subset_def] at h

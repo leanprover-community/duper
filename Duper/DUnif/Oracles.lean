@@ -26,11 +26,11 @@ def oracleInst (p : UnifProblem) (eq : UnifEq) : MetaM (Option UnifProblem) := d
   if ¬ (← getOracleInstOn) then
     return none
   let mut eq := eq
-  if let .some id ← metaEta eq.rhs then
+  if let .some id ← tryMetaEta eq.rhs then
     eq := eq.swapSide
     mvarId := id
   else
-    if let .some id ← metaEta eq.lhs.eta then
+    if let .some id ← tryMetaEta eq.lhs.eta then
       mvarId := id
     else
       return none

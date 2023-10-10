@@ -48,6 +48,10 @@ where metaEtaAux (e : Expr) : MetaM (Option (MVarId × Expr × Array Nat)) :=
     let F ← Meta.mkLambdaFVars xs F
     return .some (headId, F, hmap)
 
+def tryMetaEta (e : Expr) : MetaM (Option MVarId) := do
+  try metaEta e
+  catch _ => return none
+
 /-- Make the most general function type with `n` explicit binders -/
 def mkGeneralFnTy (n : Nat) (resTy : Option Expr := .none) : MetaM Expr :=
   match n with
