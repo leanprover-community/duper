@@ -31,7 +31,7 @@ jobs:
           while read p; do
             echo "THF Problem: $p"
             echo "import Duper.TPTP import Duper.Tactic set_option inhabitationReasoning false tptp ${p:0:6} \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" by duper_no_timing"\
-              | lake env ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic.so || true
+              | lake env ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic-1.so || true
           done <./.github/thf_tests.txt
 
       - name: Test TFF
@@ -40,7 +40,7 @@ jobs:
           while read p; do
             echo "TFF Problem: $p"
             echo "import Duper.TPTP import Duper.Tactic set_option inhabitationReasoning false tptp ${p:0:6} \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" by duper_no_timing"\
-              | lake env ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic.so || true
+              | lake env ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic-1.so || true
           done <./.github/tff_tests.txt
 
       - name: Test FOF
@@ -49,5 +49,5 @@ jobs:
           while read p; do
             echo "FOF Problem: $p"
             echo "import Duper.TPTP import Duper.Tactic set_option inhabitationReasoning false tptp ${p:0:6} \"../TPTP-v8.0.0/Problems/${p:0:3}/$p.p\" have inhabitedIota : Inhabited TPTP.iota := sorry; by duper_no_timing"\
-              | lake env ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic.so || true
+              | lake env ~/.elan/bin/lean -R ./. -o ./build/myfile.olean -i ./build/myfile.ilean --stdin --load-dynlib ./build/lib/libDuper-Tactic-1.so || true
           done <./.github/fof_tests.txt
