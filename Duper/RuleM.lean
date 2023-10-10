@@ -16,12 +16,48 @@ register_option inhabitationReasoning : Bool := {
   descr := "Whether to enable type inhabitation reasoning"
 }
 
+register_option firstOrderUnifierGenerator : Bool := {
+  defValue := false
+  descr := "Whether to use the older first order unifier"
+}
+
+register_option selFunction : Nat := {
+  defValue := 0
+  descr := "Which literal selection function to use"
+}
+
+register_option includeHoistRules : Bool := {
+  defValue := true
+  descr := "Whether to include boolHoist, eqHoist, neHoist, existsHoist, forallHoist, and fluidBoolHoist"
+}
+
 def getInhabitationReasoning (opts : Options) : Bool :=
   inhabitationReasoning.get opts
+
+def getFirstOrderUnifierGenerator (opts : Options) : Bool :=
+  firstOrderUnifierGenerator.get opts
+
+def getSelFunction (opts : Options) : Nat :=
+  selFunction.get opts
+
+def getIncludeHoistRules (opts : Options) : Bool :=
+  includeHoistRules.get opts
 
 def getInhabitationReasoningM : CoreM Bool := do
   let opts ← getOptions
   return getInhabitationReasoning opts
+
+def getFirstOrderUnifierGeneratorM : CoreM Bool := do
+  let opts ← getOptions
+  return getFirstOrderUnifierGenerator opts
+
+def getSelFunctionM : CoreM Nat := do
+  let opts ← getOptions
+  return getSelFunction opts
+
+def getIncludeHoistRulesM : CoreM Bool := do
+  let opts ← getOptions
+  return getIncludeHoistRules opts
 
 structure Context where
   order : Expr → Expr → Bool → MetaM Comparison
@@ -160,8 +196,9 @@ instance : AddMessageContext RuleM where
   addMessageContext := addMessageContextFull
 
 -- Easy to switch between first-order unification and higher-order unification
-def unifierGenerator (l : Array (Expr × Expr)) : MetaM DUnif.UnifierGenerator :=
-  DUnif.UnifierGenerator.fromExprPairs l
+def unifierGenerator (l : Array (Expr × Expr)) : MetaM DUnif.UnifierGenerator := do
+  if ← getFirstOrderUnifierGeneratorM then DUnif.UnifierGenerator.fromMetaMProcedure (Meta.fastUnify l)
+  else DUnif.UnifierGenerator.fromExprPairs l
 
 def replace (e : Expr) (target : Expr) (replacement : Expr) : RuleM Expr := do
   Core.transform e (pre := fun s => do

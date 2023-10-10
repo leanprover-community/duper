@@ -104,7 +104,7 @@ def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat)
       match ← compare (Lit.getSide lit_i litside_i) (Lit.getOtherSide lit_i litside_i) (alreadyReduced := false) with
       | Comparison.LessThan => return none
       | _ =>
-        if (getSelections c).isEmpty && (← c.isMaximalLit (← getOrder) (alreadyReduced := false) i) then
+        if (← getSelections c).isEmpty && (← c.isMaximalLit (← getOrder) (alreadyReduced := false) i) then
           let new_lit : Lit := 
             { sign := false,
               lvl := lit_i.lvl -- lit_i.lvl = lit_j.lvl

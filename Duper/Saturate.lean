@@ -94,23 +94,36 @@ def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
 -- The first `Clause` is the given clause
 -- The second `MClause` is a loaded clause
 def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array ClauseStream))) := do
-  return [
-  equalityResolution,
-  clausifyPropEq,
-  superposition (← getSupMainPremiseIdx) (← getSupSidePremiseIdx),
-  equalityFactoring,
-  -- Prop specific rules
-  falseElim,
-  boolHoist,
-  eqHoist,
-  neHoist,
-  existsHoist,
-  forallHoist,
-  -- Higher order rules
-  argCong,
-  fluidSup (← getFluidSupMainPremiseIdx) (← getSupSidePremiseIdx),
-  fluidBoolHoist
-]
+  if ← getIncludeHoistRulesM then
+    return [
+      equalityResolution,
+      clausifyPropEq,
+      superposition (← getSupMainPremiseIdx) (← getSupSidePremiseIdx),
+      equalityFactoring,
+      -- Prop specific rules
+      falseElim,
+      boolHoist,
+      eqHoist,
+      neHoist,
+      existsHoist,
+      forallHoist,
+      -- Higher order rules
+      argCong,
+      fluidSup (← getFluidSupMainPremiseIdx) (← getSupSidePremiseIdx),
+      fluidBoolHoist
+    ]
+  else
+    return [
+      equalityResolution,
+      clausifyPropEq,
+      superposition (← getSupMainPremiseIdx) (← getSupSidePremiseIdx),
+      equalityFactoring,
+      -- Prop specific rules
+      falseElim,
+      -- Higher order rules
+      argCong,
+      fluidSup (← getFluidSupMainPremiseIdx) (← getSupSidePremiseIdx)
+    ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
   for simpRule in ← forwardSimpRules do
@@ -249,6 +262,8 @@ partial def saturate : ProverM Unit := do
       trace[Timeout.debug] "Verified Nonempty Types: {(← getVerifiedNonemptyTypes).map (fun x => x.1.expr)}"
       trace[Timeout.debug] "Potentially Uninhabited Types: {(← getPotentiallyUninhabitedTypes).map (fun x => x.expr)}"
       trace[Timeout.debug] "Potentially Vacuous Clauses: {(← getPotentiallyVacuousClauses).toArray}"
+      trace[Timeout.debug.fullActiveSet] m!"Active set numbers: " ++
+        m!"{← ((← getActiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
       trace[Timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
       throw e
 

@@ -82,7 +82,7 @@ def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array Cla
   let mut streams := #[]
   for i in [:c.lits.size] do
     let lit := c.lits[i]!
-    if lit.sign = true && lit.ty.isProp && litSelectedOrNothingSelected c i then
+    if lit.sign = true && lit.ty.isProp && (← litSelectedOrNothingSelected c i) then
       -- TODO: check both sides?
       if ¬ lit.rhs.isConstOf ``True && ¬ lit.rhs.isConstOf ``False then
         let c' := c.eraseLit i

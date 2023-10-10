@@ -62,8 +62,14 @@ to achieve this particular unification (if Duper were able to achieve this unifi
 be produced and I would expect this to immediately be the smallest clause in the passive set. The fact that this clause is
 not immediately pulled from the passive set almost certainly indicates that it was not produced).
 
-To further diagnose this bug, the thing to do would be to attempt to trace what duper is doing when superposition is called
-with the above two clauses.
+Update:
+With trace statements, we can see that Duper calls the unifier generator with the desired arguments:
+Creating unifierGenerator for
+  p (skS.0 1 ?m.1733 ?m.1734) (?m.1733 (skS.0 1 ?m.1733 ?m.1734)) and
+  p ?m.1723 (skS.0 0 ?m.1723 ?m.1724)
+
+However, after adding a trace inside of superpositionAtLitWithPartner's yC, we can see that the above unifierGenerator problem
+never successfully finds a unification (even though it should be able to).
 -/
 
 -- Bug 4
@@ -115,6 +121,9 @@ type (`_uniq.6179254`), the error "unknown free variable '_uniq.6173142'" is pro
 
 To further diagnose this bug, the thing to do would be to attempt to trace how the above clause was produced (and therefore,
 where the `_uniq.6179254` constraint was imposed).
+
+I'm relegating this to low priority both because it's really hard to debug (ITP023_3 is really long) and because auto's preprocessing
+appears to sidestep the issue.
 -/
 
 -- Bug 6
