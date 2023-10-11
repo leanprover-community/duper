@@ -11,7 +11,7 @@ def metaEta (e : Expr) : MetaM (Option MVarId) := do
   match result with
   | .some (headId, F, hmap) =>
     let headTy ← Meta.inferType (.mvar headId)
-    let binding ← Meta.forallBoundedTelescope headTy hmap.size fun xs _ => do
+    let binding ← Meta.withDefault <| Meta.forallBoundedTelescope headTy hmap.size fun xs _ => do
       if hmap.size != xs.size then
         throwError "metaEta :: Unexpected error"
       let mut ret := F
@@ -47,10 +47,6 @@ where metaEtaAux (e : Expr) : MetaM (Option (MVarId × Expr × Array Nat)) :=
     let F ← Meta.mkFreshExprMVar (← Meta.inferType head)
     let F ← Meta.mkLambdaFVars xs F
     return .some (headId, F, hmap)
-
-def tryMetaEta (e : Expr) : MetaM (Option MVarId) := do
-  try metaEta e
-  catch _ => return none
 
 /-- Make the most general function type with `n` explicit binders -/
 def mkGeneralFnTy (n : Nat) (resTy : Option Expr := .none) : MetaM Expr :=
