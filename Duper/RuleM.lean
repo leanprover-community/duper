@@ -100,6 +100,7 @@ structure LoadedClause where
 
 structure State where
   loadedClauses : Array LoadedClause := #[]
+  inhabitationClauses : Array LoadedClause := #[]
   skolemMap : HashMap Nat SkolemInfo
 deriving Inhabited
 
@@ -137,11 +138,17 @@ def getSkolemSorryName : RuleM Name :=
 def getLoadedClauses : RuleM (Array LoadedClause) :=
   return (← get).loadedClauses
 
+def getInhabitationClauses : RuleM (Array LoadedClause) :=
+  return (← get).inhabitationClauses
+
 def getSkolemMap : RuleM (HashMap Nat SkolemInfo) :=
   return (← get).skolemMap
 
 def setLoadedClauses (loadedClauses : Array LoadedClause) : RuleM Unit :=
   modify fun s => { s with loadedClauses := loadedClauses }
+
+def setInhabitationClauses (inhabitationClauses : Array LoadedClause) : RuleM Unit :=
+  modify fun s => { s with inhabitationClauses := inhabitationClauses }
 
 def setState (s : State) : RuleM Unit :=
   modify fun _ => s
@@ -221,10 +228,10 @@ def unWrapSort (e : Expr) : MetaM (Array Level) := do
 
 open Lean.Meta
 
--- Suppose `c : Clause = ⟨bs, ls⟩`, `(mVars, m) ← loadClauseCore c`
--- then
--- `m = c.instantiateRev mVars`
--- `m ≝ mkAppN c.toForallExpr mVars`
+/-- Suppose `c : Clause = ⟨bs, ls⟩`, `(mVars, m) ← loadClauseCore c`
+    then
+    `m = c.instantiateRev mVars`
+    `m ≝ mkAppN c.toForallExpr mVars` -/
 def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
   let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
   let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
@@ -234,6 +241,19 @@ def loadClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
 
 def loadClause (c : Clause) : RuleM MClause := do
   let (_, mclause) ← loadClauseCore c
+  return mclause
+
+/-- Does the same thing as `loadClauseCore` but adds `c` to inhabitationClauses rather than loadedClauses-/
+def loadInhabitationClauseCore (c : Clause) : RuleM (Array Expr × MClause) := do
+  let us ← c.paramNames.mapM fun _ => mkFreshLevelMVar
+  let e := c.toForallExpr.instantiateLevelParamsArray c.paramNames us
+  let (mvars, bis, e) ← forallMetaTelescope e
+  setInhabitationClauses ((← getInhabitationClauses).push ⟨c, us.map Level.mvarId!, mvars.map Expr.mvarId!⟩)
+  return (mvars, .fromExpr e)
+
+/-- Does the same thing as `loadClause` but adds `c` to inhabitationClauses rather than loadedClauses -/
+def loadInhabitationClause (c : Clause) : RuleM MClause := do
+  let (_, mclause) ← loadInhabitationClauseCore c
   return mclause
 
 /-- Returns the MClause that would be returned by calling `loadClause c` and the Clause × Array MVarId pair that
@@ -293,7 +313,8 @@ def neutralizeMClause (c : MClause) (loadedClauses : Array LoadedClause) (transf
 
 open Duper.AbstractMVars in
 -- Note: It is expected that no mvarId that appears in mvarIdsToRemove appears in c or transferExprs
-def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array LoadedClause) (transferExprs : Array Expr)
+def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array LoadedClause)
+  (inhabitationClauses : Array LoadedClause) (transferExprs : Array Expr)
   (mvarIdsToRemove : Array MVarId) : M (Clause × Array ProofParent × Array Expr) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
@@ -302,12 +323,12 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
   let fec ← Duper.AbstractMVars.abstractExprMVars ec
   -- Abstract metavariables in expressions to be transported to proof reconstruction
   let ftransferExprs ← transferExprs.mapM Duper.AbstractMVars.abstractExprMVars
-  -- process loadedClause
+  -- Process loadedClauses
   let mut proofParentsPre : Array ProofParent := #[]
   for ⟨loadedClause, lmvarIds, mvarIds⟩ in loadedClauses do
-    -- Add `mdata` to protect the body from `getAppArgs`
-    -- The inner part will no longer be used, it is almost dummy, except that it makes the type check
-    -- `mprotectedparent = fun [vars] => parent[vars]`
+    /-  Add `mdata` to protect the body from `getAppArgs`
+        The inner part will no longer be used, it is almost dummy, except that it makes the type check
+        `mprotectedparent = fun [vars] => parent[vars]` -/
     let mprotectedparent := Expr.mdata .empty loadedClause.toLambdaExpr
     -- `minstantiatedparent = (fun [vars] => parent[vars]) mvars[umvars] ≝ parent[mvars[umvars]]`
     let minstantiatedparent := mkAppN mprotectedparent (mvarIds.map mkMVar)
@@ -319,6 +340,17 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
     let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.data)
     let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
     proofParentsPre := proofParentsPre.push ⟨finstantiatedparent, loadedClause, paramSubst⟩
+  -- Process inhabitationClauses
+  for ⟨inhabitationClause, lmvarIds, _⟩ in inhabitationClauses do
+    -- Unlike with loadedClauses, we don't want to attempt to instantiate inhabitationClauses because we may
+    -- need to interpret this as implications (e.g. `∀ a : α, Nonempty β = True` proves that `α → β` is Nonempty)
+    let parentExpr ← Duper.AbstractMVars.abstractExprMVars inhabitationClause.toLambdaExpr
+    -- Make sure that levels are abstracted
+    let lmvars := lmvarIds.map Level.mvar
+    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.data)
+    let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
+    proofParentsPre := proofParentsPre.push ⟨parentExpr, inhabitationClause, paramSubst⟩
+  -- Process local context
   let cst ← get
   let lctx := cst.lctx
   -- Before building abstec, we want to process cst.lctx and cst.fvars to remove redundant abstractions
@@ -359,7 +391,7 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents, transferExprs), st) :=
     if ← getInhabitationReasoningM then
-      neutralizeMClauseInhabitedReasoningOn mc (← getLoadedClauses) transferExprs mvarIdsToRemove
+      neutralizeMClauseInhabitedReasoningOn mc (← getLoadedClauses) (← getInhabitationClauses) transferExprs mvarIdsToRemove
         { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
     else
       neutralizeMClause mc (← getLoadedClauses) transferExprs { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }

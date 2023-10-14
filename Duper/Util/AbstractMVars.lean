@@ -1,5 +1,6 @@
 import Lean
 import Duper.Util.Misc
+import Duper.Util.Reduction
 
 open Lean Meta
 
@@ -130,6 +131,7 @@ end AbstractMVars
 def abstractMVars (e : Expr) : MetaM AbstractMVarsResult := do
   let e ← instantiateMVars e
   let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  let e ← betaEtaReduce e -- Need this to prevent abstracted types like `(a : α) → (fun a => β) a` (when it should just be `α → β`)
   setNGen s.ngen
   setMCtx s.mctx
   let e := s.lctx.mkLambda s.fvars e

@@ -53,6 +53,7 @@ open RuleM
 initialize
   registerTraceClass `Timeout.debug
   registerTraceClass `Timeout.debug.fullActiveSet
+  registerTraceClass `Timeout.debug.fullPassiveSet
   registerTraceClass `Misc.debug
 
 open SimpResult
@@ -144,7 +145,8 @@ partial def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := 
   if activeSet.contains givenClause then return none
   if ← getInhabitationReasoningM then
     let some givenClause ← removeVanishedVars givenClause
-      | return none -- givenClause is potentially vacuous, so we cannot safely use it for any rules
+      | registerNewInhabitedTypes givenClause -- If the clause has the form α → Nonempty β = True, it might be potentially vacuous and yield a new Nonempty Type
+        return none -- givenClause is potentially vacuous, so we cannot safely use it for any rules
     match ← applyForwardSimpRules givenClause with
     | Applied c => forwardSimplify c
     | Unapplicable => return some givenClause
@@ -266,6 +268,9 @@ partial def saturate : ProverM Unit := do
       trace[Timeout.debug.fullActiveSet] m!"Active set numbers: " ++
         m!"{← ((← getActiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
       trace[Timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
+      trace[Timeout.debug.fullPassiveSet] m!"Passive set numbers: " ++
+        m!"{← ((← getPassiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
+      trace[Timeout.debug.fullPassiveSet] "Active set: {(← getPassiveSet).toArray}"
       throw e
 
 def clausifyThenSaturate : ProverM Unit := do

@@ -15,10 +15,11 @@ open Std
 open ProverM
 open RuleM
 
+/-- The inductive return type of `removeVanishedVarsHelper` -/
 inductive VarRemovalRes
-| Success (res : Clause × Proof) : VarRemovalRes
-| PotentiallyVacuous : VarRemovalRes
-| NoVanishedVars : VarRemovalRes
+| Success (res : Clause × Proof) : VarRemovalRes -- Indicates that `res.1` is the same as the input clause with all bvars that don't appear in the body removed
+| PotentiallyVacuous : VarRemovalRes -- Indicates that the input clause had bvars that don't appear in the body and couldn't be removed (because their types may be empty)
+| NoVanishedVars : VarRemovalRes -- Indicates that the input clause had no bvars that don't appear in the body
 
 open VarRemovalRes
 
@@ -39,6 +40,22 @@ def mkTypeInhabitationReasoningProof (premises : List Expr) (parents : List Proo
     let appliedPremise := appliedPremises[size - 1]!
     Meta.mkLambdaFVars xs $ appliedPremise
 
+/-- Determines if `Nonempty abstractedType` can be derived specifically from `Nonempty t` -/
+partial def deriveNonemptyFrom (abstractedType : AbstractMVarsResult) (t : AbstractMVarsResult) : RuleM Bool := do
+  if t == abstractedType then return true
+  else
+    match abstractedType.expr with
+    | Expr.forallE _ _ b _ =>
+      let b' ← abstractMVars b
+      deriveNonemptyFrom b' t
+    | _ => return false
+
+/-- Determines if `Nonempty abstractedType` can be derived from any type in `verifiedNonemptyTypes` -/
+def deriveNonempty (abstractedType : AbstractMVarsResult) (verifiedNonemptyTypes : abstractedMVarAndClauseList) : RuleM (Option Clause) := do
+  match ← verifiedNonemptyTypes.findM? (fun (t, c) => deriveNonemptyFrom abstractedType t) with
+  | some (_, c) => return some c
+  | none => return none
+
 /-- Attempts to remove the vanished variables that appear in c, updating verifiedInhabitedTypes and potentiallyUninhabitedTypes as it
     encounters types whose inhabitation status has not previously been checked. -/
 def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMVarList) (verifiedNonemptyTypes : abstractedMVarAndClauseList)
@@ -50,31 +67,19 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
   for mvar in mvars do
     let mvarId := mvar.mvarId!
     if s.emap.contains mvarId then
-      let mvarType ← inferType mvar
-      let abstractedType ← abstractMVars mvarType
-      if verifiedInhabitedTypes.contains abstractedType then
-        continue -- Don't add mvar to mvarIdsToRemove since the mvarId appears in mclause
-      match verifiedNonemptyTypes.find? (fun (t, c) => t == abstractedType) with
-      | some (_, c) => continue -- Don't add mvar to mvarIdsToRemove since the mvarId appears in mclause
-      | none =>
-        if potentiallyUninhabitedTypes.contains abstractedType then
-          return (PotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
-        else -- This is a type we haven't seen yet. Try to synthesize inhabited
-          match ← Meta.findInstance mvarType with
-          | none => return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
-          | some _ => verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
+      continue -- If the clause contains the mvar, then don't worry about it
     else
       let mvarType ← inferType mvar
       let abstractedType ← abstractMVars mvarType
       if verifiedInhabitedTypes.contains abstractedType then
         mvarIdsToRemove := mvarIdsToRemove.push mvarId
         continue
-      match verifiedNonemptyTypes.find? (fun (t, c) => t == abstractedType) with
-      | some (_, c) =>
-        let _ ← loadClause c -- Adding c as a parent so that its proof will
-                             -- be reconstructed by proof reconstruction,
-                             -- and we'll be able to obtain the inhabitation
-                             -- proof in `findInstance`
+      match ← deriveNonempty abstractedType verifiedNonemptyTypes with
+      | some c =>
+        let _ ← loadInhabitationClause c  -- Adding c as a parent so that its proof will
+                                          -- be reconstructed by proof reconstruction,
+                                          -- and we'll be able to obtain the inhabitation
+                                          -- proof in `findInstance`
         mvarIdsToRemove := mvarIdsToRemove.push mvarId
       | none =>
         if potentiallyUninhabitedTypes.contains abstractedType then
@@ -118,22 +123,23 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option Clause) := do
       return c
     | none => throwError "givenClause {givenClause} was not found"
 
-/-- If givenClause is of the form `Nonempty t = True` or `True = Nonempty t`, then returns `(← abstractMVars t)` -/
+/-- If givenClause is of the form `Nonempty t = True` or `True = Nonempty t`, then returns `(← abstractMVars t)`. If givenClause has the form
+    `∀ x1 : t1, ∀ x2 : t2, ... Nonempty t = True`, then registerNewInhabitedTypesHelper returns `(← abstractMVars (t1 → t2 → ... → t))` -/
 def registerNewInhabitedTypesHelper (givenClause : Clause) : RuleM (Option AbstractMVarsResult) := do
-  let givenClause ← loadClause givenClause
-  let some t := getNonemptyType givenClause
+  let givenMClause ← loadClause givenClause
+  let some t := getNonemptyType givenMClause
     | return none
-  abstractMVars t
+  abstractMVars $ givenClause.bVarTypes.foldr (fun ty b => mkForall Name.anonymous BinderInfo.default ty b) t
 
-/-- Returns true if any of `c`'s bVarTypes match `abstractedT`. If this is the case, then said clause should be returned to the passive set
-    (and removed from the set of potentially vacuous clauses) so that it can be re-evaluated. -/
+/-- Returns true if any of `c`'s bVarTypes match `abstractedT` or have the form `α1 → α2 → ... abstractedT`. If this is the case, then said clause
+    should be returned to the passive set (and removed from the set of potentially vacuous clauses) so that it can be re-evaluated. -/
 def clauseHasAbstractedT (c : Clause) (abstractedT : AbstractMVarsResult) : RuleM Bool := do
   let (mvars, _) ← loadClauseCore c
   mvars.anyM
     (fun mvar => do
       let mvarType ← inferType mvar
       let abstractedMVarType ← abstractMVars mvarType
-      return abstractedMVarType == abstractedT
+      deriveNonemptyFrom abstractedMVarType abstractedT
     )
 
 /-- If givenClause has the form `Nonempty t = True` or `True = Nonempty t`, then add `t` to verifiedInhabitedTypes and add `givenClause`
