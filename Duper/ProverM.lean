@@ -74,10 +74,12 @@ structure State where
   verifiedNonemptyTypes : abstractedMVarAndClauseList := [] -- List of (abstracted) types that duper has derived are nonempty (along with the clause asserting that fact)
   potentiallyUninhabitedTypes : abstractedMVarList := []
   potentiallyVacuousClauses : ClauseSet := {}
-  -- We need this field because empty clauses may contain
-  --   level parameters, and we can't just use ```Clause.empty``` as
-  --   a key to find the clauseInfo of the empty clause in ```allClauses```
+  /- potentiallyVacuousClauses are clauses in the active set that contain bvars with types that may be empty. When we learn new Nonempty type facts, we
+     iterate through these clauses to see if any of them can be proven to not be vacuous (in which case, additional reasoning about those clauses can
+     be performed) -/
   emptyClause : Option Clause := none
+  /- We need this field because empty clauses may contain level parameters, and we can't just use ```Clause.empty``` as
+     a key to find the clauseInfo of the empty clause in ```allClauses``` -/
 
 abbrev ProverM := ReaderT Context $ StateRefT State MetaM
 
@@ -335,7 +337,29 @@ def addPotentiallyVacuousClause (c : Clause) : ProverM Unit := do
   trace[typeInhabitationReasoning.debug] "Registering {c} as potentially vacuous"
   setPotentiallyVacuousClauses $ (← getPotentiallyVacuousClauses).insert c
 
-def addToActive (c : Clause) : ProverM Unit := do
+/-- Adds `c` to demodSidePremiseIdx and subsumptionTrie, which are the two indices that a potentiallyVacuous clause will not
+    be added to in addToActive. -/
+def addToSimplifyingIndices (c : Clause) : ProverM Unit := do
+  let cInfo ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
+  let cNum := cInfo.number
+  let demodSidePremiseIdx ← getDemodSidePremiseIdx
+  let subsumptionTrie ← getSubsumptionTrie
+  let (demodSidePremiseIdx, subsumptionTrie) ← runRuleM do
+    let (_, mclause) ← loadClauseCore c
+    -- Update demodSidePremiseIdx
+    let demodSidePremiseIdx ←
+      mclause.foldM fun demodSidePremiseIdx e pos => do
+        if (c.lits.size = 1 && c.lits[0]!.sign) then demodSidePremiseIdx.insert e (cNum, c, pos, none)
+        else pure demodSidePremiseIdx
+      demodSidePremiseIdx
+    -- Update subsumptionTrie
+    let subsumptionTrie ← subsumptionTrie.insert c
+     -- Return all indices
+    return (demodSidePremiseIdx, subsumptionTrie)
+  setDemodSidePremiseIdx demodSidePremiseIdx
+  setSubsumptionTrie subsumptionTrie
+
+def addToActive (c : Clause) (canUseToSimplifyOtherClauses : Bool) : ProverM Unit := do
   let cInfo ← getClauseInfo! c -- getClauseInfo! throws an error if c can't be found
   let cNum := cInfo.number
   let supSidePremiseIdx ← getSupSidePremiseIdx
@@ -360,9 +384,9 @@ def addToActive (c : Clause) : ProverM Unit := do
           let supSidePremiseIdx ←
             if mclause.lits[pos.lit]!.sign && eligibleLit && eligibleSide then supSidePremiseIdx.insert e (cNum, c, pos, litEligibility)
             else pure supSidePremiseIdx
-          -- Update demodSidePremiseIdx
+          -- Update demodSidePremiseIdx (ONLY if canUseToSimplifyOtherClauses is true)
           let demodSidePremiseIdx ←
-            if (c.lits.size = 1 && c.lits[0]!.sign) then demodSidePremiseIdx.insert e (cNum, c, pos, none)
+            if (canUseToSimplifyOtherClauses && c.lits.size = 1 && c.lits[0]!.sign) then demodSidePremiseIdx.insert e (cNum, c, pos, none)
             else pure demodSidePremiseIdx
           -- Return side premise indices
           return (supSidePremiseIdx, demodSidePremiseIdx)
@@ -376,9 +400,13 @@ def addToActive (c : Clause) : ProverM Unit := do
           let litEligibility ← eligibilityPreUnificationCheck mclause (alreadyReduced := true) pos.lit -- alreadyReduced true because c has been simplified
           let eligibleLit := litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible
           let lit := mclause.lits[pos.lit]!.makeLhs pos.side
-          -- Update demodMainPremiseIdx
-          -- Only restriction for demodulation is that we can't rewrite variables
-          -- (see https://github.com/sneeuwballen/zipperposition/blob/master/src/prover_calculi/superposition.ml#L350)
+          /- Update demodMainPremiseIdx
+             Only restriction for demodulation is that we can't rewrite variables
+             (see https://github.com/sneeuwballen/zipperposition/blob/master/src/prover_calculi/superposition.ml#L350)
+
+             Note: Even though demodulation is a simplification rule, we don't need canUseToSimplifyOtherClauses to be true to add to this index
+             because this index is for the main premise (which is simplified away in the demodulation rule) not the side premise (which simplifies
+             away another clause) -/
           let demodMainPremiseIdx ←
             if not e.isMVar' then demodMainPremiseIdx.insert e (cNum, c, pos, none)
             else pure demodMainPremiseIdx
@@ -396,8 +424,10 @@ def addToActive (c : Clause) : ProverM Unit := do
             else pure fluidSupMainPremiseIdx
           return (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx)
         (supMainPremiseIdx, fluidSupMainPremiseIdx, demodMainPremiseIdx)
-    -- Update subsumption trie
-    let subsumptionTrie ← subsumptionTrie.insert c
+    -- Update subsumption trie (ONLY if canUseToSimplifyOtherClauses is true)
+    let subsumptionTrie ←
+      if canUseToSimplifyOtherClauses then subsumptionTrie.insert c
+      else pure subsumptionTrie
     -- Return all indices
     return (supSidePremiseIdx, supMainPremiseIdx, fluidSupMainPremiseIdx, demodSidePremiseIdx, demodMainPremiseIdx, subsumptionTrie)
   -- Update indices and add to active set:

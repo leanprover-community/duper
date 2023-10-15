@@ -1,26 +1,20 @@
 import Std.Data.BinomialHeap
-import Duper.ProverM
 import Duper.ClauseStreamHeap
 import Duper.RuleM
 import Duper.MClause
-import Duper.Simp
 import Duper.Preprocessing
+import Duper.BackwardSimplification
 import Duper.Rules.BetaEtaReduction
 import Duper.Rules.BoolSimp
-import Duper.Rules.ClauseSubsumption
 import Duper.Rules.Clausification
 import Duper.Rules.ClausifyPropEq
-import Duper.Rules.ContextualLiteralCutting
-import Duper.Rules.Demodulation
 import Duper.Rules.ElimDupLit
 import Duper.Rules.ElimResolvedLit
 import Duper.Rules.EqualityFactoring
 import Duper.Rules.EqualityResolution
-import Duper.Rules.EqualitySubsumption
 import Duper.Rules.FalseElim
 import Duper.Rules.IdentBoolFalseElim
 import Duper.Rules.IdentPropFalseElim
-import Duper.Rules.SimplifyReflect
 import Duper.Rules.Superposition
 import Duper.Rules.SyntacticTautologyDeletion1
 import Duper.Rules.SyntacticTautologyDeletion2
@@ -82,17 +76,6 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
     identBoolHoist.toSimpRule
   ]
 
-def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
-  let subsumptionTrie ← getSubsumptionTrie
-  return #[
-    (backwardDemodulation (← getDemodMainPremiseIdx)).toBackwardSimpRule,
-    (backwardClauseSubsumption subsumptionTrie).toBackwardSimpRule,
-    (backwardEqualitySubsumption subsumptionTrie).toBackwardSimpRule,
-    (backwardContextualLiteralCutting subsumptionTrie).toBackwardSimpRule,
-    (backwardPositiveSimplifyReflect subsumptionTrie).toBackwardSimpRule,
-    (backwardNegativeSimplifyReflect subsumptionTrie).toBackwardSimpRule
-  ]
-
 -- The first `Clause` is the given clause
 -- The second `MClause` is a loaded clause
 def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array ClauseStream))) := do
@@ -137,36 +120,28 @@ def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) :
 
 /-- Uses other clauses in the active set to attempt to simplify the given clause. Returns some simplifiedGivenClause if
     forwardSimplify is able to use simplification rules to transform givenClause to simplifiedGivenClause. Returns none if
-    forwardSimplify is able to use simplification rules to show that givenClause is unneeded. -/
-partial def forwardSimplify (givenClause : Clause) : ProverM (Option Clause) := do
+    forwardSimplify is able to use simplification rules to show that givenClause is unneeded.
+    
+    In addition to returning the simplifiedGivenClause, forwardSimplify also returns a Bool which indicates whether the
+    clause can safely be used to simplify away other clauses. -/
+partial def forwardSimplify (givenClause : Clause) : ProverM (Option (Clause × Bool)) := do
   trace[Prover.saturate] "forward simplifying {givenClause}"
   Core.checkMaxHeartbeats "forwardSimpLoop"
   let activeSet ← getActiveSet
   if activeSet.contains givenClause then return none
   if ← getInhabitationReasoningM then
-    let some givenClause ← removeVanishedVars givenClause
-      | registerNewInhabitedTypes givenClause -- If the clause has the form α → Nonempty β = True, it might be potentially vacuous and yield a new Nonempty Type
-        return none -- givenClause is potentially vacuous, so we cannot safely use it for any rules
-    match ← applyForwardSimpRules givenClause with
-    | Applied c => forwardSimplify c
-    | Unapplicable => return some givenClause
-    | Removed => return none
+    match ← removeVanishedVars givenClause with
+    | some (givenClause, b) =>
+      match ← applyForwardSimpRules givenClause with
+      | Applied c => forwardSimplify c
+      | Unapplicable => return some (givenClause, b)
+      | Removed => return none
+    | none => return none -- After removeVanishedVars, `givenClause` was transformed into a clause that has already been simplified away
   else
     match ← applyForwardSimpRules givenClause with
     | Applied c => forwardSimplify c
-    | Unapplicable => return some givenClause
+    | Unapplicable => return some (givenClause, true) -- When inhabitation reasoning is disabled, assume all types are nonempty
     | Removed => return none
-
-/-- Uses the givenClause to attempt to simplify other clauses in the active set. For each clause that backwardSimplify is
-    able to produce a simplification for, backwardSimplify removes the clause adds any newly simplified clauses to the passive set.
-    Additionally, for each clause removed from the active set in this way, all descendents of said clause should also be removed from
-    the current state's allClauses and passiveSet -/
-def backwardSimplify (givenClause : Clause) : ProverM Unit := do
-  trace[Prover.saturate] "backward simplify with {givenClause}"
-  let backwardSimpRules ← backwardSimpRules
-  for i in [0 : backwardSimpRules.size] do
-    let simpRule := backwardSimpRules[i]!
-    simpRule givenClause
 
 register_option maxSaturationTime : Nat := {
   defValue := 500
@@ -230,12 +205,13 @@ partial def saturate : ProverM Unit := do
       let some givenClause ← chooseGivenClause
         | throwError "saturate :: Saturation should have been checked in the beginning of the loop."
       trace[Prover.saturate] "Given clause: {givenClause}"
-      let some simplifiedGivenClause ← forwardSimplify givenClause
+      let some (simplifiedGivenClause, simplifiedGivenClauseSafe) ← forwardSimplify givenClause
         | continue
-      trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause}"
+      trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause} (simplifiedGivenClauseSafe: {simplifiedGivenClauseSafe})"
       if ← getInhabitationReasoningM then registerNewInhabitedTypes simplifiedGivenClause
-      backwardSimplify simplifiedGivenClause
-      addToActive simplifiedGivenClause
+      if simplifiedGivenClauseSafe then backwardSimplify simplifiedGivenClause -- Only do this if simplifiedGivenClause is certainly not vacuous
+      else addPotentiallyVacuousClause simplifiedGivenClause -- We should re-evaluate simplifiedGivenClause when we learn new Nonempty type facts
+      addToActive simplifiedGivenClause simplifiedGivenClauseSafe
       let inferenceRules ← inferenceRules
       performInferences inferenceRules simplifiedGivenClause
       -- Probe the clauseStreamHeap

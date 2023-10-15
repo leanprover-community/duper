@@ -1,8 +1,7 @@
 import Lean
 import Duper.Util.Misc
-import Duper.ProverM
+import Duper.BackwardSimplification
 import Duper.Util.ProofReconstruction
-import Duper.Simp
 
 namespace Duper
 
@@ -17,9 +16,10 @@ open RuleM
 
 /-- The inductive return type of `removeVanishedVarsHelper` -/
 inductive VarRemovalRes
-| Success (res : Clause × Proof) : VarRemovalRes -- Indicates that `res.1` is the same as the input clause with all bvars that don't appear in the body removed
-| PotentiallyVacuous : VarRemovalRes -- Indicates that the input clause had bvars that don't appear in the body and couldn't be removed (because their types may be empty)
-| NoVanishedVars : VarRemovalRes -- Indicates that the input clause had no bvars that don't appear in the body
+| NotVacuous (res : Clause × Proof) : VarRemovalRes -- Indicates that `res.1` has no potentially empty bvar types
+| PotentiallyVacuous (res : Clause × Proof) : VarRemovalRes -- Indicates that `res.1` has at least one potentially empty bvar type
+| NoChangeNotVacuous : VarRemovalRes -- Indicates that the input clause had no bvars that should be removed
+| NoChangePotentiallyVacuous : VarRemovalRes -- Indicates that the input clause has potentially empty bvar types that couldn't or shouldn't be removed
 
 open VarRemovalRes
 
@@ -64,10 +64,25 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
   let mut verifiedInhabitedTypes := verifiedInhabitedTypes
   let (_, s) := AbstractMVars.abstractExprMVars mclause.toExpr { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   let mut mvarIdsToRemove := #[]
+  let mut resPotentiallyVacuous := false
   for mvar in mvars do
     let mvarId := mvar.mvarId!
     if s.emap.contains mvarId then
-      continue -- If the clause contains the mvar, then don't worry about it
+      let mvarType ← inferType mvar
+      let abstractedType ← abstractMVars mvarType
+      if verifiedInhabitedTypes.contains abstractedType then
+        continue -- Don't remove mvarId because it appears in clause body
+      match ← deriveNonempty abstractedType verifiedNonemptyTypes with
+      | some _ => continue -- Don't remove mvarId because it appears in clause body
+      | none =>
+        if potentiallyUninhabitedTypes.contains abstractedType then
+          resPotentiallyVacuous := true
+        else -- This is a type we haven't seen yet. Try to synthesize inhabited
+          match ← Meta.findInstance mvarType with
+          | none =>
+            resPotentiallyVacuous := true
+          | some _ => -- Don't remove mvarId because it appears in clause body
+            verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
     else
       let mvarType ← inferType mvar
       let abstractedType ← abstractMVars mvarType
@@ -83,44 +98,59 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
         mvarIdsToRemove := mvarIdsToRemove.push mvarId
       | none =>
         if potentiallyUninhabitedTypes.contains abstractedType then
-          return (PotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
+          resPotentiallyVacuous := true
         else -- This is a type we haven't seen yet. Try to synthesize inhabited
           match ← Meta.findInstance mvarType with
           | none =>
-            return (PotentiallyVacuous, verifiedInhabitedTypes, abstractedType :: potentiallyUninhabitedTypes)
+            resPotentiallyVacuous := true
           | some _ =>
             verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
             mvarIdsToRemove := mvarIdsToRemove.push mvarId
   if mvarIdsToRemove.size == 0 then
-    return (NoVanishedVars, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
+    if resPotentiallyVacuous then
+      return (NoChangePotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
+    else
+      return (NoChangeNotVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
   else
     let cp ← yieldClause mclause "removeVanishedVars" mkTypeInhabitationReasoningProof (mvarIdsToRemove := mvarIdsToRemove)
-    return (Success cp, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
+    if resPotentiallyVacuous then
+      return (PotentiallyVacuous cp, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
+    else
+      return (NotVacuous cp, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
 
 /-- Iterates through c's bVarTypes and removes each bVarType whose bvar does not appear in c. If `removeVanishedVars`
-    encounters a bVarType that does not appear in c.lits and has not been verified to be inhabited, then it adds c to the
-    set of potentially vacuous clauses and returns none.
+    encounters a bVarType that has not been verified to be inhabited, then it returns the updated clause and false to indicate
+    that the clause should not be used to simplify away any other clauses. Otherwise, `removeVanishedVars` returns the updated
+    clause and true. The only case where `removeVanishedVars` will return none is if it generates a clause that has already
+    been simplified away (and therefore does not need to be re-evaluated).
     
     Note: removeVanishedVars is not written as a forward simplification rule (even though it functions similarly) because
     it uniquely interacts with ProverM's verifiedInhabitedTypes and potentiallyUninhabitedTypes. -/
-def removeVanishedVars (givenClause : Clause) : ProverM (Option Clause) := do
+def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)) := do
   let (res, verifiedInhabitedTypes, potentiallyUninhabitedTypes) ← runRuleM $
     removeVanishedVarsHelper givenClause (← getVerifiedInhabitedTypes) (← getVerifiedNonemptyTypes) (← getPotentiallyUninhabitedTypes)
   setVerifiedInhabitedTypes verifiedInhabitedTypes
   setPotentiallyUninhabitedTypes potentiallyUninhabitedTypes
   match res with
-  | NoVanishedVars => return givenClause -- Continue the main saturation loop with givenClause
-  | PotentiallyVacuous =>
-    addPotentiallyVacuousClause givenClause
-    return none
-  | Success (c, cProof) =>
+  | NoChangePotentiallyVacuous => return some (givenClause, false)
+  | NoChangeNotVacuous => return some (givenClause, true)
+  | PotentiallyVacuous (c, cProof) =>
     removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated c
     match (← getAllClauses).find? givenClause with
     | some givenClauseInfo =>
       let generatingAncestors := givenClauseInfo.generatingAncestors
       let ci ← addNewClause c cProof generatingAncestors
       if ci.wasSimplified then return none -- No need to continue working on c because we've already seen previously that it will be simplified away
-      return c
+      return some (c, false)
+    | none => throwError "givenClause {givenClause} was not found"
+  | NotVacuous (c, cProof) =>
+    removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated c
+    match (← getAllClauses).find? givenClause with
+    | some givenClauseInfo =>
+      let generatingAncestors := givenClauseInfo.generatingAncestors
+      let ci ← addNewClause c cProof generatingAncestors
+      if ci.wasSimplified then return none -- No need to continue working on c because we've already seen previously that it will be simplified away
+      return some (c, true)
     | none => throwError "givenClause {givenClause} was not found"
 
 /-- If givenClause is of the form `Nonempty t = True` or `True = Nonempty t`, then returns `(← abstractMVars t)`. If givenClause has the form
@@ -148,18 +178,38 @@ def registerNewInhabitedTypes (givenClause : Clause) : ProverM Unit := do
   if givenClause.lits.size != 1 then return
   let some abstractedT ← runRuleM $ registerNewInhabitedTypesHelper givenClause
     | return -- If registerNewInhabitedTypesHelper returns none, then givenClause is not of the appropriate form
-  let verifiedInhabitedTypes ← getVerifiedInhabitedTypes
   let verifiedNonemptyTypes ← getVerifiedNonemptyTypes
-  if verifiedInhabitedTypes.contains abstractedT then return
+  if (← getVerifiedInhabitedTypes).contains abstractedT then return
   else if verifiedNonemptyTypes.any (fun (t, c) => t == abstractedT) then return
   else
     setVerifiedNonemptyTypes ((abstractedT, givenClause) :: verifiedNonemptyTypes)
     let mut potentiallyVacuousClauses ← getPotentiallyVacuousClauses
-    let mut passiveSet ← getPassiveSet
     for c in potentiallyVacuousClauses do
       if ← runRuleM (clauseHasAbstractedT c abstractedT) then
-        potentiallyVacuousClauses := potentiallyVacuousClauses.erase c
-        let ci ← getClauseInfo! c -- ci definitely exists because c has already been put into potentiallyVacuousClauses
-        passiveSet := passiveSet.insert c c.weight ci.number
+        let (res, verifiedInhabitedTypes, potentiallyUninhabitedTypes) ← runRuleM $
+          removeVanishedVarsHelper c (← getVerifiedInhabitedTypes) (← getVerifiedNonemptyTypes) (← getPotentiallyUninhabitedTypes)
+        setVerifiedInhabitedTypes verifiedInhabitedTypes
+        setPotentiallyUninhabitedTypes potentiallyUninhabitedTypes
+        match res with
+        | NoChangePotentiallyVacuous => continue -- c is still potentially vacuous, so nothing needs to change
+        | NoChangeNotVacuous => -- c is no longer potentially vacuous, but has not been simplified into a new clause
+          /- Since c is already in the active set, it has been forward simplified and has been added to most of ProverM's
+             indices. All that remains is to use c for backward simplification rules and add it to the ProverM indices
+             that it's not already in (currently, this is just subsumptionTrie and demodSidePremiseIdx) -/
+          backwardSimplify c
+          addToSimplifyingIndices c
+        | PotentiallyVacuous (newC, newCProof) => -- Running removeVanishedVarsHelper generated a new clause that can directly be added to the passive set
+          removeClause c -- We remove c and its descendants before readding newC to the passiveSet because newC makes c redundant
+          match (← getAllClauses).find? c with
+          | some givenClauseInfo =>
+            let generatingAncestors := givenClauseInfo.generatingAncestors
+            addNewToPassive newC newCProof generatingAncestors
+          | none => throwError "givenClause {givenClause} was not found"
+        | NotVacuous (newC, newCProof) => -- Running removeVanishedVarsHelper generated a new clause that can directly be added to the passive set
+          removeClause c -- We remove c and its descendants before readding newC to the passiveSet because newC makes c redundant
+          match (← getAllClauses).find? c with
+          | some givenClauseInfo =>
+            let generatingAncestors := givenClauseInfo.generatingAncestors
+            addNewToPassive newC newCProof generatingAncestors
+          | none => throwError "givenClause {givenClause} was not found"
     setPotentiallyVacuousClauses potentiallyVacuousClauses
-    setPassiveSet passiveSet
