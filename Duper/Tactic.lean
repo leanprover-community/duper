@@ -38,7 +38,8 @@ partial def printProof (state : ProverM.State) : MetaM Unit := do
     let info ← getClauseInfo! state c
     let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! state pp.clause)
     let parentIds := parentInfo.map fun info => info.number
-    println!  s!"Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {toString (← ppExpr c.toForallExpr)}"
+    trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
+    -- println!  s!"Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {toString (← ppExpr c.toForallExpr)}"
 
 abbrev ClauseHeap := Std.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 

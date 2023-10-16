@@ -12,7 +12,7 @@ namespace RuleM
 open Lean
 
 register_option inhabitationReasoning : Bool := {
-  defValue := false
+  defValue := true
   descr := "Whether to enable type inhabitation reasoning"
 }
 
