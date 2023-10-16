@@ -15,7 +15,6 @@ partial def preprocessFact (fact : Expr) : MetaM Expr := do
   -- Reduce
   trace[Preprocessing.debug] "fact before preprocessing: {fact}"
   let fact ← withTransparency .instances <| Meta.transform fact (pre := red) (usedLetOnly := false)
-  trace[Preprocessing.debug] "fact after preprocessing: {fact}"
   let restoreNE (e : Expr) : MetaM TransformStep := do
     match e with
     | .app (.const ``Not []) (.app (.app (.app (.const ``Eq lvls) ty) e₁) e₂) =>
@@ -24,6 +23,7 @@ partial def preprocessFact (fact : Expr) : MetaM Expr := do
   -- Restore ≠, i.e., ¬ a = b ⇒ a ≠ b
   -- If we don't do this, it seems that clausification will become more inefficient
   let fact ← Core.transform fact (pre := restoreNE)
+  trace[Preprocessing.debug] "fact after preprocessing: {fact}"
   return fact
 
 /-- Eta-expand a beta-reduced expression. This function is currently unused -/
