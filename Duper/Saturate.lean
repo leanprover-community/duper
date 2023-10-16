@@ -208,7 +208,7 @@ partial def saturate : ProverM Unit := do
       let some (simplifiedGivenClause, simplifiedGivenClauseSafe) ← forwardSimplify givenClause
         | continue
       trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause} (simplifiedGivenClauseSafe: {simplifiedGivenClauseSafe})"
-      if ← getInhabitationReasoningM then registerNewInhabitedTypes simplifiedGivenClause
+      if ← getInhabitationReasoningM then registerNewNonemptyTypes simplifiedGivenClause
       if simplifiedGivenClauseSafe then backwardSimplify simplifiedGivenClause -- Only do this if simplifiedGivenClause is certainly not vacuous
       else addPotentiallyVacuousClause simplifiedGivenClause -- We should re-evaluate simplifiedGivenClause when we learn new Nonempty type facts
       addToActive simplifiedGivenClause simplifiedGivenClauseSafe

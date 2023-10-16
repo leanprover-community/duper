@@ -33,7 +33,7 @@ theorem letDecBug {t : Type} (h : (∀ p : t, p = p) = False) : False :=
 
 -- Interesting type inhabited examples (they require more advanced reasoning about type inhabitation)
 example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
-  by duper -- Fails because we currently do not infer that A is nonempty from the fact that B and B → A are nonempty
+  by duper
 
 set_option trace.Saturate.debug true in
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=

@@ -474,7 +474,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
     | none => throwError "Unable to find descendant"
 
 /-- removeClause does the following:
-    - Removes c from the active set, passive set, and all discrimination trees
+    - Removes c from the active set, passive set, potentiallyVacuousClauses set, and all discrimination trees
     - Tags c as "wasSimplified" in allClauses
     - Removes each direct descendant of c from the passive set
     - Tags each direct descendant of c as "isOrphan" in allClauses
@@ -489,6 +489,7 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
   trace[Simplification.debug] "Calling removeClause with c: {c} and protectedClauses: {protectedClauses}"
   let mut activeSet ← getActiveSet
   let mut passiveSet ← getPassiveSet
+  let mut potentiallyVacuousClauses ← getPotentiallyVacuousClauses
   let mut allClauses ← getAllClauses
   match allClauses.find? c with
   | none => throwError "Attempted to remove {c} but was not able to find it in allClauses"
@@ -504,6 +505,8 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
       activeSet ← getActiveSet
     -- Remove c from passive set
     setPassiveSet $ passiveSet.erase c
+    -- Remove c from potentiallyVacuousClauses
+    setPotentiallyVacuousClauses $ potentiallyVacuousClauses.erase c
     -- Remove the descendants of c and mark them as orphans
     -- removeDescendants c ci protectedClauses -- Currently commented out because tests indicate it currently worsens performance
 

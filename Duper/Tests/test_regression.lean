@@ -645,3 +645,20 @@ example (f : Int → Int) (hf : ∀ x, f (-x) = f x) : even_int_fun f := by -- T
 
 example (f : Nat → Nat) (hf : ∀ x, f (-x) = f x) : even_nat_fun f := by -- The goal is the same as hf
   duper [even_nat_fun]
+--###############################################################################################################################
+-- Tests duper's ability to derive that types are nonempty
+
+example (p : α → β → Prop) (h : ∀ (x : α), ∃ y, p x y) : ∃ (f : α → β), ∀ x, p x (f x) :=
+  by duper
+
+example (p : α → β → Prop) (h : ∀ (x : α), ∀ (z : Nat), ∃ y, p x y) : ∃ (f : α → β), ∀ x, p x (f x) :=
+  by duper
+
+example (p : α → β → Prop) (h : ∀ (x : α), ∃ (z : Nat), ∃ y, p x y) : ∃ (f : α → β), ∀ x, p x (f x) :=
+  by duper
+
+example (h : Nonempty (α → β) = True) : (∀ n : Nat, ∀ a : α, ∃ b : β, True) = True :=
+  by duper
+
+example (h : Nonempty (α → β) = True) : ∀ n : Nat, ∀ a : α, ∃ b : β, True :=
+  by duper

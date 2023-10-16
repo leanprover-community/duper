@@ -51,6 +51,14 @@ where the `_uniq.6179254` constraint was imposed).
 
 I'm relegating this to low priority both because it's really hard to debug (ITP023_3 is really long) and because auto's preprocessing
 appears to sidestep the issue.
+
+Update: After inhabitation reasoning was improved, duper was able to infer the Nonempty status of enough types that this bug is now also
+visible in the following example (originally from test_inhabitationReasoning.lean):
+
+example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
+  by duper
+
+This might be a more viable example to investigate because of how much shorter it is
 -/
 
 -- Bug 6
