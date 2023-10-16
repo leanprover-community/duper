@@ -179,7 +179,7 @@ def BinderBindingPower? : String → Option Nat
 
 inductive Term where
 | mk : Token → List Term → Term
-deriving Inhabited, Repr
+deriving Inhabited, Repr, BEq
 
 def Term.func : Term → Token := fun ⟨n, _⟩ => n
 def Term.args : Term → List Term := fun ⟨_, as⟩ => as
@@ -230,6 +230,10 @@ partial def parseLhs : ParserM Term := do
     let lhs ← parseTerm 0
     parseToken (.op ")")
     return lhs
+  else if nextToken == .op "[" then
+    let args ← parseSep (.op ",") (parseTerm 0)
+    parseToken (.op "]")
+    return Term.mk nextToken args
   else if let some rbp := BinderBindingPower? nextToken.toString then
     parseToken (.op "[")
     let vars ← parseSep (.op ",") parseTypeDecl
@@ -287,6 +291,9 @@ def parseCommand : ParserM Command := do
     let val ← match kind with
     | "type" => parseTypeDecl
     | _ => parseTerm
+    if (← peek?) == some (.op ",") then
+      parseToken (.op ",")
+      discard $ parseTerm
     parseToken (.op ")")
     parseToken (.op ".")
     return ⟨cmd, [Term.mk (.ident name) [], Term.mk (.ident kind) [], val]⟩
@@ -515,27 +522,17 @@ def compileFile [Inhabited α] (path : String) (k : Formulas → MetaM α) : Met
   let code ← IO.FS.readFile path
   compile code (path : System.FilePath).parent.get! k
 
-elab "hello" : tactic => 
-  compile "
-      thf(ty_t_itself,type,
-          itself: $tType > $tType ).
-
-      thf(ty_tf_rule,type,
-          rule: $tType ).
-
-      thf(sy_cl_Finite__Set_Ofinite,type,
-          finite_finite: 
-            !>[A: $tType] : ( ( itself @ A ) > $o ) ).
-      " 
-      ""
-    fun formulas => do
-      for (x, _ , _) in formulas do
-        logInfo m!"{x}"
-
-example : False := by
-  hello
-  sorry
-
+/-- Returns the unsat core (= all used facts) of a TSTP output string. -/
+def unsatCore (str : String) : IO (Array String) := do
+  let parseTree ← Parser.parse str
+  let mut res := #[]
+  for ⟨_, args⟩ in parseTree do
+    if args.length > 1 then
+      if let ⟨.ident kind, []⟩ := args[1]! then
+        if ["axiom", "conjecture", "negated_conjecture"].contains kind then
+          if let ⟨.ident id, []⟩ := args[0]! then
+            res := res.push id
+  return res
 
 def toLeanExpr (s : String) : MetaM Expr := do
   let tokens ← Tokenizer.tokenize s
