@@ -104,7 +104,7 @@ def getArgs (t : Expr) := match t with
     assign the highest precedence symbol weight 0 (because this would violate KBO's constraint
     that all first-order 'constants' share some positive weight μ). In this case, I simply assign
     the highest precedence symbol weight 1, as with everything else. -/
-def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) (belowLam : Bool): Weight := match f with
+def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) (belowLam : Bool) : Weight := match f with
   | Expr.const name _ =>
     if name == ``FORALL || name == ``EXISTS then
       if belowLam then 1 else ω
@@ -368,7 +368,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
   else if struct1 == struct2 then return Equal -- Head symbols are the same projection of the same struct
   else return Incomparable -- We cannot attempt to use struct1 and struct2 as a tiebreaker because it may be an expression that we don't permit as
                            -- a head symbol. I could try making precCompare mutually recursive with kbo and then call kbo to compare struct1 and struct2,
-                           -- but I expect this edge case will come up infrequently enough that it's fine to just declare the projections incompatible
+                           -- but I expect this edge case will come up infrequently enough that it's fine to just declare the projections incomparable
                            -- if their structs don't match
 
 | Expr.lit l1, Expr.lit l2 =>
@@ -398,9 +398,8 @@ def isFluid (t : Expr) :=
 
 /-- Higher-Order KBO, inspired by `https://github.com/sneeuwballen/zipperposition/blob/master/src/core/Ordering.ml`.
 
-Follows Section 3.9 of `https://matryoshka-project.github.io/pubs/hosup_article.pdf`
-and the article "Things to Know when Implementing KBO" by Bernd Löchner.
--/
+    Follows Section 3.9 of `https://matryoshka-project.github.io/pubs/hosup_article.pdf`
+    and the article "Things to Know when Implementing KBO" by Bernd Löchner. -/
 partial def kbo (t1 t2 : Expr) (alreadyReduced : Bool) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
   if alreadyReduced then
     let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false)

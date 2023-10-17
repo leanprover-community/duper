@@ -122,6 +122,47 @@ def isTrivial (c : MClause) : Bool := Id.run do
   return false
 
 open Comparison
+
+/-- Returns the list of minimal literal indices that satisfy the provided filter_fn -/
+def getMinimalLits (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause)
+  (filter_fn : Lit → Bool) : MetaM (Array Nat) := do
+  let c :=
+    if alreadyReduced then c
+    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
+  let mut minLits : Array Nat := #[]
+  for i in [:c.lits.size] do
+    let curLit := c.lits[i]!
+    if !filter_fn curLit then continue -- Only consider literals that satisfy filter_fn
+    if minLits.isEmpty then minLits := #[i]
+    else
+      let firstMinLit := c.lits[minLits[0]!]!
+      let cmp ← Lit.compare ord true curLit firstMinLit
+      if cmp == LessThan then minLits := #[i]
+      else if cmp == Equal || cmp == Incomparable then minLits := minLits.push i
+      else continue
+  return minLits
+
+/-- Returns the list of maximal literal indices that satisfy the provided filter_fn -/
+def getMaximalLits (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause)
+  (filter_fn : Lit → Bool) : MetaM (Array Nat) := do
+  let c :=
+    if alreadyReduced then c
+    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
+  let mut maxLits : Array Nat := #[]
+  for i in [:c.lits.size] do
+    let curLit := c.lits[i]!
+    if !filter_fn curLit then continue -- Only consider literals that satisfy filter_fn
+    if maxLits.isEmpty then maxLits := #[i]
+    else
+      let firstMaxLit := c.lits[maxLits[0]!]!
+      let cmp ← Lit.compare ord true curLit firstMaxLit
+      if cmp == GreaterThan then maxLits := #[i]
+      else if cmp == Equal || cmp == Incomparable then maxLits := maxLits.push i
+      else continue
+  return maxLits
+
+/-- Determines whether c.lits[idx]! is maximal in c. If strict is set to true, then there can be no idx' such that c.lits[idx]! and
+    c.lits[idx']! are evaluated as equal by the comparison function -/
 def isMaximalLit (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) (strict := false) : MetaM Bool := do
   let c :=
     if alreadyReduced then c
@@ -138,8 +179,7 @@ def isMaximalLit (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyRed
     than idx (in this case, since idx < idx', for any subsitution σ, idx σ < idx' σ so idx can never be maximal)
 
     Note that for this function, strictness does not actually matter, because regardless of whether we are considering potential strict maximality
-    or potential nonstrict maximality, we can only determine that idx can never be maximal if we find an idx' that is strictly gerater than it
--/
+    or potential nonstrict maximality, we can only determine that idx can never be maximal if we find an idx' that is strictly gerater than it -/
 def canNeverBeMaximal (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) : MetaM Bool := do
   let c :=
     if alreadyReduced then c

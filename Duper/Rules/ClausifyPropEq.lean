@@ -77,12 +77,12 @@ def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (tra
     let r ← orCases (parentLits.map Lit.toExpr) proofCases
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def clausifyPropEq (given : Clause)(c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def clausifyPropEq (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[Rule.clausifyPropEq] "ClausifyPropEq inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     let lit := c.lits[i]!
-    if lit.sign = true && lit.ty.isProp && (← litSelectedOrNothingSelected c i) then
+    if lit.sign = true && lit.ty.isProp && (← litSelectedOrNothingSelected c i (alreadyReduced := true)) then
       -- TODO: check both sides?
       if ¬ lit.rhs.isConstOf ``True && ¬ lit.rhs.isConstOf ``False then
         let c' := c.eraseLit i
