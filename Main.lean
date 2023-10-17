@@ -79,7 +79,7 @@ def main : List String → IO UInt32 := fun args => do
   else
     let env ← mkEmptyEnvironment
     let github := (args.length > 1 && args[1]! == "--github")
-    let maxHeartbeats := if github then 200000 * 1000 else 0
+    let maxHeartbeats := if github then 50 * 1000 * 1000 else 0
     let _ ← Meta.MetaM.toIO
       (ctxCore := {fileName := "none", fileMap := .ofString "", maxRecDepth := 10000, maxHeartbeats := maxHeartbeats}) (sCore := {env})
       (ctx := {}) (s := {}) (run args[0]! github)
