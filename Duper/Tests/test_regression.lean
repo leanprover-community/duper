@@ -662,3 +662,16 @@ example (h : Nonempty (α → β) = True) : (∀ n : Nat, ∀ a : α, ∃ b : β
 
 example (h : Nonempty (α → β) = True) : ∀ n : Nat, ∀ a : α, ∃ b : β, True :=
   by duper
+
+example (h : Nonempty ((α → β) → γ)) : ∀ f : α → β, ∃ y : γ, True :=
+  by duper
+
+example (h1 : Nonempty ((α → β) → γ)) (h2 : ∀ x : α, Nonempty β) : ∃ y : γ, true :=
+  by duper
+
+example (h1 : ∀ f : α → β, Nonempty γ) (h2 : ∀ x : α, Nonempty β) : ∃ y : γ, true :=
+  by duper
+
+example (p : α → β → γ → Prop) (q : α → β → γ) (h : ∀ (x : α) (y : β), p x y (q x y)) :
+  ∃ (f : α → β → γ), ∀ x y, p x y (f x y) :=
+  by duper

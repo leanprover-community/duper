@@ -49,7 +49,7 @@ def mkRemoveVanishedVarsProof (premises : List Expr) (parents : List ProofParent
 def mkDeriveNewNonemptyTypeProof1 (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
-    match parents[0]!.clause.toExpr with
+    match parents[0]!.clause.toForallExpr with
     | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) (.forallE _ t1 t2 _))) (.const ``True []) =>
       match ← Lean.Meta.findInstance t1 with
       | some t1Inst =>
@@ -70,9 +70,9 @@ def mkDeriveNewNonemptyTypeProof1 (premises : List Expr) (parents : List ProofPa
 def mkDeriveNewNonemptyTypeProof2 (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
-    match parents[0]!.clause.toExpr with
+    match parents[0]!.clause.toForallExpr with
     | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) (.forallE _ t1 t2 _))) (.const ``True []) =>
-      match parents[1]!.clause.toExpr with
+      match parents[1]!.clause.toForallExpr with
       | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) t1')) (.const ``True []) =>
         if ← Lean.Meta.isDefEq t1 t1' then
           let t1ArrowT2Nonempty ← Meta.mkAppM ``of_eq_true #[premises[0]!]
@@ -80,6 +80,35 @@ def mkDeriveNewNonemptyTypeProof2 (premises : List Expr) (parents : List ProofPa
           let t1'Nonempty ← Meta.mkAppM ``of_eq_true #[premises[1]!]
           let t1'Inst ← Meta.mkAppOptM ``Classical.ofNonempty #[none, t1'Nonempty]
           let t2Inst := Expr.app t1ArrowT2Inst t1'Inst
+          let t2Nonempty ← Meta.mkAppM ``Nonempty.intro #[t2Inst]
+          Meta.mkAppM ``eq_true #[t2Nonempty]
+        else throwError "mkDeriveNewNonemptyTypeProof2 received types that did not align"
+      | .forallE _ t1Hyp (.app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) t1Conclusion)) (.const ``True [])) _ =>
+        if ← Lean.Meta.isDefEq t1 (.forallE .anonymous t1Hyp t1Conclusion .default) then -- This case should only occur if t1 = t1Hyp → t1Conclusion
+          let t1ArrowT2Nonempty ← Meta.mkAppM ``of_eq_true #[premises[0]!]
+          let t1ArrowT2Inst ← Meta.mkAppOptM ``Classical.ofNonempty #[none, t1ArrowT2Nonempty]
+          let t1Inst := .lam .anonymous t1Hyp (← Meta.mkAppM ``Classical.choice #[← Meta.mkAppM ``of_eq_true #[.app premises[1]! (.bvar 0)]]) .default
+          let t2Inst := Expr.app t1ArrowT2Inst t1Inst
+          let t2Nonempty ← Meta.mkAppM ``Nonempty.intro #[t2Inst]
+          Meta.mkAppM ``eq_true #[t2Nonempty]
+        else throwError "mkDeriveNewNonemptyTypeProof2 received types that did not align"
+      | _ => throwError "mkDeriveNewNonemptyTypeProof2 received invalid parent 1: {parents[1]!.clause.toExpr}"
+    | .forallE _ t1 (.app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) t2)) (.const ``True [])) _ =>
+      match parents[1]!.clause.toForallExpr with
+      | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) t1')) (.const ``True []) =>
+        if ← Lean.Meta.isDefEq t1 t1' then
+          let t1ArrowT2Inst := .lam .anonymous t1 (← Meta.mkAppM ``Classical.choice #[← Meta.mkAppM ``of_eq_true #[.app premises[0]! (.bvar 0)]]) .default
+          let t1'Nonempty ← Meta.mkAppM ``of_eq_true #[premises[1]!]
+          let t1'Inst ← Meta.mkAppOptM ``Classical.ofNonempty #[none, t1'Nonempty]
+          let t2Inst := Expr.app t1ArrowT2Inst t1'Inst
+          let t2Nonempty ← Meta.mkAppM ``Nonempty.intro #[t2Inst]
+          Meta.mkAppM ``eq_true #[t2Nonempty]
+        else throwError "mkDeriveNewNonemptyTypeProof2 received types that did not align"
+      | .forallE _ t1Hyp (.app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) t1Conclusion)) (.const ``True [])) _ =>
+        if ← Lean.Meta.isDefEq t1 (.forallE .anonymous t1Hyp t1Conclusion .default) then -- This case should only occur if t1 = t1Hyp → t1Conclusion
+          let t1ArrowT2Inst := .lam .anonymous t1 (← Meta.mkAppM ``Classical.choice #[← Meta.mkAppM ``of_eq_true #[.app premises[0]! (.bvar 0)]]) .default
+          let t1Inst := .lam .anonymous t1Hyp (← Meta.mkAppM ``Classical.choice #[← Meta.mkAppM ``of_eq_true #[.app premises[1]! (.bvar 0)]]) .default
+          let t2Inst := Expr.app t1ArrowT2Inst t1Inst
           let t2Nonempty ← Meta.mkAppM ``Nonempty.intro #[t2Inst]
           Meta.mkAppM ``eq_true #[t2Nonempty]
         else throwError "mkDeriveNewNonemptyTypeProof2 received types that did not align"
