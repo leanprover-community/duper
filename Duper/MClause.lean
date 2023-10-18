@@ -161,6 +161,30 @@ def getMaximalLits (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyR
       else continue
   return maxLits
 
+/-- Returns the list of literals (that satisfy the provided filter_fn) for which the size difference between the lhs and rhs is maximal -/
+def getMaxDiffLits (getNetWeight : Expr → Expr → Bool → MetaM Order.Weight) (alreadyReduced : Bool) (c : MClause)
+  (filter_fn : Lit → Bool) : MetaM (Array Nat) := do
+  let c :=
+    if alreadyReduced then c
+    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
+  let mut maxDiffLits : Array Nat := #[]
+  let mut maxDiff : Order.Weight := 0
+  for i in [:c.lits.size] do
+    let curLit := c.lits[i]!
+    if !filter_fn curLit then continue -- Only consider literals that satisfy filter_fn
+    let curLitDiff := Order.absWeight $ ← getNetWeight curLit.lhs curLit.rhs true
+    if maxDiffLits.isEmpty then
+      maxDiffLits := #[i]
+      maxDiff := curLitDiff
+    else if curLitDiff > maxDiff then
+      maxDiffLits := #[i]
+      maxDiff := curLitDiff
+    else if curLitDiff = maxDiff then
+      maxDiffLits := maxDiffLits.push i
+    else
+      continue
+  return maxDiffLits
+
 /-- Determines whether c.lits[idx]! is maximal in c. If strict is set to true, then there can be no idx' such that c.lits[idx]! and
     c.lits[idx']! are evaluated as equal by the comparison function -/
 def isMaximalLit (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) (strict := false) : MetaM Bool := do

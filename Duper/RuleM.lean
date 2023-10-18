@@ -61,6 +61,7 @@ def getIncludeHoistRulesM : CoreM Bool := do
 
 structure Context where
   order : Expr → Expr → Bool → MetaM Comparison
+  getNetWeight : Expr → Expr → Bool → MetaM Order.Weight
   skolemSorryName : Name
 deriving Inhabited
 
@@ -131,6 +132,9 @@ initialize registerTraceClass `Rule
 
 def getOrder : RuleM (Expr → Expr → Bool → MetaM Comparison) :=
   return (← read).order
+
+def getGetNetWeight : RuleM (Expr → Expr → Bool → MetaM Order.Weight) :=
+  return (← read).getNetWeight
 
 def getSkolemSorryName : RuleM Name :=
   return (← read).skolemSorryName

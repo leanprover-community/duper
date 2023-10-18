@@ -69,18 +69,35 @@ def selectFirstMinimalNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List
 
 /-- Based on E's SelectDiffNegLit: Select the first negative literal for which the size
     difference between both terms is maximal -/
-def selectFirstDiffNegLit (c : MClause) : RuleM (List Nat) := do
-  sorry
+def selectFirstMaxDiffNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
+  let filter_fn : Lit → Bool := fun l => !l.sign -- filter_fn l returns true iff l is negative
+  let maxDiffLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn
+  if maxDiffLits.isEmpty then return []
+  else return [maxDiffLits[0]!]
+
+def isGround (l : Lit) : Bool := !l.lhs.hasExprMVar && !l.rhs.hasExprMVar
 
 /-- Based on E's SelectGroundNegLit: Select the first negative ground literal for which the size
     difference between both terms is maximal -/
-def selectFirstGroundNegLit (c : MClause) : RuleM (List Nat) := do
-  sorry
+def selectFirstGroundNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
+  let filter_fn : Lit → Bool := fun l => !l.sign && isGround l
+  let maxDiffLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn
+  if maxDiffLits.isEmpty then return []
+  else return [maxDiffLits[0]!]
 
 /-- Based on E's SelectOptimalLit: If there is a negative ground literal, select as in selectFirstGroundNegLit.
-    Otherwise, select as in selectFirstDiffNegLit -/
-def selectFirstGroundNegLitIfPossible (c : MClause) : RuleM (List Nat) := do
-  sorry
+    Otherwise, select as in selectFirstMaxDiffNegLit -/
+def selectFirstGroundNegLitIfPossible (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
+  let filter_fn1 : Lit → Bool := fun l => !l.sign && isGround l
+  let filter_fn2 : Lit → Bool := fun l => !l.sign
+  if c.lits.any filter_fn1 then
+    let maxDiffLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn1
+    if maxDiffLits.isEmpty then return []
+    else return [maxDiffLits[0]!]
+  else
+    let maxDiffLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn2
+    if maxDiffLits.isEmpty then return []
+    else return [maxDiffLits[0]!]
 
 def getSelections (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
   match ← getSelFunctionM with
@@ -91,6 +108,9 @@ def getSelections (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
   | 4 => selectFirstMaximalNegLit c alreadyReduced
   | 5 => selectFirstMaximalNegLitAndAllPosLits c alreadyReduced
   | 6 => selectFirstMinimalNegLit c alreadyReduced
+  | 7 => selectFirstMaxDiffNegLit c alreadyReduced
+  | 8 => selectFirstGroundNegLit c alreadyReduced
+  | 9 => selectFirstGroundNegLitIfPossible c alreadyReduced
   | _ => throwError "Invalid selFunction option"
 
 def litSelectedOrNothingSelected (c : MClause) (i : Nat) (alreadyReduced : Bool) : RuleM Bool := do
