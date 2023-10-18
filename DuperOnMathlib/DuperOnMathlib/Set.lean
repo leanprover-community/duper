@@ -17,159 +17,309 @@ variable (s t u : Set α)
 
 set_option maxHeartbeats 50000
 
--- If preprocessing eliminates ⊆ entirely, duper can solve easily
-set_option trace.Misc.debug true in
-set_option trace.Preprocessing.debug true in
-theorem test1a (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
-  rw [subset_def]
-  rw [subset_def] at h
-  duper [mem_inter_iff, subset_def]
-
 -- If duper is forced to use subset_def itself, it times out
-theorem test1b (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
-  duper [mem_inter_iff, subset_def]
+theorem test1_no_rewrite (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  sorry -- duper [mem_inter_iff, subset_def]
 
--- The above two tests indicate that duper should succeed on this test with auto's preprocessing, which
--- coincides with what we see in Auto's Examples/Set.lean
+set_option selFunction 0 in
+theorem test1a (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 0
+
+set_option selFunction 1 in
+theorem test1b (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 1
+
+set_option selFunction 2 in
+theorem test1c (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 2
+
+set_option selFunction 3 in
+theorem test1d (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 3
+
+set_option selFunction 4 in
+theorem test1e (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 4
+
+set_option selFunction 5 in
+theorem test1f (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 5
+
+set_option selFunction 6 in
+theorem test1g (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 6
+
+set_option selFunction 7 in
+theorem test1h (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 7
+
+set_option selFunction 8 in
+theorem test1i (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 8
+
+set_option selFunction 9 in
+theorem test1j (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  rw [subset_def] at h -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, subset_def] -- Succeeds with selFunction 9
 
 ------------------------------------------------------------------------------------
 set_option selFunction 0 in
 theorem test2a : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
   rw [subset_def] -- Mimics auto's definition aware preprocessing
-  duper [mem_inter_iff, mem_union, subset_def]
+  duper [mem_inter_iff, mem_union, subset_def] -- Det timeout with selFunction 0
 
 set_option selFunction 1 in
 theorem test2b : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
   rw [subset_def] -- Mimics auto's definition aware preprocessing
-  duper [mem_inter_iff, mem_union, subset_def]
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 1
 
 set_option selFunction 2 in
 theorem test2c : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
   rw [subset_def] -- Mimics auto's definition aware preprocessing
-  duper [mem_inter_iff, mem_union, subset_def]
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 2
 
-/-
-For this problem, duper fails to solve the example using its default selection function which takes both
-inequalities and equalities of the form `e = False` as selectable. However, if duper selects only actual
-inequalities, or no literals at all (selection functions 1 and 2 respectively), then duper can solve the
-problem
--/
+set_option selFunction 3 in
+theorem test2d : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 3
+
+set_option selFunction 4 in
+theorem test2e : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 4
+
+set_option selFunction 5 in
+theorem test2f : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Det timeout with selFunction 5
+
+set_option selFunction 6 in
+theorem test2g : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 6
+
+set_option selFunction 7 in
+theorem test2h : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 7
+
+set_option selFunction 8 in
+theorem test2i : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 8
+
+set_option selFunction 9 in
+theorem test2j : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 9
+
 ------------------------------------------------------------------------------------
 set_option selFunction 0 in
 theorem test3a : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
-  rw [subset_def]
-  duper [mem_inter_iff, mem_union, subset_def]
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Det timeout with selFunction 0
 
 set_option selFunction 1 in
 theorem test3b : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
-  rw [subset_def]
-  duper [mem_inter_iff, mem_union, subset_def]
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 1
 
 set_option selFunction 2 in
 theorem test3c : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
-  rw [subset_def]
-  duper [mem_inter_iff, mem_union, subset_def]
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 2
 
-/-
-For this problem, duper fails to solve the example using its default selection function which takes both
-inequalities and equalities of the form `e = False` as selectable. However, if duper selects only actual
-inequalities, or no literals at all (selection functions 1 and 2 respectively), then duper can solve the
-problem
--/
+set_option selFunction 3 in
+theorem test3d : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 3
+
+set_option selFunction 4 in
+theorem test3e : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 4
+
+set_option selFunction 5 in
+theorem test3f : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 5
+
+set_option selFunction 6 in
+theorem test3g : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 6
+
+set_option selFunction 7 in
+theorem test3h : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 7
+
+set_option selFunction 8 in
+theorem test3i : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 8
+
+set_option selFunction 9 in
+theorem test3j : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_inter_iff, mem_union, subset_def] -- Succeeds with selFunction 9
 ------------------------------------------------------------------------------------
 #check mem_diff
 
 set_option selFunction 0 in
 theorem test4a : (s \ t) \ u ⊆ s \ (t ∪ u) := by
-  rw [subset_def]
-  duper [mem_diff, mem_union, subset_def]
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 0
 
 set_option selFunction 1 in
 theorem test4b : (s \ t) \ u ⊆ s \ (t ∪ u) := by
-  rw [subset_def]
-  duper [mem_diff, mem_union, subset_def]
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 1
 
 set_option selFunction 2 in
 theorem test4c : (s \ t) \ u ⊆ s \ (t ∪ u) := by
-  rw [subset_def]
-  duper [mem_diff, mem_union, subset_def]
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 2
 
-/-
-Duper is able to solve this problem regardless of selection function, but this does NOT coincide with what
-we see in Auto's Examples/Set.lean. There, auto seems to not be able to solve this problem
--/
+set_option selFunction 3 in
+theorem test4d : (s \ t) \ u ⊆ s \ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 3
+
+set_option selFunction 4 in
+theorem test4e : (s \ t) \ u ⊆ s \ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 4
+
+set_option selFunction 5 in
+theorem test4f : (s \ t) \ u ⊆ s \ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 5
+
+set_option selFunction 6 in
+theorem test4g : (s \ t) \ u ⊆ s \ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 6
+
+set_option selFunction 7 in
+theorem test4h : (s \ t) \ u ⊆ s \ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 7
+
+set_option selFunction 8 in
+theorem test4i : (s \ t) \ u ⊆ s \ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 8
+
+set_option selFunction 9 in
+theorem test4j : (s \ t) \ u ⊆ s \ (t ∪ u) := by
+  rw [subset_def] -- Mimics auto's definition aware preprocessing
+  duper [mem_diff, mem_union, subset_def] -- Succeeds with selFunction 9
 ------------------------------------------------------------------------------------
 #check Set.ext
--- This is not an example taken from Auto.lean but serves to showcase that Duper can explode if given Set.ext
-set_option trace.Timeout.debug true in
-set_option trace.Timeout.debug.fullActiveSet true in
-theorem test5a : False := by
-  duper [Set.ext] -- Duper times out without saturating
 
-set_option includeHoistRules false in
-set_option trace.Saturate.debug true in
-theorem test5b : False := by
-  duper [Set.ext] -- Duper still doesn't saturate even when hoist rules are removed
+-- Note for this problem: Zipperposition (on default settings) took 6s to solve this
 
-set_option firstOrderUnifierGenerator true in
-set_option trace.Saturate.debug true in
-theorem test5c : False := by
-  duper [Set.ext] -- Duper saturates reasonably quickly if the first order unifier generator is used
-
-/-
-I don't know that any of the above behavior constitutes a bug per se, but it does pose an issue given
-that we want Duper to be able to reasonably handle problems that may require lemmas like Set.ext
--/
-------------------------------------------------------------------------------------
 set_option selFunction 0 in
 theorem test6a : s ∩ t = t ∩ s := by
-  duper [Set.ext, mem_inter_iff]
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 0
 
 set_option selFunction 1 in
 theorem test6b : s ∩ t = t ∩ s := by
-  duper [Set.ext, mem_inter_iff]
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 1
 
 set_option selFunction 2 in
 theorem test6c : s ∩ t = t ∩ s := by
-  duper [Set.ext, mem_inter_iff]
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 2
 
-set_option firstOrderUnifierGenerator true in
+set_option selFunction 3 in
 theorem test6d : s ∩ t = t ∩ s := by
-  duper [Set.ext, mem_inter_iff]
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 3
 
-/-
-Duper can't get this no matter how I configure the options, despite it being so simple, but in Duper's
-defense, Zipperposition took 6 seconds to get this, so this is maybe just a lot harder than we might think
--/
+set_option selFunction 4 in
+theorem test6e : s ∩ t = t ∩ s := by
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 4
+
+set_option selFunction 5 in
+theorem test6f : s ∩ t = t ∩ s := by
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 5
+
+set_option selFunction 6 in
+theorem test6g : s ∩ t = t ∩ s := by
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 6
+
+set_option selFunction 7 in
+theorem test6h : s ∩ t = t ∩ s := by
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 7
+
+set_option selFunction 8 in
+theorem test6i : s ∩ t = t ∩ s := by
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 8
+
+set_option selFunction 9 in
+theorem test6j : s ∩ t = t ∩ s := by
+  duper [Set.ext, mem_inter_iff] -- Det timeout with selFunction 9
 ----------------------------------------------------------------------
+-- Note for this problem: Zipperposition (on default settings) is able to solve this quite quickly,
+-- so it should be much more obtainable than test6
+
 set_option selFunction 0 in
 theorem test7a : s ∩ (s ∪ t) = s := by
-  duper [Set.ext, mem_union, mem_inter_iff]
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 0
 
 set_option selFunction 1 in
 theorem test7b : s ∩ (s ∪ t) = s := by
-  duper [Set.ext, mem_union, mem_inter_iff]
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 1
 
 set_option selFunction 2 in
 theorem test7c : s ∩ (s ∪ t) = s := by
-  duper [Set.ext, mem_union, mem_inter_iff]
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 2
 
-set_option firstOrderUnifierGenerator true in
-set_option trace.Timeout.debug true in
-set_option trace.Timeout.debug.fullActiveSet true in
-set_option enableSuperpositionWatchClauses true in
-set_option superpositionWatchClause1 13 in
-set_option superpositionWatchClause2 32 in
-set_option trace.Rule.superposition true in
+set_option selFunction 3 in
 theorem test7d : s ∩ (s ∪ t) = s := by
-  duper [Set.ext, mem_union, mem_inter_iff]
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 3
 
-/-
-Zipperposition is able to solve this problem quickly, but Duper doesn't seem to be able to solve this
-problem under any configuration of options. I'm still in the process of investigating why this is the
-case.
--/
+set_option selFunction 4 in
+theorem test7e : s ∩ (s ∪ t) = s := by
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 4
 
--- There are more problems in Auto's Examples/Set.lean file, but I haven't closely examined/moved them here yet
+set_option selFunction 5 in
+theorem test7f : s ∩ (s ∪ t) = s := by
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 5
+
+set_option selFunction 6 in
+theorem test7g : s ∩ (s ∪ t) = s := by
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 6
+
+set_option selFunction 7 in
+theorem test7h : s ∩ (s ∪ t) = s := by
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 7
+
+set_option selFunction 8 in
+theorem test7i : s ∩ (s ∪ t) = s := by
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 8
+
+set_option selFunction 9 in
+theorem test7j : s ∩ (s ∪ t) = s := by
+  duper [Set.ext, mem_union, mem_inter_iff] -- Det timeout with selFunction 9
 
 end
