@@ -675,3 +675,15 @@ example (h1 : ∀ f : α → β, Nonempty γ) (h2 : ∀ x : α, Nonempty β) : �
 example (p : α → β → γ → Prop) (q : α → β → γ) (h : ∀ (x : α) (y : β), p x y (q x y)) :
   ∃ (f : α → β → γ), ∀ x y, p x y (f x y) :=
   by duper
+
+example (p : Prop) (h : Nonempty p = True) : p := by duper
+
+example (p : Prop) (h : Nonempty (PProd p α) = True) : p := by duper
+
+example (p : Prop) (h : Nonempty (PProd α p) = True) : p := by duper
+
+example (p : Prop) (h : ∃ hp : p, True) : p := by duper
+
+example (h : Nonempty (α × β)) : Nonempty α := by duper
+
+example (h : Nonempty (α × β)) : Nonempty β := by duper

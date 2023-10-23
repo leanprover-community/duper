@@ -11,33 +11,38 @@ open RuleM
 open Meta
 open SimpResult
 
+register_option simultaneousSkolemization : Bool := {
+  defValue := false -- Disabled by default because I'm still working through some kinks that arise as a result of enabling this
+  descr := "Whether we attempt to transform (∃ x : t1, ∃ y : t2, p x y) into (∃ z : t1 × t2, p z.1 z.2)"
+}
+
+def getSimultaneousSkolemization (opts : Options) : Bool :=
+  simultaneousSkolemization.get opts
+
+def getSimultaneousSkolemizationM : CoreM Bool := do
+  let opts ← getOptions
+  return getSimultaneousSkolemization opts
+
 initialize Lean.registerTraceClass `Rule.clausification
 
---TODO: move?
 theorem not_of_eq_false (h: p = False) : ¬ p := 
   fun hp => h ▸ hp
 
---TODO: move?
 theorem of_not_eq_false (h: (¬ p) = False) : p := 
   Classical.byContradiction fun hn => h ▸ hn
 
---TODO: move?
 theorem eq_true_of_not_eq_false (h : (¬ p) = False) : p = True := 
   eq_true (of_not_eq_false h)
 
---TODO: move?
 theorem eq_false_of_not_eq_true (h : (¬ p) = True) : p = False := 
   eq_false (of_eq_true h)
 
---TODO: move?
 theorem clausify_and_left (h : (p ∧ q) = True) : p = True := 
   eq_true (of_eq_true h).left
 
---TODO: move?
 theorem clausify_and_right (h : (p ∧ q) = True) : q = True := 
   eq_true (of_eq_true h).right
 
---TODO: move?
 theorem clausify_and_false (h : (p ∧ q) = False) : p = False ∨ q = False := by
   apply @Classical.byCases p
   · intro hp 
@@ -49,29 +54,23 @@ theorem clausify_and_false (h : (p ∧ q) = False) : p = False ∨ q = False := 
   · intro hp
     exact Or.intro_left _ (eq_false hp)
 
---TODO: move?
 theorem clausify_or (h : (p ∨ q) = True) : p = True ∨ q = True := 
   (of_eq_true h).elim 
     (fun h => Or.intro_left _ (eq_true h))
     (fun h => Or.intro_right _ (eq_true h))
 
---TODO: move?
 theorem clausify_or_false_left (h : (p ∨ q) = False) : p = False := 
   eq_false fun hp => not_of_eq_false h (Or.intro_left _ hp)
 
---TODO: move?
 theorem clausify_or_false_right (h : (p ∨ q) = False) : q = False := 
   eq_false fun hp => not_of_eq_false h (Or.intro_right _ hp)
 
---TODO: move?
 theorem clausify_not (h : (¬ p) = True) : p = False := 
 eq_false fun hp => of_eq_true h hp
 
---TODO: move?
 theorem clausify_not_false (h : (¬ p) = False) : p = True := 
 eq_true (Classical.byContradiction fun hp => not_of_eq_false h hp)
 
---TODO: move?
 theorem clausify_imp (h : (p → q) = True) : p = False ∨ q = True := by
   cases Classical.propComplete q with
   | inl q_eq_true => exact Or.intro_right _ q_eq_true
@@ -84,29 +83,39 @@ theorem clausify_imp (h : (p → q) = True) : p = False ∨ q = True := by
       exact False.elim (t ⟨⟩)
     | inr p_eq_false => exact Or.intro_left _ p_eq_false
 
---TODO: move?
 theorem clausify_imp_false_left (h : (p → q) = False) : p = True := 
   Classical.byContradiction fun hnp => 
     not_of_eq_false h fun hp => 
       False.elim (hnp $ eq_true hp)
 
---TODO: move?
 theorem clausify_imp_false_right (h : (p → q) = False) : q = False := 
   eq_false fun hq => not_of_eq_false h fun _ => hq
 
---TODO: move?
 theorem clausify_forall {p : α → Prop} (x : α) (h : (∀ x, p x) = True) : p x = True := 
   eq_true (of_eq_true h x)
 
---TODO: move?
 theorem clausify_exists {p : α → Prop} (h : (∃ x, p x) = True) :
   p (Classical.choose (of_eq_true h)) = True := 
-eq_true $ Classical.choose_spec _
+  eq_true $ Classical.choose_spec _
+
+theorem clausify_exists_exists {α : Sort u_1} {β : Sort u_2} {p : α → β → Prop} (h : (∃ a : α, ∃ b : β, p a b) = True) :
+  (∃ x : PProd α β, p x.1 x.2) = True :=
+  eq_true $
+    Exists.intro
+      (PProd.mk (Classical.choose (of_eq_true h)) (Classical.choose (Classical.choose_spec (of_eq_true h))))
+      (Classical.choose_spec (Classical.choose_spec (of_eq_true h)))
+
+theorem clausify_forall_forall {α : Sort u_1} {β : Sort u_2} {p : α → β → Prop} (h : (∀ a : α, ∀ b : β, p a b) = False) :
+  (∀ x : PProd α β, p x.1 x.2) = False := by
+  apply eq_false
+  intro hgoal
+  rw [← h]
+  intro a b
+  exact hgoal (PProd.mk a b)
 
 theorem nonempty_of_exists {p : α → Prop} (h : (∃ x : α, p x) = True) : Nonempty α :=
   Nonempty.intro (Classical.choose (of_eq_true h))
 
---TODO: move?
 theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False := 
   eq_false (fun hp => not_of_eq_false h ⟨x, hp⟩)
 
@@ -119,9 +128,9 @@ theorem nonempty_of_forall_eq_false {p : α → Prop} (h : (∀ x : α, p x) = F
   exact h_nonempty (Nonempty.intro x)
 
 --TODO: move
-noncomputable def Skolem.some (p : α → Prop) (x : α) :=
+noncomputable def Skolem.some (p : α → Prop) (x : α) : α :=
   let _ : Decidable (∃ a, p a) := Classical.propDecidable _
-  if hp: ∃ a, p a then Classical.choose hp else x
+  if hp : ∃ a, p a then Classical.choose hp else x
 
 --TODO: move
 theorem Skolem.spec {p : α → Prop} (x : α) (hp : ∃ a, p a) : 
@@ -212,6 +221,166 @@ structure ClausificationResult where
   proof             : Expr → Array Expr → MetaM Expr
   transferExprs     : Array Expr
 
+-- h : (∃ x : ty, p x)
+-- sk : (∃ x : ty, p x) → ty
+--     No! May contain metavariables
+-- sk : ∀ [metavars], ty → ty :=
+--   fun [metavars] => Skolem.some (fun x : ty => p x)
+-- sk_spec : ∀ [metavars] (x : ty), (∃ x : ty, p x) → p (sk [metavars] x) :=
+--   fun [metavars] (x : ty) (h : ∃ x, p x) => Skolem.spec x h
+-- We don't need to construct `sk_spec` explicitly. We
+--   can directly use `Skolem.spec` and leave the job of unification
+--   to Lean
+-- Note: Proof reconstruction of skolems is independent of proof reconstruction of clauses.
+def makeSkTerm (ty b : Expr) : RuleM (Expr × Expr) := do
+  let skMap ← getSkolemMap
+  let cnt := skMap.size
+  let p := mkLambda `x BinderInfo.default ty b
+  let prf_pre ← mkAppM ``Skolem.some #[p]
+  let (prf, mids, lnames, lvls) ← Duper.abstractMVarsLambdaWithIds prf_pre
+  let isk : SkolemInfo := {expr := prf, params := lnames}
+  setSkolemMap (skMap.insert cnt isk)
+  let skTy ← inferType prf
+  let skLvl := (← inferType skTy).sortLevel!
+  let skolemSorryName ← getSkolemSorryName
+  let wrapped ← wrapSort lnames
+  let sLvl := (← Meta.inferType wrapped).sortLevel!
+  let skExpr := Expr.app (.app (.app (.const skolemSorryName [sLvl, skLvl]) wrapped) (.lit (.natVal cnt))) skTy
+  let skExpr := skExpr.instantiateLevelParamsArray lnames lvls
+  let newmvar ← mkFreshExprMVar ty
+  return (mkApp (mkAppN skExpr mids) newmvar, newmvar)
+
+/-- If `e` has the form `∀ x : ty, b`, then clausifies `e = False` by skolemizing `x` -/
+def clausifySingleForall (e : Expr) : RuleM (Array ClausificationResult) :=
+  match e with
+  | Expr.forallE name ty b bi => do
+    -- If t1 is a Prop and the ∀ body doesn't depend on t1, treat "∀" as "→"
+    if (← inferType ty).isProp && !b.hasLooseBVars then
+      let pr₁ : Expr → Array Expr → MetaM Expr := fun premise _ =>
+        Meta.mkAppM ``clausify_imp_false_left #[premise]
+      let pr₂ : Expr → Array Expr → MetaM Expr := fun premise _ =>
+        Meta.mkAppM ``clausify_imp_false_right #[premise]
+      return #[⟨#[Lit.fromSingleExpr ty], pr₁, #[]⟩, ⟨#[Lit.fromSingleExpr b false], pr₂, #[]⟩]
+    /- Because of the previous case, we know that `b` does not have the form (Expr.forallE ..), so we can
+        proceed with skolemizing the universal quantifier -/
+    let (skTerm, newmvar) ← makeSkTerm ty (mkNot b)
+    let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
+      let #[tr, trp] := trs
+        | throwError "clausificationStepE :: Wrong number of transferExprs"
+      Meta.mkAppM ``eq_true #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
+    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => do
+      let nonempty ← Meta.mkAppM ``nonempty_of_forall_eq_false #[premise]
+      Meta.mkAppM ``eq_true #[nonempty]
+    let res1 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ mkNot (b.instantiate1 skTerm)], pr1, #[newmvar, Expr.lam name ty (mkNot b) bi]⟩
+    let res2 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
+    if ← getInhabitationReasoningM then
+      return #[res1, res2]
+    else
+      return #[res1]
+  | _ => throwError "clausifySingleForall given invalid expression"
+
+/-- If `e` has the form `∃ x : ty, b`, then clausifies `e = True` by skolemizing `x` -/
+def clausifySingleExists (e : Expr) : RuleM (Array ClausificationResult) :=
+  match e with
+  | Expr.app (Expr.app (Expr.const ``Exists lvls) ty) tran => do
+    let b :=
+      match tran with
+      | .lam _ _ b _ => b
+      | _ => mkApp tran (.bvar 0)
+    let (skTerm, newmvar) ← makeSkTerm ty b
+    let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
+      let #[tr, trp] := trs
+          | throwError "clausificationStepE :: Wrong number of transferExprs"
+      return ← Meta.mkAppM ``eq_true
+        #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``of_eq_true #[premise]]]
+    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => do
+      let nonempty ← Meta.mkAppM ``nonempty_of_exists #[premise]
+      Meta.mkAppM ``eq_true #[nonempty]
+    let res1 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr1, #[newmvar, tran]⟩
+    let res2 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
+    if ← getInhabitationReasoningM then
+      return #[res1, res2]
+    else
+      return #[res1]
+  | _ => throwError "clausifySingleExists given invalid expression"
+
+/-- Clausify `(∀ x : t1, ∀ y : t2, p x y) = False` as `(∀ z : t1 × t2, p z.1 z.2) = False`. Repeatedly clausifying
+    sequential universal quantifiers in this manner will ensure that `(∀ x1, ∃ x2, ... ∃ xn, p x1 x2 ... xn) = False` will
+    eventually turn into `(∀ z : (((x1 × x2) × x3) ... × xn), p z.1.1.1...1 z.1.1.1...2 ... z.2) = False` which is a single
+    universal quantifier whose type can be skolemized all at once (ensuring there are no inadvertent dependencies between, for
+    instance, the skolem symbol for `xn` and the skolem symbol for `x1`).
+    
+    If `t2` depends on `x`, then instead of doing what is described above, `clausifySequentialForall` just calls `clausifySingleForall`.
+    Likewise, if `t1` is of type `Prop` and `∀ y : t2, p x y` doesn't depend on `x`, then `clausifySequentialForall` instead treats
+    the first forallE has an implication. -/
+def clausifySequentialForall (e : Expr) : RuleM (Array ClausificationResult) :=
+  match e with
+  | Expr.forallE name1 t1 (Expr.forallE name2 t2 b bi2) bi1 => do
+    -- If t1 is a Prop and (Expr.forallE name2 t2 b bi2) doesn't depend on t1, treat the top-level "∀" as "→"
+    if (← inferType t1).isProp && !(Expr.forallE name2 t2 b bi2).hasLooseBVars then
+      let pr₁ : Expr → Array Expr → MetaM Expr := fun premise _ =>
+        Meta.mkAppM ``clausify_imp_false_left #[premise]
+      let pr₂ : Expr → Array Expr → MetaM Expr := fun premise _ =>
+        Meta.mkAppM ``clausify_imp_false_right #[premise]
+      return #[⟨#[Lit.fromSingleExpr t1], pr₁, #[]⟩, ⟨#[Lit.fromSingleExpr (Expr.forallE name2 t2 b bi2) false], pr₂, #[]⟩]
+    else if t2.hasLooseBVars then -- If `t2` depends on the given variable of type `t1`, then just call `clausifySingleForall`
+      clausifySingleForall e
+    else
+      /- `t1PProdt2` is `t1 × t2`. The reason we use `PProd` rather than `Prod` is that `PProd` takes in universe metavariables
+        corresponding to the sorts of `t1` and `t2` whereas `Prod` takes in universe metavariables corresponding to the types of
+        `t1` and `t2`. The former is strictly more inclusive than the latter. -/
+      let t1PProdt2 ← Meta.mkAppM ``PProd #[t1, t2]
+      -- `z` is a metavariable that will represent the existentially quantified variable of type `t1 × t2`
+      let z ← mkFreshExprMVar t1PProdt2
+      /- `b` is a term of type `Prop` with loose bvars corresponding to the universally quantified variable of type `t1` and the
+        universally quantified variable of type `t2`. `b2` is `b` with every reference to the variable of type `t1` with `z.1`
+        and every reference to the variable of type `t2` with `z.2` -/
+      let b2 := b.instantiate #[← Meta.mkAppM ``PProd.snd #[z], ← Meta.mkAppM ``PProd.fst #[z]]
+      /- If `b2` is `p z.1 z.2` then `e'` is intended to be `∀ z : t1 × t2, p z.1 z.2`. Note that in constructing `b3`, `z` is abstracted so
+        that the fresh expression metavariable `z` will no longer actually appear in the body of the forallE but will instead be replaced
+        with (.bvar 0) -/
+      let e' ← Meta.mkForallFVars #[z] b2
+      let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_forall_forall #[premise]
+      return #[⟨#[Lit.fromSingleExpr e' false], pr, #[]⟩]
+  | _ => throwError "clausifySequentialForall given invalid expression"
+
+/-- Clausify `∃ x : t1, ∃ y : t2, p x y` as `∃ z : t1 × t2, p z.1 z.2`. Repeatedly clausifying sequential existential
+    quantifiers in this manner will ensure that `∃ x1, ∃ x2, ... ∃ xn, p x1 x2 ... xn` will eventually turn into
+    `∃ z : (((x1 × x2) × x3) ... × xn), p z.1.1.1...1 z.1.1.1...2 ... z.2` which is a single existential quantifier
+    whose type can be skolemized all at once (ensuring there are no inadvertent dependencies between, for instance, the
+    skolem symbol for `xn` and the skolem symbol for `x1`).
+    
+    If `t2` depends on `x`, then instead of doing what is described above, `clausifySequentialExists` just calls `clausifySingleExists`. -/
+def clausifySequentialExists (e : Expr) : RuleM (Array ClausificationResult) :=
+  match e with
+  | Expr.app (Expr.app (Expr.const ``Exists [t1lvl]) t1) (Expr.lam _ _ (Expr.app (Expr.app (Expr.const ``Exists [t2lvl]) t2) b) _) => do
+    if t2.hasLooseBVars then -- If `t2` depends on the given variable of type `t1`, then just call `clausifySingleExists`
+      clausifySingleExists e
+    else
+      /- `t1PProdt2` is `t1 × t2`. The reason we use `PProd` rather than `Prod` is that `PProd` takes in universe metavariables
+        corresponding to the sorts of `t1` and `t2` whereas `Prod` takes in universe metavariables corresponding to the types of
+        `t1` and `t2`. Because `Exists` also uses universe metavariables corresponding to the sorts of `t1` and `t2`, those are
+        the universe metavariables we have access to (additionally, attempting to call `Meta.mkAppM` without supplying the universe
+        metavariables results in an error: "AppBuilder for 'mkAppM', result contains metavariables") -/
+      let t1PProdt2 ← Meta.mkAppM' (Expr.const ``PProd [t1lvl, t2lvl]) #[t1, t2]
+      -- `z` is a metavariable that will represent the existentially quantified variable of type `t1 × t2`
+      let z ← mkFreshExprMVar t1PProdt2
+      /- `b` is a function of type `t2 → Prop`. It may have the form `fun x : t2 => p x` but it need not necessarily have this form.
+        `b2` is also a function of type `t2 → Prop` but it replaces every reference to the existentially quantified variable of type
+        `t1` with `z.1` -/
+      let b2 := b.instantiate #[← Meta.mkAppM ``PProd.fst #[z]]
+      /- Since `b2` has the type `t2 → Prop`, it can be expressed as `(fun x => p x)` (though `b2` itself may not have this form).
+        `b3` is an element of type `Prop` that is intended to coincide with `p z.2` -/
+      let b3 ← Meta.mkAppM' b2 #[← Meta.mkAppM ``PProd.snd #[z]]
+      /- If `b3` is `p z.2` then `b4` is intended to be `(fun z => p z.2)`. Note that in constructing `b4`, `z` is abstracted so that
+        the fresh expression metavariable `z` will no longer actually appear in the body of the lambda but will instead be replaced
+        with (.bvar 0) -/
+      let b4 ← Meta.mkLambdaFVars #[z] b3
+      let e' ← mkAppM ``Exists #[b4]
+      let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_exists_exists #[premise]
+      return #[⟨#[Lit.fromSingleExpr e'], pr, #[]⟩]
+  | _ => throwError "clausifySequentialExists given invalid expression"
+
 def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationResult) :=
   match sign, e with
   | false, Expr.const ``True _ =>
@@ -246,25 +415,10 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         Meta.mkAppM ``clausify_forall #[tr, premise]
       let mvar ← mkFreshExprMVar ty
       return #[⟨#[Lit.fromSingleExpr $ b.instantiate1 mvar], pr, #[mvar]⟩]
-  | true, Expr.app (Expr.app (Expr.const ``Exists lvls) ty) tran => do
-    let b := match tran with
-             | .lam _ _ b _ => b
-             | _ => mkApp tran (.bvar 0)
-    let (skTerm, newmvar) ← makeSkTerm ty b
-    let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
-      let #[tr, trp] := trs
-          | throwError "clausificationStepE :: Wrong number of transferExprs"
-      return ← Meta.mkAppM ``eq_true
-        #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``of_eq_true #[premise]]]
-    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => do
-      let nonempty ← Meta.mkAppM ``nonempty_of_exists #[premise]
-      Meta.mkAppM ``eq_true #[nonempty]
-    let res1 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ b.instantiate1 skTerm], pr1, #[newmvar, tran]⟩
-    let res2 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
-    if ← getInhabitationReasoningM then
-      return #[res1, res2]
-    else
-      return #[res1]
+  | true, Expr.app (Expr.app (Expr.const ``Exists _) _) (Expr.lam _ _ (Expr.app (Expr.app (Expr.const ``Exists _) _) _) _) => do
+    if ← getSimultaneousSkolemizationM then clausifySequentialExists e
+    else clausifySingleExists e
+  | true, Expr.app (Expr.app (Expr.const ``Exists _) _) _ => clausifySingleExists e
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_and_false #[premise]
     return #[⟨#[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr, #[]⟩]
@@ -274,27 +428,10 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
     /- e₂ and pr₂ are placed first in the list because "∨" is right-associative. So if we decompose "a ∨ b ∨ c ∨ d... = False" we want
        "b ∨ c ∨ d... = False" to be the first clause (which will return to Saturate's simpLoop to receive further clausification) -/
     return #[⟨#[Lit.fromSingleExpr e₂ false], pr₂, #[]⟩, ⟨#[Lit.fromSingleExpr e₁ false], pr₁, #[]⟩]
-  | false, Expr.forallE name ty b bi => do
-    if (← inferType ty).isProp && !b.hasLooseBVars then
-      let pr₁ : Expr → Array Expr → MetaM Expr := fun premise _ =>
-        Meta.mkAppM ``clausify_imp_false_left #[premise]
-      let pr₂ : Expr → Array Expr → MetaM Expr := fun premise _ =>
-        Meta.mkAppM ``clausify_imp_false_right #[premise]
-      return #[⟨#[Lit.fromSingleExpr ty], pr₁, #[]⟩, ⟨#[Lit.fromSingleExpr b false], pr₂, #[]⟩]
-    let (skTerm, newmvar) ← makeSkTerm ty (mkNot b)
-    let pr1 : Expr → Array Expr → MetaM Expr := fun premise trs => do
-      let #[tr, trp] := trs
-        | throwError "clausificationStepE :: Wrong number of transferExprs"
-      Meta.mkAppM ``eq_true #[← Meta.mkAppOptM ``Skolem.spec #[none, trp, tr, ← Meta.mkAppM ``exists_of_forall_eq_false #[premise]]]
-    let pr2 : Expr → Array Expr → MetaM Expr := fun premise _ => do
-      let nonempty ← Meta.mkAppM ``nonempty_of_forall_eq_false #[premise]
-      Meta.mkAppM ``eq_true #[nonempty]
-    let res1 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ mkNot (b.instantiate1 skTerm)], pr1, #[newmvar, Expr.lam name ty (mkNot b) bi]⟩
-    let res2 : ClausificationResult := ⟨#[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[ty]], pr2, #[]⟩
-    if ← getInhabitationReasoningM then
-      return #[res1, res2]
-    else
-      return #[res1]
+  | false, Expr.forallE _ _ (Expr.forallE ..) _ => do
+    if ← getSimultaneousSkolemizationM then clausifySequentialForall e
+    else clausifySingleForall e
+  | false, Expr.forallE .. => clausifySingleForall e
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) f => do
     let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
       let #[tr] := trs
@@ -335,35 +472,6 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
   | _, _ => do
     trace[Rule.clausification] "### clausificationStepE is unapplicable with e = {e} and sign = {sign}"
     return #[]
-where
-  -- h : (∃ x : ty, p x)
-  -- sk : (∃ x : ty, p x) → ty
-  --     No! May contain metavariables
-  -- sk : ∀ [metavars], ty → ty :=
-  --   fun [metavars] => Skolem.some (fun x : ty => p x)
-  -- sk_spec : ∀ [metavars] (x : ty), (∃ x : ty, p x) → p (sk [metavars] x) :=
-  --   fun [metavars] (x : ty) (h : ∃ x, p x) => Skolem.spec x h
-  -- We don't need to construct `sk_spec` explicitly. We
-  --   can directly use `Skolem.spec` and leave the job of unification
-  --   to Lean
-  -- Note: Proof reconstruction of skolems is independent of proof reconstruction of clauses.
-  makeSkTerm ty b : RuleM (Expr × Expr) := do
-    let skMap ← getSkolemMap
-    let cnt := skMap.size
-    let p := mkLambda `x BinderInfo.default ty b
-    let prf_pre ← mkAppM ``Skolem.some #[p]
-    let (prf, mids, lnames, lvls) ← Duper.abstractMVarsLambdaWithIds prf_pre
-    let isk : SkolemInfo := {expr := prf, params := lnames}
-    setSkolemMap (skMap.insert cnt isk)
-    let skTy ← inferType prf
-    let skLvl := (← inferType skTy).sortLevel!
-    let skolemSorryName ← getSkolemSorryName
-    let wrapped ← wrapSort lnames
-    let sLvl := (← Meta.inferType wrapped).sortLevel!
-    let skExpr := Expr.app (.app (.app (.const skolemSorryName [sLvl, skLvl]) wrapped) (.lit (.natVal cnt))) skTy
-    let skExpr := skExpr.instantiateLevelParamsArray lnames lvls
-    let newmvar ← mkFreshExprMVar ty
-    return (mkApp (mkAppN skExpr mids) newmvar, newmvar)
 
 -- Important: We return `Array ClausificationResult` instead of
 --   `Option (Array ClausificationResult)` because whenever a literal
@@ -405,7 +513,6 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (Array ClausificationR
     return #[⟨#[Lit.fromSingleExpr l.lhs false, Lit.fromSingleExpr l.rhs false], pr1, #[]⟩,
              ⟨#[Lit.fromSingleExpr l.lhs true, Lit.fromSingleExpr l.rhs true], pr2, #[]⟩]
 
--- TODO: generalize combination of `orCases` and `orIntro`?
 def clausificationStep : MSimpRule := fun c => do
   let c ← loadClause c
   for i in [:c.lits.size] do

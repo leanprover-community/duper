@@ -115,6 +115,96 @@ def mkDeriveNewNonemptyTypeProof2 (premises : List Expr) (parents : List ProofPa
       | _ => throwError "mkDeriveNewNonemptyTypeProof2 received invalid parent 1: {parents[1]!.clause.toExpr}"
     | _ => throwError "mkDeriveNewNonemptyTypeProof2 received invalid parent 0: {parents[0]!.clause.toExpr}"
 
+/-- mkDeriveNewNonemptyTypeProof3 expects to receive one parent of the form `Nonempty (t1 × t2) = True` and yields a proof
+    of `Nonempty t1 = True`.
+    
+    Note: Right now, mkDeriveNewNonemptyTypeProof3 does not support lemmas of the form `True = Nonempty t`, and I think
+    this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
+    it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
+def mkDeriveNewNonemptyTypeProof3 (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
+  (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    match parents[0]!.clause.toForallExpr with
+    | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) (Expr.app (Expr.app (Expr.const ``Prod lvls) t1) t2))) (.const ``True []) =>
+      let t1ProdT2Nonempty ← Meta.mkAppM ``of_eq_true #[premises[0]!]
+      let t1ProdT2Inst ← Meta.mkAppOptM ``Classical.ofNonempty #[none, t1ProdT2Nonempty]
+      let t1Inst ← Meta.mkAppM ``Prod.fst #[t1ProdT2Inst]
+      let t1Nonempty ← Meta.mkAppM ``Nonempty.intro #[t1Inst]
+      Meta.mkAppM ``eq_true #[t1Nonempty]
+    | _ => throwError "mkDeriveNewNonemptyTypeProof3 received invalid parent: {parents[0]!.clause.toExpr}"
+
+/-- mkDeriveNewNonemptyTypeProof4 expects to receive one parent of the form `Nonempty (t1 × t2) = True` and yields a proof
+    of `Nonempty t2 = True`.
+    
+    Note: Right now, mkDeriveNewNonemptyTypeProof4 does not support lemmas of the form `True = Nonempty t`, and I think
+    this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
+    it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
+def mkDeriveNewNonemptyTypeProof4 (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
+  (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    match parents[0]!.clause.toForallExpr with
+    | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) (Expr.app (Expr.app (Expr.const ``Prod lvls) t1) t2))) (.const ``True []) =>
+      let t1ProdT2Nonempty ← Meta.mkAppM ``of_eq_true #[premises[0]!]
+      let t1ProdT2Inst ← Meta.mkAppOptM ``Classical.ofNonempty #[none, t1ProdT2Nonempty]
+      let t2Inst ← Meta.mkAppM ``Prod.snd #[t1ProdT2Inst]
+      let t2Nonempty ← Meta.mkAppM ``Nonempty.intro #[t2Inst]
+      Meta.mkAppM ``eq_true #[t2Nonempty]
+    | _ => throwError "mkDeriveNewNonemptyTypeProof4 received invalid parent: {parents[0]!.clause.toExpr}"
+
+/-- mkDeriveNewNonemptyTypeProof5 expects to receive one parent of the form `Nonempty (PProd t1 t2) = True` and yields a proof
+    of `Nonempty t1 = True`.
+    
+    Note: Right now, mkDeriveNewNonemptyTypeProof5 does not support lemmas of the form `True = Nonempty t`, and I think
+    this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
+    it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
+def mkDeriveNewNonemptyTypeProof5 (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
+  (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    match parents[0]!.clause.toForallExpr with
+    | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) (Expr.app (Expr.app (Expr.const ``PProd lvls) t1) t2))) (.const ``True []) =>
+      let t1PProdT2Nonempty ← Meta.mkAppM ``of_eq_true #[premises[0]!]
+      let t1PProdT2Inst ← Meta.mkAppOptM ``Classical.ofNonempty #[none, t1PProdT2Nonempty]
+      let t1Inst ← Meta.mkAppM ``PProd.fst #[t1PProdT2Inst]
+      let t1Nonempty ← Meta.mkAppM ``Nonempty.intro #[t1Inst]
+      Meta.mkAppM ``eq_true #[t1Nonempty]
+    | _ => throwError "mkDeriveNewNonemptyTypeProof5 received invalid parent: {parents[0]!.clause.toExpr}"
+
+/-- mkDeriveNewNonemptyTypeProof6 expects to receive one parent of the form `Nonempty (PProd t1 t2) = True` and yields a proof
+    of `Nonempty t2 = True`.
+    
+    Note: Right now, mkDeriveNewNonemptyTypeProof6 does not support lemmas of the form `True = Nonempty t`, and I think
+    this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
+    it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
+def mkDeriveNewNonemptyTypeProof6 (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
+  (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    match parents[0]!.clause.toForallExpr with
+    | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) (Expr.app (Expr.app (Expr.const ``PProd lvls) t1) t2))) (.const ``True []) =>
+      let t1PProdT2Nonempty ← Meta.mkAppM ``of_eq_true #[premises[0]!]
+      let t1PProdT2Inst ← Meta.mkAppOptM ``Classical.ofNonempty #[none, t1PProdT2Nonempty]
+      let t2Inst ← Meta.mkAppM ``PProd.snd #[t1PProdT2Inst]
+      let t2Nonempty ← Meta.mkAppM ``Nonempty.intro #[t2Inst]
+      Meta.mkAppM ``eq_true #[t2Nonempty]
+    | _ => throwError "mkDeriveNewNonemptyTypeProof6 received invalid parent: {parents[0]!.clause.toExpr}"
+
+/-- mkDeriveNewNonemptyTypeProof7 expects to receive one parent of the form `Nonempty p = True` where `p : Prop`.
+    mkDeriveNewNonemptyTypeProof6 yields a proof that `p = True`.
+    
+    Note: Right now, mkDeriveNewNonemptyTypeProof7 does not support lemmas of the form `True = Nonempty t`, and I think
+    this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
+    it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
+def mkDeriveNewNonemptyTypeProof7 (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
+  (c : Clause) : MetaM Expr :=
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    match parents[0]!.clause.toForallExpr with
+    | .app (.app (.app (.const ``Eq _) _) (.app (.const ``Nonempty _) p)) (.const ``True []) =>
+      if (← inferType p).isProp then
+        let pNonempty ← Meta.mkAppM ``of_eq_true #[premises[0]!]
+        let pProof ← Meta.mkAppOptM ``Classical.ofNonempty #[none, pNonempty]
+        Meta.mkAppM ``eq_true #[pProof]
+      else throwError "mkDeriveNewNonemptyTypeProof7 received invalid parent: {parents[0]!.clause.toExpr}"
+    | _ => throwError "mkDeriveNewNonemptyTypeProof7 received invalid parent: {parents[0]!.clause.toExpr}"
+
 /-- Determines if `Nonempty abstractedType` can be derived specifically from `Nonempty t` -/
 partial def deriveNonemptyFrom (abstractedType : AbstractMVarsResult) (t : AbstractMVarsResult) : MetaM Bool := do
   if t == abstractedType then return true
@@ -284,7 +374,8 @@ def deriveNewNonemptyTypesHelper (abstractedT : AbstractMVarsResult) (givenClaus
     | _ => continue
 
 /-- Derives new Nonempty types from the combination of the new Nonempty type `abstractedT` and current
-    verifiedInhabitedTypes and verifiedNonemptyTypes. Specifically, deriveNewNonemptyTypes exhaustively applies two rules:
+    verifiedInhabitedTypes and verifiedNonemptyTypes. Specifically, deriveNewNonemptyTypes exhaustively applies three rules:
+    - If `abstracted.expr` has the form `t1 × t2` (where `×` denotes either `Prod` or `PProd`) then derive `Nonempty t1` and `Nonempty t2`
     - If `abstractedT.expr` has the form `t1 → t2` and `t1` is Inhabited or Nonempty, then derive `Nonempty t2`
     - If any type in verifiedNonemptyTypes has the form `t1 → t2` and `abstractedT` matches `t1`, then derive `Nonempty t2`
     
@@ -298,68 +389,129 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
   let verifiedInhabitedTypes ← getVerifiedInhabitedTypes
   let verifiedNonemptyTypes ← getVerifiedNonemptyTypes
   let potentinallyUninhabitedTypes ← getPotentiallyUninhabitedTypes
-  match abstractedT.expr with
-  | Expr.forallE .. =>
-    let (_, _, originalT) ← openAbstractMVarsResult abstractedT
-    match originalT with
-    | Expr.forallE _ t1 t2 _ =>
-      if originalT.isArrow then -- Only attempt to derive `Nonempty t2 = True` if `t2` does not depend on `t1`
-        let t1' ← abstractMVars t1
-        if verifiedInhabitedTypes.contains t1' then
-          /- `abstractedT` has the form `t1 → t2` and `t1` is an Inhabited type. Make the clause `Nonempty t2 = True`,
-             and add the clause `Nonempty t2 = True` to the passive set. We specifically don't add `t2` to verifiedNonemptyTypes
-             because that would cause `registerNewNonemptyTypes` to think that encountering `Nonempty t2 = True` doesn't warrant
-             a re-examination of the potentially vacuous clause set. -/
+  let (_, _, originalT) ← openAbstractMVarsResult abstractedT
+  match originalT with
+  | Expr.forallE _ t1 t2 _ =>
+    if originalT.isArrow then -- Only attempt to derive `Nonempty t2 = True` if `t2` does not depend on `t1`
+      let t1' ← abstractMVars t1
+      if verifiedInhabitedTypes.contains t1' then
+        /- `abstractedT` has the form `t1 → t2` and `t1` is an Inhabited type. Make the clause `Nonempty t2 = True`,
+            and add the clause `Nonempty t2 = True` to the passive set. We specifically don't add `t2` to verifiedNonemptyTypes
+            because that would cause `registerNewNonemptyTypes` to think that encountering `Nonempty t2 = True` doesn't warrant
+            a re-examination of the potentially vacuous clause set. -/
+        let t2NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t2]]
+        let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
+          let _ ← loadInhabitationClause givenClause
+          yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof1
+        match (← getAllClauses).find? givenClause with
+        | some givenClauseInfo =>
+          let generatingAncestors := givenClauseInfo.generatingAncestors
+          addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+        | none => throwError "givenClause {givenClause} was not found"
+      else
+        match ← deriveNonempty t1' verifiedNonemptyTypes with
+        | some c =>
+          /- `abstractedT` has the form `t1 → t2` and `t1` is a Nonempty type. Make the clause `Nonempty t2 = True`,
+              and add the clause `Nonempty t2 = True` to the passive set. We specifically don't add `t2` to verifiedNonemptyTypes
+              because that would cause `registerNewNonemptyTypes` to think that encountering `Nonempty t2 = True` doesn't warrant
+              a re-examination of the potentially vacuous clause set. -/
           let t2NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t2]]
           let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
             let _ ← loadInhabitationClause givenClause
-            yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof1
+            let _ ← loadInhabitationClause c
+            yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof2
           match (← getAllClauses).find? givenClause with
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
             addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
           | none => throwError "givenClause {givenClause} was not found"
-        else
-          match ← deriveNonempty t1' verifiedNonemptyTypes with
-          | some c =>
-            /- `abstractedT` has the form `t1 → t2` and `t1` is a Nonempty type. Make the clause `Nonempty t2 = True`,
-               and add the clause `Nonempty t2 = True` to the passive set. We specifically don't add `t2` to verifiedNonemptyTypes
-               because that would cause `registerNewNonemptyTypes` to think that encountering `Nonempty t2 = True` doesn't warrant
-               a re-examination of the potentially vacuous clause set. -/
-            let t2NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t2]]
-            let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
-              let _ ← loadInhabitationClause givenClause
-              let _ ← loadInhabitationClause c
-              yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof2
-            match (← getAllClauses).find? givenClause with
-            | some givenClauseInfo =>
-              let generatingAncestors := givenClauseInfo.generatingAncestors
-              addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
-            | none => throwError "givenClause {givenClause} was not found"
-          | none =>
-            if potentinallyUninhabitedTypes.contains t1' then pure ()
-            else -- This is a type we haven't seen yet. Try to synthesize Inhabited
-              match ← Meta.findInstance t1 with
-              | some _ => -- We learned that `t1` is an Inhabited type so we updated verifiedInhabitedTypes to include it
-                setVerifiedInhabitedTypes (t1' :: verifiedInhabitedTypes)
-                /- `abstractedT` has the form `t1 → t2` and `t1` is an Inhabited type. Make the clause `Nonempty t2 = True`,
-                   and add the clause `Nonempty t2 = True` to the passive set. We specifically don't add `t2` to verifiedNonemptyTypes
-                   because that would cause `registerNewNonemptyTypes` to think that encountering `Nonempty t2 = True` doesn't warrant
-                   a re-examination of the potentially vacuous clause set. -/
-                let t2NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t2]]
-                let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
-                  let _ ← loadInhabitationClause givenClause
-                  yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof1
-                match (← getAllClauses).find? givenClause with
-                | some givenClauseInfo =>
-                  let generatingAncestors := givenClauseInfo.generatingAncestors
-                  addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
-                | none => throwError "givenClause {givenClause} was not found"
-              | none => -- We learned that Meta.findInstance can't find an instance for t1 so we update potentinallyUninhabitedTypes
-                setPotentiallyUninhabitedTypes (t1' :: potentinallyUninhabitedTypes)
-      deriveNewNonemptyTypesHelper abstractedT givenClause
-    | _ => throwError "Inconsistency between original and abstracted type"
-  | _ => deriveNewNonemptyTypesHelper abstractedT givenClause
+        | none =>
+          if potentinallyUninhabitedTypes.contains t1' then pure ()
+          else -- This is a type we haven't seen yet. Try to synthesize Inhabited
+            match ← Meta.findInstance t1 with
+            | some _ => -- We learned that `t1` is an Inhabited type so we updated verifiedInhabitedTypes to include it
+              setVerifiedInhabitedTypes (t1' :: verifiedInhabitedTypes)
+              /- `abstractedT` has the form `t1 → t2` and `t1` is an Inhabited type. Make the clause `Nonempty t2 = True`,
+                  and add the clause `Nonempty t2 = True` to the passive set. We specifically don't add `t2` to verifiedNonemptyTypes
+                  because that would cause `registerNewNonemptyTypes` to think that encountering `Nonempty t2 = True` doesn't warrant
+                  a re-examination of the potentially vacuous clause set. -/
+              let t2NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t2]]
+              let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
+                let _ ← loadInhabitationClause givenClause
+                yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof1
+              match (← getAllClauses).find? givenClause with
+              | some givenClauseInfo =>
+                let generatingAncestors := givenClauseInfo.generatingAncestors
+                addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+              | none => throwError "givenClause {givenClause} was not found"
+            | none => -- We learned that Meta.findInstance can't find an instance for t1 so we update potentinallyUninhabitedTypes
+              setPotentiallyUninhabitedTypes (t1' :: potentinallyUninhabitedTypes)
+    deriveNewNonemptyTypesHelper abstractedT givenClause
+  | Expr.app (Expr.app (Expr.const ``Prod lvls) t1) t2 =>
+    let t1' ← abstractMVars t1
+    if !(verifiedInhabitedTypes.contains t1') && !(verifiedNonemptyTypes.any (fun (t, _) => t == t1')) then
+      -- If t1 is not already known to be nonempty, then derive `Nonempty t1 = True`
+      let t1NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t1]]
+      let (t1NonemptyClause, t1NonemptyProof) ← runRuleM $ do
+        let _ ← loadInhabitationClause givenClause
+        yieldClause t1NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof3
+      match (← getAllClauses).find? givenClause with
+      | some givenClauseInfo =>
+        let generatingAncestors := givenClauseInfo.generatingAncestors
+        addNewToPassive t1NonemptyClause t1NonemptyProof generatingAncestors
+      | none => throwError "givenClause {givenClause} was not found"
+    let t2' ← abstractMVars t2
+    if !(verifiedInhabitedTypes.contains t2') && !(verifiedNonemptyTypes.any (fun (t, _) => t == t2')) then
+      -- If t2 is not already known to be nonempty, then derive `Nonempty t2 = True`
+      let t2NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t2]]
+      let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
+        let _ ← loadInhabitationClause givenClause
+        yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof4
+      match (← getAllClauses).find? givenClause with
+      | some givenClauseInfo =>
+        let generatingAncestors := givenClauseInfo.generatingAncestors
+        addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+      | none => throwError "givenClause {givenClause} was not found"
+    deriveNewNonemptyTypesHelper abstractedT givenClause
+  | Expr.app (Expr.app (Expr.const ``PProd lvls) t1) t2 =>
+    let t1' ← abstractMVars t1
+    if !(verifiedInhabitedTypes.contains t1') && !(verifiedNonemptyTypes.any (fun (t, _) => t == t1')) then
+      -- If t1 is not already known to be nonempty, then derive `Nonempty t1 = True`
+      let t1NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t1]]
+      let (t1NonemptyClause, t1NonemptyProof) ← runRuleM $ do
+        let _ ← loadInhabitationClause givenClause
+        yieldClause t1NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof5
+      match (← getAllClauses).find? givenClause with
+      | some givenClauseInfo =>
+        let generatingAncestors := givenClauseInfo.generatingAncestors
+        addNewToPassive t1NonemptyClause t1NonemptyProof generatingAncestors
+      | none => throwError "givenClause {givenClause} was not found"
+    let t2' ← abstractMVars t2
+    if !(verifiedInhabitedTypes.contains t2') && !(verifiedNonemptyTypes.any (fun (t, _) => t == t2')) then
+      -- If t2 is not already known to be nonempty, then derive `Nonempty t2 = True`
+      let t2NonemptyMClause := MClause.mk #[Lit.fromSingleExpr $ ← mkAppM ``Nonempty #[t2]]
+      let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
+        let _ ← loadInhabitationClause givenClause
+        yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof6
+      match (← getAllClauses).find? givenClause with
+      | some givenClauseInfo =>
+        let generatingAncestors := givenClauseInfo.generatingAncestors
+        addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+      | none => throwError "givenClause {givenClause} was not found"
+    deriveNewNonemptyTypesHelper abstractedT givenClause
+  | _ =>
+    if (← inferType originalT).isProp then
+      -- Derive `p = True` from `Nonempty p = True` if `p : Prop`
+      let originalTEqTrueMClause := MClause.mk #[Lit.fromSingleExpr originalT]
+      let (originalTEqTrueClause, originalTEqTrueProof) ← runRuleM $ do
+        let _ ← loadInhabitationClause givenClause
+        yieldClause originalTEqTrueMClause "deriveFactFromNonempty" mkDeriveNewNonemptyTypeProof7
+      match (← getAllClauses).find? givenClause with
+      | some givenClauseInfo =>
+        let generatingAncestors := givenClauseInfo.generatingAncestors
+        addNewToPassive originalTEqTrueClause originalTEqTrueProof generatingAncestors
+      | none => throwError "givenClause {givenClause} was not found"
+    deriveNewNonemptyTypesHelper abstractedT givenClause
 
 /-- If givenClause has the form `Nonempty t = True` or `True = Nonempty t`, then add `t` to verifiedInhabitedTypes and add `givenClause`
     to inhabitedTypeWitnesses. Additionally, from the new Nonempty type fact, this function derives (and produces clauses for) any additional

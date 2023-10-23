@@ -41,7 +41,8 @@ def selectFirstPureVarNegLit (c : MClause) : CoreM (List Nat) := do
 
 /-- Based on E's SelectLargestNegLit: Select the first maximal negative literal
 
-    Note: This coincides with Zipperposition's max_goal selection function (with strict set to true). -/
+    Note: This coincides with Zipperposition's max_goal selection function (with strict set to true)
+    which is Zipperposition's default selection function (outside of portfolio mode) -/
 def selectFirstMaximalNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
   let filter_fn : Lit → Bool := fun l => !l.sign -- filter_fn l returns true iff l is negative
   let maxLits ← c.getMaximalLits (← getOrder) alreadyReduced filter_fn
@@ -105,7 +106,7 @@ def getSelections (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
   | 1 => selectFirstNegLit c
   | 2 => return [] -- NoSelection
   | 3 => selectFirstPureVarNegLit c
-  | 4 => selectFirstMaximalNegLit c alreadyReduced
+  | 4 => selectFirstMaximalNegLit c alreadyReduced -- This corresponds to Zipperposition's default selection function
   | 5 => selectFirstMaximalNegLitAndAllPosLits c alreadyReduced
   | 6 => selectFirstMinimalNegLit c alreadyReduced
   | 7 => selectFirstMaxDiffNegLit c alreadyReduced
