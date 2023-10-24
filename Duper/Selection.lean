@@ -10,32 +10,33 @@ open Lean
    Reference for Zipperposition selection functions was found at https://github.com/sneeuwballen/zipperposition/blob/wip-2.2/src/prover/selection.ml
    and https://github.com/sneeuwballen/zipperposition/blob/master/src/prover/selection.mli -/
 
+/-- Determines whether given lit `l` is negative. If inclusive is true, then this includies literals of the form `e = False` and
+    `False = e`. If inclusive is false, then this only includes literals whose sign is negative. -/
+def isNegative (l : Lit) (inclusive := true) := !l.sign || (inclusive && (l.rhs == mkConst ``False || l.lhs == mkConst ``False))
+
 /-- Selection function that returns the first negative literal (including lits of the form `e = False`) -/
-def selectFirstNegLitInclusive (c : MClause) : CoreM (List Nat) := do
-  let isSelectable : MClause → Nat → Bool := fun c i =>
-    c.lits[i]!.sign == false || c.lits[i]!.rhs == mkConst ``False || c.lits[i]!.lhs == mkConst ``False
-  for i in [:c.lits.size] do
-    if isSelectable c i then
-      return [i]
-  return []
-
-/-- Selection function that returns the first negative literal -/
 def selectFirstNegLit (c : MClause) : CoreM (List Nat) := do
-  let isSelectable : MClause → Nat → Bool := fun c i =>
-    c.lits[i]!.sign == false
   for i in [:c.lits.size] do
-    if isSelectable c i then
+    if isNegative c.lits[i]! then
       return [i]
   return []
 
-/-- Based on E's SelectPureVarNegLiterals: Select the first negative literal of the form x ≠ y -/
-def selectFirstPureVarNegLit (c : MClause) : CoreM (List Nat) := do
-  let isSelectable : MClause → Nat → Bool := fun c i =>
-    match c.lits[i]!.sign, c.lits[i]!.lhs, c.lits[i]!.rhs with
-    | false, Expr.mvar .., Expr.mvar .. => true
-    | _, _, _ => false
+/-- Selection function that returns the first negative literal (excluding lits of the form `e = False`) -/
+def selectFirstNegLitExclusive (c : MClause) : CoreM (List Nat) := do
   for i in [:c.lits.size] do
-    if isSelectable c i then
+    if isNegative c.lits[i]! false then
+      return [i]
+  return []
+
+def isPureVarLit (l : Lit) : Bool :=
+  match l.lhs, l.rhs with
+  | Expr.mvar .., Expr.mvar .. => true
+  | _, _ => false
+
+/-- Based on E's SelectPureVarNegLiterals: Select the first negative literal of the form `x ≠ y` -/
+def selectFirstPureVarNegLit (c : MClause) : CoreM (List Nat) := do
+  for i in [:c.lits.size] do
+    if isNegative c.lits[i]! && isPureVarLit c.lits[i]! then
       return [i]
   return []
 
@@ -44,34 +45,31 @@ def selectFirstPureVarNegLit (c : MClause) : CoreM (List Nat) := do
     Note: This coincides with Zipperposition's max_goal selection function (with strict set to true)
     which is Zipperposition's default selection function (outside of portfolio mode) -/
 def selectFirstMaximalNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
-  let filter_fn : Lit → Bool := fun l => !l.sign -- filter_fn l returns true iff l is negative
-  let maxLits ← c.getMaximalLits (← getOrder) alreadyReduced filter_fn
+  let maxLits ← c.getMaximalLits (← getOrder) alreadyReduced isNegative
   if maxLits.isEmpty then return []
   else return [maxLits[0]!]
 
 /-- Based on Zipperposition's max_goal selection function with strict set to false:
     Select the first maximal negative literal and all positive literals -/
 def selectFirstMaximalNegLitAndAllPosLits (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
-  let filter_fn : Lit → Bool := fun l => !l.sign -- filter_fn l returns true iff l is negative
-  let maxLits ← c.getMaximalLits (← getOrder) alreadyReduced filter_fn
+  let maxLits ← c.getMaximalLits (← getOrder) alreadyReduced isNegative
   let mut posLits : List Nat := []
   for i in [:c.lits.size] do
-    if c.lits[i]!.sign then
+    if !(isNegative c.lits[i]!) then
       posLits := i :: posLits
   if maxLits.isEmpty then return posLits
   else return maxLits[0]! :: posLits
 
 /-- Based on E's SelectSmallestNegLit: Select the first minimal negative literal -/
 def selectFirstMinimalNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
-  let filter_fn : Lit → Bool := fun l => !l.sign -- filter_fn l returns true iff l is negative
-  let minLits ← c.getMinimalLits (← getOrder) alreadyReduced filter_fn
+  let minLits ← c.getMinimalLits (← getOrder) alreadyReduced isNegative
   if minLits.isEmpty then return []
   else return [minLits[0]!]
 
 /-- Based on E's SelectDiffNegLit: Select the first negative literal for which the size
     difference between both terms is maximal -/
 def selectFirstMaxDiffNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
-  let filter_fn : Lit → Bool := fun l => !l.sign -- filter_fn l returns true iff l is negative
+  let filter_fn : Lit → Nat → Bool := fun l _ => isNegative l
   let maxDiffLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn
   if maxDiffLits.isEmpty then return []
   else return [maxDiffLits[0]!]
@@ -81,7 +79,7 @@ def isGround (l : Lit) : Bool := !l.lhs.hasExprMVar && !l.rhs.hasExprMVar
 /-- Based on E's SelectGroundNegLit: Select the first negative ground literal for which the size
     difference between both terms is maximal -/
 def selectFirstGroundNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
-  let filter_fn : Lit → Bool := fun l => !l.sign && isGround l
+  let filter_fn : Lit → Nat → Bool := fun l _ => isNegative l && isGround l
   let maxDiffLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn
   if maxDiffLits.isEmpty then return []
   else return [maxDiffLits[0]!]
@@ -89,9 +87,9 @@ def selectFirstGroundNegLit (c : MClause) (alreadyReduced : Bool) : RuleM (List 
 /-- Based on E's SelectOptimalLit: If there is a negative ground literal, select as in selectFirstGroundNegLit.
     Otherwise, select as in selectFirstMaxDiffNegLit -/
 def selectFirstGroundNegLitIfPossible (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
-  let filter_fn1 : Lit → Bool := fun l => !l.sign && isGround l
-  let filter_fn2 : Lit → Bool := fun l => !l.sign
-  if c.lits.any filter_fn1 then
+  let filter_fn1 : Lit → Nat → Bool := fun l _ => isNegative l && isGround l
+  let filter_fn2 : Lit → Nat → Bool := fun l _ => isNegative l
+  if c.lits.any (fun l => filter_fn1 l 0) then -- Can use 0 as index for each lit because filter_fn1 doesn't actually care about the index
     let maxDiffLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn1
     if maxDiffLits.isEmpty then return []
     else return [maxDiffLits[0]!]
@@ -100,10 +98,111 @@ def selectFirstGroundNegLitIfPossible (c : MClause) (alreadyReduced : Bool) : Ru
     if maxDiffLits.isEmpty then return []
     else return [maxDiffLits[0]!]
 
+/-- Based on E's SelectMaxLComplex: Select a maximal negative literal. If there are no maximal negative
+    literals, select nothing. If there is just one maximal negative literal, select that. If there are
+    multiple maximal negative literals, try to find one that satisfies any of the following properties
+    (listed in order of precedence):
+    - Is a pure variable literal (i.e. of the form `x ≠ y`)
+    - Is a ground literal with the largest size difference
+    - Is a non-ground literal with the largest size difference -/
+def selectMaxLitComplex (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
+  let maxLitIndices ← c.getMaximalLits (← getOrder) alreadyReduced isNegative
+  if maxLitIndices.isEmpty then return []
+  else if maxLitIndices.size = 1 then return [maxLitIndices[0]!]
+  else
+    let maxLits := maxLitIndices.map (fun idx => (idx, c.lits[idx]!))
+    let pureVarMaxLits := maxLits.filter (fun (_, l) => isPureVarLit l)
+    if pureVarMaxLits.size > 0 then -- Select a maximal negative pure variable literal
+      return [pureVarMaxLits[0]!.1]
+    else
+      let groundMaxLits := maxLits.filter (fun (_, l) => isGround l)
+      if groundMaxLits.size > 0 then -- Select a maximal negative ground literal with maximal size difference
+        -- filter_fn2 filters so that we only choose among maximal negative literals that are also ground
+        let filter_fn2 : Lit → Nat → Bool := fun l idx => maxLitIndices.contains idx && isGround l
+        let maxDiffGroundLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn2
+        return [maxDiffGroundLits[0]!] -- maxDiffGroundLits.size must be greater than 0 since groundMaxLits.size is greater than 0
+      else
+        -- filter_fn3 filters so that we only choose among maximal negative literals
+        let filter_fn3 : Lit → Nat → Bool := fun _ idx => maxLitIndices.contains idx
+        let maxDiffLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn3
+        return [maxDiffLits[0]!] -- maxDiffLits.size must be greater than 0 since maxLits.size > 0
+
+/-- Based on E's SelectMaxLComplexAvoidPosPred (which coincides with Zipperposition's e_sel): It does the same as
+    selectMaxLitComplex but uses the number of positive literals with a shared predicate symbol as a tiebreaker (preferring
+    to select literals that share a predicate symbol with as few positive literals as possible). For this, specification, I
+    am defining a predicate symbol as the top symbol for the lhs of a literal of the form `e = True` or `e = False`.
+    
+    Note: According to "Extending a Brainiac Prover to Lambda-Free Higher-Order Logic", SelectMaxLComplexAvoidPosPred
+    (aka SelectMLCAPP) should be have very similarly to E's SelectMLCAPPPreferAppVar and SelectMLCAPPAvoidAppVar. So
+    it should be unnecessary to separately implement those two selection functions. -/
+def selectMaxLitComplexAvoidPosPred (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
+  let maxLitIndices ← c.getMaximalLits (← getOrder) alreadyReduced isNegative
+  if maxLitIndices.isEmpty then return []
+  else if maxLitIndices.size = 1 then return [maxLitIndices[0]!]
+  else
+    let maxLits := maxLitIndices.map (fun idx => (idx, c.lits[idx]!))
+    let pureVarMaxLits := maxLits.filter (fun (_, l) => isPureVarLit l)
+    if pureVarMaxLits.size > 0 then -- Select a maximal negative pure variable literal
+      return [pureVarMaxLits[0]!.1] -- If the lit is a pure variable literal, then it necessarily does not have predicate symbols
+    else
+      let groundMaxLits := maxLits.filter (fun (_, l) => isGround l)
+      if groundMaxLits.size > 0 then -- Select a maximal negative ground literal with maximal size difference
+        -- filter_fn2 filters so that we only choose among maximal negative literals that are also ground
+        let filter_fn2 : Lit → Nat → Bool := fun l idx => maxLitIndices.contains idx && isGround l
+        let maxDiffGroundLitIndices ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn2
+        if maxDiffGroundLitIndices.isEmpty then
+          -- maxDiffGroundLitIndices.size must be greater than 0 since groundMaxLits.size is greater than 0
+          throwError "Error in selectMaxLitComplexAvoidPosPred"
+        else if maxDiffGroundLitIndices.size = 1 then
+          return [maxDiffGroundLitIndices[0]!]
+        else -- Use the property of not sharing predicate symbols with positive literals as a tiebreaker
+          let posLitsWithPredSymbols := c.lits.filter (fun l => l.sign && l.rhs == mkConst ``True)
+          let predSymbols := posLitsWithPredSymbols.map (fun l => l.lhs.getTopSymbol)
+          let maxDiffGroundLits := maxDiffGroundLitIndices.map (fun idx => (idx, c.lits[idx]!))
+          let maxDiffGroundLitIndicesWithPredCount := maxDiffGroundLits.map
+            (fun (idx, l) =>
+              let lPredSymbol := l.lhs.getTopSymbol
+              let numMatchingPredSymbols := (predSymbols.filter (fun p => p == lPredSymbol)).size
+              (idx, numMatchingPredSymbols)
+            )
+          let maxDiffGroundLitIndicesWithPredCountSorted :=
+            maxDiffGroundLitIndicesWithPredCount.qsort
+              (fun (idx1, numMatchingPredSymbols1) (idx2, numMatchingPredSymbols2) =>
+                numMatchingPredSymbols1 < numMatchingPredSymbols2 || (numMatchingPredSymbols1 == numMatchingPredSymbols2 && idx1 < idx2)
+              )
+          -- maxDiffGroundLitIndicesWithPredCountSorted.size must be greater than 0 since maxDiffGroundLitIndices.size is greater than 0
+          return [maxDiffGroundLitIndicesWithPredCountSorted[0]!.1]
+      else
+        -- filter_fn3 filters so that we only choose among maximal negative literals
+        let filter_fn3 : Lit → Nat → Bool := fun _ idx => maxLitIndices.contains idx
+        let maxDiffLitIndices ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn3
+        if maxDiffLitIndices.isEmpty then
+          -- maxDiffLits.size must be greater than 0 since maxLitIndices.size is greater than 0
+          throwError "Error in selectMaxLitComplexAvoidPosPred"
+        else if maxDiffLitIndices.size = 1 then
+          return [maxDiffLitIndices[0]!]
+        else -- Use the property of not sharing predicate symbols with positive literals as a tiebreaker
+          let posLitsWithPredSymbols := c.lits.filter (fun l => l.sign && l.rhs == mkConst ``True)
+          let predSymbols := posLitsWithPredSymbols.map (fun l => l.lhs.getTopSymbol)
+          let maxDiffLits := maxDiffLitIndices.map (fun idx => (idx, c.lits[idx]!))
+          let maxDiffLitIndicesWithPredCount := maxDiffLits.map
+            (fun (idx, l) =>
+              let lPredSymbol := l.lhs.getTopSymbol
+              let numMatchingPredSymbols := (predSymbols.filter (fun p => p == lPredSymbol)).size
+              (idx, numMatchingPredSymbols)
+            )
+          let maxDiffLitIndicesWithPredCountSorted :=
+            maxDiffLitIndicesWithPredCount.qsort
+              (fun (idx1, numMatchingPredSymbols1) (idx2, numMatchingPredSymbols2) =>
+                numMatchingPredSymbols1 < numMatchingPredSymbols2 || (numMatchingPredSymbols1 == numMatchingPredSymbols2 && idx1 < idx2)
+              )
+          -- maxDiffLitIndicesWithPredCountSorted.size must be greater than 0 since maxDiffLitIndices.size is greater than 0
+          return [maxDiffLitIndicesWithPredCountSorted[0]!.1]
+
 def getSelections (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
   match ← getSelFunctionM with
-  | 0 => selectFirstNegLitInclusive c
-  | 1 => selectFirstNegLit c
+  | 0 => selectFirstNegLit c
+  | 1 => selectFirstNegLitExclusive c
   | 2 => return [] -- NoSelection
   | 3 => selectFirstPureVarNegLit c
   | 4 => selectFirstMaximalNegLit c alreadyReduced -- This corresponds to Zipperposition's default selection function
@@ -112,6 +211,8 @@ def getSelections (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
   | 7 => selectFirstMaxDiffNegLit c alreadyReduced
   | 8 => selectFirstGroundNegLit c alreadyReduced
   | 9 => selectFirstGroundNegLitIfPossible c alreadyReduced
+  | 10 => selectMaxLitComplex c alreadyReduced
+  | 11 => selectMaxLitComplexAvoidPosPred c alreadyReduced
   | _ => throwError "Invalid selFunction option"
 
 def litSelectedOrNothingSelected (c : MClause) (i : Nat) (alreadyReduced : Bool) : RuleM Bool := do
