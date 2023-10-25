@@ -199,6 +199,65 @@ def selectMaxLitComplexAvoidPosPred (c : MClause) (alreadyReduced : Bool) : Rule
           -- maxDiffLitIndicesWithPredCountSorted.size must be greater than 0 since maxDiffLitIndices.size is greater than 0
           return [maxDiffLitIndicesWithPredCountSorted[0]!.1]
 
+/-- Based on E's SelectCQIPrecWNTNp (which coincides with Zipperposition's e_sel2): Selects the negative literal with the
+    highest-precedence predicate (as in selectMaxLitComplexAvoidPosPred, I define predicates as the top symbol for the lhs of a
+    literal of the form `e = True` or `e = False`). If there are multiple negative literals with the same largest predicate, then
+    the size difference between the lit's lhs and rhs will be the tiebreaker (with larger size differences being preferred). -/
+def selectCQIPrecWNTNp (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
+  let idxLitPairs := c.lits.mapIdx (fun idx l => (idx.1, l))
+  let idxPredPairs := idxLitPairs.filterMap
+    (fun (idx, l) =>
+      -- Since we only select negative literals, and since we need a predicate, the only form we allow `l` to have is `e = False`
+      if l.rhs == mkConst ``False then
+        match l.lhs.getTopSymbol with
+        | Expr.fvar fVarId => some (idx, some (Symbol.FVarId fVarId))
+        | Expr.const name _ => some (idx, some (Symbol.Const name))
+        | _ => some (idx, none)
+      else none
+    )
+  let symbolPrecMap ← getSymbolPrecMap -- Recall that low values in symbolPrecMap correspond to high precedence
+  let idxPredPairsSorted := idxPredPairs.qsort -- Sorting so that highest precedence symbols will be first in idxPredPairsSorted
+    (fun (idx1, pred1Opt) (idx2, pred2Opt) =>
+      match pred1Opt, pred2Opt with
+      | some pred1, some pred2 =>
+        match symbolPrecMap.find? pred1, symbolPrecMap.find? pred2 with
+        | none, _ => false -- Never sort symbol not found in symbolPrecMap before anything else
+        | some _, none => true -- Symbols found in symbolPrecMap are sorted before symbols found in symbolPrecMap
+        | some prec1, some prec2 => prec1 < prec2 -- Low values in symbolPrecMap correspond to higher precedence
+      | none, _ => false -- Never sort a head that isn't even a symbol (fvar or const) before anything else
+      | some _, none => true -- Symbols (regardless of whether they are found in symbolPrecMap) are sorted before non-symbol heads
+    )
+  if idxPredPairsSorted.isEmpty then return [] -- There are no literals of the form `e = False`
+  else if idxPredPairsSorted.size = 1 then return [idxPredPairsSorted[0]!.1]
+  else
+    -- Check if there are multiple negative literals with the same largest predicate
+    let largestPred := idxPredPairsSorted[0]!.2
+    let idxPredPairsWithLargestPred := idxPredPairsSorted.filter (fun (_, pred) => largestPred == pred)
+    if idxPredPairsWithLargestPred.isEmpty then
+      throwError "Error in selectCQIPrecWNTNp" -- Not possible since at least idxPredPairsSorted[0]! is in idxPredPairsWithLargestPred
+    else if idxPredPairsWithLargestPred.size = 1 then
+      return [idxPredPairsWithLargestPred[0]!.1]
+    else -- There are multiple literals with the same largest predicate. Use the size difference between the lit lhs and rhs as the tiebreaker
+      -- filter_fn only passes negative lits that have the largest predicate symbol
+      let filter_fn : Lit → Nat → Bool := fun _ idx => idxPredPairsWithLargestPred.any (fun (n, _) => n == idx)
+      let maxDiffLargestPredLits ← c.getMaxDiffLits (← getGetNetWeight) alreadyReduced filter_fn
+      if maxDiffLargestPredLits.isEmpty then
+        throwError "Error in selectCQIPrecWNTNp" -- Not possible since idxPredPairsWithLargestPred.size > 0
+      else
+        return [maxDiffLargestPredLits[0]!]
+
+/-- Based on E's SelectComplexG (which coincides with Zipperposition's e_sel3): Attempts to select a negative pure variable literal
+    (if there are multiple, selects the first arbitrarily). If that fails and there is at least one negative ground literal, selects the
+    smallest negative ground literal. If that also fails, it selects the negative literal with the largest size difference. -/
+def selectComplexG (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
+  let firstPureVarNegLitSelection ← selectFirstPureVarNegLit c
+  if firstPureVarNegLitSelection != [] then return firstPureVarNegLitSelection
+  else
+    let isNegAndGround : Lit → Bool := fun l => isNegative l && isGround l
+    let negGroundLits ← c.getMinimalLits (← getOrder) alreadyReduced isNegAndGround
+    if negGroundLits.size > 0 then return [negGroundLits[0]!]
+    else selectFirstMaxDiffNegLit c alreadyReduced
+
 def getSelections (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
   match ← getSelFunctionM with
   | 0 => selectFirstNegLit c
@@ -212,7 +271,9 @@ def getSelections (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
   | 8 => selectFirstGroundNegLit c alreadyReduced
   | 9 => selectFirstGroundNegLitIfPossible c alreadyReduced
   | 10 => selectMaxLitComplex c alreadyReduced
-  | 11 => selectMaxLitComplexAvoidPosPred c alreadyReduced
+  | 11 => selectMaxLitComplexAvoidPosPred c alreadyReduced -- This corresponds to Zipperposition's e_sel
+  | 12 => selectCQIPrecWNTNp c alreadyReduced -- This corresponds to Zipperposition's e_sel2
+  | 13 => selectComplexG c alreadyReduced -- This corresponds to Zipperposition's e_sel3
   | _ => throwError "Invalid selFunction option"
 
 def litSelectedOrNothingSelected (c : MClause) (i : Nat) (alreadyReduced : Bool) : RuleM Bool := do

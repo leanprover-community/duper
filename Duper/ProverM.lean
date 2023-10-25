@@ -329,7 +329,9 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   let highesetPrecSymbolHasArityZero ← getHighesetPrecSymbolHasArityZero
   let order := fun e1 e2 alreadyReduced => Order.kbo e1 e2 alreadyReduced symbolPrecMap highesetPrecSymbolHasArityZero
   let getNetWeight := fun e1 e2 alreadyReduced => Order.getNetWeight e1 e2 alreadyReduced symbolPrecMap highesetPrecSymbolHasArityZero
-  let (res, state) ← RuleM.run x (ctx := {order := order, getNetWeight := getNetWeight, skolemSorryName := ← getSkolemSorryName}) (s := {skolemMap := ← getSkolemMap})
+  let (res, state) ← RuleM.run x
+    (ctx := {order := order, symbolPrecMap := symbolPrecMap, getNetWeight := getNetWeight, skolemSorryName := ← getSkolemSorryName})
+    (s := {skolemMap := ← getSkolemMap})
   ProverM.setSkolemMap state.skolemMap
   setMCtx mctx
   return res
