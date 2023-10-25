@@ -11,18 +11,6 @@ open RuleM
 open Meta
 open SimpResult
 
-register_option simultaneousSkolemization : Bool := {
-  defValue := false -- Disabled by default because I'm still working through some kinks that arise as a result of enabling this
-  descr := "Whether we attempt to transform (∃ x : t1, ∃ y : t2, p x y) into (∃ z : t1 × t2, p z.1 z.2)"
-}
-
-def getSimultaneousSkolemization (opts : Options) : Bool :=
-  simultaneousSkolemization.get opts
-
-def getSimultaneousSkolemizationM : CoreM Bool := do
-  let opts ← getOptions
-  return getSimultaneousSkolemization opts
-
 initialize Lean.registerTraceClass `Rule.clausification
 
 theorem not_of_eq_false (h: p = False) : ¬ p := 
@@ -251,7 +239,7 @@ def makeSkTerm (ty b : Expr) : RuleM (Expr × Expr) := do
   return (mkApp (mkAppN skExpr mids) newmvar, newmvar)
 
 /-- If `e` has the form `∀ x : ty, b`, then clausifies `e = False` by skolemizing `x` -/
-def clausifySingleForall (e : Expr) : RuleM (Array ClausificationResult) :=
+def clausifyForall (e : Expr) : RuleM (Array ClausificationResult) :=
   match e with
   | Expr.forallE name ty b bi => do
     -- If t1 is a Prop and the ∀ body doesn't depend on t1, treat "∀" as "→"
@@ -280,7 +268,7 @@ def clausifySingleForall (e : Expr) : RuleM (Array ClausificationResult) :=
   | _ => throwError "clausifySingleForall given invalid expression"
 
 /-- If `e` has the form `∃ x : ty, b`, then clausifies `e = True` by skolemizing `x` -/
-def clausifySingleExists (e : Expr) : RuleM (Array ClausificationResult) :=
+def clausifyExists (e : Expr) : RuleM (Array ClausificationResult) :=
   match e with
   | Expr.app (Expr.app (Expr.const ``Exists lvls) ty) tran => do
     let b :=
@@ -303,83 +291,6 @@ def clausifySingleExists (e : Expr) : RuleM (Array ClausificationResult) :=
     else
       return #[res1]
   | _ => throwError "clausifySingleExists given invalid expression"
-
-/-- Clausify `(∀ x : t1, ∀ y : t2, p x y) = False` as `(∀ z : t1 × t2, p z.1 z.2) = False`. Repeatedly clausifying
-    sequential universal quantifiers in this manner will ensure that `(∀ x1, ∃ x2, ... ∃ xn, p x1 x2 ... xn) = False` will
-    eventually turn into `(∀ z : (((x1 × x2) × x3) ... × xn), p z.1.1.1...1 z.1.1.1...2 ... z.2) = False` which is a single
-    universal quantifier whose type can be skolemized all at once (ensuring there are no inadvertent dependencies between, for
-    instance, the skolem symbol for `xn` and the skolem symbol for `x1`).
-    
-    If `t2` depends on `x`, then instead of doing what is described above, `clausifySequentialForall` just calls `clausifySingleForall`.
-    Likewise, if `t1` is of type `Prop` and `∀ y : t2, p x y` doesn't depend on `x`, then `clausifySequentialForall` instead treats
-    the first forallE has an implication. -/
-def clausifySequentialForall (e : Expr) : RuleM (Array ClausificationResult) :=
-  match e with
-  | Expr.forallE name1 t1 (Expr.forallE name2 t2 b bi2) bi1 => do
-    -- If t1 is a Prop and (Expr.forallE name2 t2 b bi2) doesn't depend on t1, treat the top-level "∀" as "→"
-    if (← inferType t1).isProp && !(Expr.forallE name2 t2 b bi2).hasLooseBVars then
-      let pr₁ : Expr → Array Expr → MetaM Expr := fun premise _ =>
-        Meta.mkAppM ``clausify_imp_false_left #[premise]
-      let pr₂ : Expr → Array Expr → MetaM Expr := fun premise _ =>
-        Meta.mkAppM ``clausify_imp_false_right #[premise]
-      return #[⟨#[Lit.fromSingleExpr t1], pr₁, #[]⟩, ⟨#[Lit.fromSingleExpr (Expr.forallE name2 t2 b bi2) false], pr₂, #[]⟩]
-    else if t2.hasLooseBVars then -- If `t2` depends on the given variable of type `t1`, then just call `clausifySingleForall`
-      clausifySingleForall e
-    else
-      /- `t1PProdt2` is `t1 × t2`. The reason we use `PProd` rather than `Prod` is that `PProd` takes in universe metavariables
-        corresponding to the sorts of `t1` and `t2` whereas `Prod` takes in universe metavariables corresponding to the types of
-        `t1` and `t2`. The former is strictly more inclusive than the latter. -/
-      let t1PProdt2 ← Meta.mkAppM ``PProd #[t1, t2]
-      -- `z` is a metavariable that will represent the existentially quantified variable of type `t1 × t2`
-      let z ← mkFreshExprMVar t1PProdt2
-      /- `b` is a term of type `Prop` with loose bvars corresponding to the universally quantified variable of type `t1` and the
-        universally quantified variable of type `t2`. `b2` is `b` with every reference to the variable of type `t1` with `z.1`
-        and every reference to the variable of type `t2` with `z.2` -/
-      let b2 := b.instantiate #[← Meta.mkAppM ``PProd.snd #[z], ← Meta.mkAppM ``PProd.fst #[z]]
-      /- If `b2` is `p z.1 z.2` then `e'` is intended to be `∀ z : t1 × t2, p z.1 z.2`. Note that in constructing `b3`, `z` is abstracted so
-        that the fresh expression metavariable `z` will no longer actually appear in the body of the forallE but will instead be replaced
-        with (.bvar 0) -/
-      let e' ← Meta.mkForallFVars #[z] b2
-      let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_forall_forall #[premise]
-      return #[⟨#[Lit.fromSingleExpr e' false], pr, #[]⟩]
-  | _ => throwError "clausifySequentialForall given invalid expression"
-
-/-- Clausify `∃ x : t1, ∃ y : t2, p x y` as `∃ z : t1 × t2, p z.1 z.2`. Repeatedly clausifying sequential existential
-    quantifiers in this manner will ensure that `∃ x1, ∃ x2, ... ∃ xn, p x1 x2 ... xn` will eventually turn into
-    `∃ z : (((x1 × x2) × x3) ... × xn), p z.1.1.1...1 z.1.1.1...2 ... z.2` which is a single existential quantifier
-    whose type can be skolemized all at once (ensuring there are no inadvertent dependencies between, for instance, the
-    skolem symbol for `xn` and the skolem symbol for `x1`).
-    
-    If `t2` depends on `x`, then instead of doing what is described above, `clausifySequentialExists` just calls `clausifySingleExists`. -/
-def clausifySequentialExists (e : Expr) : RuleM (Array ClausificationResult) :=
-  match e with
-  | Expr.app (Expr.app (Expr.const ``Exists [t1lvl]) t1) (Expr.lam _ _ (Expr.app (Expr.app (Expr.const ``Exists [t2lvl]) t2) b) _) => do
-    if t2.hasLooseBVars then -- If `t2` depends on the given variable of type `t1`, then just call `clausifySingleExists`
-      clausifySingleExists e
-    else
-      /- `t1PProdt2` is `t1 × t2`. The reason we use `PProd` rather than `Prod` is that `PProd` takes in universe metavariables
-        corresponding to the sorts of `t1` and `t2` whereas `Prod` takes in universe metavariables corresponding to the types of
-        `t1` and `t2`. Because `Exists` also uses universe metavariables corresponding to the sorts of `t1` and `t2`, those are
-        the universe metavariables we have access to (additionally, attempting to call `Meta.mkAppM` without supplying the universe
-        metavariables results in an error: "AppBuilder for 'mkAppM', result contains metavariables") -/
-      let t1PProdt2 ← Meta.mkAppM' (Expr.const ``PProd [t1lvl, t2lvl]) #[t1, t2]
-      -- `z` is a metavariable that will represent the existentially quantified variable of type `t1 × t2`
-      let z ← mkFreshExprMVar t1PProdt2
-      /- `b` is a function of type `t2 → Prop`. It may have the form `fun x : t2 => p x` but it need not necessarily have this form.
-        `b2` is also a function of type `t2 → Prop` but it replaces every reference to the existentially quantified variable of type
-        `t1` with `z.1` -/
-      let b2 := b.instantiate #[← Meta.mkAppM ``PProd.fst #[z]]
-      /- Since `b2` has the type `t2 → Prop`, it can be expressed as `(fun x => p x)` (though `b2` itself may not have this form).
-        `b3` is an element of type `Prop` that is intended to coincide with `p z.2` -/
-      let b3 ← Meta.mkAppM' b2 #[← Meta.mkAppM ``PProd.snd #[z]]
-      /- If `b3` is `p z.2` then `b4` is intended to be `(fun z => p z.2)`. Note that in constructing `b4`, `z` is abstracted so that
-        the fresh expression metavariable `z` will no longer actually appear in the body of the lambda but will instead be replaced
-        with (.bvar 0) -/
-      let b4 ← Meta.mkLambdaFVars #[z] b3
-      let e' ← mkAppM ``Exists #[b4]
-      let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_exists_exists #[premise]
-      return #[⟨#[Lit.fromSingleExpr e'], pr, #[]⟩]
-  | _ => throwError "clausifySequentialExists given invalid expression"
 
 def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationResult) :=
   match sign, e with
@@ -415,10 +326,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         Meta.mkAppM ``clausify_forall #[tr, premise]
       let mvar ← mkFreshExprMVar ty
       return #[⟨#[Lit.fromSingleExpr $ b.instantiate1 mvar], pr, #[mvar]⟩]
-  | true, Expr.app (Expr.app (Expr.const ``Exists _) _) (Expr.lam _ _ (Expr.app (Expr.app (Expr.const ``Exists _) _) _) _) => do
-    if ← getSimultaneousSkolemizationM then clausifySequentialExists e
-    else clausifySingleExists e
-  | true, Expr.app (Expr.app (Expr.const ``Exists _) _) _ => clausifySingleExists e
+  | true, Expr.app (Expr.app (Expr.const ``Exists _) _) _ => clausifyExists e
   | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_and_false #[premise]
     return #[⟨#[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr, #[]⟩]
@@ -428,10 +336,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
     /- e₂ and pr₂ are placed first in the list because "∨" is right-associative. So if we decompose "a ∨ b ∨ c ∨ d... = False" we want
        "b ∨ c ∨ d... = False" to be the first clause (which will return to Saturate's simpLoop to receive further clausification) -/
     return #[⟨#[Lit.fromSingleExpr e₂ false], pr₂, #[]⟩, ⟨#[Lit.fromSingleExpr e₁ false], pr₁, #[]⟩]
-  | false, Expr.forallE _ _ (Expr.forallE ..) _ => do
-    if ← getSimultaneousSkolemizationM then clausifySequentialForall e
-    else clausifySingleForall e
-  | false, Expr.forallE .. => clausifySingleForall e
+  | false, Expr.forallE .. => clausifyForall e
   | false, Expr.app (Expr.app (Expr.const ``Exists _) ty) f => do
     let pr : Expr → Array Expr → MetaM Expr := fun premise trs => do
       let #[tr] := trs
