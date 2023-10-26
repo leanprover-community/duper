@@ -170,29 +170,64 @@ register_option maxSaturationIteration : Nat := {
 def getMaxSaturationIteration (opts : Options) : Nat :=
   maxSaturationIteration.get opts
 
-def throwSaturationIterout (max : Nat) : CoreM Unit := do
-  let msg := s!"Saturation procedure exceeded iteration limit {max}"
-  throw <| Exception.error (← getRef) (MessageData.ofFormat (Std.Format.text msg))
-
-def checkSaturationIterout (iter : Nat) : CoreM Unit := do
+/-- Used to check that the current instance of duper does not exceed the number of iterations allocated to it. -/
+def checkSaturationIterout (iter : Nat) : CoreM Bool := do
   let opts ← getOptions
   let maxiter := getMaxSaturationIteration opts
-  if iter > maxiter then
-    throwSaturationIterout maxiter
+  return iter > maxiter
 
-def checkSaturationTerminationCriterion (iter : Nat) : ProverM Unit := do
-  -- Check whether maxheartbeat has been reached
+/-- Used to check that the current instance of duper does not exceed the number of heartbeats allocated to it (which
+    may be less than the overall tactic's max heartbeats if duper is running in portfolio mode). Returns true if this
+    duper instance has exceeded its instance heartbeat allocation. -/
+def checkInstanceMaxHeartbeats (initHeartbeats : Nat) (instanceMaxHeartBeats : Nat) : ProverM Bool := do
+  if instanceMaxHeartBeats != 0 then -- Treat instanceMaxHeartBeats = 0 as all remaining heartbeats allocated to the current instance
+    let numHeartbeats ← IO.getNumHeartbeats
+    return numHeartbeats - initHeartbeats ≥ instanceMaxHeartBeats
+  else
+    return false
+
+/-- Throws an error if duper has exceeded the total allowed max heartbeats, and returns true if duper has exeeded the max heartbeats
+    or max iterations for this instance of duper. Returns false if neither of these are the case and duper may proceed-/
+def checkSaturationTerminationCriterion (iter : Nat) (initHeartbeats : Nat) : ProverM Bool := do
+  -- Check whether duper's overall maxheartbeat has been reached
   Core.checkMaxHeartbeats "saturate"
+  -- Check whether the hearbeats allocated to this instance of duper (in portfolio mode) has been reached
+  let check1 ← checkInstanceMaxHeartbeats initHeartbeats (← getInstanceMaxHeartbeats)
   -- Check whether maxiteration has been reached
-  checkSaturationIterout iter
+  let check2 ← checkSaturationIterout iter
+  return check1 || check2
+
+def printTimeoutDebugStatements (startTime : Nat) : ProverM Unit := do
+  checkSaturationTimeout startTime
+  trace[Timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
+  trace[Timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
+  trace[Timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
+  trace[Timeout.debug] m!"Active set unit clause numbers: " ++
+    m!"{← ((← getActiveSet).toArray.filter (fun x => x.lits.size = 1)).mapM (fun c => return (← getClauseInfo! c).number)}"
+  trace[Timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
+  trace[Timeout.debug] "Verified Inhabited Types: {(← getVerifiedInhabitedTypes).map (fun x => x.expr)}"
+  trace[Timeout.debug] "Verified Nonempty Types: {(← getVerifiedNonemptyTypes).map (fun x => x.1.expr)}"
+  trace[Timeout.debug] "Potentially Uninhabited Types: {(← getPotentiallyUninhabitedTypes).map (fun x => x.expr)}"
+  trace[Timeout.debug] "Potentially Vacuous Clauses: {(← getPotentiallyVacuousClauses).toArray}"
+  trace[Timeout.debug.fullActiveSet] m!"Active set numbers: " ++
+    m!"{← ((← getActiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
+  trace[Timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
+  trace[Timeout.debug.fullPassiveSet] m!"Passive set numbers: " ++
+    m!"{← ((← getPassiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
+  trace[Timeout.debug.fullPassiveSet] "Active set: {(← getPassiveSet).toArray}"
 
 partial def saturate : ProverM Unit := do
   let startTime ← IO.monoMsNow
+  let initHeartbeats ← IO.getNumHeartbeats
   Core.withCurrHeartbeats $ try
     let mut iter := 0
     while true do
       iter := iter + 1
-      checkSaturationTerminationCriterion iter
+      -- Check whether this duper instance has exceeded its allocated heartbeat or iteration limit (and return if so)
+      if ← checkSaturationTerminationCriterion iter initHeartbeats then
+        printTimeoutDebugStatements startTime
+        setResult ProverM.Result.unknown -- Instance forced to terminate prior to reaching saturation or proving the goal
+        return
       -- If the passive set is empty
       if (← getPassiveSet).isEmpty then
         -- ForceProbe
@@ -230,23 +265,7 @@ partial def saturate : ProverM Unit := do
       setResult ProverM.Result.contradiction
       return
     | e =>
-      checkSaturationTimeout startTime
-      trace[Timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
-      trace[Timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
-      trace[Timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
-      trace[Timeout.debug] m!"Active set unit clause numbers: " ++
-        m!"{← ((← getActiveSet).toArray.filter (fun x => x.lits.size = 1)).mapM (fun c => return (← getClauseInfo! c).number)}"
-      trace[Timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
-      trace[Timeout.debug] "Verified Inhabited Types: {(← getVerifiedInhabitedTypes).map (fun x => x.expr)}"
-      trace[Timeout.debug] "Verified Nonempty Types: {(← getVerifiedNonemptyTypes).map (fun x => x.1.expr)}"
-      trace[Timeout.debug] "Potentially Uninhabited Types: {(← getPotentiallyUninhabitedTypes).map (fun x => x.expr)}"
-      trace[Timeout.debug] "Potentially Vacuous Clauses: {(← getPotentiallyVacuousClauses).toArray}"
-      trace[Timeout.debug.fullActiveSet] m!"Active set numbers: " ++
-        m!"{← ((← getActiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
-      trace[Timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
-      trace[Timeout.debug.fullPassiveSet] m!"Passive set numbers: " ++
-        m!"{← ((← getPassiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
-      trace[Timeout.debug.fullPassiveSet] "Active set: {(← getPassiveSet).toArray}"
+      printTimeoutDebugStatements startTime
       throw e
 
 def clausifyThenSaturate : ProverM Unit := do

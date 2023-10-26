@@ -55,6 +55,7 @@ structure Context where
 deriving Inhabited
 
 structure State where
+  instanceMaxHeartbeats : Nat := 0 -- Heartbeats allocated to current instance of duper (0 treated as unlimited)
   result : Result := unknown
   allClauses : HashMap Clause ClauseInfo := {}
   activeSet : ClauseSet := {}
@@ -102,6 +103,9 @@ instance [MetaEval α] : MetaEval (ProverM α) :=
 initialize
   registerTraceClass `Prover
   registerTraceClass `Prover.saturate
+
+def getInstanceMaxHeartbeats : ProverM Nat :=
+  return (← get).instanceMaxHeartbeats
 
 def getResult : ProverM Result :=
   return (← get).result
@@ -167,6 +171,9 @@ def getPotentiallyVacuousClauses : ProverM ClauseSet :=
 
 def getEmptyClause : ProverM (Option Clause) :=
   return (← get).emptyClause
+
+def setInstanceMaxHeartbeats (instanceMaxHeartbeats : Nat) : ProverM Unit :=
+  modify fun s => { s with instanceMaxHeartbeats := instanceMaxHeartbeats }
 
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }

@@ -13,6 +13,7 @@ initialize
   registerTraceClass `ProofReconstruction
   registerTraceClass `Saturate.debug
   registerTraceClass `Preprocessing.debug
+  registerTraceClass `Portfolio.debug
 
 namespace Lean.Elab.Tactic
 
@@ -448,66 +449,141 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name)) : MetaM (Li
       | _ => pure ()
     return newFormulas
 
-syntax (name := duper) "duper" (colGt ident)? ("[" term,* "]")? : tactic
+def printSaturation (state : ProverM.State) : TacticM Unit := do
+  trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
+  trace[Saturate.debug] "Final active set numbers: {state.activeSet.toArray.map (fun c => (state.allClauses.find! c).number)}"
+  trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+  trace[Saturate.debug] "Verified Inhabited Types: {state.verifiedInhabitedTypes.map (fun x => x.expr)}"
+  trace[Saturate.debug] "Verified Nonempty Types: {state.verifiedNonemptyTypes.map (fun x => x.1.expr)}"
+  trace[Saturate.debug] "Potentially Uninhabited Types: {state.potentiallyUninhabitedTypes.map (fun x => x.expr)}"
+  trace[Saturate.debug] "Potentially Vacuous Clauses: {state.potentiallyVacuousClauses.toArray}"
 
-macro_rules
-| `(tactic| duper) => `(tactic| duper [])
+declare_syntax_cat Duper.bool_lit (behavior := symbol)
 
-def runDuper (facts : Syntax.TSepArray `term ",") : TacticM ProverM.State := withNewMCtxDepth do
+syntax "true" : Duper.bool_lit
+syntax "false" : Duper.bool_lit
+
+def elabBoolLit [Monad m] [MonadRef m] [MonadExceptOf Exception m]
+    (stx : TSyntax `Duper.bool_lit) : m Bool :=
+  withRef stx do
+    match stx with
+    | `(bool_lit| true) => return true
+    | `(bool_lit| false) => return false
+    | _ => throwUnsupportedSyntax
+
+syntax (name := duper) "duper" ("[" term,* "]")? ("(portfolioMode :=" Duper.bool_lit")")? ("(portfolioInstance :=" numLit")")? : tactic
+
+macro_rules -- XXX comments indicate which portions of the duper invocation are included/excluded
+| `(tactic| duper) => -- 000 (portfolioMode is enabled by default if portfolioInstance is not specified)
+  `(tactic| duper [] (portfolioMode := true))
+| `(tactic| duper (portfolioInstance := $val)) => -- 001 (portfolioMode is false if portfolioInstance is specified)
+  `(tactic| duper [] (portfolioMode := false) (portfolioInstance := $val))
+| `(tactic| duper (portfolioMode := true)) => -- 010 (portfolioMode := true)
+  `(tactic| duper [] (portfolioMode := true))
+| `(tactic| duper (portfolioMode := false)) => -- 010 (portfolioMode := false)
+  `(tactic| duper [] (portfolioMode := false) (portfolioInstance := 0)) -- 0 is default portfolio instance
+| `(tactic| duper (portfolioMode := $pMode) (portfolioInstance := $val)) => -- 011 (Casing on $pMode handled in evalDuper)
+  `(tactic| duper [] (portfolioMode := $pMode) (portfolioInstance := $val))
+| `(tactic| duper [$facts]) => -- 100 (portfolioMode is enabled by default if portfolioInstance is not specified)
+  `(tactic| duper [$facts] (portfolioMode := true))
+| `(tactic| duper [$facts] (portfolioInstance := $val)) => -- 101 (portfolioMode is false if portfolioInstance is specified)
+  `(tactic| duper [$facts] (portfolioMode := false) (portfolioInstance := $val))
+| `(tactic| duper [$facts] (portfolioMode := false)) => -- 110 (portfolioMode := false) (110 (portfolioMode := true) case handled in evalDuper)
+  `(tactic| duper [$facts] (portfolioMode := false) (portfolioInstance := 0)) -- 0 is default portfolio instance
+
+/-- Entry point for calling duper. Facts should consist of lemmas supplied by the user, instanceMaxHeartbeats should indicate how many
+    heartbeats duper should run for before timing out (if instanceMaxHeartbeats is set to 0, then duper will run until it is timed out
+    by the Core `maxHeartbeats` option). -/
+def runDuper (facts : Syntax.TSepArray `term ",") (instanceMaxHeartbeats : Nat) : TacticM ProverM.State := withNewMCtxDepth do
   let formulas ← collectAssumptions facts.getElems
   let formulas ← unfoldDefinitions formulas
   trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
-  -- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv`
-  --   because new definitional equations might be generated during
-  --   `collectAssumptions`
+  /- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv` because new definitional equations might be
+      generated during `collectAssumptions` -/
   withoutModifyingCoreEnv <| do
     -- Add the constant `skolemSorry` to the environment
     let skSorryName ← addSkolemSorry
     let (_, state) ←
-      ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
+      ProverM.runWithExprs (ctx := {}) (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
         ProverM.saturateNoPreprocessingClausification
         formulas
     return state
 
+/-- Default duper instance (does not modify any options) -/
+def runDuperInstance0 (facts : Syntax.TSepArray `term ",") (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+  runDuper facts instanceMaxHeartbeats
+
+/-- Runs duper with selFunction 4 (which corresponds to Zipperposition's default selection function) -/
+def runDuperInstance1 (facts : Syntax.TSepArray `term ",") (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+   withOptions (fun o => o.set `selFunction 4) $ runDuper facts instanceMaxHeartbeats
+
+/-- Runs duper with selFunction 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel) -/
+def runDuperInstance2 (facts : Syntax.TSepArray `term ",") (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+   withOptions (fun o => o.set `selFunction 11) $ runDuper facts instanceMaxHeartbeats
+
+/-- Runs duper with selFunction 12 (which corresponds to E's SelectCQIPrecWNTNp and Zipperposition's e_sel2) -/
+def runDuperInstance3 (facts : Syntax.TSepArray `term ",") (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+   withOptions (fun o => o.set `selFunction 12) $ runDuper facts instanceMaxHeartbeats
+
+/-- Runs duper with selFunction 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3) -/
+def runDuperInstance4 (facts : Syntax.TSepArray `term ",") (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+   withOptions (fun o => o.set `selFunction 13) $ runDuper facts instanceMaxHeartbeats
+
+def getMaxHeartbeats : CoreM Nat := return (← read).maxHeartbeats
+
 @[tactic duper]
 def evalDuper : Tactic
-| `(tactic| duper [$facts,*]) => withMainContext do
+| `(tactic| duper [$facts,*] (portfolioMode := true)) => withMainContext do
   let startTime ← IO.monoMsNow
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let state ← runDuper facts
+    let maxHeartbeats ← getMaxHeartbeats
+    let instances :=
+      #[(0, runDuperInstance0 facts),
+        (1, runDuperInstance1 facts),
+        (2, runDuperInstance2 facts),
+        (3, runDuperInstance3 facts),
+        (4, runDuperInstance4 facts)]
+    let numInstances := instances.size
+    let maxInstanceHeartbeats := maxHeartbeats / numInstances -- Allocate total heartbeats among all instances
+    for (duperInstanceNum, duperInstanceFn) in instances do
+      let state ← duperInstanceFn maxInstanceHeartbeats
+      match state.result with
+      | Result.contradiction => do
+        IO.println s!"Contradiction found by instance {duperInstanceNum}. Time: {(← IO.monoMsNow) - startTime}ms"
+        printProof state
+        applyProof state
+        IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+        return
+      | Result.saturated => -- Choice of instance shouldn't affect prover saturation, if one instance saturates, duper can't solve the problem
+        printSaturation state
+        throwError "Prover saturated."
+      | Result.unknown => continue -- Instance ran out of time
+    throwError "Prover ran out of time before solving the goal"
+| `(tactic| duper [$facts,*] (portfolioMode := false) (portfolioInstance := $pInstance)) => withMainContext do
+  let startTime ← IO.monoMsNow
+  Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
+  withMainContext do
+    let state ←
+      match pInstance.getNat with
+      | 0 => runDuperInstance0 facts 0
+      | 1 => runDuperInstance1 facts 0
+      | 2 => runDuperInstance2 facts 0
+      | 3 => runDuperInstance3 facts 0
+      | 4 => runDuperInstance4 facts 0
+      | _ => throwError "Portfolio instance {pInstance.getNat} not currently defined. Please choose instance 0-4"
     match state.result with
     | Result.contradiction => do
       IO.println s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
-      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
       printProof state
       applyProof state
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     | Result.saturated =>
-      trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
-      trace[Saturate.debug] "Final active set numbers: {state.activeSet.toArray.map (fun c => (state.allClauses.find! c).number)}"
-      trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
-      trace[Saturate.debug] "Verified Inhabited Types: {state.verifiedInhabitedTypes.map (fun x => x.expr)}"
-      trace[Saturate.debug] "Verified Nonempty Types: {state.verifiedNonemptyTypes.map (fun x => x.1.expr)}"
-      trace[Saturate.debug] "Potentially Uninhabited Types: {state.potentiallyUninhabitedTypes.map (fun x => x.expr)}"
-      trace[Saturate.debug] "Potentially Vacuous Clauses: {state.potentiallyVacuousClauses.toArray}"
+      printSaturation state
       throwError "Prover saturated."
     | Result.unknown => throwError "Prover was terminated."
-| `(tactic| duper $ident:ident [$facts,*]) => withMainContext do
-  Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
-  withMainContext do
-    let state ← runDuper facts
-    match state.result with
-    | Result.contradiction => do
-      IO.println s!"{ident} test succeeded in finding a contradiction"
-      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-      printProof state
-      applyProof state
-    | Result.saturated =>
-      IO.println s!"{ident} test resulted in prover saturation"
-      trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
-      Lean.Elab.Tactic.evalTactic (← `(tactic| sorry))
-    | Result.unknown => throwError "Prover was terminated."
+| `(tactic| duper [$facts,*] (portfolioMode := true) (portfolioInstance := $pInstance)) =>
+  throwError "Ambiguous invocation of duper. Cannot run duper with portfolio mode enabled and with a particular instance specified"
 | _ => throwUnsupportedSyntax
 
 syntax (name := duper_no_timing) "duper_no_timing" ("[" term,* "]")? : tactic
@@ -520,7 +596,7 @@ def evalDuperNoTiming : Tactic
 | `(tactic| duper_no_timing [$facts,*]) => withMainContext do
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let state ← runDuper facts
+    let state ← runDuper facts 0
     match state.result with
     | Result.contradiction => do
       IO.println s!"Contradiction found"
