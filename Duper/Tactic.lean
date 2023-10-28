@@ -484,12 +484,12 @@ macro_rules -- XXX comments indicate which portions of the duper invocation are 
   `(tactic| duper [] (portfolioMode := false) (portfolioInstance := 0)) -- 0 is default portfolio instance
 | `(tactic| duper (portfolioMode := $pMode) (portfolioInstance := $val)) => -- 011 (Casing on $pMode handled in evalDuper)
   `(tactic| duper [] (portfolioMode := $pMode) (portfolioInstance := $val))
-| `(tactic| duper [$facts]) => -- 100 (portfolioMode is enabled by default if portfolioInstance is not specified)
-  `(tactic| duper [$facts] (portfolioMode := true))
-| `(tactic| duper [$facts] (portfolioInstance := $val)) => -- 101 (portfolioMode is false if portfolioInstance is specified)
-  `(tactic| duper [$facts] (portfolioMode := false) (portfolioInstance := $val))
-| `(tactic| duper [$facts] (portfolioMode := false)) => -- 110 (portfolioMode := false) (110 (portfolioMode := true) case handled in evalDuper)
-  `(tactic| duper [$facts] (portfolioMode := false) (portfolioInstance := 0)) -- 0 is default portfolio instance
+| `(tactic| duper [$facts,*]) => -- 100 (portfolioMode is enabled by default if portfolioInstance is not specified)
+  `(tactic| duper [$facts,*] (portfolioMode := true))
+| `(tactic| duper [$facts,*] (portfolioInstance := $val)) => -- 101 (portfolioMode is false if portfolioInstance is specified)
+  `(tactic| duper [$facts,*] (portfolioMode := false) (portfolioInstance := $val))
+| `(tactic| duper [$facts,*] (portfolioMode := false)) => -- 110 (portfolioMode := false) (110 (portfolioMode := true) case handled in evalDuper)
+  `(tactic| duper [$facts,*] (portfolioMode := false) (portfolioInstance := 0)) -- 0 is default portfolio instance
 
 /-- Entry point for calling duper. Facts should consist of lemmas supplied by the user, instanceMaxHeartbeats should indicate how many
     heartbeats duper should run for before timing out (if instanceMaxHeartbeats is set to 0, then duper will run until it is timed out
