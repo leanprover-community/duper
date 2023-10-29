@@ -6,25 +6,41 @@ open Lean
 open Meta
 open Core
 
+register_option reduceInstances : Bool := {
+  defValue := true
+  descr := "Whether to eliminate mdata and apply whnf to instances"
+}
+
+def getReduceInstances (opts : Options) : Bool :=
+  reduceInstances.get opts
+
+def getReduceInstancesM : CoreM Bool := do
+  let opts ← getOptions
+  return getReduceInstances opts
+
 /-- This function is expensive and should only be used in preprocessing -/
 partial def preprocessFact (fact : Expr) : MetaM Expr := do
-  let red (e : Expr) : MetaM TransformStep := do
-    let e := e.consumeMData
-    let e ← whnf e
-    return .continue e
-  -- Reduce
-  trace[Preprocessing.debug] "fact before preprocessing: {fact}"
-  let fact ← withTransparency .instances <| Meta.transform fact (pre := red) (usedLetOnly := false)
-  let restoreNE (e : Expr) : MetaM TransformStep := do
-    match e with
-    | .app (.const ``Not []) (.app (.app (.app (.const ``Eq lvls) ty) e₁) e₂) =>
-      return .visit (.app (.app (.app (.const ``Ne lvls) ty) e₁) e₂)
-    | _ => return .continue
-  -- Restore ≠, i.e., ¬ a = b ⇒ a ≠ b
-  -- If we don't do this, it seems that clausification will become more inefficient
-  let fact ← Core.transform fact (pre := restoreNE)
-  trace[Preprocessing.debug] "fact after preprocessing: {fact}"
-  return fact
+  if (← getReduceInstancesM) then
+    let red (e : Expr) : MetaM TransformStep := do
+      let e := e.consumeMData
+      let e ← whnf e
+      return .continue e
+    -- Reduce
+    trace[Preprocessing.debug] "fact before preprocessing: {fact}"
+    let fact ← withTransparency .instances <| Meta.transform fact (pre := red) (usedLetOnly := false)
+    let restoreNE (e : Expr) : MetaM TransformStep := do
+      match e with
+      | .app (.const ``Not []) (.app (.app (.app (.const ``Eq lvls) ty) e₁) e₂) =>
+        return .visit (.app (.app (.app (.const ``Ne lvls) ty) e₁) e₂)
+      | _ => return .continue
+    -- Restore ≠, i.e., ¬ a = b ⇒ a ≠ b
+    -- If we don't do this, it seems that clausification will become more inefficient
+    let fact ← Core.transform fact (pre := restoreNE)
+    trace[Preprocessing.debug] "fact after preprocessing: {fact}"
+    return fact
+  else
+    trace[Preprocessing.debug] "Skipping preprocessing because reduceInstances option is set to false"
+    return fact
 
 /-- Eta-expand a beta-reduced expression. This function is currently unused -/
 partial def etaLong (e : Expr) : MetaM Expr := do

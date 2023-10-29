@@ -11,7 +11,7 @@ initialize Lean.registerTraceClass `InstantiatePremises
 
 -- `xs` is usually obtained by `Meta.forallTelescope c.toForallExpr fun xs body =>`
 def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) (transferExprs : Array Expr) : 
-    MetaM (List (Array Lit) × List Expr × Array Expr) := do
+  MetaM (List (Array Lit) × List Expr × Array Expr) := do
   let mut parentsLits := []
   let mut appliedPremises := []
   for (parent, premise) in List.zip parents premises do
@@ -25,6 +25,9 @@ def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs 
       if let some inst ← Meta.findInstance ty then
         id.assign inst
       else
+        /- Note: If there is ever cause to change this error message, make sure `evalDuper` in Tactic.lean
+           also changes because it checks whether duper instances failed due to the lack of inhabitation reasoning
+           by checking the message content of the error that is thrown. -/
         throwError "instantiatePremises :: Failed to find instance for {ty}"
     -- `parentInstantiations = mvars[fvars]`
     let parentInstantiations := finstantiatedparent.getAppArgs
