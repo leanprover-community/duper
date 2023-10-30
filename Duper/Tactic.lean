@@ -511,6 +511,8 @@ def printSaturation (state : ProverM.State) : TacticM Unit := do
   trace[Saturate.debug] "Potentially Uninhabited Types: {state.potentiallyUninhabitedTypes.map (fun x => x.expr)}"
   trace[Saturate.debug] "Potentially Vacuous Clauses: {state.potentiallyVacuousClauses.toArray}"
 
+def getMaxHeartbeats : CoreM Nat := return (← read).maxHeartbeats
+
 declare_syntax_cat Duper.bool_lit (behavior := symbol)
 
 syntax "true" : Duper.bool_lit
@@ -523,21 +525,34 @@ def elabBoolLit [Monad m] [MonadError m] (stx : TSyntax `Duper.bool_lit) : m Boo
     | `(bool_lit| false) => return false
     | _ => throwUnsupportedSyntax
 
-declare_syntax_cat Duper.configOption
+def boolToBoolLit [Monad m] [MonadQuotation m] (b : Bool) : m (TSyntax `Duper.bool_lit) := do
+  match b with
+  | true => `(bool_lit| true)
+  | false => `(bool_lit| false)
 
-syntax ("(portfolioMode :=" Duper.bool_lit")") : Duper.configOption
-syntax ("(portfolioInstance :=" numLit")") : Duper.configOption
-syntax ("(inhabitationReasoning :=" Duper.bool_lit")") : Duper.configOption
+declare_syntax_cat Duper.configOption (behavior := symbol)
+
+syntax (&"portfolioMode" " := " Duper.bool_lit) : Duper.configOption
+syntax (&"portfolioInstance" " := " numLit) : Duper.configOption
+syntax (&"inhabitationReasoning" " := " Duper.bool_lit) : Duper.configOption
 
 structure ConfigurationOptions where
   portfolioMode : Bool -- True by default (unless portfolio instance is specified)
   portfolioInstance : Option Nat -- None by default (unless portfolioMode is false, in which case, some 0 is default)
   inhabitationReasoning : Option Bool -- None by default
 
-syntax (name := duper) "duper" ("[" term,* "]")? Duper.configOption* : tactic
+syntax (name := duper) "duper" (ppSpace "[" term,* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
+syntax (name := duperTrace) "duper?" (ppSpace "[" term,* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
 
 macro_rules
-| `(tactic| duper $configOptions*) => `(tactic| duper [] $configOptions*)
+| `(tactic| duper) => `(tactic| duper [] {}) -- Missing both facts and config options
+| `(tactic| duper [$facts,*]) => `(tactic| duper [$facts,*] {}) -- Mising just config options
+| `(tactic| duper {$configOptions,*}) => `(tactic| duper [] {$configOptions,*}) -- Missing just facts
+
+macro_rules
+| `(tactic| duper?) => `(tactic| duper? [] {}) -- Missing both facts and config options
+| `(tactic| duper? [$facts,*]) => `(tactic| duper? [$facts,*] {}) -- Mising just config options
+| `(tactic| duper? {$configOptions,*}) => `(tactic| duper? [] {$configOptions,*}) -- Missing just facts
 
 /-- Determines what configuration options Duper should use based on a (potentially partial) set of configuration options passed in by
     the user. If configuration options are not fully specified, this function gives the following default options:
@@ -552,21 +567,21 @@ def parseConfigOptions [Monad m] [MonadError m] (configOptionsStx : TSyntaxArray
   let mut inhabitationReasoningOpt : Option Bool := none
   for configOptionStx in configOptionsStx do
     match configOptionStx with
-    | `(configOption| (portfolioMode := $portfolioModeStx:Duper.bool_lit)) =>
+    | `(configOption| portfolioMode := $portfolioModeStx:Duper.bool_lit) =>
       if portfolioModeOpt.isSome then
         throwError "Erroneous invocation of duper: The portfolio mode option has been specified multiple times"
       let portfolioMode ← elabBoolLit portfolioModeStx
       if portfolioMode && portfolioInstanceOpt.isSome then
         throwError "Ambiguous invocation of duper. Cannot run duper with portfolio mode enabled and with a particular instance specified"
       portfolioModeOpt := some portfolioMode
-    | `(configOption| (portfolioInstance := $portfolioInstanceStx)) =>
+    | `(configOption| portfolioInstance := $portfolioInstanceStx) =>
       if portfolioInstanceOpt.isSome then
         throwError "Erroneous invocation of duper: The portfolio instance option has been specified multiple times"
       if portfolioModeOpt == some true then
         throwError "Ambiguous invocation of duper. Cannot run duper with portfolio mode enabled and with a particular instance specified"
       let portfolioInstance := portfolioInstanceStx.getNat
       portfolioInstanceOpt := some portfolioInstance
-    | `(configOption| (inhabitationReasoning := $inhabitationReasoningStx:Duper.bool_lit)) =>
+    | `(configOption| inhabitationReasoning := $inhabitationReasoningStx:Duper.bool_lit) =>
       if inhabitationReasoningOpt.isSome then
         throwError "Erroneous invocation of duper: The inhabitation reasoning option has been specified multiple times"
       let inhabitationReasoning ← elabBoolLit inhabitationReasoningStx
@@ -587,9 +602,40 @@ def parseConfigOptions [Monad m] [MonadError m] (configOptionsStx : TSyntaxArray
       else some 0 -- If portfolio mode was explicitly disabled and no portfolio instance was specified, choose instance 0 by default
   return {portfolioMode := portfolioMode, portfolioInstance := portfolioInstance, inhabitationReasoning := inhabitationReasoningOpt}
 
-def getMaxHeartbeats : CoreM Nat := return (← read).maxHeartbeats
+/-- If `n` is a Nat that corresponds to one of Duper's portfolio instances, then `portfolioInstanceToConfigOptionStx n` returns the
+    syntax object corresponding to `portfolioInstance := n`. This is necessary so that `duper?` can produce its suggestion. -/
+def portfolioInstanceToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) : m (TSyntax `Duper.configOption) := do
+  match n with
+  | 0 => `(configOption| portfolioInstance := 0)
+  | 1 => `(configOption| portfolioInstance := 1)
+  | 2 => `(configOption| portfolioInstance := 2)
+  | 3 => `(configOption| portfolioInstance := 3)
+  | 4 => `(configOption| portfolioInstance := 4)
+  | _ => throwError "Invalid Duper instance {n}"
 
-def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : ConfigurationOptions) (startTime : Nat) : TacticM Unit := do
+/-- Constructs and suggests the syntax for a duper call, for use with `duper?` -/
+def mkDuperCallSuggestion (duperStxRef : Syntax) (origSpan : Syntax) (facts : Syntax.TSepArray `term ",")
+  (portfolioInstance : Nat) (inhabitationReasoning : Option Bool) : TacticM Unit := do
+  let mut configOptionsArr : Array Syntax := #[] -- An Array containing configuration option elements and separators (",")
+  let portfolioInstanceStx ← portfolioInstanceToConfigOptionStx portfolioInstance
+  configOptionsArr := configOptionsArr.push portfolioInstanceStx
+
+  match inhabitationReasoning with
+  | none => pure ()
+  | some b =>
+    let inhabitationReasoningStx ← boolToBoolLit b
+    configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
+    configOptionsArr := configOptionsArr.push $ ← `(configOption| inhabitationReasoning := $inhabitationReasoningStx)
+
+  let configOptionsStx : Syntax.TSepArray `Duper.configOption "," := {elemsAndSeps := configOptionsArr}
+  let suggestion ←`(tactic| duper [$facts,*] {$configOptionsStx,*})
+  Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+
+/-- Implements duper calls when portfolio mode is enabled. If `duperStxInfo` is not none and `runDuperPortfolioMode` succeeds in deriving
+    a contradiction, then `Std.Tactic.TryThis.addSuggestion` will be used to give the user a more specific invocation of duper that can
+    reproduce the proof (without having to run duper in portfolio mode) -/
+def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : ConfigurationOptions)
+  (startTime : Nat) (duperStxInfo : Option (Syntax × Syntax)) : TacticM Unit := do
   let maxHeartbeats ← getMaxHeartbeats
   let instances :=
     #[(0, runDuperInstance0 facts),
@@ -628,7 +674,11 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
       if successfulProofReconstruction then
         IO.println s!"Contradiction found by instance {duperInstanceNum}. Time: {timeToFindContradiction}ms"
         IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
-        return
+        match duperStxInfo with
+        | none => return
+        | some (duperStxRef, origSpan) =>
+          mkDuperCallSuggestion duperStxRef origSpan facts duperInstanceNum inhabitationReasoningEnabled
+          return
       else
         -- Attempting to solve this problem with inhabitation reasoning disabled leads to failed proof reconstruction
         inhabitationReasoningEnabled := true
@@ -642,11 +692,15 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
           applyProof state
           IO.println s!"Contradiction found by instance {duperInstanceNum}. Time: {timeToFindContradiction}ms"
           IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
-          return
+          match duperStxInfo with
+          | none => return
+          | some (duperStxRef, origSpan) =>
+            mkDuperCallSuggestion duperStxRef origSpan facts duperInstanceNum inhabitationReasoningEnabled
+            return
         | Result.saturated =>
           -- Since inhabitationReasoning has been enabled, the fact that this instance has been saturated means all instances should saturate
           /- Note: The above is currently true because there are presently no portfolio instances that disable hoist rules, fluid sup, or
-              the higher order unification procedure. Once that changes, this code will need to be edited. -/
+             the higher order unification procedure. Once that changes, this code will need to be edited. -/
           printSaturation state
           throwError "Prover saturated."
         | Result.unknown => continue -- Instance ran out of time
@@ -654,20 +708,20 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
       if inhabitationReasoningEnabled then
         -- Since inhabitationReasoning has been enabled, the fact that this instance has been saturated means all instances should saturate
         /- Note: The above is currently true because there are presently no portfolio instances that disable hoist rules, fluid sup, or
-            the higher order unification procedure. Once that changes, this code will need to be edited. -/
+           the higher order unification procedure. Once that changes, this code will need to be edited. -/
         printSaturation state
         throwError "Prover saturated."
       else if configOptions.inhabitationReasoning = some false then
         -- Since inhabitationReasoning has been enabled, the fact that this instance has been saturated means all instances should saturate
         /- Note: The above is currently true because there are presently no portfolio instances that disable hoist rules, fluid sup, or
-            the higher order unification procedure. Once that changes, this code will need to be edited. -/
+           the higher order unification procedure. Once that changes, this code will need to be edited. -/
         IO.println "Duper determined that this problem may require inhabitation reasoning"
         printSaturation state
         -- Throw the error rather than try to continue because the user explicitly specified that inhabitation reasoning should be disabled
         throwError "Prover saturated."
       else
         /- Duper may have saturated because it can't solve the problem, or it may have saturated because the problem requires inhabitation
-            reasoning. Choosing to proceed -/
+           reasoning. Choosing to proceed -/
         inhabitationReasoningEnabled := true
         IO.println "Duper determined that this problem may require inhabitation reasoning, continuing portfolio mode with it enabled"
         -- Retry the portfolio instance that was able to find a proof when inhabitation reasoning was disabled
@@ -679,7 +733,11 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
           applyProof state
           IO.println s!"Contradiction found by instance {duperInstanceNum}. Time: {timeToFindContradiction}ms"
           IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
-          return
+          match duperStxInfo with
+          | none => return
+          | some (duperStxRef, origSpan) =>
+            mkDuperCallSuggestion duperStxRef origSpan facts duperInstanceNum inhabitationReasoningEnabled
+            return
         | Result.saturated =>
           -- Since inhabitationReasoning has been enabled, the fact that this instance has been saturated means all instances should saturate
           /- Note: The above is currently true because there are presently no portfolio instances that disable hoist rules, fluid sup, or
@@ -692,12 +750,13 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
 
 @[tactic duper]
 def evalDuper : Tactic
-| `(tactic| duper [$facts,*] $configOptions*) => withMainContext do
+| `(tactic| duper [$facts,*] {$configOptions,*}) => withMainContext do
   let startTime ← IO.monoMsNow
   let configOptions ← parseConfigOptions configOptions
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    if configOptions.portfolioMode then runDuperPortfolioMode facts configOptions startTime
+    if configOptions.portfolioMode then
+      runDuperPortfolioMode facts configOptions startTime none
     else
       let portfolioInstance ←
         match configOptions.portfolioInstance with
@@ -717,6 +776,41 @@ def evalDuper : Tactic
         printProof state
         applyProof state
         IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+      | Result.saturated =>
+        printSaturation state
+        throwError "Prover saturated."
+      | Result.unknown => throwError "Prover was terminated."
+| _ => throwUnsupportedSyntax
+
+@[tactic duperTrace]
+def evalDuperTrace : Tactic
+| `(tactic| duper?%$duperStxRef [$facts,*] {$configOptions,*}) => withMainContext do
+  let startTime ← IO.monoMsNow
+  let configOptions ← parseConfigOptions configOptions
+  Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
+  withMainContext do
+    if configOptions.portfolioMode then
+      runDuperPortfolioMode facts configOptions startTime (some (duperStxRef, ← getRef))
+    else
+      let portfolioInstance ←
+        match configOptions.portfolioInstance with
+        | some portfolioInstance => pure portfolioInstance
+        | none => throwError "parseConfigOptions error: portfolio mode is disabled and no portfolio instance is specified"
+      let state ←
+        match portfolioInstance with
+        | 0 => runDuperInstance0 facts configOptions.inhabitationReasoning 0
+        | 1 => runDuperInstance1 facts configOptions.inhabitationReasoning 0
+        | 2 => runDuperInstance2 facts configOptions.inhabitationReasoning 0
+        | 3 => runDuperInstance3 facts configOptions.inhabitationReasoning 0
+        | 4 => runDuperInstance4 facts configOptions.inhabitationReasoning 0
+        | _ => throwError "Portfolio instance {portfolioInstance} not currently defined. Please choose instance 0-4"
+      match state.result with
+      | Result.contradiction => do
+        IO.println s!"Contradiction found. Time: {(← IO.monoMsNow) - startTime}ms"
+        printProof state
+        applyProof state
+        IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+        mkDuperCallSuggestion duperStxRef (← getRef) facts portfolioInstance configOptions.inhabitationReasoning
       | Result.saturated =>
         printSaturation state
         throwError "Prover saturated."
