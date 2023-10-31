@@ -24,7 +24,7 @@ f (f (f a)) = d ∨ f (f b) = d ∨ f c = d)
 (h2 : f (f (f (f a1))) ≠ d)
 (h2 : f (f (f a)) ≠ d)
 (h3 : f (f b) ≠ d)
-: False := by duper
+: False := by duper [*]
 
 -- Tests where duper should time out
 -- This example is intended to test duper's ability of

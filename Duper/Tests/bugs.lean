@@ -33,11 +33,11 @@ end Color2
 set_option inhabitationReasoning true in
 set_option trace.typeInhabitationReasoning.debug true in
 tptp ITP023_3 "../TPTP-v8.0.0/Problems/ITP/ITP023_3.p"
-  by duper -- Fails due to error: unknown free variable '_uniq.6173142'
+  by duper [*] -- Fails due to error: unknown free variable '_uniq.6173142'
 
 set_option inhabitationReasoning false in
 tptp ITP023_3' "../TPTP-v8.0.0/Problems/ITP/ITP023_3.p"
-  by duper -- Det timeout
+  by duper [*] -- Det timeout
 
 -- Diagnosis of the above test
 /-
@@ -59,22 +59,6 @@ example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
   by duper
 
 This might be a more viable example to investigate because of how much shorter it is
--/
-
--- Bug 6
-set_option inhabitationReasoning true in
-example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
-  by duper -- Fails because we currently do not infer that A is nonempty from the fact that B and B → A are nonempty
-
-set_option inhabitationReasoning true in
-example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
-  by duper
-
--- Diagnosis of the above two examples
-/-
-This isn't so much a bug as it is a limitation in the current approach to inhabitation reasoning. The extent of reasoning Duper
-currently performs in attempting to determine whether a type is inhabited is limited. The two above examples provide somewhat
-more complicated cases in which Duper is not able to infer that a particular type is inhabited
 -/
 
 -- Bug 7

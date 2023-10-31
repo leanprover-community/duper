@@ -37,14 +37,14 @@ example
 theorem asylum_one
   (h1 : Sane Jones ↔ Doctor Smith)
   (h2 : Sane Smith ↔ ¬ Doctor Jones)
-  : ∃ x : Inhab, (¬ Sane (x) ∧ Doctor (x)) ∨ (Sane (x) ∧ ¬ Doctor (x)) := by duper
+  : ∃ x : Inhab, (¬ Sane (x) ∧ Doctor (x)) ∨ (Sane (x) ∧ ¬ Doctor (x)) := by duper [h1, h2]
 
 #print axioms asylum_one
 
 theorem asylum_seven
   (h1 : Sane A ↔ ¬ Sane B)
   (h2 : Sane B ↔ Doctor A)
-  : (¬ Sane A ∧ Doctor A) ∨ (Sane A ∧ ¬ Doctor A) := by duper
+  : (¬ Sane A ∧ Doctor A) ∨ (Sane A ∧ ¬ Doctor A) := by duper [*]
 
 #print axioms asylum_seven
 
@@ -57,7 +57,7 @@ theorem asylum_nine
   (h4 : A ≠ B ∧ A ≠ C ∧ A ≠ D ∧ B ≠ C ∧ B ≠ D ∧ C ≠ D) :
   (∃ x : Inhab, Sane x ∧ ¬ Doctor x) ∨
   (∃ x : Inhab, ∃ y : Inhab, x ≠ y ∧ (¬ Sane x) ∧ Doctor x ∧ (¬ Sane y) ∧ Doctor y) :=
-  by duper
+  by duper [*]
 
 #print axioms asylum_nine
 #print asylum_nine

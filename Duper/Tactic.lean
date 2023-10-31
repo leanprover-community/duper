@@ -7,7 +7,7 @@ open Duper
 open ProverM
 open Lean.Parser
 
-initialize 
+initialize
   registerTraceClass `TPTP_Testing
   registerTraceClass `Print_Proof
   registerTraceClass `ProofReconstruction
@@ -195,7 +195,7 @@ partial def mkClauseProof : List Clause → PRM Expr
     -- Now `parents[i] : info.proof.parents[i].toForallExpr`, for all `i`
     let instC := c.instantiateLevelParamsArray c.paramNames req
     let instC ← instC.mapMUpdateType (fun e => Core.transform e PRM.matchSkolem)
-    runMetaAsPRM <| do 
+    runMetaAsPRM <| do
       trace[ProofReconstruction] (
         m!"Reconstructing proof for #{info.number} " ++
         m!": {instC.paramNames} ↦ {req} @ {instC}, Rule Name: {info.proof.ruleName}"
@@ -256,14 +256,14 @@ def applyProof (state : ProverM.State) : TacticM Unit := do
 /-- Produces definional equations for a recursor `recVal` such as
 
   `@Nat.rec m z s (Nat.succ n) = s n (@Nat.rec m z s n)`
-  
+
   The returned list contains one equation
   for each constructor, a proof of the equation, and the contained level
   parameters. -/
 def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Name)) := do
   let some (.inductInfo indVal) := (← getEnv).find? recVal.getInduct
     | throwError "Expected inductive datatype: {recVal.getInduct}"
-      
+
   let expr := mkConst recVal.name (recVal.levelParams.map Level.param)
   let res ← forallBoundedTelescope (← inferType expr) recVal.getMajorIdx fun xs _ => do
     let expr := mkAppN expr xs
@@ -274,7 +274,7 @@ def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Na
         let expr := mkApp expr ctor
         let some redExpr ← reduceRecMatcher? expr
           | throwError "Could not reduce recursor application: {expr}"
-        let redExpr ← Core.betaReduce redExpr -- TODO: The prover should be able to beta-reduce!
+        let redExpr ← Core.betaReduce redExpr
         let eq ← mkEq expr redExpr
         let proof ← mkEqRefl expr
         return (← mkForallFVars ys eq, ← mkLambdaFVars ys proof)
@@ -289,32 +289,38 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
   | `($id:ident) =>
     let some expr ← Term.resolveId? id
       | throwError "Unknown identifier {id}"
-
-    match (← getEnv).find? expr.constName! with
-    | some (.recInfo val) =>
-      let facts ← addRecAsFact val
-      let facts ← facts.mapM fun (fact, proof, paramNames) => do
-        return (← instantiateMVars fact, ← instantiateMVars proof, paramNames)
-      return facts.toArray
-    | some (.defnInfo defval) =>
-      let term := defval.value
-      let type ← Meta.inferType term
-      let sort ← Meta.reduce (← Meta.inferType type) true true false
-      -- If the fact is of sort `Prop`, add itself as a fact
-      let mut ret := #[]
-      if sort.isProp then
-        ret := ret.push (← elabFactAux stx)
-      -- Generate definitional equation for the fact
-      if let some eqns ← getEqnsFor? expr.constName! (nonRec := true) then
-        ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
-      return ret
-    | some (.axiomInfo _)  => return #[← elabFactAux stx]
-    | some (.thmInfo _)    => return #[← elabFactAux stx]
-    | some (.opaqueInfo _) => throwError "Opaque constants cannot be provided as facts"
-    | some (.quotInfo _)   => throwError "Quotient constants cannot be provided as facts"
-    | some (.inductInfo _) => throwError "Inductive types cannot be provided as facts"
-    | some (.ctorInfo _)   => throwError "Constructors cannot be provided as facts"
-    | none => throwError "Unknown constant {expr.constName!}"
+    match expr with
+    | .const exprConstName _ =>
+      match (← getEnv).find? exprConstName with
+      | some (.recInfo val) =>
+        let facts ← addRecAsFact val
+        let facts ← facts.mapM fun (fact, proof, paramNames) => do
+          return (← instantiateMVars fact, ← instantiateMVars proof, paramNames)
+        return facts.toArray
+      | some (.defnInfo defval) =>
+        let term := defval.value
+        let type ← Meta.inferType term
+        let sort ← Meta.reduce (← Meta.inferType type) true true false
+        -- If the fact is of sort `Prop`, add itself as a fact
+        let mut ret := #[]
+        if sort.isProp then
+          ret := ret.push (← elabFactAux stx)
+        -- Generate definitional equation for the fact
+        if let some eqns ← getEqnsFor? exprConstName (nonRec := true) then
+          ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
+        return ret
+      | some (.axiomInfo _)  => return #[← elabFactAux stx]
+      | some (.thmInfo _)    => return #[← elabFactAux stx]
+      | some (.opaqueInfo _) => throwError "Opaque constants cannot be provided as facts"
+      | some (.quotInfo _)   => throwError "Quotient constants cannot be provided as facts"
+      | some (.inductInfo _) => throwError "Inductive types cannot be provided as facts"
+      | some (.ctorInfo _)   => throwError "Constructors cannot be provided as facts"
+      | none                 => throwError "Unknown constant {id}"
+    | .fvar exprFVarId =>
+      match (← getLCtx).find? exprFVarId with
+      | some _ => return #[← elabFactAux stx]
+      | none => throwError "Unknown fvar {id}"
+    | _ => throwError "Unknown identifier {id}"
   | _ => return #[← elabFactAux stx]
 where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
   -- elaborate term as much as possible and abstract any remaining mvars:
@@ -327,22 +333,27 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     let paramNames := abstres.paramNames
     return (← inferType e, e, paramNames)
 
-def collectAssumptions (facts : Array Term) : TacticM (List (Expr × Expr × Array Name)) := do
+def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl) : TacticM (List (Expr × Expr × Array Name)) := do
   let mut formulas := []
-  -- Load all local decls:
-  for fVarId in (← getLCtx).getFVarIds do
-    let ldecl ← Lean.FVarId.getDecl fVarId
-    unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
-      let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-      formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
-  -- load user-provided facts
-  for facts in ← facts.mapM elabFact do
-    for (fact, proof, params) in facts do
+  if withAllLCtx then -- Load all local decls
+    for fVarId in (← getLCtx).getFVarIds do
+      let ldecl ← Lean.FVarId.getDecl fVarId
+      unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
+        let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
+        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
+  else -- Even if withAllLCtx is false, we still need to load the goal decls
+    for ldecl in goalDecls do
+      unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
+        let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
+        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[]) :: formulas
+  -- Load user-provided facts
+  for factStx in facts do
+    for (fact, proof, params) in ← elabFact factStx do
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
         formulas := (fact, ← mkAppM ``eq_true #[proof], params) :: formulas
       else
-        throwError "invalid fact for duper, proposition expected {indentExpr fact}"
+        throwError "Invalid fact {factStx} for duper. Proposition expected"
   return formulas
 
 def collectedAssumptionToMessageData : Expr × Expr × Array Name → MessageData
@@ -452,55 +463,57 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name)) : MetaM (Li
 /-- Entry point for calling duper. Facts should consist of lemmas supplied by the user, instanceMaxHeartbeats should indicate how many
     heartbeats duper should run for before timing out (if instanceMaxHeartbeats is set to 0, then duper will run until it is timed out
     by the Core `maxHeartbeats` option). -/
-def runDuper (facts : Syntax.TSepArray `term ",") (instanceMaxHeartbeats : Nat) : TacticM ProverM.State := withNewMCtxDepth do
-  let formulas ← collectAssumptions facts.getElems
-  let formulas ← unfoldDefinitions formulas
-  trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
-  /- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv` because new definitional equations might be
-      generated during `collectAssumptions` -/
-  withoutModifyingCoreEnv <| do
-    -- Add the constant `skolemSorry` to the environment
-    let skSorryName ← addSkolemSorry
-    let (_, state) ←
-      ProverM.runWithExprs (ctx := {}) (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
-        ProverM.saturateNoPreprocessingClausification
-        formulas
-    return state
+def runDuper (facts : Syntax.TSepArray `term ",") (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+  withNewMCtxDepth do
+    let formulas ← collectAssumptions facts.getElems withAllLCtx goalDecls
+    let formulas ← unfoldDefinitions formulas
+    trace[Meta.debug] "Formulas from collectAssumptions: {Duper.ListToMessageData formulas collectedAssumptionToMessageData}"
+    /- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv` because new definitional equations might be
+        generated during `collectAssumptions` -/
+    withoutModifyingCoreEnv <| do
+      -- Add the constant `skolemSorry` to the environment
+      let skSorryName ← addSkolemSorry
+      let (_, state) ←
+        ProverM.runWithExprs (ctx := {}) (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
+          ProverM.saturateNoPreprocessingClausification
+          formulas
+      return state
 
 /-- Default duper instance (does not modify any options except inhabitationReasoning if specified) -/
-def runDuperInstance0 (facts : Syntax.TSepArray `term ",") (inhabitationReasoning : Option Bool)
-  (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+def runDuperInstance0 (facts : Syntax.TSepArray `term ",") (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  (inhabitationReasoning : Option Bool) (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
   match inhabitationReasoning with
-  | none => runDuper facts instanceMaxHeartbeats
-  | some b => withOptions (fun o => o.set `inhabitationReasoning b) $ runDuper facts instanceMaxHeartbeats
+  | none => runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
+  | some b => withOptions (fun o => o.set `inhabitationReasoning b) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
 
 /-- Runs duper with selFunction 4 (which corresponds to Zipperposition's default selection function) -/
-def runDuperInstance1 (facts : Syntax.TSepArray `term ",") (inhabitationReasoning : Option Bool)
-  (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+def runDuperInstance1 (facts : Syntax.TSepArray `term ",") (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  (inhabitationReasoning : Option Bool) (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
   match inhabitationReasoning with
-  | none => withOptions (fun o => o.set `selFunction 4) $ runDuper facts instanceMaxHeartbeats
-  | some b => withOptions (fun o => (o.set `selFunction 4).set `inhabitationReasoning b) $ runDuper facts instanceMaxHeartbeats
+  | none => withOptions (fun o => o.set `selFunction 4) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
+  | some b => withOptions (fun o => (o.set `selFunction 4).set `inhabitationReasoning b) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
 
 /-- Runs duper with selFunction 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel) -/
-def runDuperInstance2 (facts : Syntax.TSepArray `term ",") (inhabitationReasoning : Option Bool)
-  (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+def runDuperInstance2 (facts : Syntax.TSepArray `term ",") (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  (inhabitationReasoning : Option Bool) (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
   match inhabitationReasoning with
-  | none => withOptions (fun o => o.set `selFunction 11) $ runDuper facts instanceMaxHeartbeats
-  | some b => withOptions (fun o => (o.set `selFunction 11).set `inhabitationReasoning b) $ runDuper facts instanceMaxHeartbeats
+  | none => withOptions (fun o => o.set `selFunction 11) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
+  | some b => withOptions (fun o => (o.set `selFunction 11).set `inhabitationReasoning b) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
 
 /-- Runs duper with selFunction 12 (which corresponds to E's SelectCQIPrecWNTNp and Zipperposition's e_sel2) -/
-def runDuperInstance3 (facts : Syntax.TSepArray `term ",") (inhabitationReasoning : Option Bool)
-  (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+def runDuperInstance3 (facts : Syntax.TSepArray `term ",") (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  (inhabitationReasoning : Option Bool) (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
   match inhabitationReasoning with
-  | none => withOptions (fun o => o.set `selFunction 12) $ runDuper facts instanceMaxHeartbeats
-  | some b => withOptions (fun o => (o.set `selFunction 12).set `inhabitationReasoning b) $ runDuper facts instanceMaxHeartbeats
+  | none => withOptions (fun o => o.set `selFunction 12) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
+  | some b => withOptions (fun o => (o.set `selFunction 12).set `inhabitationReasoning b) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
 
 /-- Runs duper with selFunction 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3) -/
-def runDuperInstance4 (facts : Syntax.TSepArray `term ",") (inhabitationReasoning : Option Bool)
-  (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
+def runDuperInstance4 (facts : Syntax.TSepArray `term ",") (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  (inhabitationReasoning : Option Bool) (instanceMaxHeartbeats : Nat) : TacticM ProverM.State :=
   match inhabitationReasoning with
-  | none => withOptions (fun o => o.set `selFunction 13) $ runDuper facts instanceMaxHeartbeats
-  | some b => withOptions (fun o => (o.set `selFunction 13).set `inhabitationReasoning b) $ runDuper facts instanceMaxHeartbeats
+  | none => withOptions (fun o => o.set `selFunction 13) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
+  | some b => withOptions (fun o => (o.set `selFunction 13).set `inhabitationReasoning b) $ runDuper facts withAllLCtx goalDecls instanceMaxHeartbeats
 
 def printSaturation (state : ProverM.State) : TacticM Unit := do
   trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
@@ -541,8 +554,9 @@ structure ConfigurationOptions where
   portfolioInstance : Option Nat -- None by default (unless portfolioMode is false, in which case, some 0 is default)
   inhabitationReasoning : Option Bool -- None by default
 
-syntax (name := duper) "duper" (ppSpace "[" term,* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
-syntax (name := duperTrace) "duper?" (ppSpace "[" term,* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
+syntax duperStar := "*"
+syntax (name := duper) "duper" (ppSpace "[" (duperStar <|> term),* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
+syntax (name := duperTrace) "duper?" (ppSpace "[" (duperStar <|> term),* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
 
 macro_rules
 | `(tactic| duper) => `(tactic| duper [] {}) -- Missing both facts and config options
@@ -553,6 +567,27 @@ macro_rules
 | `(tactic| duper?) => `(tactic| duper? [] {}) -- Missing both facts and config options
 | `(tactic| duper? [$facts,*]) => `(tactic| duper? [$facts,*] {}) -- Mising just config options
 | `(tactic| duper? {$configOptions,*}) => `(tactic| duper? [] {$configOptions,*}) -- Missing just facts
+
+/-- Given a Syntax.TSepArray of facts provided by the user (which may include `*` to indicate that duper should read in the
+    full local context) `removeDuperStar` returns the Syntax.TSepArray with `*` removed and a boolean that indicates whether `*`
+    was included in the original input. -/
+def removeDuperStar (facts : Syntax.TSepArray [`Lean.Elab.Tactic.duperStar, `term] ",") : Bool × Syntax.TSepArray `term "," := Id.run do
+  let factsArr := facts.elemsAndSeps -- factsArr contains both the elements of facts and separators, ordered like `#[e1, s1, e2, s2, e3]`
+  let mut newFactsArr : Array Syntax := #[]
+  let mut removedDuperStar := false
+  let mut needToRemoveSeparator := false -- If `*` is removed, its comma also needs to be removed to preserve the elemsAndSeps ordering
+  for fact in factsArr do
+    match fact with
+    | `(duperStar| *) =>
+      removedDuperStar := true
+      needToRemoveSeparator := true
+    | _ =>
+      if needToRemoveSeparator then needToRemoveSeparator := false -- Don't push current separator onto newFactsArr
+      else newFactsArr := newFactsArr.push fact
+  if removedDuperStar && needToRemoveSeparator then -- This can occur if `*` was the last or only element of facts
+    return (removedDuperStar, {elemsAndSeps := newFactsArr.pop}) -- Remove the last extra separator in newFactsArr, if it exists
+  else
+    return (removedDuperStar, {elemsAndSeps := newFactsArr})
 
 /-- Determines what configuration options Duper should use based on a (potentially partial) set of configuration options passed in by
     the user. If configuration options are not fully specified, this function gives the following default options:
@@ -615,7 +650,7 @@ def portfolioInstanceToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation 
 
 /-- Constructs and suggests the syntax for a duper call, for use with `duper?` -/
 def mkDuperCallSuggestion (duperStxRef : Syntax) (origSpan : Syntax) (facts : Syntax.TSepArray `term ",")
-  (portfolioInstance : Nat) (inhabitationReasoning : Option Bool) : TacticM Unit := do
+  (withDuperStar : Bool) (portfolioInstance : Nat) (inhabitationReasoning : Option Bool) : TacticM Unit := do
   let mut configOptionsArr : Array Syntax := #[] -- An Array containing configuration option elements and separators (",")
   let portfolioInstanceStx ← portfolioInstanceToConfigOptionStx portfolioInstance
   configOptionsArr := configOptionsArr.push portfolioInstanceStx
@@ -628,21 +663,28 @@ def mkDuperCallSuggestion (duperStxRef : Syntax) (origSpan : Syntax) (facts : Sy
     configOptionsArr := configOptionsArr.push $ ← `(configOption| inhabitationReasoning := $inhabitationReasoningStx)
 
   let configOptionsStx : Syntax.TSepArray `Duper.configOption "," := {elemsAndSeps := configOptionsArr}
-  let suggestion ←`(tactic| duper [$facts,*] {$configOptionsStx,*})
-  Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+  if withDuperStar && facts.elemsAndSeps.isEmpty then
+    let suggestion ←`(tactic| duper [*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+  else if withDuperStar then
+    let suggestion ←`(tactic| duper [*, $facts,*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+  else
+    let suggestion ←`(tactic| duper [$facts,*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
 
 /-- Implements duper calls when portfolio mode is enabled. If `duperStxInfo` is not none and `runDuperPortfolioMode` succeeds in deriving
     a contradiction, then `Std.Tactic.TryThis.addSuggestion` will be used to give the user a more specific invocation of duper that can
     reproduce the proof (without having to run duper in portfolio mode) -/
-def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : ConfigurationOptions)
-  (startTime : Nat) (duperStxInfo : Option (Syntax × Syntax)) : TacticM Unit := do
+def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  (configOptions : ConfigurationOptions) (startTime : Nat) (duperStxInfo : Option (Syntax × Syntax)) : TacticM Unit := do
   let maxHeartbeats ← getMaxHeartbeats
   let instances :=
-    #[(0, runDuperInstance0 facts),
-      (1, runDuperInstance1 facts),
-      (2, runDuperInstance2 facts),
-      (3, runDuperInstance3 facts),
-      (4, runDuperInstance4 facts)]
+    #[(0, runDuperInstance0 facts withAllLCtx goalDecls),
+      (1, runDuperInstance1 facts withAllLCtx goalDecls),
+      (2, runDuperInstance2 facts withAllLCtx goalDecls),
+      (3, runDuperInstance3 facts withAllLCtx goalDecls),
+      (4, runDuperInstance4 facts withAllLCtx goalDecls)]
   let numInstances := instances.size
   let maxInstanceHeartbeats := maxHeartbeats / numInstances -- Allocate total heartbeats among all instances
   let mut inhabitationReasoningEnabled : Bool :=
@@ -677,7 +719,7 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
         match duperStxInfo with
         | none => return
         | some (duperStxRef, origSpan) =>
-          mkDuperCallSuggestion duperStxRef origSpan facts duperInstanceNum inhabitationReasoningEnabled
+          mkDuperCallSuggestion duperStxRef origSpan facts withAllLCtx duperInstanceNum inhabitationReasoningEnabled
           return
       else
         -- Attempting to solve this problem with inhabitation reasoning disabled leads to failed proof reconstruction
@@ -695,7 +737,7 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
           match duperStxInfo with
           | none => return
           | some (duperStxRef, origSpan) =>
-            mkDuperCallSuggestion duperStxRef origSpan facts duperInstanceNum inhabitationReasoningEnabled
+            mkDuperCallSuggestion duperStxRef origSpan facts withAllLCtx duperInstanceNum inhabitationReasoningEnabled
             return
         | Result.saturated =>
           -- Since inhabitationReasoning has been enabled, the fact that this instance has been saturated means all instances should saturate
@@ -736,7 +778,7 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
           match duperStxInfo with
           | none => return
           | some (duperStxRef, origSpan) =>
-            mkDuperCallSuggestion duperStxRef origSpan facts duperInstanceNum inhabitationReasoningEnabled
+            mkDuperCallSuggestion duperStxRef origSpan facts withAllLCtx duperInstanceNum inhabitationReasoningEnabled
             return
         | Result.saturated =>
           -- Since inhabitationReasoning has been enabled, the fact that this instance has been saturated means all instances should saturate
@@ -748,15 +790,37 @@ def runDuperPortfolioMode (facts : Syntax.TSepArray `term ",") (configOptions : 
     | Result.unknown => continue -- Instance ran out of time
   throwError "Prover ran out of time before solving the goal"
 
+/-- When `duper` is called, the first thing the tactic does is call the tactic `intros; apply Classical.byContradiction _; intro`.
+    Even when `*` is not included in the duper invocation (meaning the user does not want duper to collect all the facts in the
+    local context), it is necessary to include the negated goal. This negated goal may take the form of arbitrarily many
+    declarations in the local context if the `duper` is asked to solve a goal of the form `p1 → p2 → p3 → ... pn`. So to ensure
+    that `duper` is able to see the whole original goal, `getGoalDecls` compares the local context before calling
+    `intros; apply Classical.byContradiction _; intro` and after calling `intros; apply Classical.byContradiction _; intro`. The
+    local declarations that are part of the latter lctx but not the former are considered goal decls and are to be returned so that
+    Duper can know to collect them in `collectAssumptions`.-/
+def getGoalDecls (lctxBeforeIntros : LocalContext) (lctxAfterIntros : LocalContext) : Array LocalDecl := Id.run do
+  let mut goalDecls := #[]
+  for declOpt in lctxAfterIntros.decls do
+    match declOpt with
+    | none => continue
+    | some decl =>
+      if lctxBeforeIntros.contains decl.fvarId then continue
+      else goalDecls := goalDecls.push decl
+  return goalDecls
+
 @[tactic duper]
 def evalDuper : Tactic
 | `(tactic| duper [$facts,*] {$configOptions,*}) => withMainContext do
   let startTime ← IO.monoMsNow
   let configOptions ← parseConfigOptions configOptions
+  let (factsContainsDuperStar, facts) := removeDuperStar facts
+  let lctxBeforeIntros ← getLCtx
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
+    let lctxAfterIntros ← getLCtx
+    let goalDecls := getGoalDecls lctxBeforeIntros lctxAfterIntros
     if configOptions.portfolioMode then
-      runDuperPortfolioMode facts configOptions startTime none
+      runDuperPortfolioMode facts factsContainsDuperStar goalDecls configOptions startTime none
     else
       let portfolioInstance ←
         match configOptions.portfolioInstance with
@@ -764,11 +828,11 @@ def evalDuper : Tactic
         | none => throwError "parseConfigOptions error: portfolio mode is disabled and no portfolio instance is specified"
       let state ←
         match portfolioInstance with
-        | 0 => runDuperInstance0 facts configOptions.inhabitationReasoning 0
-        | 1 => runDuperInstance1 facts configOptions.inhabitationReasoning 0
-        | 2 => runDuperInstance2 facts configOptions.inhabitationReasoning 0
-        | 3 => runDuperInstance3 facts configOptions.inhabitationReasoning 0
-        | 4 => runDuperInstance4 facts configOptions.inhabitationReasoning 0
+        | 0 => runDuperInstance0 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
+        | 1 => runDuperInstance1 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
+        | 2 => runDuperInstance2 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
+        | 3 => runDuperInstance3 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
+        | 4 => runDuperInstance4 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined. Please choose instance 0-4"
       match state.result with
       | Result.contradiction => do
@@ -787,10 +851,14 @@ def evalDuperTrace : Tactic
 | `(tactic| duper?%$duperStxRef [$facts,*] {$configOptions,*}) => withMainContext do
   let startTime ← IO.monoMsNow
   let configOptions ← parseConfigOptions configOptions
+  let (factsContainsDuperStar, facts) := removeDuperStar facts
+  let lctxBeforeIntros ← getLCtx
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
+    let lctxAfterIntros ← withMainContext getLCtx
+    let goalDecls := getGoalDecls lctxBeforeIntros lctxAfterIntros
     if configOptions.portfolioMode then
-      runDuperPortfolioMode facts configOptions startTime (some (duperStxRef, ← getRef))
+      runDuperPortfolioMode facts factsContainsDuperStar goalDecls configOptions startTime (some (duperStxRef, ← getRef))
     else
       let portfolioInstance ←
         match configOptions.portfolioInstance with
@@ -798,11 +866,11 @@ def evalDuperTrace : Tactic
         | none => throwError "parseConfigOptions error: portfolio mode is disabled and no portfolio instance is specified"
       let state ←
         match portfolioInstance with
-        | 0 => runDuperInstance0 facts configOptions.inhabitationReasoning 0
-        | 1 => runDuperInstance1 facts configOptions.inhabitationReasoning 0
-        | 2 => runDuperInstance2 facts configOptions.inhabitationReasoning 0
-        | 3 => runDuperInstance3 facts configOptions.inhabitationReasoning 0
-        | 4 => runDuperInstance4 facts configOptions.inhabitationReasoning 0
+        | 0 => runDuperInstance0 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
+        | 1 => runDuperInstance1 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
+        | 2 => runDuperInstance2 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
+        | 3 => runDuperInstance3 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
+        | 4 => runDuperInstance4 facts factsContainsDuperStar goalDecls configOptions.inhabitationReasoning 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined. Please choose instance 0-4"
       match state.result with
       | Result.contradiction => do
@@ -810,7 +878,7 @@ def evalDuperTrace : Tactic
         printProof state
         applyProof state
         IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
-        mkDuperCallSuggestion duperStxRef (← getRef) facts portfolioInstance configOptions.inhabitationReasoning
+        mkDuperCallSuggestion duperStxRef (← getRef) facts factsContainsDuperStar portfolioInstance configOptions.inhabitationReasoning
       | Result.saturated =>
         printSaturation state
         throwError "Prover saturated."
@@ -827,7 +895,7 @@ def evalDuperNoTiming : Tactic
 | `(tactic| duper_no_timing [$facts,*]) => withMainContext do
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
-    let state ← runDuper facts 0
+    let state ← runDuper facts true #[] 0 -- I don't bother computing goalDecls here since I set withAllLCtx to true anyway
     match state.result with
     | Result.contradiction => do
       IO.println s!"Contradiction found"

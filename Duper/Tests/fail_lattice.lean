@@ -22,4 +22,4 @@ theorem mod_lattice1
   (ModLatA : ∀ a x b, U (A a b) (A x b) = A (U (A a b) x) b)
   (a b c : L)
   (Hyp : A a (U b c) = U (A a b) (A a c))
-  : U a (A b c) = A (U a b) (U a c) := by duper
+  : U a (A b c) = A (U a b) (U a c) := by duper [*]

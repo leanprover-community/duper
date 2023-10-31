@@ -15,4 +15,4 @@ theorem cubeisom
   (cube_injective : ∀ x y, cube x = cube y → x = y)
   (cube_surjective : ∀ x, ∃ y, x = cube y)
   (cube_homomorphism : ∀ x y, cube (mult x y) = mult (cube x) (cube y))
-  : ∀ x y, mult x y = mult y x := by duper
+  : ∀ x y, mult x y = mult y x := by duper [*]
