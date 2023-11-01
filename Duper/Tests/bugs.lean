@@ -70,3 +70,21 @@ example (a : α) (as : List α) : [] ≠ a :: as :=
 This error arises during `addRecAsFact` in Tactic.lean on the line that calls `let ctor ← mkAppOptM ctorName #[]`.
 Fundamentally, the issue is that `List` is polymorphic and the current `addRecAsFact` doesn't support that.
 -/
+
+-- Bug 8: Application type mismatch pertaining to the universe levels of skolems
+axiom f.{u} : Type u → Prop
+
+axiom ftrue.{u} : f.{u} (Sort u)
+
+axiom exftrue.{u} : ∃ (x : Type u), f x
+
+def test : ∃ x : Type u, ∃ y : Type v, f x = f y := by
+  duper [exftrue]
+/-
+application type mismatch
+  skol.0 [anonymous]
+argument has type
+  Type u_1
+but function has type
+  Type u_2 → Type u_2
+-/
