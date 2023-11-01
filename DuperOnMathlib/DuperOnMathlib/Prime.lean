@@ -24,6 +24,7 @@ theorem prime_def_lt'_DUPER {p : ℕ} : Prime p ↔ 2 ≤ p ∧ ∀ (m : ℕ), 2
 
 #check prime_def_le_sqrt -- Reproving this theorem using duper:
 
+-- h2 times out if reduceInstances is set to false
 theorem prime_def_le_sqrt_DUPER' {p : ℕ} : Prime p ↔ 2 ≤ p ∧ ∀ m, 2 ≤ m → m ≤ sqrt p → ¬m ∣ p := by
   constructor
   · have : ∀ m, 2 ≤ m → 1 < m := by intros; linarith
@@ -31,8 +32,8 @@ theorem prime_def_le_sqrt_DUPER' {p : ℕ} : Prime p ↔ 2 ≤ p ∧ ∀ m, 2 �
   · intro h
     rw [prime_def_lt']
     refine ⟨h.1, ?_⟩
-    have h₂ : ∀ m, 2 ≤ m → m < p → m ∣ p → 2 ≤ (p / m) :=
-      by duper [*, Nat.lt_irrefl, Nat.dvd_iff_div_mul_eq, Nat.mul_zero, Nat.one_mul, two_le_iff]
+    have h₂ : ∀ m, 2 ≤ m → m < p → m ∣ p → 2 ≤ (p / m) := by
+      duper [*, Nat.lt_irrefl, Nat.dvd_iff_div_mul_eq, Nat.mul_zero, Nat.one_mul, two_le_iff] {portfolioInstance := 0}
     duper
       [*, Nat.div_dvd_of_dvd, Nat.dvd_iff_div_mul_eq, le_sqrt, Nat.mul_le_mul_right, Nat.mul_le_mul_left, mul_comm, Nat.le_total]
       {portfolioInstance := 0}
