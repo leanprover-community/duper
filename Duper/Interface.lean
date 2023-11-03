@@ -4,9 +4,23 @@ open Lean
 open Lean.Meta
 open Duper
 open ProverM
+open Lean.Parser
 
 initialize
   registerTraceClass `Saturate.debug
+  registerTraceClass `Portfolio.debug
+
+register_option printPortfolioInstance : Bool := {
+  defValue := false
+  descr := "Whether to print the portfolio instance that solved the proof"
+}
+
+def getPrintPortfolioInstance (opts : Options) : Bool :=
+  printPortfolioInstance.get opts
+
+def getPrintPortfolioInstanceM : CoreM Bool := do
+  let opts ← getOptions
+  return getPrintPortfolioInstance opts
 
 /-- We save the `CoreM` state. This is because we will add a constant `skolemSorry` to the environment to support skolem constants with
     universe levels. We want to erase this constant after the saturation procedure ends -/
@@ -181,3 +195,158 @@ def runDuperInstance4 (formulas : List (Expr × Expr × Array Name)) (inhabitati
   match inhabitationReasoning with
   | none => withOptions (fun o => o.set `selFunction 13) $ runDuper formulas instanceMaxHeartbeats
   | some b => withOptions (fun o => (o.set `selFunction 13).set `inhabitationReasoning b) $ runDuper formulas instanceMaxHeartbeats
+
+def getMaxHeartbeats : CoreM Nat := return (← read).maxHeartbeats
+
+declare_syntax_cat Duper.bool_lit (behavior := symbol)
+
+syntax "true" : Duper.bool_lit
+syntax "false" : Duper.bool_lit
+
+def elabBoolLit [Monad m] [MonadError m] (stx : TSyntax `Duper.bool_lit) : m Bool :=
+  withRef stx do
+    match stx with
+    | `(bool_lit| true) => return true
+    | `(bool_lit| false) => return false
+    | _ => Elab.throwUnsupportedSyntax
+
+def boolToBoolLit [Monad m] [MonadQuotation m] (b : Bool) : m (TSyntax `Duper.bool_lit) := do
+  match b with
+  | true => `(bool_lit| true)
+  | false => `(bool_lit| false)
+
+declare_syntax_cat Duper.configOption (behavior := symbol)
+
+syntax (&"portfolioMode" " := " Duper.bool_lit) : Duper.configOption
+syntax (&"portfolioInstance" " := " numLit) : Duper.configOption
+syntax (&"inhabitationReasoning" " := " Duper.bool_lit) : Duper.configOption
+
+structure ConfigurationOptions where
+  portfolioMode : Bool -- True by default (unless portfolio instance is specified)
+  portfolioInstance : Option Nat -- None by default (unless portfolioMode is false, in which case, some 0 is default)
+  inhabitationReasoning : Option Bool -- None by default
+
+syntax duperStar := "*"
+syntax (name := duper) "duper" (ppSpace "[" (duperStar <|> term),* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
+syntax (name := duperTrace) "duper?" (ppSpace "[" (duperStar <|> term),* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
+
+/-- If `n` is a Nat that corresponds to one of Duper's portfolio instances, then `portfolioInstanceToConfigOptionStx n` returns the
+    syntax object corresponding to `portfolioInstance := n`. This is necessary so that `duper?` can produce its suggestion. -/
+def portfolioInstanceToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) : m (TSyntax `Duper.configOption) := do
+  match n with
+  | 0 => `(configOption| portfolioInstance := 0)
+  | 1 => `(configOption| portfolioInstance := 1)
+  | 2 => `(configOption| portfolioInstance := 2)
+  | 3 => `(configOption| portfolioInstance := 3)
+  | 4 => `(configOption| portfolioInstance := 4)
+  | _ => throwError "Invalid Duper instance {n}"
+
+/-- Constructs and suggests the syntax for a duper call, for use with `duper?` -/
+def mkDuperCallSuggestion (duperStxRef : Syntax) (origSpan : Syntax) (facts : Syntax.TSepArray `term ",")
+  (withDuperStar : Bool) (portfolioInstance : Nat) (inhabitationReasoning : Option Bool) : MetaM Unit := do
+  let mut configOptionsArr : Array Syntax := #[] -- An Array containing configuration option elements and separators (",")
+  let portfolioInstanceStx ← portfolioInstanceToConfigOptionStx portfolioInstance
+  configOptionsArr := configOptionsArr.push portfolioInstanceStx
+
+  match inhabitationReasoning with
+  | none => pure ()
+  | some b =>
+    let inhabitationReasoningStx ← boolToBoolLit b
+    configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
+    configOptionsArr := configOptionsArr.push $ ← `(configOption| inhabitationReasoning := $inhabitationReasoningStx)
+
+  let configOptionsStx : Syntax.TSepArray `Duper.configOption "," := {elemsAndSeps := configOptionsArr}
+  if withDuperStar && facts.elemsAndSeps.isEmpty then
+    let suggestion ←`(tactic| duper [*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+  else if withDuperStar then
+    let suggestion ←`(tactic| duper [*, $facts,*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+  else
+    let suggestion ←`(tactic| duper [$facts,*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+
+/-- Implements duper calls when portfolio mode is enabled. If `duperStxInfo` is not none and `runDuperPortfolioMode` succeeds in deriving
+    a contradiction, then `Std.Tactic.TryThis.addSuggestion` will be used to give the user a more specific invocation of duper that can
+    reproduce the proof (without having to run duper in portfolio mode). As with the other `runDuper` functions, `runDuperPortfolioMode`
+    ultimately returns a proof if successful and throws an error if unsuccessful. -/
+def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name)) (configOptions : ConfigurationOptions)
+  (duperStxInfo : Option (Syntax × Syntax × Syntax.TSepArray `term ","  × Bool)) : MetaM Expr := do
+  let maxHeartbeats ← getMaxHeartbeats
+  let instances :=
+    #[(0, runDuperInstance0 formulas),
+      (1, runDuperInstance1 formulas),
+      (2, runDuperInstance2 formulas),
+      (3, runDuperInstance3 formulas),
+      (4, runDuperInstance4 formulas)]
+  let numInstances := instances.size
+  let maxInstanceHeartbeats := maxHeartbeats / numInstances -- Allocate total heartbeats among all instances
+  let mut inhabitationReasoningEnabled : Bool :=
+    match configOptions.inhabitationReasoning with
+    | some true => true
+    | some false => false
+    | none => false -- If inhabitationReasoning is not specified, disable it unless it becomes clear it is needed
+  for (duperInstanceNum, duperInstanceFn) in instances do
+    /- If Duper finds a contradiction and successfully performs proof reconstruction, `proofOption` will be `some proof` and
+       `retryWithInhabitationReasoning` will be false.
+
+       If Duper saturates or fails proof reconstruction specifically because inhabitation reasoning is disabled, `proofOption`
+       will be `none` and `retryWithInhabitationReasoning` will be true.
+
+       If Duper times out (achieving ProverM.Result.unknown and throwing the error "Prover was terminated.") then `proofOption`
+       will be `none` and `retryWithInhabitationReasoning` will be false.
+
+       If Duper fails for any other reason, then an error will be thrown. -/
+    let (proofOption, retryWithInhabitationReasoning) ←
+      try
+        let proof ← duperInstanceFn inhabitationReasoningEnabled maxInstanceHeartbeats
+        pure $ (some proof, false)
+      catch e =>
+        let errorMessage ← e.toMessageData.toString
+        if errorMessage.startsWith "instantiatePremises :: Failed to find instance for" || errorMessage.startsWith "Prover saturated" then
+          if inhabitationReasoningEnabled then
+            throw e -- Throw the error rather than try to continue because inhabitation reasoning is already enabled
+          else if configOptions.inhabitationReasoning = some false then
+            IO.println "Duper determined that this problem requires inhabitation reasoning"
+            throw e -- Throw the error rather than try to continue because the user explicitly specified that inhabitation reasoning should be disabled
+          else
+            pure (none, true) -- Attempting to solve this problem with inhabitation reasoning disabled leads to failed proof reconstruction
+        else if errorMessage.startsWith "Prover was terminated" then
+          pure (none, false) -- No reason to retry with inhabitation reasoning, portfolio mode should just move on to the next instance in the loop
+        else
+          throw e -- Throw the error because it doesn't appear to pertain to inhabitation reasoning or a timeout
+    match proofOption with
+    | some proof =>
+      if ← getPrintPortfolioInstanceM then IO.println s!"Solved by Duper instance {duperInstanceNum}"
+      match duperStxInfo with
+      | none => return proof
+      | some (duperStxRef, origSpan, facts, withDuperStar) =>
+        mkDuperCallSuggestion duperStxRef origSpan facts withDuperStar duperInstanceNum inhabitationReasoningEnabled
+        return proof
+    | none =>
+      if !retryWithInhabitationReasoning then continue
+      -- Attempting to solve this problem with inhabitation reasoning disabled leads to failed proof reconstruction
+      inhabitationReasoningEnabled := true
+      -- Retry the portfolio instance that was able to find a proof when inhabitation reasoning was disabled
+      IO.println "Duper determined that this problem requires inhabitation reasoning, continuing portfolio mode with it enabled"
+      /- If Duper finds a contradiction and successfully performs proof reconstruction `proofOption` will be `some proof`.
+         If Duper times out, then `proofOption` will be `none`.
+         If Duper fails for any other reason, then an error will be thrown. -/
+      let proofOption ←
+        try
+          let proof ← duperInstanceFn inhabitationReasoningEnabled maxInstanceHeartbeats
+          pure $ some proof
+        catch e =>
+          -- Only `e` is an error arising from the Duper instance timing out, it should be caught. Otherwise, it should be thrown.
+          if (← e.toMessageData.toString).startsWith "Prover was terminated" then pure none -- Duper instance just timed out, try again with the next instance
+          else throw e -- Error unrelated to timeout, and inhabitation reasoning is already enabled, so throw the error
+      match proofOption with
+      | some proof =>
+        if ← getPrintPortfolioInstanceM then IO.println s!"Solved by Duper instance {duperInstanceNum}"
+        match duperStxInfo with
+        | none => return proof
+        | some (duperStxRef, origSpan, facts, withDuperStar) =>
+          mkDuperCallSuggestion duperStxRef origSpan facts withDuperStar duperInstanceNum inhabitationReasoningEnabled
+          return proof
+      | none => continue -- Duper timed out, try the next instance
+  throwError "Prover ran out of time before solving the goal"
