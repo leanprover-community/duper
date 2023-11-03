@@ -33,7 +33,7 @@ theorem test0000 (one : Nat) (isZero : Nat → Prop) (div mul add : Nat → Nat 
 
 -- Contradiction found. Time: 647ms
 theorem test0018 (a1 a2 a3 a4 a5 a6 : Nat)
-(h1 : 
+(h1 :
 f (f (f (f (f (f (f (f a5))))))) = d ∨
 f (f (f (f (f (f (f a4)))))) = d ∨
 f (f (f (f (f (f a3))))) = d ∨
@@ -64,7 +64,7 @@ theorem test00008'
 (div_def : ∀ (x y : Nat), y ≠ zero → div x y = mul x (inv y)) :
 ∀ (x y : Nat), y ≠ zero → mul (add x y) (inv y) = add (mul x (inv y)) one := by duper [*]
 
-theorem test 
+theorem test
 (div_self : ∀ x, div x x = one)
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z))
 (div_def : ∀ (x y : Nat), div x y = mul x (inv y)) :
@@ -73,8 +73,8 @@ theorem test
 -- #print test
 -- #print axioms test
 
-example --(h : ∃ x, x ≠ c ∨ a = b) 
-(h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b) 
+example --(h : ∃ x, x ≠ c ∨ a = b)
+(h : ¬ ∃ x, x = f a ∨ ∀ x, ∃ y, y = f a ∧ x = b)-- (h :  c = b ∧ a = b)
 : False := by duper [*]
 
 set_option trace.Meta.debug true in
@@ -111,7 +111,7 @@ theorem test2
 theorem test3 (f g : α → α) : (∀ x, f x = g x) = (∀ x, f x = g x) := by duper
 
 theorem puzzle1 {ι : Type} (johanna : ι) (bill : ι) (peanuts : ι)
-  (food : ι → Prop) (alive : ι → Prop) 
+  (food : ι → Prop) (alive : ι → Prop)
   (likes : ι → ι → Prop) (eats : ι → ι → Prop) (was_killed_by : ι → ι → Prop)
   (h1 : ∀ x, food x → likes johanna x)
   (h2 : ∀ x, (∃ y, eats y x ∧ ¬ was_killed_by y x) → food x)
@@ -126,7 +126,7 @@ likes johanna peanuts := by duper [*]
 
 /- Leaving this test commented out because we expect it to time out
 set_option maxHeartbeats 10000 in
-theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι) 
+theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι)
   (Doctor : ι → Prop) (Peculiar : ι → Prop) (Sane : ι → Prop)
   (bestFriend : ι → ι) (Special : ι → Prop)
   (h4 : ∀x, Peculiar x = (Sane x = ¬ Doctor x))
@@ -134,7 +134,7 @@ theorem puzzle2 {ι : Type} (Tarr : ι) (Fether : ι)
   (h7 : ∀x, ∀y, (Sane x = Special y) → (Sane (bestFriend x) = ¬ Doctor y))
   (h8 : Sane Tarr = ∀x, Doctor x → Sane x)
   (h10 : Sane Fether = ∀x, Doctor x → ¬ Sane x)
-  (h12 : Sane Fether = Sane Tarr) : 
+  (h12 : Sane Fether = Sane Tarr) :
 False := by duper
 -/
 
@@ -183,11 +183,11 @@ List of problems pertaining to the barber paradox:
 
 set_option trace.Meta.debug true in
 theorem barber_paradox1 {person : Type} {person_inhabited : Inhabited person} {shaves : person → person → Prop}
-  (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False := 
+  (h : ∃ b : person, ∀ p : person, (shaves b p ↔ (¬ shaves p p))) : False :=
   by duper [*]
 
 theorem barber_paradox2 {person : Type} {shaves : person → person → Prop} {b : person}
-  (h : ∀ p : person, (shaves b p ↔ (¬shaves p p))) : False := 
+  (h : ∀ p : person, (shaves b p ↔ (¬shaves p p))) : False :=
   by duper [*]
 
 theorem barber_paradox3 {person : Type} {shaves : person → person → Prop} {b : person}
@@ -269,11 +269,11 @@ theorem elimResolvedLitTest3 {t : Type} (a : t) (b : t) (c : t)
 --###############################################################################################################################
 -- equalityFactoring tests (Trying to test each equality_factoring_soundness theorem)
 
-theorem equalityFactoringTest1 {α : Type} (s t u v : α) 
+theorem equalityFactoringTest1 {α : Type} (s t u v : α)
   (h1 : s = t ∨ s = v) : t ≠ v ∨ s = v :=
   by duper [*]
 
-theorem equalityFactoringTest2 {α : Type} (s t u v : α) 
+theorem equalityFactoringTest2 {α : Type} (s t u v : α)
   (h1 : s = t ∨ u = s) : t ≠ u ∨ u = s :=
   by duper [*]
 
@@ -487,7 +487,7 @@ example (x y z : Type u) (f g : Type u → Type u → Type u → Type v) (H : f 
 tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
   by duper [*]
 
-tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by 
+tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
   have inhabited_plant : Inhabited plant := sorry
   have inhabited_snail : Inhabited snail := sorry
   have inhabited_grain : Inhabited grain := sorry

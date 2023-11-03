@@ -6,6 +6,9 @@ open Lean
 open Meta
 open Core
 
+initialize
+  registerTraceClass `Preprocessing.debug
+
 register_option reduceInstances : Bool := {
   defValue := true
   descr := "Whether to eliminate mdata and apply whnf to instances"
