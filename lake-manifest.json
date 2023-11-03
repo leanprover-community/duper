@@ -4,9 +4,17 @@
  [{"git":
    {"url": "https://github.com/leanprover/std4.git",
     "subDir?": null,
-    "rev": "2b8aaf35445a336eafb3d73631df184e7c7b7691",
+    "rev": "9bfbd2a12ee9cf2e159a8a6b4d1ef6c149728f66",
     "opts": {},
     "name": "std",
     "inputRev?": "main",
+    "inherited": false}},
+  {"git":
+   {"url": "https://github.com/avigad/lean-auto.git",
+    "subDir?": null,
+    "rev": "eb8f3f5fdb91344cc8b5d053ff8dc92247729ff1",
+    "opts": {},
+    "name": "auto",
+    "inputRev?": null,
     "inherited": false}}],
  "name": "Duper"}
