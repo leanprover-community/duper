@@ -10,11 +10,11 @@
     "inputRev?": "main",
     "inherited": false}},
   {"git":
-   {"url": "https://github.com/avigad/lean-auto.git",
+   {"url": "https://github.com/leanprover-community/lean-auto.git",
     "subDir?": null,
-    "rev": "eb8f3f5fdb91344cc8b5d053ff8dc92247729ff1",
+    "rev": "db8a6b790b25724c36e6f698830f6d2238f2b6a0",
     "opts": {},
     "name": "auto",
-    "inputRev?": null,
+    "inputRev?": "main",
     "inherited": false}}],
  "name": "Duper"}
