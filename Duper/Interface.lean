@@ -1,3 +1,4 @@
+import Std.Lean.CoreM
 import Duper.ProofReconstruction
 
 open Lean
@@ -195,8 +196,6 @@ def runDuperInstance4 (formulas : List (Expr × Expr × Array Name)) (inhabitati
   match inhabitationReasoning with
   | none => withOptions (fun o => o.set `selFunction 13) $ runDuper formulas instanceMaxHeartbeats
   | some b => withOptions (fun o => (o.set `selFunction 13).set `inhabitationReasoning b) $ runDuper formulas instanceMaxHeartbeats
-
-def getMaxHeartbeats : CoreM Nat := return (← read).maxHeartbeats
 
 declare_syntax_cat Duper.bool_lit (behavior := symbol)
 
