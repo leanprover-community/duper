@@ -43,17 +43,15 @@ variable (s t u : Set α)
 example (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
   auto [mem_inter_iff, subset_def, h]
 
-set_option selFunction 3 in
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
--- auto (portfolio duper)       : Timeout
+-- auto (portfolio duper)       : Success
 example : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
   auto [mem_inter_iff, mem_union, subset_def]
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
--- auto (portfolio duper)       : Timeout
-set_option auto.native false in
+-- auto (portfolio duper)       : Success
 example : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
   auto [mem_inter_iff, mem_union, subset_def]
 
@@ -68,7 +66,6 @@ example : (s \ t) \ u ⊆ s \ (t ∪ u) := by
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
-set_option auto.native false in
 example : s ∩ t = t ∩ s := by
   auto [Set.ext, mem_inter_iff]
 
@@ -81,7 +78,6 @@ example : s ∩ t = t ∩ s := by
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
-set_option auto.native false in
 example : s ∩ (s ∪ t) = s := by
   auto [Set.ext, mem_union, mem_inter_iff]
 
@@ -94,7 +90,6 @@ example : s ∩ (s ∪ t) = s := by
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
-set_option auto.native false in
 example : s ∪ s ∩ t = s := by
   auto [Set.ext, mem_union, mem_inter_iff]
 
@@ -124,8 +119,7 @@ example : s \ t ∪ t \ s = (s ∪ t) \ (s ∩ t) := by
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
--- auto (portfolio duper)       : Timeout
-set_option auto.native false in
+-- auto (portfolio duper)       : Success
 example : s \ t ∪ t \ s = (s ∪ t) \ (s ∩ t) := by
   apply Set.ext; auto [mem_union, mem_inter_iff, mem_diff]
 
