@@ -21,7 +21,7 @@ set_option trace.auto.smt.result true
 set_option auto.smt.solver.name "z3"
 -- Standard Native Configs
 set_option trace.auto.native.printFormulas true
-set_option auto.native.solver.func "Auto.duperRaw"
+set_option auto.native.solver.func "Auto.duperPort"
 
 set_option auto.tptp true
 set_option auto.native true
@@ -36,16 +36,17 @@ variable (s t u : Set α)
 #check mem_union
 #check Set.ext
 
+
 -- zipperposition               : Success
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 example (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
   auto [mem_inter_iff, subset_def, h]
 
+set_option selFunction 3 in
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
-set_option auto.native false in
 example : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
   auto [mem_inter_iff, mem_union, subset_def]
 

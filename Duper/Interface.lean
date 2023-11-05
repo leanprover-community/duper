@@ -197,6 +197,12 @@ def runDuperInstance4 (formulas : List (Expr × Expr × Array Name)) (inhabitati
   | none => withOptions (fun o => o.set `selFunction 13) $ runDuper formulas instanceMaxHeartbeats
   | some b => withOptions (fun o => (o.set `selFunction 13).set `inhabitationReasoning b) $ runDuper formulas instanceMaxHeartbeats
 
+/-- Runs duper with selFunction 1 -/
+def runDuperInstance5 (formulas : List (Expr × Expr × Array Name)) (inhabitationReasoning : Option Bool) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  match inhabitationReasoning with
+  | none => withOptions (fun o => o.set `selFunction 1) $ runDuper formulas instanceMaxHeartbeats
+  | some b => withOptions (fun o => (o.set `selFunction 1).set `inhabitationReasoning b) $ runDuper formulas instanceMaxHeartbeats
+
 declare_syntax_cat Duper.bool_lit (behavior := symbol)
 
 syntax "true" : Duper.bool_lit
@@ -238,6 +244,7 @@ def portfolioInstanceToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation 
   | 2 => `(configOption| portfolioInstance := 2)
   | 3 => `(configOption| portfolioInstance := 3)
   | 4 => `(configOption| portfolioInstance := 4)
+  | 5 => `(configOption| portfolioInstance := 5)
   | _ => throwError "Invalid Duper instance {n}"
 
 /-- Constructs and suggests the syntax for a duper call, for use with `duper?` -/
@@ -277,7 +284,8 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name)) (config
       (1, runDuperInstance1 formulas),
       (2, runDuperInstance2 formulas),
       (3, runDuperInstance3 formulas),
-      (4, runDuperInstance4 formulas)]
+      (4, runDuperInstance4 formulas),
+      (5, runDuperInstance5 formulas)]
   let numInstances := instances.size
   let maxInstanceHeartbeats := maxHeartbeats / numInstances -- Allocate total heartbeats among all instances
   let mut inhabitationReasoningEnabled : Bool :=
