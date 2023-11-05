@@ -54,7 +54,7 @@
   {"git":
    {"url": "https://github.com/leanprover-community/lean-auto.git",
     "subDir?": null,
-    "rev": "60a948d869e9ad5cef1bbf59c0c638eb6fe6b2e9",
+    "rev": "1b0807c0ee288da20cb7c33261991fd2cbfba192",
     "opts": {},
     "name": "auto",
     "inputRev?": "main",
