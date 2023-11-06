@@ -465,16 +465,13 @@ example (f g : Nat → Nat) (h : ∀ a, ∃ d, f a = d) :
 set_option trace.Meta.debug true in
 example : ((∀ (f : Nat → Nat) (x : Nat), f x = f x) = True) := by duper
 
--- Duper cannot yet solve this example with inhabitation reasoning enabled because this example requires
--- inferring that type A is inhabited from the fact that type B is inhabited and there exists a function from B to A
-set_option inhabitationReasoning false in
+-- Note: This example fails if inhabitation reasoning is enabled (bug 5) or if monomorphization is enabled
 example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
-  by duper
+  by duper {portfolioInstance := 1, inhabitationReasoning := false}
 
--- Duper cannot yet solve this example with inhabitation reasoning enabled for the same sort of reason as the above example
-set_option inhabitationReasoning false in
+-- Note: This example saturates if inhabitation reasoning is enabled, not sure why
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
-  by duper
+  by duper {portfolioInstance := 1, inhabitationReasoning := false}
 
 example (A : Type) (x : A) : (∃ x : A, x = x) := by duper
 
@@ -640,10 +637,10 @@ instance : Add (Int → Int) := (⟨fun f g x => f x + g x⟩ : Add (Int → Int
 instance : Add (Nat → Nat) := (⟨fun f g x => f x + g x⟩ : Add (Nat → Nat))
 
 example (f : Int → Int) (hf : ∀ x, f (-x) = f x) : even_int_fun f := by -- The goal is the same as hf
-  duper [hf, even_int_fun]
+  duper [hf, even_int_fun] {portfolioInstance := 0} -- Times out in portfolio mode
 
 example (f : Nat → Nat) (hf : ∀ x, f (-x) = f x) : even_nat_fun f := by -- The goal is the same as hf
-  duper [hf, even_nat_fun]
+  duper [hf, even_nat_fun] {portfolioInstance := 6} -- Times out in portfolio mode, times out without monomorphization
 --###############################################################################################################################
 -- Tests duper's ability to derive that types are nonempty
 

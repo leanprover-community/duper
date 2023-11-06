@@ -1,5 +1,6 @@
 import Std.Lean.CoreM
 import Duper.ProofReconstruction
+import Auto.Tactic
 
 open Lean
 open Lean.Meta
@@ -167,6 +168,22 @@ def runDuper (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbea
        determine whether Duper threw an error due to an actual problem or due to a timeout -/
     throwError "Prover was terminated."
 
+/- Note for converting between Duper's formulas format and Auto's lemmas format. If `hp : p`, then Duper stores the formula
+   `(p, eq_true hp, #[])` whereas Auto stores the lemma `⟨hp, p, #[]⟩`. Importantly, Duper stores the proof of `p = True` and
+   Auto stores the proof of `p`, so this must be accounted for in the conversion (maybe later, it will be good to refactor Duper
+   to be in alignment with how Auto stores lemmas to avoid the unnecessary cost of this conversion, but for now, it suffices to
+   add or remove `eq_true` as needed) -/
+
+/-- Converts formulas/lemmas from the format used by Duper to the format used by Auto. -/
+def formulasToAutoLemmas (formulas : List (Expr × Expr × Array Name)) : MetaM (Array Auto.Lemma) :=
+  formulas.toArray.mapM
+    (fun (fact, proof, params) =>
+      return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params})
+
+/-- Converts formulas/lemmas from the format used by Auto to the format used by Duper. -/
+def autoLemmasToFormulas (lemmas : Array Auto.Lemma) : MetaM (List (Expr × Expr × Array Name)) :=
+  lemmas.toList.mapM (fun lem => return (lem.type, ← Meta.mkAppM ``eq_true #[lem.proof], lem.params))
+
 /-- Default duper instance (does not modify any options except inhabitationReasoning if specified) -/
 def runDuperInstance0 (formulas : List (Expr × Expr × Array Name)) (inhabitationReasoning : Option Bool) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   match inhabitationReasoning with
@@ -202,6 +219,20 @@ def runDuperInstance5 (formulas : List (Expr × Expr × Array Name)) (inhabitati
   match inhabitationReasoning with
   | none => withOptions (fun o => o.set `selFunction 1) $ runDuper formulas instanceMaxHeartbeats
   | some b => withOptions (fun o => (o.set `selFunction 1).set `inhabitationReasoning b) $ runDuper formulas instanceMaxHeartbeats
+
+/-- Default duper instance with monomorphization enabled. -/
+def runDuperInstance6 (formulas : List (Expr × Expr × Array Name)) (inhabitationReasoning : Option Bool) (instanceMaxHeartbeats : Nat) : MetaM Expr := do
+  let lemmas ← formulasToAutoLemmas formulas
+  -- Calling Auto.unfoldConstAndPreprocessLemma is an essential step for the monomorphization procedure
+  let lemmas ← lemmas.mapM (m:=MetaM) (Auto.unfoldConstAndPreprocessLemma #[])
+  let inhFacts ← Auto.Inhabitation.getInhFactsFromLCtx
+  let prover : Array Auto.Lemma → MetaM Expr :=
+    fun lemmas => do
+      let monomorphizedFormulas ← autoLemmasToFormulas lemmas
+      match inhabitationReasoning with
+      | none => runDuper monomorphizedFormulas instanceMaxHeartbeats
+      | some b => withOptions (fun o => o.set `inhabitationReasoning b) $ runDuper monomorphizedFormulas instanceMaxHeartbeats
+  Auto.monoInterface lemmas inhFacts prover
 
 declare_syntax_cat Duper.bool_lit (behavior := symbol)
 
@@ -245,6 +276,7 @@ def portfolioInstanceToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation 
   | 3 => `(configOption| portfolioInstance := 3)
   | 4 => `(configOption| portfolioInstance := 4)
   | 5 => `(configOption| portfolioInstance := 5)
+  | 6 => `(configOption| portfolioInstance := 6)
   | _ => throwError "Invalid Duper instance {n}"
 
 /-- Constructs and suggests the syntax for a duper call, for use with `duper?` -/

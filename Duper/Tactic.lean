@@ -237,6 +237,8 @@ def evalDuper : Tactic
         | 2 => runDuperInstance2 formulas configOptions.inhabitationReasoning 0
         | 3 => runDuperInstance3 formulas configOptions.inhabitationReasoning 0
         | 4 => runDuperInstance4 formulas configOptions.inhabitationReasoning 0
+        | 5 => runDuperInstance5 formulas configOptions.inhabitationReasoning 0
+        | 6 => runDuperInstance6 formulas configOptions.inhabitationReasoning 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined. Please choose instance 0-4"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
@@ -270,6 +272,8 @@ def evalDuperTrace : Tactic
         | 2 => runDuperInstance2 formulas configOptions.inhabitationReasoning 0
         | 3 => runDuperInstance3 formulas configOptions.inhabitationReasoning 0
         | 4 => runDuperInstance4 formulas configOptions.inhabitationReasoning 0
+        | 5 => runDuperInstance5 formulas configOptions.inhabitationReasoning 0
+        | 6 => runDuperInstance6 formulas configOptions.inhabitationReasoning 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined. Please choose instance 0-4"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       mkDuperCallSuggestion duperStxRef (← getRef) facts factsContainsDuperStar portfolioInstance configOptions.inhabitationReasoning
