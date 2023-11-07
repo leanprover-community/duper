@@ -2,8 +2,6 @@ import Lake
 
 open Lake DSL
 
-require std from git "https://github.com/leanprover/std4.git"@"main"
-
 require auto from git "https://github.com/leanprover-community/lean-auto.git"@"main"
 
 package Duper {
