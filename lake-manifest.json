@@ -12,7 +12,7 @@
   {"git":
    {"url": "https://github.com/leanprover-community/lean-auto.git",
     "subDir?": null,
-    "rev": "cd10ccaaaa71dc60705e54e308e95e0f3443d5e5",
+    "rev": "1d9727e87262e9c5919aca4a837473ac4cd46396",
     "opts": {},
     "name": "auto",
     "inputRev?": "main",
