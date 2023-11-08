@@ -79,7 +79,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
 -- The first `Clause` is the given clause
 -- The second `MClause` is a loaded clause
 def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array ClauseStream))) := do
-  if ← getIncludeHoistRulesM then
+  if ← getIncludeExpensiveRulesM then
     return [
       equalityResolution,
       clausifyPropEq,
@@ -106,8 +106,7 @@ def inferenceRules : ProverM (List (Clause → MClause → Nat → RuleM (Array 
       -- Prop specific rules
       falseElim,
       -- Higher order rules
-      argCong,
-      fluidSup (← getFluidSupMainPremiseIdx) (← getSupSidePremiseIdx)
+      argCong
     ]
 
 def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
@@ -121,7 +120,7 @@ def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) :
 /-- Uses other clauses in the active set to attempt to simplify the given clause. Returns some simplifiedGivenClause if
     forwardSimplify is able to use simplification rules to transform givenClause to simplifiedGivenClause. Returns none if
     forwardSimplify is able to use simplification rules to show that givenClause is unneeded.
-    
+
     In addition to returning the simplifiedGivenClause, forwardSimplify also returns a Bool which indicates whether the
     clause can safely be used to simplify away other clauses. -/
 partial def forwardSimplify (givenClause : Clause) : ProverM (Option (Clause × Bool)) := do

@@ -13,18 +13,21 @@ open Set
 -- Standard TPTP Configs
 set_option trace.auto.tptp.printQuery true
 set_option trace.auto.tptp.result true
-set_option auto.tptp.solver.name "zeport"
-set_option auto.tptp.zeport.path "/home/indprinciple/Programs/zipperposition/portfolio/portfolio.lams.parallel.py"
+set_option auto.tptp.solver.name "zipperposition"
 -- Standard SMT Configs
+/-
 set_option trace.auto.smt.printCommands true
 set_option trace.auto.smt.result true
 set_option auto.smt.solver.name "z3"
+-/
 -- Standard Native Configs
 set_option trace.auto.native.printFormulas true
 set_option auto.native.solver.func "Auto.duperPort"
 
 set_option auto.tptp true
 set_option auto.native true
+-- Print which duper portfolio instance ultimately succeeded
+set_option printPortfolioInstance true
 
 variable {α β : Type _}
 
@@ -35,7 +38,6 @@ variable (s t u : Set α)
 #check mem_inter_iff
 #check mem_union
 #check Set.ext
-
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Success

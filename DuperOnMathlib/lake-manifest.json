@@ -1,20 +1,19 @@
 {"version": 6,
  "packagesDir": "lake-packages",
  "packages":
- [{"path": {"opts": {}, "name": "duper", "inherited": false, "dir": "./../"}},
-  {"git":
+ [{"git":
    {"url": "https://github.com/leanprover-community/mathlib4",
     "subDir?": null,
-    "rev": "4e5518cafc0efd7c7b7d287fa960fce5201908db",
+    "rev": "81dd376a02781030ead59ee35ca5334a7fccc527",
     "opts": {},
     "name": "mathlib",
-    "inputRev?": "57e4e03dd1782a74cf937835bbdb5f90955e4406",
+    "inputRev?": "81dd376a02781030ead59ee35ca5334a7fccc527",
     "inherited": false}},
   {"path": {"opts": {}, "name": "Duper", "inherited": false, "dir": "./../"}},
   {"git":
    {"url": "https://github.com/leanprover/std4",
     "subDir?": null,
-    "rev": "9bfbd2a12ee9cf2e159a8a6b4d1ef6c149728f66",
+    "rev": "869c615eb10130c0637a7bc038e2b80253559913",
     "opts": {},
     "name": "std",
     "inputRev?": "main",
@@ -22,7 +21,7 @@
   {"git":
    {"url": "https://github.com/leanprover-community/quote4",
     "subDir?": null,
-    "rev": "396201245bf244f9d78e9007a02dd1c388193d27",
+    "rev": "511eb96eca98a7474683b8ae55193a7e7c51bc39",
     "opts": {},
     "name": "Qq",
     "inputRev?": "master",
@@ -41,7 +40,7 @@
     "rev": "a751d21d4b68c999accb6fc5d960538af26ad5ec",
     "opts": {},
     "name": "Cli",
-    "inputRev?": "nightly",
+    "inputRev?": "main",
     "inherited": true}},
   {"git":
    {"url": "https://github.com/leanprover-community/ProofWidgets4",
@@ -49,12 +48,12 @@
     "rev": "f1a5c7808b001305ba07d8626f45ee054282f589",
     "opts": {},
     "name": "proofwidgets",
-    "inputRev?": "v0.0.19",
+    "inputRev?": "v0.0.21",
     "inherited": true}},
   {"git":
    {"url": "https://github.com/leanprover-community/lean-auto.git",
     "subDir?": null,
-    "rev": "cd10ccaaaa71dc60705e54e308e95e0f3443d5e5",
+    "rev": "1d9727e87262e9c5919aca4a837473ac4cd46396",
     "opts": {},
     "name": "auto",
     "inputRev?": "main",

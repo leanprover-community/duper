@@ -103,3 +103,13 @@ If it were possible to unify `a` from the first clause with `(skS.0 Type 0 ((x_0
 the second clause, then duper would be able to derive a contradiction. However, the current manner in which skolem symbols
 are constructed prevents this.
 -/
+
+-- Bug 10
+-- This example can only be solved when inhabitationReasoning is disabled (saturates if inhabitationReasoning is enabled)
+set_option inhabitationReasoning false in
+example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
+  by duper {portfolioInstance := 0}
+
+set_option inhabitationReasoning true in
+example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
+  by duper {portfolioInstance := 0}

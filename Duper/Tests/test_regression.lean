@@ -6,6 +6,7 @@ import Duper.TPTP
 -- set_option trace.Prover.debug true
 -- set_option pp.all true
 -- set_option pp.rawOnError true
+set_option printPortfolioInstance true
 
 axiom a : Nat
 axiom b : Nat
@@ -56,7 +57,6 @@ theorem test00008
 (div_self : ∀ x, x ≠ zero → mul x (inv x) = one)
 (add_mul : ∀ (x y z : Nat), mul (add x y) z = add (mul x z) (mul y z)) :
 ∀ (x y : Nat), y ≠ zero → mul (add x y) (inv y) = add (mul x (inv y)) one := by duper [*]
-
 
 theorem test00008'
 (div_self : ∀ x, x ≠ zero → div x x = one)
@@ -352,7 +352,7 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
 -- Tests that (in the current commit at least) use positive simplify reflect
 set_option trace.Rule.simplifyReflect true in
 tptp NUN004_5 "../TPTP-v8.0.0/Problems/NUN/NUN004_5.p"
-  by duper [*] {portfolioInstance := 0} -- Runs out of time if run in portfolio mode
+  by duper [*] {portfolioInstance := 7} -- Runs out of time if run in portfolio mode
 
 set_option trace.Rule.simplifyReflect true in
 tptp ITP209_2 "../TPTP-v8.0.0/Problems/ITP/ITP209_2.p"
@@ -465,14 +465,6 @@ example (f g : Nat → Nat) (h : ∀ a, ∃ d, f a = d) :
 set_option trace.Meta.debug true in
 example : ((∀ (f : Nat → Nat) (x : Nat), f x = f x) = True) := by duper
 
--- Note: This example fails if inhabitation reasoning is enabled (bug 5) or if monomorphization is enabled
-example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
-  by duper {portfolioInstance := 1, inhabitationReasoning := false}
-
--- Note: This example saturates if inhabitation reasoning is enabled, not sure why
-example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
-  by duper {portfolioInstance := 1, inhabitationReasoning := false}
-
 example (A : Type) (x : A) : (∃ x : A, x = x) := by duper
 
 example (x : Type u) (f g : Type u → Type v) (H : f = g) : f x = g x :=
@@ -549,7 +541,7 @@ end NegativeBoolSimpTests
 
 /- ClauseStreamHeap tests -/
 tptp MGT008 "../TPTP-v8.0.0/Problems/MGT/MGT008+1.p"
-  by duper [*] {portfolioInstance := 0} -- Runs out of time if run in portfolio mode
+  by duper [*] {portfolioInstance := 3} -- Runs out of time if run in portfolio mode
 
 example (f : Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat)
   (g : Nat → Nat → Nat → Nat → Nat → Nat)
@@ -637,10 +629,10 @@ instance : Add (Int → Int) := (⟨fun f g x => f x + g x⟩ : Add (Int → Int
 instance : Add (Nat → Nat) := (⟨fun f g x => f x + g x⟩ : Add (Nat → Nat))
 
 example (f : Int → Int) (hf : ∀ x, f (-x) = f x) : even_int_fun f := by -- The goal is the same as hf
-  duper [hf, even_int_fun] {portfolioInstance := 0} -- Times out in portfolio mode
+  duper [hf, even_int_fun] {portfolioInstance := 3} -- Duper only finds the proof when fluidSup is enabled, times out in portfolio mode
 
 example (f : Nat → Nat) (hf : ∀ x, f (-x) = f x) : even_nat_fun f := by -- The goal is the same as hf
-  duper [hf, even_nat_fun] {portfolioInstance := 6} -- Times out in portfolio mode, times out without monomorphization
+  duper [hf, even_nat_fun] {portfolioInstance := 3} -- Duper only finds the proof when fluidSup is enabled, times out in portfolio mode
 --###############################################################################################################################
 -- Tests duper's ability to derive that types are nonempty
 

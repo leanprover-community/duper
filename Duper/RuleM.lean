@@ -26,9 +26,9 @@ register_option selFunction : Nat := {
   descr := "Which literal selection function to use"
 }
 
-register_option includeHoistRules : Bool := {
+register_option includeExpensiveRules : Bool := {
   defValue := true
-  descr := "Whether to include boolHoist, eqHoist, neHoist, existsHoist, forallHoist, and fluidBoolHoist"
+  descr := "Whether to include boolHoist, eqHoist, neHoist, existsHoist, forallHoist, fluidBoolHoist, and fluidSup"
 }
 
 def getInhabitationReasoning (opts : Options) : Bool :=
@@ -40,8 +40,8 @@ def getFirstOrderUnifierGenerator (opts : Options) : Bool :=
 def getSelFunction (opts : Options) : Nat :=
   selFunction.get opts
 
-def getIncludeHoistRules (opts : Options) : Bool :=
-  includeHoistRules.get opts
+def getIncludeExpensiveRules (opts : Options) : Bool :=
+  includeExpensiveRules.get opts
 
 def getInhabitationReasoningM : CoreM Bool := do
   let opts ← getOptions
@@ -55,9 +55,9 @@ def getSelFunctionM : CoreM Nat := do
   let opts ← getOptions
   return getSelFunction opts
 
-def getIncludeHoistRulesM : CoreM Bool := do
+def getIncludeExpensiveRulesM : CoreM Bool := do
   let opts ← getOptions
-  return getIncludeHoistRules opts
+  return getIncludeExpensiveRules opts
 
 structure Context where
   order : Expr → Expr → Bool → MetaM Comparison
@@ -408,13 +408,13 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
   -- We should not reset `lctx` because fvars introduced by
   --   `AbstractMVars` are local to it
   setMCtx st.mctx
-  
+
   let mkProof := match mkProof with
   | some mkProof => mkProof
   | none => fun _ _ _ _ =>
     Lean.Meta.mkSorry c.toForallExpr (synthetic := true)
   let proof := {
-    parents := proofParents,  
+    parents := proofParents,
     ruleName := ruleName,
     mkProof := mkProof,
     transferExprs := transferExprs

@@ -13,27 +13,27 @@ open SimpResult
 
 initialize Lean.registerTraceClass `Rule.clausification
 
-theorem not_of_eq_false (h: p = False) : ¬ p := 
+theorem not_of_eq_false (h: p = False) : ¬ p :=
   fun hp => h ▸ hp
 
-theorem of_not_eq_false (h: (¬ p) = False) : p := 
+theorem of_not_eq_false (h: (¬ p) = False) : p :=
   Classical.byContradiction fun hn => h ▸ hn
 
-theorem eq_true_of_not_eq_false (h : (¬ p) = False) : p = True := 
+theorem eq_true_of_not_eq_false (h : (¬ p) = False) : p = True :=
   eq_true (of_not_eq_false h)
 
-theorem eq_false_of_not_eq_true (h : (¬ p) = True) : p = False := 
+theorem eq_false_of_not_eq_true (h : (¬ p) = True) : p = False :=
   eq_false (of_eq_true h)
 
-theorem clausify_and_left (h : (p ∧ q) = True) : p = True := 
+theorem clausify_and_left (h : (p ∧ q) = True) : p = True :=
   eq_true (of_eq_true h).left
 
-theorem clausify_and_right (h : (p ∧ q) = True) : q = True := 
+theorem clausify_and_right (h : (p ∧ q) = True) : q = True :=
   eq_true (of_eq_true h).right
 
 theorem clausify_and_false (h : (p ∧ q) = False) : p = False ∨ q = False := by
   apply @Classical.byCases p
-  · intro hp 
+  · intro hp
     apply @Classical.byCases q
     · intro hq
       exact False.elim $ not_of_eq_false h ⟨hp, hq⟩
@@ -42,21 +42,21 @@ theorem clausify_and_false (h : (p ∧ q) = False) : p = False ∨ q = False := 
   · intro hp
     exact Or.intro_left _ (eq_false hp)
 
-theorem clausify_or (h : (p ∨ q) = True) : p = True ∨ q = True := 
-  (of_eq_true h).elim 
+theorem clausify_or (h : (p ∨ q) = True) : p = True ∨ q = True :=
+  (of_eq_true h).elim
     (fun h => Or.intro_left _ (eq_true h))
     (fun h => Or.intro_right _ (eq_true h))
 
-theorem clausify_or_false_left (h : (p ∨ q) = False) : p = False := 
+theorem clausify_or_false_left (h : (p ∨ q) = False) : p = False :=
   eq_false fun hp => not_of_eq_false h (Or.intro_left _ hp)
 
-theorem clausify_or_false_right (h : (p ∨ q) = False) : q = False := 
+theorem clausify_or_false_right (h : (p ∨ q) = False) : q = False :=
   eq_false fun hp => not_of_eq_false h (Or.intro_right _ hp)
 
-theorem clausify_not (h : (¬ p) = True) : p = False := 
+theorem clausify_not (h : (¬ p) = True) : p = False :=
 eq_false fun hp => of_eq_true h hp
 
-theorem clausify_not_false (h : (¬ p) = False) : p = True := 
+theorem clausify_not_false (h : (¬ p) = False) : p = True :=
 eq_true (Classical.byContradiction fun hp => not_of_eq_false h hp)
 
 theorem clausify_imp (h : (p → q) = True) : p = False ∨ q = True := by
@@ -71,19 +71,19 @@ theorem clausify_imp (h : (p → q) = True) : p = False ∨ q = True := by
       exact False.elim (t ⟨⟩)
     | inr p_eq_false => exact Or.intro_left _ p_eq_false
 
-theorem clausify_imp_false_left (h : (p → q) = False) : p = True := 
-  Classical.byContradiction fun hnp => 
-    not_of_eq_false h fun hp => 
+theorem clausify_imp_false_left (h : (p → q) = False) : p = True :=
+  Classical.byContradiction fun hnp =>
+    not_of_eq_false h fun hp =>
       False.elim (hnp $ eq_true hp)
 
-theorem clausify_imp_false_right (h : (p → q) = False) : q = False := 
+theorem clausify_imp_false_right (h : (p → q) = False) : q = False :=
   eq_false fun hq => not_of_eq_false h fun _ => hq
 
-theorem clausify_forall {p : α → Prop} (x : α) (h : (∀ x, p x) = True) : p x = True := 
+theorem clausify_forall {p : α → Prop} (x : α) (h : (∀ x, p x) = True) : p x = True :=
   eq_true (of_eq_true h x)
 
 theorem clausify_exists {p : α → Prop} (h : (∃ x, p x) = True) :
-  p (Classical.choose (of_eq_true h)) = True := 
+  p (Classical.choose (of_eq_true h)) = True :=
   eq_true $ Classical.choose_spec _
 
 theorem clausify_exists_exists {α : Sort u_1} {β : Sort u_2} {p : α → β → Prop} (h : (∃ a : α, ∃ b : β, p a b) = True) :
@@ -104,7 +104,7 @@ theorem clausify_forall_forall {α : Sort u_1} {β : Sort u_2} {p : α → β �
 theorem nonempty_of_exists {p : α → Prop} (h : (∃ x : α, p x) = True) : Nonempty α :=
   Nonempty.intro (Classical.choose (of_eq_true h))
 
-theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False := 
+theorem clausify_exists_false {p : α → Prop} (x : α) (h : (∃ x, p x) = False) : p x = False :=
   eq_false (fun hp => not_of_eq_false h ⟨x, hp⟩)
 
 theorem nonempty_of_forall_eq_false {p : α → Prop} (h : (∀ x : α, p x) = False) : Nonempty α := by
@@ -121,7 +121,7 @@ noncomputable def Skolem.some (p : α → Prop) (x : α) : α :=
   if hp : ∃ a, p a then Classical.choose hp else x
 
 --TODO: move
-theorem Skolem.spec {p : α → Prop} (x : α) (hp : ∃ a, p a) : 
+theorem Skolem.spec {p : α → Prop} (x : α) (hp : ∃ a, p a) :
   p (Skolem.some p x) := by
   simp only [Skolem.some, hp]
   exact Classical.choose_spec _
@@ -303,7 +303,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
   | true, Expr.app (Expr.const ``Not _) e =>
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_not #[premise]
     return #[⟨#[Lit.fromSingleExpr e false], pr, #[]⟩]
-  | false, Expr.app (Expr.const ``Not _) e => 
+  | false, Expr.app (Expr.const ``Not _) e =>
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_not_false #[premise]
     return #[⟨#[Lit.fromSingleExpr e true], pr, #[]⟩]
   | true, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂ =>
@@ -327,7 +327,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
       let mvar ← mkFreshExprMVar ty
       return #[⟨#[Lit.fromSingleExpr $ b.instantiate1 mvar], pr, #[mvar]⟩]
   | true, Expr.app (Expr.app (Expr.const ``Exists _) _) _ => clausifyExists e
-  | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  => 
+  | false, Expr.app (Expr.app (Expr.const ``And _) e₁) e₂  =>
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``clausify_and_false #[premise]
     return #[⟨#[Lit.fromSingleExpr e₁ false, Lit.fromSingleExpr e₂ false], pr, #[]⟩]
   | false, Expr.app (Expr.app (Expr.const ``Or _) e₁) e₂ =>
@@ -351,7 +351,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``of_eq_true #[premise]
     return #[⟨#[{sign := true, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, #[]⟩]
   | false, Expr.app (Expr.app (Expr.app (Expr.const ``Eq [lvl]) ty) e₁) e₂  =>
-    let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``not_of_eq_false #[premise] 
+    let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``not_of_eq_false #[premise]
     return #[⟨#[{sign := false, lhs := e₁, rhs := e₂, lvl := lvl, ty := ty}], pr, #[]⟩]
   | true, Expr.app (Expr.app (Expr.app (Expr.const ``Ne [lvl]) ty) e₁) e₂  =>
     let pr : Expr → Array Expr → MetaM Expr := fun premise _ => Meta.mkAppM ``of_eq_true #[premise]
@@ -400,7 +400,7 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (Array ClausificationR
           fun ⟨c, pr, tr⟩ => -- If pr is a proof that "A = B" implies c, then we want to return a proof that "B = A" implies c
               let symmProof : Expr → Array Expr → MetaM Expr := fun e fsf => do pr (← Meta.mkAppM ``Eq.symm #[e]) fsf
               ⟨c, symmProof, tr⟩
-        return clausifiedResList.map map_fn 
+        return clausifiedResList.map map_fn
       | Expr.const ``False _ =>
         let clausifiedResList ← clausificationStepE l.rhs false
         let map_fn : ClausificationResult → ClausificationResult :=
@@ -421,19 +421,19 @@ def clausificationStepLit (c : MClause) (i : Nat) : RuleM (Array ClausificationR
 def clausificationStep : MSimpRule := fun c => do
   let c ← loadClause c
   for i in [:c.lits.size] do
-    let ds ← clausificationStepLit c i 
+    let ds ← clausificationStepLit c i
     if ds.isEmpty then
       continue
     let mut resultClauses := #[]
     for ⟨d, dproof, tr⟩ in ds do
-      let mkProof : ProofReconstructor := 
+      let mkProof : ProofReconstructor :=
         fun (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr) (res : Clause) => do
           Meta.forallTelescope res.toForallExpr fun xs body => do
             let resLits := res.lits.map (fun l => Lit.map (fun e => e.instantiateRev xs) l)
             let (parentLits, appliedPremise, transferExprs) ← instantiatePremises parents premises xs transferExprs
             let parentLits := parentLits[0]!
             let appliedPremise := appliedPremise[0]!
-            
+
             let mut caseProofs := Array.mkEmpty parentLits.size
             for j in [:parentLits.size] do
               let lit := parentLits[j]!

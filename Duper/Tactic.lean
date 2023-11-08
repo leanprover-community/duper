@@ -147,13 +147,17 @@ def removeDuperStar (facts : Syntax.TSepArray [`duperStar, `term] ",") : Bool ×
     the user. If configuration options are not fully specified, this function gives the following default options:
     - Enables portfolio mode by default unless a portfolio instance is specified
     - Sets the portfolio instance to 0 by default if portfolio mode is explicitly disabled and no instance is specified
-    - Sets inhabitationReasoning to none by default (which means each instance will use the inhabitationReasoning option determined by set_option)
+    - Sets other options to none by default
 
-    Additionally, this function throws an error is the user attempts to explicitly enable portfolio mode and specify a portfolio instance. -/
-def parseConfigOptions [Monad m] [MonadError m] (configOptionsStx : TSyntaxArray `Duper.configOption) : m ConfigurationOptions := do
+    Additionally, this function throws an error if the user attempts to explicitly enable portfolio mode and specify a portfolio instance,
+    and it throws a warning if the user attempts to specify a portfolio instance (other than 0) and additional configuration options. -/
+def parseConfigOptions (configOptionsStx : TSyntaxArray `Duper.configOption) : TacticM ConfigurationOptions := do
   let mut portfolioModeOpt : Option Bool := none
   let mut portfolioInstanceOpt : Option Nat := none
   let mut inhabitationReasoningOpt : Option Bool := none
+  let mut monomorphizationOpt : Option Bool := none
+  let mut includeExpensiveRulesOpt : Option Bool := none
+  let mut selFunctionOpt : Option Nat := none
   for configOptionStx in configOptionsStx do
     match configOptionStx with
     | `(configOption| portfolioMode := $portfolioModeStx:Duper.bool_lit) =>
@@ -175,6 +179,21 @@ def parseConfigOptions [Monad m] [MonadError m] (configOptionsStx : TSyntaxArray
         throwError "Erroneous invocation of duper: The inhabitation reasoning option has been specified multiple times"
       let inhabitationReasoning ← elabBoolLit inhabitationReasoningStx
       inhabitationReasoningOpt := some inhabitationReasoning
+    | `(configOption| monomorphization := $monomorphizationStx:Duper.bool_lit) =>
+      if monomorphizationOpt.isSome then
+        throwError "Erroneous invocation of duper: The monomorphization option has been specified multiple times"
+      let monomorphization ← elabBoolLit monomorphizationStx
+      monomorphizationOpt := some monomorphization
+    | `(configOption| includeExpensiveRules := $includeExpensiveRulesStx:Duper.bool_lit) =>
+      if includeExpensiveRulesOpt.isSome then
+        throwError "Erroneous invocation of duper: The includeExpensiveRules option has been specified multiple times"
+      let includeExpensiveRules ← elabBoolLit includeExpensiveRulesStx
+      includeExpensiveRulesOpt := some includeExpensiveRules
+    | `(configOption| selFunction := $selFunctionStx) =>
+      if selFunctionOpt.isSome then
+        throwError "Erroneous invocation of duper: The selFunction option has been specified multiple times"
+      let selFunction := selFunctionStx.getNat
+      selFunctionOpt := some selFunction
     | _ => throwUnsupportedSyntax
   let portfolioMode :=
     match portfolioModeOpt with
@@ -189,7 +208,17 @@ def parseConfigOptions [Monad m] [MonadError m] (configOptionsStx : TSyntaxArray
     | none =>
       if portfolioMode then none -- If portfolio mode is enabled then no portfolio instance should be specified
       else some 0 -- If portfolio mode was explicitly disabled and no portfolio instance was specified, choose instance 0 by default
-  return {portfolioMode := portfolioMode, portfolioInstance := portfolioInstance, inhabitationReasoning := inhabitationReasoningOpt}
+  if portfolioInstance != none && portfolioInstance != some 0 then
+    if inhabitationReasoningOpt.isSome || monomorphizationOpt.isSome || includeExpensiveRulesOpt.isSome then
+      IO.println s!"Warning: The specified portfolio instance {portfolioInstance.get!} will override all additional configuration options"
+  return {
+    portfolioMode := portfolioMode,
+    portfolioInstance := portfolioInstance,
+    inhabitationReasoning := inhabitationReasoningOpt,
+    monomorphization := monomorphizationOpt,
+    includeExpensiveRules := includeExpensiveRulesOpt,
+    selFunction := selFunctionOpt
+  }
 
 /-- When `duper` is called, the first thing the tactic does is call the tactic `intros; apply Classical.byContradiction _; intro`.
     Even when `*` is not included in the duper invocation (meaning the user does not want duper to collect all the facts in the
@@ -232,14 +261,26 @@ def evalDuper : Tactic
         | none => throwError "parseConfigOptions error: portfolio mode is disabled and no portfolio instance is specified"
       let proof ←
         match portfolioInstance with
-        | 0 => runDuperInstance0 formulas configOptions.inhabitationReasoning 0
-        | 1 => runDuperInstance1 formulas configOptions.inhabitationReasoning 0
-        | 2 => runDuperInstance2 formulas configOptions.inhabitationReasoning 0
-        | 3 => runDuperInstance3 formulas configOptions.inhabitationReasoning 0
-        | 4 => runDuperInstance4 formulas configOptions.inhabitationReasoning 0
-        | 5 => runDuperInstance5 formulas configOptions.inhabitationReasoning 0
-        | 6 => runDuperInstance6 formulas configOptions.inhabitationReasoning 0
-        | _ => throwError "Portfolio instance {portfolioInstance} not currently defined. Please choose instance 0-4"
+        | 0 =>
+          runDuperInstance0 formulas 0 configOptions.inhabitationReasoning configOptions.monomorphization
+            configOptions.includeExpensiveRules configOptions.selFunction
+        | 1 => runDuperInstance1 formulas 0
+        | 2 => runDuperInstance2 formulas 0
+        | 3 => runDuperInstance3 formulas 0
+        | 4 => runDuperInstance4 formulas 0
+        | 5 => runDuperInstance5 formulas 0
+        | 6 => runDuperInstance6 formulas 0
+        | 7 => runDuperInstance7 formulas 0
+        | 8 => runDuperInstance8 formulas 0
+        | 9 => runDuperInstance9 formulas 0
+        | 10 => runDuperInstance10 formulas 0
+        | 11 => runDuperInstance11 formulas 0
+        | 12 => runDuperInstance12 formulas 0
+        | 13 => runDuperInstance13 formulas 0
+        | 14 => runDuperInstance14 formulas 0
+        | 15 => runDuperInstance15 formulas 0
+        | 16 => runDuperInstance16 formulas 0
+        | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
 | _ => throwUnsupportedSyntax
@@ -267,16 +308,20 @@ def evalDuperTrace : Tactic
         | none => throwError "parseConfigOptions error: portfolio mode is disabled and no portfolio instance is specified"
       let proof ←
         match portfolioInstance with
-        | 0 => runDuperInstance0 formulas configOptions.inhabitationReasoning 0
-        | 1 => runDuperInstance1 formulas configOptions.inhabitationReasoning 0
-        | 2 => runDuperInstance2 formulas configOptions.inhabitationReasoning 0
-        | 3 => runDuperInstance3 formulas configOptions.inhabitationReasoning 0
-        | 4 => runDuperInstance4 formulas configOptions.inhabitationReasoning 0
-        | 5 => runDuperInstance5 formulas configOptions.inhabitationReasoning 0
-        | 6 => runDuperInstance6 formulas configOptions.inhabitationReasoning 0
-        | _ => throwError "Portfolio instance {portfolioInstance} not currently defined. Please choose instance 0-4"
+        | 0 =>
+          runDuperInstance0 formulas 0 configOptions.inhabitationReasoning configOptions.monomorphization
+            configOptions.includeExpensiveRules configOptions.selFunction
+        | 1 => runDuperInstance1 formulas 0
+        | 2 => runDuperInstance2 formulas 0
+        | 3 => runDuperInstance3 formulas 0
+        | 4 => runDuperInstance4 formulas 0
+        | 5 => runDuperInstance5 formulas 0
+        | 6 => runDuperInstance6 formulas 0
+        | 7 => runDuperInstance7 formulas 0
+        | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       mkDuperCallSuggestion duperStxRef (← getRef) facts factsContainsDuperStar portfolioInstance configOptions.inhabitationReasoning
+        configOptions.monomorphization configOptions.includeExpensiveRules configOptions.selFunction
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
 | _ => throwUnsupportedSyntax
 

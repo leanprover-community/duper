@@ -2,9 +2,9 @@ import Duper.Tactic
 import Mathlib.Data.Nat.Prime
 import Mathlib.Tactic.Linarith
 
--- set_option trace.Saturate.debug true
-
 namespace Nat
+
+set_option auto.tptp.solver.name "zipperposition"
 
 #check Nat.prime_def_lt -- Reproving this theorem using duper:
 
