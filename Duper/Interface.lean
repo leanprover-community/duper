@@ -710,4 +710,4 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name)) (config
           mkDuperCallSuggestion duperStxRef origSpan facts withDuperStar duperInstanceNum
           return proof
       | none => continue -- Duper timed out or otherwise failed, try the next instance
-  throwError "Prover failed to solvve the goal in allotted time"
+  throwError "Prover failed to solve the goal in allotted time"
