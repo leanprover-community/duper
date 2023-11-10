@@ -77,7 +77,7 @@ axiom f.{u} : Type u → Prop
 axiom ftrue.{u} : f.{u} (Sort u)
 
 axiom exftrue.{u} : ∃ (x : Type u), f x
-
+set_option trace.ProofReconstruction true in
 def test : ∃ x : Type u, ∃ y : Type v, f x = f y := by
   duper [exftrue]
 /-
@@ -113,3 +113,24 @@ example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x =
 set_option inhabitationReasoning true in
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
   by duper {portfolioInstance := 0}
+
+axiom α : Type _
+axiom β : Type _
+axiom γ : Type -- Note, there's a bug if gamma is made universe polymorphic unrelated to the unification issue. I'm aware of it and know what needs to be done to fix it
+axiom manualSkolem : α → β → γ → γ
+axiom manualSkolemPoly.{u} : ∀ t : Sort u, t
+axiom manualSkolemVar : α → β → γ → γ
+
+theorem test1 (p : α → β → γ → Prop) [Inhabited γ]
+  (h : ∀ (x : α) (y : β) (gammaWitness : γ), p x y (manualSkolem x y gammaWitness)) :
+  ∃ (f : α → β → γ), ∀ x y, p x y (f x y) := by duper [*] {portfolioInstance := 0}
+
+set_option kStep 60 in
+example (p : α → β → γ → Prop) [Inhabited γ]
+  (h : ∀ (x : α) (y : β) (gammaWitness : γ), p x y ((sorryAx (α → β → γ → γ)) x y gammaWitness)) :
+  ∃ (f : α → β → γ), ∀ x y, p x y (f x y) := by duper [*] {portfolioInstance := 0}
+
+set_option kStep 60 in
+example (p : α → β → γ → Prop) [Inhabited γ]
+  (h : ∀ (x : α) (y : β) (gammaWitness : γ), p x y (manualSkolemPoly (α → β → γ → γ) x y gammaWitness)) :
+  ∃ (f : α → β → γ), ∀ x y, p x y (f x y) := by duper [*] {portfolioInstance := 0}

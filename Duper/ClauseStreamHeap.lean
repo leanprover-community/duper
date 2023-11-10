@@ -17,7 +17,6 @@ open RuleM
 
 def kFair := 70
 def kBest := 3
-def kStep := 40
 def kHighest := 10
 
 register_option forceProbeRetry : Nat := {
@@ -32,6 +31,11 @@ def logForceProbeRetry (max : Nat) : CoreM Unit := do
   let msg := s!"forceProbe exceeded iteration limit {max}"
   logInfo msg
 
+register_option kStep : Nat := {
+  defValue := 40
+  descr := "Maximum steps a unification problem can take before it's postponed"
+}
+
 -- Clause Streams
 
 -- The first `Clause` is the (simplified)GivenClause
@@ -43,7 +47,7 @@ def ClauseStream.takeAsProverM (cs : ClauseStream)
   -- No more unification problem left
   if cs.ug.isEmpty then
     return none
-  let (opu, ug') ← cs.ug.takeWithRetry kStep
+  let (opu, ug') ← cs.ug.takeWithRetry (kStep.get (← getOptions))
   if let some u := opu then
     let res ← ProverM.runRuleM <| do
       -- set `mctx` as the mctx of the unification problem
