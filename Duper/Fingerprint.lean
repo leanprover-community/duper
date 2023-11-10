@@ -208,7 +208,6 @@ def insertHelper (t : ClauseFingerprintTrie) (f : Fingerprint)
 /-- Adds v to t.root at the location indiced by e and removes v.2.1 from t.filterSet so that previously
     deleted clauses can be readded -/
 def insert (t : RootCFPTrie) (e : Expr) (v : (Nat × Clause × ClausePos × (Option Eligibility))) : RuleM RootCFPTrie :=
-  let e := e.stripLevels -- TODO: This is a hack
   return ⟨← insertHelper t.root (← getFingerprint e) v, t.filterSet.erase v.2.1⟩
 
 /-- Adds c to t.filterSet so that Clause × ClausePos pairs with c as the clause are ignored going forward -/
@@ -250,7 +249,6 @@ private def getUnificationPartnersHelper (t : ClauseFingerprintTrie) (f : Finger
 
 /-- Returns all clause and position pairs that indicate subexpressions that may be unifiable with e -/
 def getUnificationPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos × (Option Eligibility))) := do
-  let e := e.stripLevels -- Hack
   trace[Fingerprint.debug] "About to call getUnificationPartnersHelper with {t.root} and {← getFingerprint e}"
   let unfilteredRes ← getUnificationPartnersHelper t.root (← getFingerprint e)
   trace[Fingerprint.debug] "Unfiltered result from getUnificationPartners {e}: {unfilteredRes}"
@@ -286,7 +284,6 @@ private def getMatchOntoPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerpr
 /-- Returns all clause and position pairs that indicate subexpressions that e can match onto
     (i.e. assigning metavariables in e) -/
 def getMatchOntoPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos × (Option Eligibility))) := do
-  let e := e.stripLevels -- Hack
   let unfilteredRes ← getMatchOntoPartnersHelper t.root (← getFingerprint e)
   return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes
 

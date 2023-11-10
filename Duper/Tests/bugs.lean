@@ -90,21 +90,6 @@ but function has type
 -/
 
 -- Bug 9
-set_option trace.Saturate.debug true in
-example (h1 : ∀ x : Nat, x > 0 → ∃ y : Fin x, y.1 = 0) (h2 : 3 > 0) : ∃ z : Fin 3, z.1 = 0 := by
-  duper [h1, h2]
-
-/-
-The final active set contains both of the following clauses:
-- ∀ (a : Fin 3), a.1 ≠ 0
-- ∀ (a : Fin 3), (skS.0 Type 0 ((x_0 : Nat) → Fin x_0 → Fin x_0) 3 a).1 = 0
-
-If it were possible to unify `a` from the first clause with `(skS.0 Type 0 ((x_0 : Nat) → Fin x_0 → Fin x_0) 3 a)` from
-the second clause, then duper would be able to derive a contradiction. However, the current manner in which skolem symbols
-are constructed prevents this.
--/
-
--- Bug 10
 -- This example can only be solved when inhabitationReasoning is disabled (saturates if inhabitationReasoning is enabled)
 set_option inhabitationReasoning false in
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
@@ -114,6 +99,7 @@ set_option inhabitationReasoning true in
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
   by duper {portfolioInstance := 0}
 
+-- Bug 10
 axiom α : Type _
 axiom β : Type _
 axiom γ : Type -- Note, there's a bug if gamma is made universe polymorphic unrelated to the unification issue. I'm aware of it and know what needs to be done to fix it

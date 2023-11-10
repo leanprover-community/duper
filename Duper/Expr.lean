@@ -22,18 +22,6 @@ open Duper
 /-- This should be used in place of Lean.Expr.isMVar so that mvars surrounded by mdata are not missed. -/
 def isMVar' (e : Expr) := e.consumeMData.isMVar
 
--- To support universe levels, we strip universe levels to allow fingerprint
--- function to identify constants with uninstantiated universe levels
-def stripLevels : Expr → Expr
-| .const name _ => .const name []
-| .app fn arg => .app (stripLevels fn) (stripLevels arg)
-| .lam name ty b info => .lam name (stripLevels ty) (stripLevels b) info
-| .forallE name ty b info => .forallE name (stripLevels ty) (stripLevels b) info
-| .letE name ty v b nd => .letE name (stripLevels ty) (stripLevels v) (stripLevels b) nd
-| .mdata data e => .mdata data (stripLevels e)
-| .proj name idx struct => .proj name idx (stripLevels struct)
-| e => e
-
 /-- Given `t` and `b`, determines whether `.forallE _ t b _` is an implication -/
 private def expIsImplication (t : Expr) (b : Expr) : MetaM Bool :=
   try
