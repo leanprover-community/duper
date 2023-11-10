@@ -6,6 +6,13 @@ import Duper.DUnif.UnifRules
 open Lean Meta
 namespace DUnif
 
+register_option drefl.reduce : Bool := {
+  defValue := False
+}
+
+initialize
+  registerTraceClass `drefl.debug
+
 /--
 Close given goal using `Eq.refl`.
 -/
@@ -15,8 +22,16 @@ def MVarId.refl (mvarId : MVarId) (nAttempt : Nat) (nUnif : Nat) (cont : Nat) (i
     let targetType ← mvarId.getType'
     unless targetType.isAppOfArity ``Eq 3 do
       throwTacticEx `rfl mvarId m!"equality expected{indentExpr targetType}"
-    let lhs ← instantiateMVars targetType.appFn!.appArg!
-    let rhs ← instantiateMVars targetType.appArg!
+    let mut lhs ← instantiateMVars targetType.appFn!.appArg!
+    let mut rhs ← instantiateMVars targetType.appArg!
+    if drefl.reduce.get (← getOptions) then
+      let red (e : Expr) : MetaM TransformStep := do
+        let e := e.consumeMData
+        let e ← Meta.whnf e
+        return .continue e
+      lhs ← Meta.transform lhs (pre := red)
+      rhs ← Meta.transform rhs (pre := red)
+    trace[drefl.debug] "lhs: {lhs}, rhs: {rhs}"
     let success ← hounif lhs rhs nAttempt nUnif cont iterOn
     unless success do
       throwTacticEx `rfl mvarId m!"equality lhs{indentExpr lhs}\nis not definitionally equal to rhs{indentExpr rhs}"

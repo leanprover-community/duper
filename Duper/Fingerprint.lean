@@ -40,12 +40,14 @@ open FingerprintTrie
 open FingerprintFeatureValue
 
 -- Print functions ----------------------------------------------------------------------------------------
-partial def FingerprintTrie.format [ToMessageData α] [BEq α] [Hashable α] : FingerprintTrie α → MessageData
-  | leaf vals => m!"leaf({vals})"
+partial def FingerprintTrie.format [ToMessageData α] [BEq α] [Hashable α] (depth := 0) : FingerprintTrie α → MessageData
+  | leaf vals => m!"{spaces depth}· Leaf: {vals}"
   | node childA childB childN childF =>
-    let childFMsg := childF.foldl (fun acc (e, t) => acc ++ m!"({e}, {t.format}), ") m!""
-    let childFMsg := m!"childF: {childFMsg}"
-    m!"node with:\nchildA:{childA.format}\nchildB:{childB.format}\nchildN:{childN.format}\n" ++ childFMsg
+    let childFMsg := childF.foldl (fun acc (e, t) => acc ++ m!"{spaces (depth+1)}· {e}:\n{t.format (depth+2)}") m!""
+    let childFMsg := m!"{spaces depth}· F:\n{childFMsg}"
+    m!"{spaces depth}· A:\n{childA.format (depth+1)}\n{spaces depth}· B:\n{childB.format (depth+1)}\n{spaces depth}· N:\n{childN.format (depth+1)}\n" ++ childFMsg
+where
+  spaces (n : Nat) : String := String.join ((List.range n).map (fun _ => "  "))
 
 partial def countElems [BEq α] [Hashable α] : FingerprintTrie α → Nat
   | leaf vals => vals.size
@@ -142,7 +144,7 @@ def transformToUntypedFirstOrderTerm [Monad m] [MonadLiftT MetaM m] (e : Expr) :
     match e.getTopSymbol with
     | Expr.mvar mvarId => return .mvar mvarId
     | _ => return .app (← transformToUntypedFirstOrderTerm f) (← transformToUntypedFirstOrderTerm a)
-  | Expr.proj tyName idx e => return .proj tyName idx (← transformToUntypedFirstOrderTerm e)
+  | Expr.proj tyName idx e => return .app (.const (s!"proj_{idx}_" ++ tyName) []) (← transformToUntypedFirstOrderTerm e)
   | Expr.bvar bvarNum =>
     /-
       The specification of ⌊e⌋ calls for a fresh constant for each type and bvarNum, but since there isn't a
@@ -156,6 +158,8 @@ def transformToUntypedFirstOrderTerm [Monad m] [MonadLiftT MetaM m] (e : Expr) :
     return .bvar bvarNum
   | Expr.mdata _ e => transformToUntypedFirstOrderTerm e
   | Expr.letE _ _ _ _ _ => panic! "The letE expression {e} should have been removed by zeta reduction"
+  -- Strip away levels
+  | Expr.const name _ => return Expr.const name []
   | _ => return e -- Expr.fvar, Expr.mvar, Expr.lit, Expr.const, and Expr.sort cases
 
 def getFingerprint [Monad m] [MonadLiftT MetaM m] (e : Expr) : m Fingerprint := do
@@ -314,6 +318,5 @@ private def getMatchFromPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerpr
 /-- Returns all clause and position pairs that indicate subexpressions that can be matched onto e
     (i.e. not assigning metavariables in e) -/
 def getMatchFromPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos × (Option Eligibility))) := do
-  let e := e.stripLevels -- Hack
   let unfilteredRes ← getMatchFromPartnersHelper t.root (← getFingerprint e)
   return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes
