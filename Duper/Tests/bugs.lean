@@ -19,13 +19,29 @@ set_option pp.match false
 #print test.match_1
 #print Color.casesOn
 
+-- This bug demonstrates the difficulty Duper has dealing with inductive arguments and facts such as Color.rec
 set_option inhabitationReasoning false in
 set_option trace.Saturate.debug true in
 set_option trace.Timeout.debug true in
 example : ∃ c : Color, test c = .green := by
-  duper [test, test.match_1, Color.rec, Color.casesOn]
+  duper [test, test.match_1, Color.rec, Color.casesOn] {portfolioInstance := 0}
 
--- This bug demonstrates the difficulty Duper has dealing with inductive arguments and facts such as Color.rec
+example : Color.red ≠ Color.green := by
+  duper {portfolioInstance := 0}
+/-
+  It seems that reasoning about inductive types requires solving unification problems
+    that are completely out of the scope of the current algorithms duper uses
+  Here is an example of proving `Color.red ≠ Color.green` without using extra
+    inductive types like `Color.noConfusion`
+-/
+theorem red_ne_green : Color.red ≠ Color.green := fun h =>
+  let color_case := fun (t : Color) => @Color.casesOn (fun _ => Prop) t True False
+  have color_true : color_case Color.red := True.intro
+  (h ▸ color_true : color_case Color.green)
+/-
+  What we're trying to here do is to rewrite `True` to `False` using `Color.red = Color.green`
+  To do this, notice that `True ≝ color_case Color.red` and `False ≝ color_case Color.green`
+-/
 
 end Color2
 
@@ -59,16 +75,6 @@ example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
   by duper
 
 This might be a more viable example to investigate because of how much shorter it is
--/
-
--- Bug 7
-example (a : α) (as : List α) : [] ≠ a :: as :=
-  by duper [List.rec] -- Error: AppBuilder for 'mkAppOptM', result contains metavariables @List.nil
-
--- Diagnosis of the above example
-/-
-This error arises during `addRecAsFact` in Tactic.lean on the line that calls `let ctor ← mkAppOptM ctorName #[]`.
-Fundamentally, the issue is that `List` is polymorphic and the current `addRecAsFact` doesn't support that.
 -/
 
 -- Bug 8: Application type mismatch pertaining to the universe levels of skolems

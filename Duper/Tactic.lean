@@ -19,12 +19,12 @@ namespace Lean.Elab.Tactic
 def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Name)) := do
   let some (.inductInfo indVal) := (← getEnv).find? recVal.getInduct
     | throwError "Expected inductive datatype: {recVal.getInduct}"
-
   let expr := mkConst recVal.name (recVal.levelParams.map Level.param)
   let res ← forallBoundedTelescope (← inferType expr) recVal.getMajorIdx fun xs _ => do
     let expr := mkAppN expr xs
+    let inductTyArgs : Array Expr := xs[:indVal.numParams]
     return ← indVal.ctors.mapM fun ctorName => do
-      let ctor ← mkAppOptM ctorName #[]
+      let ctor ← mkAppOptM ctorName (inductTyArgs.map Option.some)
       let (eq, proof) ← forallTelescope (← inferType ctor) fun ys _ => do
         let ctor := mkAppN ctor ys
         let expr := mkApp expr ctor
@@ -35,7 +35,10 @@ def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Na
         let proof ← mkEqRefl expr
         return (← mkForallFVars ys eq, ← mkLambdaFVars ys proof)
       return (← mkForallFVars xs eq, ← mkLambdaFVars xs proof, recVal.levelParams.toArray)
-
+  for (type, proof, _) in res do
+    let ty' ← Meta.inferType proof
+    if !(← Meta.isDefEq ty' type) then
+      throwError "addRecAsFact :: Application type mismatch"
   return res
 
 /-- From a user-provided fact `stx`, produce a suitable fact, its proof, and a
