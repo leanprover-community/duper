@@ -43,19 +43,20 @@ variable (s t u : Set α)
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 example (h : s ⊆ t) : s ∩ u ⊆ t ∩ u := by
-  auto [mem_inter_iff, subset_def, h]
+  duper [mem_inter_iff, subset_def, h]
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Success
 example : s ∩ (t ∪ u) ⊆ s ∩ t ∪ s ∩ u := by
-  auto [mem_inter_iff, mem_union, subset_def]
+  duper [mem_inter_iff, mem_union, subset_def] {preprocessing := full}
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Success
+set_option trace.Print_Proof true in
 example : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
-  auto [mem_inter_iff, mem_union, subset_def]
+  duper [mem_inter_iff, mem_union, subset_def] {preprocessing := full}
 
 #check mem_diff
 
@@ -63,67 +64,67 @@ example : s ∩ t ∪ s ∩ u ⊆ s ∩ (t ∪ u) := by
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 example : (s \ t) \ u ⊆ s \ (t ∪ u) := by
-  auto [mem_diff, mem_union, subset_def]
+  duper [mem_diff, mem_union, subset_def] {preprocessing := full}
 
 -- zipperposition               : Success (Timeout for non-portfolio mode)
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
 example : s ∩ t = t ∩ s := by
-  auto [Set.ext, mem_inter_iff]
+  duper [Set.ext, mem_inter_iff]
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Succees
 -- auto (portfolio duper)       : Success
 example : s ∩ t = t ∩ s := by
-  apply Set.ext; auto [mem_inter_iff]
+  apply Set.ext; duper [mem_inter_iff]
 
 -- zipperposition               : Success (205 iterations and 0.196s for non-portfolio mode)
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
 example : s ∩ (s ∪ t) = s := by
-  auto [Set.ext, mem_union, mem_inter_iff] -- Duper doesn't seem to find this even after a long time
+  duper [Set.ext, mem_union, mem_inter_iff] -- Duper doesn't seem to find this even after a long time
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Succees
 -- auto (portfolio duper)       : Success
 example : s ∩ (s ∪ t) = s := by
-  apply Set.ext; auto [mem_union, mem_inter_iff]
+  apply Set.ext; duper [mem_union, mem_inter_iff]
 
 -- zipperposition               : Success (1386 iterations 2.3s for non-portfolio mode)
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
 example : s ∪ s ∩ t = s := by
-  auto [Set.ext, mem_union, mem_inter_iff] -- Duper doesn't seem to find this even after a long time
+  duper [Set.ext, mem_union, mem_inter_iff] -- Duper doesn't seem to find this even after a long time
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Succees
 -- auto (portfolio duper)       : Success
 example : s ∪ s ∩ t = s := by
-  apply Set.ext; auto [mem_union, mem_inter_iff]
+  apply Set.ext; duper [mem_union, mem_inter_iff]
 
 -- zipperposition               : Timeout
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
 example : s \ t ∪ t = s ∪ t := by
-  auto [Set.ext, mem_union, mem_diff]
+  duper [Set.ext, mem_union, mem_diff]
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 example : s \ t ∪ t = s ∪ t := by
-  apply Set.ext; auto [mem_union, mem_diff]
+  apply Set.ext; duper [mem_union, mem_diff]
 
 -- zipperposition               : Timeout
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
 example : s \ t ∪ t \ s = (s ∪ t) \ (s ∩ t) := by
-  auto [Set.ext, mem_union, mem_inter_iff, mem_diff]
+  duper [Set.ext, mem_union, mem_inter_iff, mem_diff]
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Success
 example : s \ t ∪ t \ s = (s ∪ t) \ (s ∩ t) := by
-  apply Set.ext; auto [mem_union, mem_inter_iff, mem_diff]
+  apply Set.ext; duper [mem_union, mem_inter_iff, mem_diff]
 
 #check mem_setOf
 
@@ -138,7 +139,7 @@ def odds : Set ℕ :=
 -- auto (portfolio duper)       : Success
 set_option auto.redMode "all" in
 example : evens ∪ odds = univ := by
-  auto
+  duper
 
 #check mem_empty_iff_false
 #check mem_univ
@@ -148,14 +149,14 @@ example : evens ∪ odds = univ := by
 -- auto (portfolio duper)       : Success
 set_option auto.redMode "all" in
 example (x : ℕ) (h : x ∈ (∅ : Set ℕ)) : False := by
-  auto
+  duper [*]
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 set_option auto.redMode "all" in
 example (x : ℕ) : x ∈ (univ : Set ℕ) := by
-  auto
+  duper
 
 example : { n | Nat.Prime n } ∩ { n | n > 2 } ⊆ { n | ¬Even n } := by
   sorry
@@ -169,13 +170,13 @@ variable (s t : Set ℕ)
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 example (h₀ : ∀ x ∈ s, ¬Even x) (h₁ : ∀ x ∈ s, Prime x) : ∀ x ∈ s, ¬Even x ∧ Prime x := by
-  auto [h₀, h₁]
+  duper [h₀, h₁]
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 example (h : ∃ x ∈ s, ¬Even x ∧ Prime x) : ∃ x ∈ s, Prime x := by
-  auto [h]
+  duper [h]
 
 section
 variable (ssubt : s ⊆ t)
@@ -184,13 +185,13 @@ variable (ssubt : s ⊆ t)
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 example (h₀ : ∀ x ∈ t, ¬Even x) (h₁ : ∀ x ∈ t, Prime x) : ∀ x ∈ s, ¬Even x ∧ Prime x := by
-  auto [h₀, h₁, ssubt, subset_def]
+  duper [h₀, h₁, ssubt, subset_def]
 
 -- zipperposition               : Success
 -- auto (raw duper)             : Success
 -- auto (portfolio duper)       : Success
 example (h : ∃ x ∈ s, ¬Even x ∧ Prime x) : ∃ x ∈ t, Prime x := by
-  auto [h, ssubt, subset_def]
+  duper [h, ssubt, subset_def]
 
 end
 
@@ -210,20 +211,19 @@ open Set
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
 example : (s ∩ ⋃ i, A i) = ⋃ i, A i ∩ s := by
-  apply Set.ext; auto [mem_inter_iff, mem_iUnion]
+  apply Set.ext; duper [mem_inter_iff, mem_iUnion]
 
 -- zipperposition               : Success (Timeout for non-portfolio mode)
 -- auto (raw duper)             : Timeout
 -- auto (portfolio duper)       : Timeout
 example : (⋂ i, A i ∩ B i) = (⋂ i, A i) ∩ ⋂ i, B i := by
-  apply Set.ext; auto [mem_inter_iff, mem_iInter]
+  apply Set.ext; duper [mem_inter_iff, mem_iInter]
 
 -- zipperposition               : Success (246 iterations and 1.1s for non-portfolio mode)
 -- auto (raw duper)             : Timeout
--- auto (portfolio duper)       : Timeout
--- Aftter auto's preprocessing, instance 10 of duper can solve this (total heartbeats given to the portfolio was 1000000)
+-- auto (portfolio duper)       : Timeout (Success if the correct instance is chosen)
 example : (s ∪ ⋂ i, A i) = ⋂ i, A i ∪ s := by
-  apply Set.ext; auto [mem_union, mem_iInter]
+  apply Set.ext; duper [mem_union, mem_iInter] {portfolioInstance := 2}
 
 def primeset : Set ℕ :=
   { x | Nat.Prime x }
@@ -235,7 +235,7 @@ def primeset : Set ℕ :=
 example : (⋃ p ∈ primeset, { x | p ^ 2 ∣ x }) = { x | ∃ p ∈ primeset, p ^ 2 ∣ x } := by
   apply Set.ext; intro x
   rw [mem_iUnion]; conv => enter [1, 1, i]; rw [mem_iUnion]
-  auto [mem_setOf]
+  duper [mem_setOf]
 
 #check Nat.exists_prime_and_dvd
 

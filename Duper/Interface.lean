@@ -37,6 +37,171 @@ def getThrowPortfolioErrorsM : CoreM Bool := do
   let opts ← getOptions
   return getThrowPortfolioErrors opts
 
+declare_syntax_cat Duper.bool_lit (behavior := symbol)
+
+syntax "true" : Duper.bool_lit
+syntax "false" : Duper.bool_lit
+
+def elabBoolLit [Monad m] [MonadError m] (stx : TSyntax `Duper.bool_lit) : m Bool :=
+  withRef stx do
+    match stx with
+    | `(bool_lit| true) => return true
+    | `(bool_lit| false) => return false
+    | _ => Elab.throwUnsupportedSyntax
+
+def boolToBoolLit [Monad m] [MonadQuotation m] (b : Bool) : m (TSyntax `Duper.bool_lit) := do
+  match b with
+  | true => `(bool_lit| true)
+  | false => `(bool_lit| false)
+
+declare_syntax_cat Duper.preprocessing_option (behavior := symbol)
+
+syntax "full" : Duper.preprocessing_option
+syntax "monomorphization" : Duper.preprocessing_option
+syntax "no_preprocessing" : Duper.preprocessing_option
+
+inductive PreprocessingOption where
+  | FullPreprocessing
+  | Monomorphization
+  | NoPreprocessing
+
+open PreprocessingOption
+
+def elabPreprocessingOption [Monad m] [MonadError m] (stx : TSyntax `Duper.preprocessing_option) : m PreprocessingOption :=
+  withRef stx do
+    match stx with
+    | `(preprocessing_option| full) => return FullPreprocessing
+    | `(preprocessing_option| monomorphization) => return Monomorphization
+    | `(preprocessing_option| no_preprocessing) => return NoPreprocessing
+    | _ => Elab.throwUnsupportedSyntax
+
+def preprocessingOptionToStx [Monad m] [MonadQuotation m] (o : PreprocessingOption) : m (TSyntax `Duper.preprocessing_option) := do
+  match o with
+  | FullPreprocessing => `(preprocessing_option| full)
+  | Monomorphization => `(preprocessing_option| monomorphization)
+  | NoPreprocessing => `(preprocessing_option| no_preprocessing)
+
+declare_syntax_cat Duper.configOption (behavior := symbol)
+
+syntax (&"portfolioMode" " := " Duper.bool_lit) : Duper.configOption
+syntax (&"portfolioInstance" " := " numLit) : Duper.configOption
+syntax (&"inhabitationReasoning" " := " Duper.bool_lit) : Duper.configOption
+syntax (&"preprocessing" " := " Duper.preprocessing_option) : Duper.configOption
+syntax (&"includeExpensiveRules" " := " Duper.bool_lit) : Duper.configOption
+syntax (&"selFunction" " := " numLit) : Duper.configOption
+
+structure ConfigurationOptions where
+  portfolioMode : Bool -- True by default (unless portfolio instance is specified)
+  portfolioInstance : Option Nat -- None by default (unless portfolioMode is false, in which case, some 0 is default)
+  inhabitationReasoning : Option Bool -- None by default
+  preprocessing : Option PreprocessingOption -- None by default
+  includeExpensiveRules : Option Bool -- None by default
+  selFunction : Option Nat -- None by default
+
+syntax duperStar := "*"
+syntax (name := duper) "duper" (ppSpace "[" (duperStar <|> term),* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
+syntax (name := duperTrace) "duper?" (ppSpace "[" (duperStar <|> term),* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
+
+/-- If `n` is a Nat that corresponds to one of Duper's portfolio instances, then `portfolioInstanceToConfigOptionStx n` returns the
+    syntax object corresponding to `portfolioInstance := n`. This is necessary so that `duper?` can produce its suggestion. -/
+def portfolioInstanceToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) : m (TSyntax `Duper.configOption) := do
+  match n with
+  | 0 => `(configOption| portfolioInstance := 0)
+  | 1 => `(configOption| portfolioInstance := 1)
+  | 2 => `(configOption| portfolioInstance := 2)
+  | 3 => `(configOption| portfolioInstance := 3)
+  | 4 => `(configOption| portfolioInstance := 4)
+  | 5 => `(configOption| portfolioInstance := 5)
+  | 6 => `(configOption| portfolioInstance := 6)
+  | 7 => `(configOption| portfolioInstance := 7)
+  | 8 => `(configOption| portfolioInstance := 8)
+  | 9 => `(configOption| portfolioInstance := 9)
+  | 10 => `(configOption| portfolioInstance := 10)
+  | 11 => `(configOption| portfolioInstance := 11)
+  | 12 => `(configOption| portfolioInstance := 12)
+  | 13 => `(configOption| portfolioInstance := 13)
+  | 14 => `(configOption| portfolioInstance := 14)
+  | 15 => `(configOption| portfolioInstance := 15)
+  | 16 => `(configOption| portfolioInstance := 16)
+  | 17 => `(configOption| portfolioInstance := 17)
+  | 18 => `(configOption| portfolioInstance := 18)
+  | 19 => `(configOption| portfolioInstance := 19)
+  | 20 => `(configOption| portfolioInstance := 20)
+  | 21 => `(configOption| portfolioInstance := 21)
+  | 22 => `(configOption| portfolioInstance := 22)
+  | 23 => `(configOption| portfolioInstance := 23)
+  | 24 => `(configOption| portfolioInstance := 24)
+  | _ => throwError "Invalid Duper instance {n}"
+
+/-- If `n` is a Nat that corresponds to one of Duper's selection functions, then `selFunctionNumToConfigOptionStx n` returns the
+    syntax object corresponding to `selFunction := n`. This is necessary so that `duper?` can produce its suggestion. -/
+def selFunctionNumToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) : m (TSyntax `Duper.configOption) := do
+  match n with
+  | 0 => `(configOption| selFunction := 0)
+  | 1 => `(configOption| selFunction := 1)
+  | 2 => `(configOption| selFunction := 2)
+  | 3 => `(configOption| selFunction := 3)
+  | 4 => `(configOption| selFunction := 4)
+  | 5 => `(configOption| selFunction := 5)
+  | 6 => `(configOption| selFunction := 6)
+  | 7 => `(configOption| selFunction := 7)
+  | 8 => `(configOption| selFunction := 8)
+  | 9 => `(configOption| selFunction := 9)
+  | 10 => `(configOption| selFunction := 10)
+  | 11 => `(configOption| selFunction := 11)
+  | 12 => `(configOption| selFunction := 12)
+  | 13 => `(configOption| selFunction := 13)
+  | _ => throwError "Invalid selFunction option"
+
+/-- Constructs and suggests the syntax for a duper call, for use with `duper?` If a portfolioInstance other than 0 is specified, then
+    the returned tactic will only specify that instance (since it is all that is necessary). If the portfolioInstance specified is 0, then
+    the returned tactic will use all of the optional arguments to construct the suggested syntax. -/
+def mkDuperCallSuggestion (duperStxRef : Syntax) (origSpan : Syntax) (facts : Syntax.TSepArray `term ",") (withDuperStar : Bool)
+  (portfolioInstance : Nat) (inhabitationReasoning : Option Bool := none) (preprocessing : Option PreprocessingOption := none)
+  (includeExpensiveRules : Option Bool := none) (selFunction : Option Nat := none) : MetaM Unit := do
+  let mut configOptionsArr : Array Syntax := #[] -- An Array containing configuration option elements and separators (",")
+  let portfolioInstanceStx ← portfolioInstanceToConfigOptionStx portfolioInstance
+  configOptionsArr := configOptionsArr.push portfolioInstanceStx
+
+  /- For all other portfolio instances, the instance specifies all configuration options. But for portfolioInstance 0 in particular,
+     it is necessary to manually add each configuration option. -/
+  if portfolioInstance = 0 then
+    match inhabitationReasoning with
+    | none => pure ()
+    | some b =>
+      let inhabitationReasoningStx ← boolToBoolLit b
+      configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
+      configOptionsArr := configOptionsArr.push $ ← `(configOption| inhabitationReasoning := $inhabitationReasoningStx)
+    match preprocessing with
+    | none => pure ()
+    | some o =>
+      let preprocessingStx ← preprocessingOptionToStx o
+      configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
+      configOptionsArr := configOptionsArr.push $ ← `(configOption| preprocessing := $preprocessingStx)
+    match includeExpensiveRules with
+    | none => pure ()
+    | some b =>
+      let includeExpensiveRulesStx ← boolToBoolLit b
+      configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
+      configOptionsArr := configOptionsArr.push $ ← `(configOption| includeExpensiveRules := $includeExpensiveRulesStx)
+    match selFunction with
+    | none => pure ()
+    | some selFunctionNum =>
+      let selFunctionSyntax ← selFunctionNumToConfigOptionStx selFunctionNum
+      configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
+      configOptionsArr := configOptionsArr.push selFunctionSyntax
+
+  let configOptionsStx : Syntax.TSepArray `Duper.configOption "," := {elemsAndSeps := configOptionsArr}
+  if withDuperStar && facts.elemsAndSeps.isEmpty then
+    let suggestion ←`(tactic| duper [*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+  else if withDuperStar then
+    let suggestion ←`(tactic| duper [*, $facts,*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+  else
+    let suggestion ←`(tactic| duper [$facts,*] {$configOptionsStx,*})
+    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+
 /-- We save the `CoreM` state. This is because we will add a constant `skolemSorry` to the environment to support skolem constants with
     universe levels. We want to erase this constant after the saturation procedure ends -/
 def withoutModifyingCoreEnv (m : MetaM α) : MetaM α :=
@@ -213,10 +378,27 @@ def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × Array
       inst monomorphizedFormulas instanceMaxHeartbeats
   Auto.monoInterface lemmas inhFacts prover
 
+/-- Given `formulas`, `instanceMaxHeartbeats`, `declName?` and an instance of Duper `inst`, runs `inst` with all of Auto's preprocessing
+    (monomorphization, skolemization, definition unfolding, exhaustive function extensionality rewrites, and BitVec simplicfication). -/
+def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name)
+  (instanceMaxHeartbeats : Nat) (inst : List (Expr × Expr × Array Name) → Nat → MetaM Expr) : MetaM Expr := do
+  let lemmas ← formulasToAutoLemmas formulas
+  -- Calling Auto.unfoldConstAndPreprocessLemma is an essential step for the monomorphization procedure
+  let lemmas ← lemmas.mapM (m:=MetaM) (Auto.unfoldConstAndPreprocessLemma #[])
+  let inhFacts ← Auto.Inhabitation.getInhFactsFromLCtx
+  let prover : Array Auto.Lemma → MetaM Expr :=
+    fun lemmas => do
+      let monomorphizedFormulas ← autoLemmasToFormulas lemmas
+      trace[Monomorphization.debug] "Original formulas: {formulas}"
+      trace[Monomorphization.debug] "Lemmas (translated from formulas): {lemmas}"
+      trace[Monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas}"
+      inst monomorphizedFormulas instanceMaxHeartbeats
+  Auto.runNativeProverWithAuto declName? prover lemmas inhFacts
+
 /-- This is a special instance that does not modify any options and is not called by portfolio mode. It is used to allow
     the user to manually specify configuration options. -/
-def runDuperInstance0 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat)
-  (inhabitationReasoning : Option Bool) (monomorphization : Option Bool) (includeExpensiveRules : Option Bool)
+def runDuperInstance0 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat)
+  (inhabitationReasoning : Option Bool) (preprocessing : Option PreprocessingOption) (includeExpensiveRules : Option Bool)
   (selFunction : Option Nat) : MetaM Expr :=
   let addInhabitationReasoningOption : MetaM Expr → MetaM Expr :=
     match inhabitationReasoning with
@@ -230,184 +412,286 @@ def runDuperInstance0 (formulas : List (Expr × Expr × Array Name)) (instanceMa
     match selFunction with
     | some n => fun inst => withOptions (fun o => o.set `selFunction n) inst
     | none => id
-  match monomorphization with
-  | some true =>
+  match preprocessing with
+  | some FullPreprocessing =>
+    addInhabitationReasoningOption ∘ addIncludeExpensiveRulesOption ∘ addSelFunctionOption $
+      runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats runDuper
+  | some Monomorphization =>
     addInhabitationReasoningOption ∘ addIncludeExpensiveRulesOption ∘ addSelFunctionOption $
       runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats runDuper
-  | _ => -- Treat both `some false` and `none` as an indication that monomorphization should be disabled
+  | some NoPreprocessing =>
     addInhabitationReasoningOption ∘ addIncludeExpensiveRulesOption ∘ addSelFunctionOption $
       runDuper formulas instanceMaxHeartbeats
+  | none => -- Use full preprocessing by default
+    addInhabitationReasoningOption ∘ addIncludeExpensiveRulesOption ∘ addSelFunctionOption $
+      runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats runDuper
 
 /-- First instance called by portfolio mode. Has the following options:
-    - monomorphization = true
+    - preprocessing = full
     - inhabitationReasoning = false
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
-def runDuperInstance1 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+def runDuperInstance1 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats $
     fun formulas instanceMaxHeartbeats =>
       withOptions
         (fun o => ((o.set `inhabitationReasoning false).set `selFunction 4).set `includeExpensiveRules false)
         (runDuper formulas instanceMaxHeartbeats)
 
 /-- Same as duper instance 1 except inhabitation reasoning is enabled. Has the following options:
-    - monomorphization = true
+    - preprocessing = full
     - inhabitationReasoning = true
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
-def runDuperInstance2 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+def runDuperInstance2 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats $
     fun formulas instanceMaxHeartbeats =>
       withOptions
         (fun o => ((o.set `inhabitationReasoning true).set `selFunction 4).set `includeExpensiveRules false)
         (runDuper formulas instanceMaxHeartbeats)
 
 /-- Second instance called by portfolio mode. Has the following options:
-    - monomorphization = true
+    - preprocessing = full
     - inhabitationReasoning = false
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
-def runDuperInstance3 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+def runDuperInstance3 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats $
     fun formulas instanceMaxHeartbeats =>
       withOptions
         (fun o => ((o.set `inhabitationReasoning false).set `selFunction 11).set `includeExpensiveRules true)
         (runDuper formulas instanceMaxHeartbeats)
 
 /-- Same as duper instance 3 except inhabitation reasoning is enabled. Has the following options:
-    - monomorphization = true
+    - preprocessing = full
     - inhabitationReasoning = true
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
-def runDuperInstance4 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+def runDuperInstance4 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats $
     fun formulas instanceMaxHeartbeats =>
       withOptions
         (fun o => ((o.set `inhabitationReasoning true).set `selFunction 11).set `includeExpensiveRules true)
         (runDuper formulas instanceMaxHeartbeats)
 
 /-- Third instance called by portfolio mode. Has the following options:
-    - monomorphization = true
+    - preprocessing = full
     - inhabitationReasoning = false
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
-def runDuperInstance5 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+def runDuperInstance5 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats $
     fun formulas instanceMaxHeartbeats =>
       withOptions
         (fun o => ((o.set `inhabitationReasoning false).set `selFunction 13).set `includeExpensiveRules false)
         (runDuper formulas instanceMaxHeartbeats)
 
 /-- Same as duper instance 5 except inhabitation reasoning is enabled. Has the following options:
-    - monomorphization = true
+    - preprocessing = full
     - inhabitationReasoning = true
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
-def runDuperInstance6 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+def runDuperInstance6 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats $
     fun formulas instanceMaxHeartbeats =>
       withOptions
         (fun o => ((o.set `inhabitationReasoning true).set `selFunction 13).set `includeExpensiveRules false)
         (runDuper formulas instanceMaxHeartbeats)
 
 /-- Fourth instance called by portfolio mode. Has the following options:
-    - monomorphization = false
+    - preprocessing = no_preprocessing
     - inhabitationReasoning = true
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
-def runDuperInstance7 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance7 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   withOptions
     (fun o => ((o.set `inhabitationReasoning true).set `selFunction 2).set `includeExpensiveRules true)
     (runDuper formulas instanceMaxHeartbeats)
 
 /-- Same as duper instance 7 except inhabitation reasoning is disabled. Has the following options:
-    - monomorphization = false
+    - preprocessing = no_preprocessing
     - inhabitationReasoning = false
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
-def runDuperInstance8 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance8 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   withOptions
     (fun o => ((o.set `inhabitationReasoning false).set `selFunction 2).set `includeExpensiveRules true)
     (runDuper formulas instanceMaxHeartbeats)
 
-/-- Same as duper instance 1 except monomorphization is disabled. Has the following options:
-    - monomorphization = false
+/-- Same as duper instance 1 except preprocessing is disabled. Has the following options:
+    - preprocessing = no_preprocessing
     - inhabitationReasoning = false
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
-def runDuperInstance9 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance9 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   withOptions
     (fun o => ((o.set `inhabitationReasoning false).set `selFunction 4).set `includeExpensiveRules false)
     (runDuper formulas instanceMaxHeartbeats)
 
-/-- Same as duper instance 2 except monomorphization is disabled. Has the following options:
-    - monomorphization = false
+/-- Same as duper instance 2 except preprocessing is disabled. Has the following options:
+    - preprocessing = no_preprocessing
     - inhabitationReasoning = true
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
-def runDuperInstance10 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance10 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   withOptions
     (fun o => ((o.set `inhabitationReasoning true).set `selFunction 4).set `includeExpensiveRules false)
     (runDuper formulas instanceMaxHeartbeats)
 
-/-- Same as duper instance 3 except monomorphization is disabled. Has the following options:
-    - monomorphization = false
+/-- Same as duper instance 3 except preprocessing is disabled. Has the following options:
+    - preprocessing = no_preprocessing
     - inhabitationReasoning = false
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
-def runDuperInstance11 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance11 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   withOptions
     (fun o => ((o.set `inhabitationReasoning false).set `selFunction 11).set `includeExpensiveRules true)
     (runDuper formulas instanceMaxHeartbeats)
 
-/-- Same as duper instance 4 except monomorphization is disabled. Has the following options:
-    - monomorphization = true
+/-- Same as duper instance 4 except preprocessing is disabled. Has the following options:
+    - preprocessing = no_preprocessing
     - inhabitationReasoning = true
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
-def runDuperInstance12 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance12 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   withOptions
     (fun o => ((o.set `inhabitationReasoning true).set `selFunction 11).set `includeExpensiveRules true)
     (runDuper formulas instanceMaxHeartbeats)
 
-/-- Same as duper instance 5 except monomorphization is disabled. Has the following options:
-    - monomorphization = false
+/-- Same as duper instance 5 except preprocessing is disabled. Has the following options:
+    - preprocessing = no_preprocessing
     - inhabitationReasoning = false
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
-def runDuperInstance13 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance13 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   withOptions
     (fun o => ((o.set `inhabitationReasoning false).set `selFunction 13).set `includeExpensiveRules false)
     (runDuper formulas instanceMaxHeartbeats)
 
-/-- Same as duper instance 6 except monomorphization is disabled. Has the following options:
-    - monomorphization = false
+/-- Same as duper instance 6 except preprocessing is disabled. Has the following options:
+    - preprocessing = no_preprocessing
     - inhabitationReasoning = true
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
-def runDuperInstance14 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance14 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   withOptions
     (fun o => ((o.set `inhabitationReasoning true).set `selFunction 13).set `includeExpensiveRules false)
     (runDuper formulas instanceMaxHeartbeats)
 
-/-- Same as duper instance 7 except monomorphization is enabled. Has the following options:
-    - monomorphization = true
+/-- Same as duper instance 7 except preprocessing is enabled. Has the following options:
+    - preprocessing = full
     - inhabitationReasoning = true
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
-def runDuperInstance15 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance15 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats $
+    fun formulas instanceMaxHeartbeats =>
+      withOptions
+        (fun o => ((o.set `inhabitationReasoning true).set `selFunction 2).set `includeExpensiveRules true)
+        (runDuper formulas instanceMaxHeartbeats)
+
+/-- Same as duper instance 8 except preprocessing is enabled. Has the following options:
+    - preprocessing = full
+    - inhabitationReasoning = false
+    - selFunction = 2 (NoSelection)
+    - includeExpensiveRules = true -/
+def runDuperInstance16 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithFullPreprocessing formulas declName? instanceMaxHeartbeats $
+    fun formulas instanceMaxHeartbeats =>
+      withOptions
+        (fun o => ((o.set `inhabitationReasoning false).set `selFunction 2).set `includeExpensiveRules true)
+        (runDuper formulas instanceMaxHeartbeats)
+
+/-- Same as duper instance 1 except preprocessing is set to monomorphization only. Has the following options:
+    - preprocessing = monomorphization
+    - inhabitationReasoning = false
+    - selFunction = 4 (which corresponds to Zipperposition's default selection function)
+    - includeExpensiveRules = false -/
+def runDuperInstance17 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+    fun formulas instanceMaxHeartbeats =>
+      withOptions
+        (fun o => ((o.set `inhabitationReasoning false).set `selFunction 4).set `includeExpensiveRules false)
+        (runDuper formulas instanceMaxHeartbeats)
+
+/-- Same as duper instance 2 except preprocessing is set to monomorphization only. Has the following options:
+    - preprocessing = monomorphization
+    - inhabitationReasoning = true
+    - selFunction = 4 (which corresponds to Zipperposition's default selection function)
+    - includeExpensiveRules = false -/
+def runDuperInstance18 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+    fun formulas instanceMaxHeartbeats =>
+      withOptions
+        (fun o => ((o.set `inhabitationReasoning true).set `selFunction 4).set `includeExpensiveRules false)
+        (runDuper formulas instanceMaxHeartbeats)
+
+/-- Same as duper instance 3 except preprocessing is set to monomorphization only. Has the following options:
+    - preprocessing = monomorphization
+    - inhabitationReasoning = false
+    - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
+    - includeExpensiveRules = true -/
+def runDuperInstance19 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+    fun formulas instanceMaxHeartbeats =>
+      withOptions
+        (fun o => ((o.set `inhabitationReasoning false).set `selFunction 11).set `includeExpensiveRules true)
+        (runDuper formulas instanceMaxHeartbeats)
+
+/-- Same as duper instance 4 except preprocessing is set to monomorphization only. Has the following options:
+    - preprocessing = monomorphization
+    - inhabitationReasoning = true
+    - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
+    - includeExpensiveRules = true -/
+def runDuperInstance20 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+    fun formulas instanceMaxHeartbeats =>
+      withOptions
+        (fun o => ((o.set `inhabitationReasoning true).set `selFunction 11).set `includeExpensiveRules true)
+        (runDuper formulas instanceMaxHeartbeats)
+
+/-- Same as duper instance 5 except preprocessing is set to monomorphization only. Has the following options:
+    - preprocessing = no_preprocessing
+    - inhabitationReasoning = false
+    - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
+    - includeExpensiveRules = false -/
+def runDuperInstance21 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+    fun formulas instanceMaxHeartbeats =>
+      withOptions
+        (fun o => ((o.set `inhabitationReasoning false).set `selFunction 13).set `includeExpensiveRules false)
+        (runDuper formulas instanceMaxHeartbeats)
+
+/-- Same as duper instance 6 except preprocessing is set to monomorphization only. Has the following options:
+    - preprocessing = monomorphization
+    - inhabitationReasoning = true
+    - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
+    - includeExpensiveRules = false -/
+def runDuperInstance22 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
+    fun formulas instanceMaxHeartbeats =>
+      withOptions
+        (fun o => ((o.set `inhabitationReasoning true).set `selFunction 13).set `includeExpensiveRules false)
+        (runDuper formulas instanceMaxHeartbeats)
+
+/-- Same as duper instance 7 except preprocessing is set to monomorphization only. Has the following options:
+    - preprocessing = monomorphization
+    - inhabitationReasoning = true
+    - selFunction = 2 (NoSelection)
+    - includeExpensiveRules = true -/
+def runDuperInstance23 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
     fun formulas instanceMaxHeartbeats =>
       withOptions
         (fun o => ((o.set `inhabitationReasoning true).set `selFunction 2).set `includeExpensiveRules true)
         (runDuper formulas instanceMaxHeartbeats)
 
-/-- Same as duper instance 8 except monomorphization is enabled. Has the following options:
-    - monomorphization = true
+/-- Same as duper instance 8 except preprocessing is set to monomorphization only. Has the following options:
+    - preprocessing = monomorphization
     - inhabitationReasoning = false
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
-def runDuperInstance16 (formulas : List (Expr × Expr × Array Name)) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+def runDuperInstance24 (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
   runDuperInstanceWithMonomorphization formulas instanceMaxHeartbeats $
     fun formulas instanceMaxHeartbeats =>
       withOptions
@@ -435,12 +719,20 @@ def instanceHasInhabitationReasoning [Monad m] [MonadError m] (n : Nat) : m Bool
   | 14 => return true
   | 15 => return true
   | 16 => return false
+  | 17 => return false
+  | 18 => return true
+  | 19 => return false
+  | 20 => return true
+  | 21 => return false
+  | 22 => return true
+  | 23 => return true
+  | 24 => return false
   | _ => throwError "Invalid duper instance {n}"
 
 /-- If the given duper instance `n` has inhabitation reasoning disabled and there is another instance `m` that is identical
     except that it has inhabitation reasoning enabled, then `getInstanceWithInhabitationReasoning` returns `some m`. Otherwise,
     `getInstanceWithInhabitationReasoning` returns `none`. -/
-def getInstanceWithInhabitationReasoning (n : Nat) : Option (Nat × (List (Expr × Expr × Array Name) → Nat → MetaM Expr)) := do
+def getInstanceWithInhabitationReasoning (n : Nat) : Option (Nat × (List (Expr × Expr × Array Name) → Option Name → Nat → MetaM Expr)) := do
   match n with
   | 1 => some (2, runDuperInstance2)
   | 3 => some (4, runDuperInstance4)
@@ -450,163 +742,42 @@ def getInstanceWithInhabitationReasoning (n : Nat) : Option (Nat × (List (Expr 
   | 11 => some (12, runDuperInstance12)
   | 13 => some (14, runDuperInstance14)
   | 16 => some (15, runDuperInstance15)
+  | 17 => some (18, runDuperInstance18)
+  | 19 => some (20, runDuperInstance20)
+  | 21 => some (22, runDuperInstance22)
+  | 24 => some (23, runDuperInstance23)
   | _ => none
-
-declare_syntax_cat Duper.bool_lit (behavior := symbol)
-
-syntax "true" : Duper.bool_lit
-syntax "false" : Duper.bool_lit
-
-def elabBoolLit [Monad m] [MonadError m] (stx : TSyntax `Duper.bool_lit) : m Bool :=
-  withRef stx do
-    match stx with
-    | `(bool_lit| true) => return true
-    | `(bool_lit| false) => return false
-    | _ => Elab.throwUnsupportedSyntax
-
-def boolToBoolLit [Monad m] [MonadQuotation m] (b : Bool) : m (TSyntax `Duper.bool_lit) := do
-  match b with
-  | true => `(bool_lit| true)
-  | false => `(bool_lit| false)
-
-declare_syntax_cat Duper.configOption (behavior := symbol)
-
-syntax (&"portfolioMode" " := " Duper.bool_lit) : Duper.configOption
-syntax (&"portfolioInstance" " := " numLit) : Duper.configOption
-syntax (&"inhabitationReasoning" " := " Duper.bool_lit) : Duper.configOption
-syntax (&"monomorphization" " := " Duper.bool_lit) : Duper.configOption
-syntax (&"includeExpensiveRules" " := " Duper.bool_lit) : Duper.configOption
-syntax (&"selFunction" " := " numLit) : Duper.configOption
-
-structure ConfigurationOptions where
-  portfolioMode : Bool -- True by default (unless portfolio instance is specified)
-  portfolioInstance : Option Nat -- None by default (unless portfolioMode is false, in which case, some 0 is default)
-  inhabitationReasoning : Option Bool -- None by default
-  monomorphization : Option Bool -- None by default
-  includeExpensiveRules : Option Bool -- None by default
-  selFunction : Option Nat -- None by default
-
-syntax duperStar := "*"
-syntax (name := duper) "duper" (ppSpace "[" (duperStar <|> term),* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
-syntax (name := duperTrace) "duper?" (ppSpace "[" (duperStar <|> term),* "]")? (ppSpace "{"Duper.configOption,*,?"}")? : tactic
-
-/-- If `n` is a Nat that corresponds to one of Duper's portfolio instances, then `portfolioInstanceToConfigOptionStx n` returns the
-    syntax object corresponding to `portfolioInstance := n`. This is necessary so that `duper?` can produce its suggestion. -/
-def portfolioInstanceToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) : m (TSyntax `Duper.configOption) := do
-  match n with
-  | 0 => `(configOption| portfolioInstance := 0)
-  | 1 => `(configOption| portfolioInstance := 1)
-  | 2 => `(configOption| portfolioInstance := 2)
-  | 3 => `(configOption| portfolioInstance := 3)
-  | 4 => `(configOption| portfolioInstance := 4)
-  | 5 => `(configOption| portfolioInstance := 5)
-  | 6 => `(configOption| portfolioInstance := 6)
-  | 7 => `(configOption| portfolioInstance := 7)
-  | 8 => `(configOption| portfolioInstance := 8)
-  | 9 => `(configOption| portfolioInstance := 9)
-  | 10 => `(configOption| portfolioInstance := 10)
-  | 11 => `(configOption| portfolioInstance := 11)
-  | 12 => `(configOption| portfolioInstance := 12)
-  | 13 => `(configOption| portfolioInstance := 13)
-  | 14 => `(configOption| portfolioInstance := 14)
-  | 15 => `(configOption| portfolioInstance := 15)
-  | 16 => `(configOption| portfolioInstance := 16)
-  | _ => throwError "Invalid Duper instance {n}"
-
-/-- If `n` is a Nat that corresponds to one of Duper's selection functions, then `selFunctionNumToConfigOptionStx n` returns the
-    syntax object corresponding to `selFunction := n`. This is necessary so that `duper?` can produce its suggestion. -/
-def selFunctionNumToConfigOptionStx [Monad m] [MonadError m] [MonadQuotation m] (n : Nat) : m (TSyntax `Duper.configOption) := do
-  match n with
-  | 0 => `(configOption| selFunction := 0)
-  | 1 => `(configOption| selFunction := 1)
-  | 2 => `(configOption| selFunction := 2)
-  | 3 => `(configOption| selFunction := 3)
-  | 4 => `(configOption| selFunction := 4)
-  | 5 => `(configOption| selFunction := 5)
-  | 6 => `(configOption| selFunction := 6)
-  | 7 => `(configOption| selFunction := 7)
-  | 8 => `(configOption| selFunction := 8)
-  | 9 => `(configOption| selFunction := 9)
-  | 10 => `(configOption| selFunction := 10)
-  | 11 => `(configOption| selFunction := 11)
-  | 12 => `(configOption| selFunction := 12)
-  | 13 => `(configOption| selFunction := 13)
-  | _ => throwError "Invalid selFunction option"
-
-/-- Constructs and suggests the syntax for a duper call, for use with `duper?` If a portfolioInstance other than 0 is specified, then
-    the returned tactic will only specify that instance (since it is all that is necessary). If the portfolioInstance specified is 0, then
-    the returned tactic will use all of the optional arguments to construct the suggested syntax. -/
-def mkDuperCallSuggestion (duperStxRef : Syntax) (origSpan : Syntax) (facts : Syntax.TSepArray `term ",")
-  (withDuperStar : Bool) (portfolioInstance : Nat) (inhabitationReasoning : Option Bool := none) (monomorphization : Option Bool := none)
-  (includeExpensiveRules : Option Bool := none) (selFunction : Option Nat := none) : MetaM Unit := do
-  let mut configOptionsArr : Array Syntax := #[] -- An Array containing configuration option elements and separators (",")
-  let portfolioInstanceStx ← portfolioInstanceToConfigOptionStx portfolioInstance
-  configOptionsArr := configOptionsArr.push portfolioInstanceStx
-
-  /- For all other portfolio instances, the instance specifies all configuration options. But for portfolioInstance 0 in particular,
-     it is necessary to manually add each configuration option. -/
-  if portfolioInstance = 0 then
-    match inhabitationReasoning with
-    | none => pure ()
-    | some b =>
-      let inhabitationReasoningStx ← boolToBoolLit b
-      configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
-      configOptionsArr := configOptionsArr.push $ ← `(configOption| inhabitationReasoning := $inhabitationReasoningStx)
-    match monomorphization with
-    | none => pure ()
-    | some b =>
-      let monomorphizationStx ← boolToBoolLit b
-      configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
-      configOptionsArr := configOptionsArr.push $ ← `(configOption| monomorphization := $monomorphizationStx)
-    match includeExpensiveRules with
-    | none => pure ()
-    | some b =>
-      let includeExpensiveRulesStx ← boolToBoolLit b
-      configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
-      configOptionsArr := configOptionsArr.push $ ← `(configOption| includeExpensiveRules := $includeExpensiveRulesStx)
-    match selFunction with
-    | none => pure ()
-    | some selFunctionNum =>
-      let selFunctionSyntax ← selFunctionNumToConfigOptionStx selFunctionNum
-      configOptionsArr := configOptionsArr.push (mkAtom ",") -- Add separator before each additional element
-      configOptionsArr := configOptionsArr.push selFunctionSyntax
-
-  let configOptionsStx : Syntax.TSepArray `Duper.configOption "," := {elemsAndSeps := configOptionsArr}
-  if withDuperStar && facts.elemsAndSeps.isEmpty then
-    let suggestion ←`(tactic| duper [*] {$configOptionsStx,*})
-    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
-  else if withDuperStar then
-    let suggestion ←`(tactic| duper [*, $facts,*] {$configOptionsStx,*})
-    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
-  else
-    let suggestion ←`(tactic| duper [$facts,*] {$configOptionsStx,*})
-    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
 
 /-- Implements duper calls when portfolio mode is enabled. If `duperStxInfo` is not none and `runDuperPortfolioMode` succeeds in deriving
     a contradiction, then `Std.Tactic.TryThis.addSuggestion` will be used to give the user a more specific invocation of duper that can
     reproduce the proof (without having to run duper in portfolio mode). As with the other `runDuper` functions, `runDuperPortfolioMode`
     ultimately returns a proof if successful and throws an error if unsuccessful. -/
-def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name)) (configOptions : ConfigurationOptions)
+def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name)) (declName? : Option Name) (configOptions : ConfigurationOptions)
   (duperStxInfo : Option (Syntax × Syntax × Syntax.TSepArray `term ","  × Bool)) : MetaM Expr := do
   let initHeartbeats ← IO.getNumHeartbeats
   let maxHeartbeats ← getMaxHeartbeats
   let instances :=
-    match configOptions.monomorphization with
+    match configOptions.preprocessing with
     | none =>
-      #[(1, runDuperInstance1 formulas),
-        (3, runDuperInstance3 formulas),
-        (5, runDuperInstance5 formulas),
-        (7, runDuperInstance7 formulas)]
-    | some true => -- Replace instance 7 which has monomorphization disabled
-      #[(1, runDuperInstance1 formulas),
-        (3, runDuperInstance3 formulas),
-        (5, runDuperInstance5 formulas),
-        (15, runDuperInstance15 formulas)]
-    | some false => -- Replaces instances 1, 3, and 5 which have monomorphization enabled
-      #[(9, runDuperInstance9 formulas),
-        (11, runDuperInstance11 formulas),
-        (13, runDuperInstance13 formulas),
-        (7, runDuperInstance7 formulas)]
+      #[(1, runDuperInstance1 formulas declName?),
+        (3, runDuperInstance3 formulas declName?),
+        (5, runDuperInstance5 formulas declName?),
+        (7, runDuperInstance7 formulas declName?)]
+    | some FullPreprocessing => -- Replace instance 7 which has preprocessing disabled
+      #[(1, runDuperInstance1 formulas declName?),
+        (3, runDuperInstance3 formulas declName?),
+        (5, runDuperInstance5 formulas declName?),
+        (15, runDuperInstance15 formulas declName?)]
+    | some NoPreprocessing => -- Replaces instances 1, 3, and 5 which have full preprocessing enabled
+      #[(9, runDuperInstance9 formulas declName?),
+        (11, runDuperInstance11 formulas declName?),
+        (13, runDuperInstance13 formulas declName?),
+        (7, runDuperInstance7 formulas declName?)]
+    | some Monomorphization => -- Replace all instances with corresponding instances that have only monomorphization enabled
+      #[(17, runDuperInstance17 formulas declName?),
+        (19, runDuperInstance19 formulas declName?),
+        (21, runDuperInstance21 formulas declName?),
+        (23, runDuperInstance23 formulas declName?)]
   let numInstances := instances.size
   let mut maxInstanceHeartbeats := maxHeartbeats / numInstances -- Allocate total heartbeats among all instances
   let mut numInstancesTried := 0
@@ -633,7 +804,7 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name)) (config
            duper instance with the corresponding instance that has inhabitation reasoning enabled -/
         match getInstanceWithInhabitationReasoning duperInstanceNum with
         | none => (duperInstanceNum, duperInstanceFn)
-        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas)
+        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas declName?)
       else (duperInstanceNum, duperInstanceFn)
     let (proofOption, retryWithInhabitationReasoning) ←
       try
@@ -684,7 +855,7 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name)) (config
       IO.println "Duper determined that this problem requires inhabitation reasoning, continuing portfolio mode with it enabled"
       let (duperInstanceNum, duperInstanceFn) :=
         match getInstanceWithInhabitationReasoning duperInstanceNum with
-        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas)
+        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas declName?)
         | none => (duperInstanceNum, duperInstanceFn) -- This case should never occur
       /- If Duper finds a contradiction and successfully performs proof reconstruction `proofOption` will be `some proof`.
          If Duper times out, then `proofOption` will be `none`.

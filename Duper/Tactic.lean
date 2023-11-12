@@ -158,7 +158,7 @@ def parseConfigOptions (configOptionsStx : TSyntaxArray `Duper.configOption) : T
   let mut portfolioModeOpt : Option Bool := none
   let mut portfolioInstanceOpt : Option Nat := none
   let mut inhabitationReasoningOpt : Option Bool := none
-  let mut monomorphizationOpt : Option Bool := none
+  let mut preprocessingOpt : Option PreprocessingOption := none
   let mut includeExpensiveRulesOpt : Option Bool := none
   let mut selFunctionOpt : Option Nat := none
   for configOptionStx in configOptionsStx do
@@ -182,11 +182,11 @@ def parseConfigOptions (configOptionsStx : TSyntaxArray `Duper.configOption) : T
         throwError "Erroneous invocation of duper: The inhabitation reasoning option has been specified multiple times"
       let inhabitationReasoning ← elabBoolLit inhabitationReasoningStx
       inhabitationReasoningOpt := some inhabitationReasoning
-    | `(configOption| monomorphization := $monomorphizationStx:Duper.bool_lit) =>
-      if monomorphizationOpt.isSome then
-        throwError "Erroneous invocation of duper: The monomorphization option has been specified multiple times"
-      let monomorphization ← elabBoolLit monomorphizationStx
-      monomorphizationOpt := some monomorphization
+    | `(configOption| preprocessing := $preprocessingStx:Duper.preprocessing_option) =>
+      if preprocessingOpt.isSome then
+        throwError "Erroneous invocation of duper: The preprocessing option has been specified multiple times"
+      let preprocessing ← elabPreprocessingOption preprocessingStx
+      preprocessingOpt := some preprocessing
     | `(configOption| includeExpensiveRules := $includeExpensiveRulesStx:Duper.bool_lit) =>
       if includeExpensiveRulesOpt.isSome then
         throwError "Erroneous invocation of duper: The includeExpensiveRules option has been specified multiple times"
@@ -212,13 +212,13 @@ def parseConfigOptions (configOptionsStx : TSyntaxArray `Duper.configOption) : T
       if portfolioMode then none -- If portfolio mode is enabled then no portfolio instance should be specified
       else some 0 -- If portfolio mode was explicitly disabled and no portfolio instance was specified, choose instance 0 by default
   if portfolioInstance != none && portfolioInstance != some 0 then
-    if inhabitationReasoningOpt.isSome || monomorphizationOpt.isSome || includeExpensiveRulesOpt.isSome then
+    if inhabitationReasoningOpt.isSome || preprocessingOpt.isSome || includeExpensiveRulesOpt.isSome then
       IO.println s!"Warning: The specified portfolio instance {portfolioInstance.get!} will override all additional configuration options"
   return {
     portfolioMode := portfolioMode,
     portfolioInstance := portfolioInstance,
     inhabitationReasoning := inhabitationReasoningOpt,
-    monomorphization := monomorphizationOpt,
+    preprocessing := preprocessingOpt,
     includeExpensiveRules := includeExpensiveRulesOpt,
     selFunction := selFunctionOpt
   }
@@ -253,8 +253,9 @@ def evalDuper : Tactic
     let lctxAfterIntros ← getLCtx
     let goalDecls := getGoalDecls lctxBeforeIntros lctxAfterIntros
     let formulas ← collectAssumptions facts factsContainsDuperStar goalDecls
+    let declName? ← Elab.Term.getDeclName? -- Needed for `Auto.monoPrepInterface`
     if configOptions.portfolioMode then
-      let proof ← runDuperPortfolioMode formulas configOptions none
+      let proof ← runDuperPortfolioMode formulas declName? configOptions none
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     else
@@ -265,24 +266,32 @@ def evalDuper : Tactic
       let proof ←
         match portfolioInstance with
         | 0 =>
-          runDuperInstance0 formulas 0 configOptions.inhabitationReasoning configOptions.monomorphization
+          runDuperInstance0 formulas declName? 0 configOptions.inhabitationReasoning configOptions.preprocessing
             configOptions.includeExpensiveRules configOptions.selFunction
-        | 1 => runDuperInstance1 formulas 0
-        | 2 => runDuperInstance2 formulas 0
-        | 3 => runDuperInstance3 formulas 0
-        | 4 => runDuperInstance4 formulas 0
-        | 5 => runDuperInstance5 formulas 0
-        | 6 => runDuperInstance6 formulas 0
-        | 7 => runDuperInstance7 formulas 0
-        | 8 => runDuperInstance8 formulas 0
-        | 9 => runDuperInstance9 formulas 0
-        | 10 => runDuperInstance10 formulas 0
-        | 11 => runDuperInstance11 formulas 0
-        | 12 => runDuperInstance12 formulas 0
-        | 13 => runDuperInstance13 formulas 0
-        | 14 => runDuperInstance14 formulas 0
-        | 15 => runDuperInstance15 formulas 0
-        | 16 => runDuperInstance16 formulas 0
+        | 1 => runDuperInstance1 formulas declName? 0
+        | 2 => runDuperInstance2 formulas declName? 0
+        | 3 => runDuperInstance3 formulas declName? 0
+        | 4 => runDuperInstance4 formulas declName? 0
+        | 5 => runDuperInstance5 formulas declName? 0
+        | 6 => runDuperInstance6 formulas declName? 0
+        | 7 => runDuperInstance7 formulas declName? 0
+        | 8 => runDuperInstance8 formulas declName? 0
+        | 9 => runDuperInstance9 formulas declName? 0
+        | 10 => runDuperInstance10 formulas declName? 0
+        | 11 => runDuperInstance11 formulas declName? 0
+        | 12 => runDuperInstance12 formulas declName? 0
+        | 13 => runDuperInstance13 formulas declName? 0
+        | 14 => runDuperInstance14 formulas declName? 0
+        | 15 => runDuperInstance15 formulas declName? 0
+        | 16 => runDuperInstance16 formulas declName? 0
+        | 17 => runDuperInstance17 formulas declName? 0
+        | 18 => runDuperInstance18 formulas declName? 0
+        | 19 => runDuperInstance19 formulas declName? 0
+        | 20 => runDuperInstance20 formulas declName? 0
+        | 21 => runDuperInstance21 formulas declName? 0
+        | 22 => runDuperInstance22 formulas declName? 0
+        | 23 => runDuperInstance23 formulas declName? 0
+        | 24 => runDuperInstance24 formulas declName? 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
@@ -300,8 +309,9 @@ def evalDuperTrace : Tactic
     let lctxAfterIntros ← withMainContext getLCtx
     let goalDecls := getGoalDecls lctxBeforeIntros lctxAfterIntros
     let formulas ← collectAssumptions facts factsContainsDuperStar goalDecls
+    let declName? ← Elab.Term.getDeclName? -- Needed for `Auto.monoPrepInterface`
     if configOptions.portfolioMode then
-      let proof ← runDuperPortfolioMode formulas configOptions (some (duperStxRef, ← getRef, facts, factsContainsDuperStar))
+      let proof ← runDuperPortfolioMode formulas declName? configOptions (some (duperStxRef, ← getRef, facts, factsContainsDuperStar))
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     else
@@ -312,19 +322,36 @@ def evalDuperTrace : Tactic
       let proof ←
         match portfolioInstance with
         | 0 =>
-          runDuperInstance0 formulas 0 configOptions.inhabitationReasoning configOptions.monomorphization
+          runDuperInstance0 formulas declName? 0 configOptions.inhabitationReasoning configOptions.preprocessing
             configOptions.includeExpensiveRules configOptions.selFunction
-        | 1 => runDuperInstance1 formulas 0
-        | 2 => runDuperInstance2 formulas 0
-        | 3 => runDuperInstance3 formulas 0
-        | 4 => runDuperInstance4 formulas 0
-        | 5 => runDuperInstance5 formulas 0
-        | 6 => runDuperInstance6 formulas 0
-        | 7 => runDuperInstance7 formulas 0
+        | 1 => runDuperInstance1 formulas declName? 0
+        | 2 => runDuperInstance2 formulas declName? 0
+        | 3 => runDuperInstance3 formulas declName? 0
+        | 4 => runDuperInstance4 formulas declName? 0
+        | 5 => runDuperInstance5 formulas declName? 0
+        | 6 => runDuperInstance6 formulas declName? 0
+        | 7 => runDuperInstance7 formulas declName? 0
+        | 8 => runDuperInstance8 formulas declName? 0
+        | 9 => runDuperInstance9 formulas declName? 0
+        | 10 => runDuperInstance10 formulas declName? 0
+        | 11 => runDuperInstance11 formulas declName? 0
+        | 12 => runDuperInstance12 formulas declName? 0
+        | 13 => runDuperInstance13 formulas declName? 0
+        | 14 => runDuperInstance14 formulas declName? 0
+        | 15 => runDuperInstance15 formulas declName? 0
+        | 16 => runDuperInstance16 formulas declName? 0
+        | 17 => runDuperInstance17 formulas declName? 0
+        | 18 => runDuperInstance18 formulas declName? 0
+        | 19 => runDuperInstance19 formulas declName? 0
+        | 20 => runDuperInstance20 formulas declName? 0
+        | 21 => runDuperInstance21 formulas declName? 0
+        | 22 => runDuperInstance22 formulas declName? 0
+        | 23 => runDuperInstance23 formulas declName? 0
+        | 24 => runDuperInstance24 formulas declName? 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       mkDuperCallSuggestion duperStxRef (← getRef) facts factsContainsDuperStar portfolioInstance configOptions.inhabitationReasoning
-        configOptions.monomorphization configOptions.includeExpensiveRules configOptions.selFunction
+        configOptions.preprocessing configOptions.includeExpensiveRules configOptions.selFunction
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
 | _ => throwUnsupportedSyntax
 

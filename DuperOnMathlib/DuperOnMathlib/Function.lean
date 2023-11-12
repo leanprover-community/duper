@@ -44,7 +44,7 @@ example : f '' s ⊆ v ↔ s ⊆ f ⁻¹' v := by
 
 -- Zipperposition (non-portfolio): 541 iterations and 1.345s
 example : f '' s ⊆ v ↔ s ⊆ f ⁻¹' v := by
-  auto [subset_def, mem_image, mem_preimage] -- Universe polymorphic skolem issue?
+  duper [subset_def, mem_image, mem_preimage]
 
 example (h : Injective f) : f ⁻¹' (f '' s) ⊆ s := by
   rintro x ⟨y, ys, fxeq⟩
@@ -52,15 +52,18 @@ example (h : Injective f) : f ⁻¹' (f '' s) ⊆ s := by
   exact ys
 
 example (h : Injective f) : f ⁻¹' (f '' s) ⊆ s := by
-  auto [subset_def, mem_preimage, Injective.mem_set_image, h]
+  duper [subset_def, mem_preimage, Injective.mem_set_image, h]
 
 example : f '' (f ⁻¹' u) ⊆ u := by
   rintro y ⟨x, xmem, rfl⟩
   exact xmem
 
 -- Zipperposition (non-portfolio): 27 iterations in 0.083s
+-- TODO: Figure out why auto can solve this with maxHeartbeats 1000000 and kStep 100 but duper can't
+set_option maxHeartbeats 1000000 in
+set_option kStep 100 in
 example : f '' (f ⁻¹' u) ⊆ u := by
-  auto [subset_def, mem_image, mem_preimage] -- Universe polymorphic skolem issue?
+  auto [subset_def, mem_image, mem_preimage]
 
 example (h : Surjective f) : u ⊆ f '' (f ⁻¹' u) := by
   intro y yu
@@ -74,7 +77,7 @@ example (h : Surjective f) : u ⊆ f '' (f ⁻¹' u) := by
 
 -- Zipperposition (non-portfolio): ResourceOut
 example (h : Surjective f) : u ⊆ f '' (f ⁻¹' u) := by
-  auto [subset_def, mem_image, mem_preimage, h]
+  duper [subset_def, mem_image, mem_preimage, h]
 
 example (h : s ⊆ t) : f '' s ⊆ f '' t := by
   rintro y ⟨x, xs, fxeq⟩
@@ -82,18 +85,18 @@ example (h : s ⊆ t) : f '' s ⊆ f '' t := by
 
 -- Zipperposition (non-portfolio): 73 iterations in 0.138s
 example (h : s ⊆ t) : f '' s ⊆ f '' t := by
-  auto [subset_def, mem_image, h] -- Universe polymorphic skolem issue?
+  duper [subset_def, mem_image, h]
 
 example (h : u ⊆ v) : f ⁻¹' u ⊆ f ⁻¹' v := by
   intro x; apply h
 
 example (h : u ⊆ v) : f ⁻¹' u ⊆ f ⁻¹' v := by
-  auto [subset_def, mem_preimage, h]
+  duper [subset_def, mem_preimage, h]
 
 example : f ⁻¹' (u ∪ v) = f ⁻¹' u ∪ f ⁻¹' v := rfl
 
 example : f ⁻¹' (u ∪ v) = f ⁻¹' u ∪ f ⁻¹' v := by
-  ext x; auto [mem_union, mem_preimage]
+  ext x; duper [mem_union, mem_preimage]
 
 example : f '' (s ∩ t) ⊆ f '' s ∩ f '' t := by
   rintro y ⟨x, ⟨xs, xt⟩, rfl⟩
@@ -103,7 +106,7 @@ example : f '' (s ∩ t) ⊆ f '' s ∩ f '' t := by
 
 -- Zipperposition (non-portfolio): ResourceOut
 example : f '' (s ∩ t) ⊆ f '' s ∩ f '' t := by
-  auto [mem_inter_iff, subset_def, mem_image]
+  duper [mem_inter_iff, subset_def, mem_image]
 
 example (h : Injective f) : f '' s ∩ f '' t ⊆ f '' (s ∩ t) := by
   rintro y ⟨⟨x₁, x₁s, rfl⟩, ⟨x₂, x₂t, fx₂eq⟩⟩
@@ -116,13 +119,13 @@ example (h : Injective f) : f '' s ∩ f '' t ⊆ f '' (s ∩ t) := by
 
 -- Zipperposition (non-portfolio): ResourceOut
 example : f '' s \ f '' t ⊆ f '' (s \ t) := by
-  intro x; auto [mem_image, mem_diff]
+  intro x; duper [mem_image, mem_diff]
 
 example : f ⁻¹' u \ f ⁻¹' v ⊆ f ⁻¹' (u \ v) :=
   fun x ↦ id
 
 example : f ⁻¹' u \ f ⁻¹' v ⊆ f ⁻¹' (u \ v) := by
-  intro x; auto [mem_preimage, mem_diff]
+  intro x; duper [mem_preimage, mem_diff]
 
 example : f '' s ∩ v = f '' (s ∩ f ⁻¹' v) := by
   ext y; constructor
@@ -133,7 +136,7 @@ example : f '' s ∩ v = f '' (s ∩ f ⁻¹' v) := by
 
 -- Zipperposition (non-portfolio): ResourceOut
 example : f '' s ∩ v = f '' (s ∩ f ⁻¹' v) := by
-  ext y; auto [mem_inter_iff, mem_image, mem_preimage]
+  ext y; duper [mem_inter_iff, mem_image, mem_preimage]
 
 example : f '' (s ∩ f ⁻¹' u) ⊆ f '' s ∩ u := by
   rintro y ⟨x, ⟨xs, fxu⟩, rfl⟩
@@ -141,13 +144,14 @@ example : f '' (s ∩ f ⁻¹' u) ⊆ f '' s ∩ u := by
 
 -- Zipperposition (non-portfolio): ResourceOut
 example : f '' (s ∩ f ⁻¹' u) ⊆ f '' s ∩ u := by
-  intro x; auto [mem_inter_iff, mem_image, mem_preimage]
+  intro x; duper [mem_inter_iff, mem_image, mem_preimage]
 
 example : s ∩ f ⁻¹' u ⊆ f ⁻¹' (f '' s ∩ u) := by
   rintro x ⟨xs, fxu⟩
   exact ⟨⟨x, xs, rfl⟩, fxu⟩
 
 -- Zipperposition (non-portfolio): 870 iterations in 1.644s
+-- TODO: Figure out why auto can solve this with maxHeartbeats 800000 but Duper can't
 set_option maxHeartbeats 800000 in -- Corresponds to 200000 heartbeats if portfolio mode were disabled
 example : s ∩ f ⁻¹' u ⊆ f ⁻¹' (f '' s ∩ u) := by
   intro x; auto [mem_inter_iff, mem_image, mem_preimage]
@@ -159,6 +163,7 @@ example : s ∪ f ⁻¹' u ⊆ f ⁻¹' (f '' s ∪ u) := by
   right; exact fxu
 
 -- Zipperposition (non-portfolio): 387 iterations in 0.638s
+-- TODO: Figure out why auto can solve this with maxHeartbeats 800000 but Duper can't
 set_option maxHeartbeats 800000 in -- Corresponds to 200000 heartbeats if portfolio mode were disabled
 example : s ∪ f ⁻¹' u ⊆ f ⁻¹' (f '' s ∪ u) := by
   intro x; auto [mem_union, mem_image, mem_preimage]
@@ -174,7 +179,7 @@ example : (f '' ⋃ i, A i) = ⋃ i, f '' A i := by
   exact ⟨x, ⟨i, xAi⟩, fxeq⟩
 
 example : (f '' ⋃ i, A i) = ⋃ i, f '' A i := by
-  ext y; simp; apply Iff.intro <;> auto
+  ext y; simp; apply Iff.intro <;> duper
 
 example : (f '' ⋂ i, A i) ⊆ ⋂ i, f '' A i := by
   intro y; simp
@@ -183,7 +188,7 @@ example : (f '' ⋂ i, A i) ⊆ ⋂ i, f '' A i := by
   exact ⟨h i, fxeq⟩
 
 example : (f '' ⋂ i, A i) ⊆ ⋂ i, f '' A i := by
-  intro y; simp; auto
+  intro y; simp; duper
 
 example (i : I) (injf : Injective f) : (⋂ i, f '' A i) ⊆ f '' ⋂ i, A i := by
   intro y; simp
@@ -199,7 +204,7 @@ example (i : I) (injf : Injective f) : (⋂ i, f '' A i) ⊆ f '' ⋂ i, A i := 
   exact fxeq
 
 example (i : I) (injf : Injective f) : (⋂ i, f '' A i) ⊆ f '' ⋂ i, A i := by
-  intro y; simp; auto [injf] d[Injective]
+  intro y; simp; duper [injf, Injective]
 
 example : (f ⁻¹' ⋃ i, B i) = ⋃ i, f ⁻¹' B i := by
   ext x
@@ -235,7 +240,7 @@ example : Injective f ↔ LeftInverse (inverse f) f :=
 -- Encounters a proof reconstruction error when monomorphization is enabled
 example : Injective f ↔ LeftInverse (inverse f) f := by
   dsimp [Injective, LeftInverse]
-  duper [inverse_spec] {monomorphization := false}
+  duper [inverse_spec] {preprocessing := no_preprocessing}
 
 example : Surjective f ↔ RightInverse (inverse f) f :=
   ⟨fun h y ↦ inverse_spec _ (h _), fun h y ↦ ⟨inverse f y, h _⟩⟩
@@ -243,7 +248,7 @@ example : Surjective f ↔ RightInverse (inverse f) f :=
 -- Zipperposition (non-portfolio): ResourceOut
 example : Surjective f ↔ RightInverse (inverse f) f := by
   dsimp [Surjective, Function.RightInverse, LeftInverse]
-  auto [inverse_spec]
+  duper [inverse_spec]
 
 end
 
@@ -267,6 +272,6 @@ theorem Cantor' : ∀ f : α → Set α, ¬Surjective f := by
   intro f surjf
   let S := { i | i ∉ f i }
   have s_spec : ∀ i, i ∈ S ↔ i ∉ f i := by intros; rfl
-  auto [surjf S, s_spec]
+  duper [surjf S, s_spec]
 
 end

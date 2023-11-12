@@ -2,19 +2,19 @@
  "packagesDir": "lake-packages",
  "packages":
  [{"git":
+   {"url": "https://github.com/leanprover-community/lean-auto.git",
+    "subDir?": null,
+    "rev": "5be5ef717e363cf6df70ae55b2a0938e49c2b18f",
+    "opts": {},
+    "name": "auto",
+    "inputRev?": "main",
+    "inherited": false}},
+  {"git":
    {"url": "https://github.com/leanprover/std4.git",
     "subDir?": null,
     "rev": "9bfbd2a12ee9cf2e159a8a6b4d1ef6c149728f66",
     "opts": {},
     "name": "std",
     "inputRev?": "main",
-    "inherited": false}},
-  {"git":
-   {"url": "https://github.com/leanprover-community/lean-auto.git",
-    "subDir?": null,
-    "rev": "1d9727e87262e9c5919aca4a837473ac4cd46396",
-    "opts": {},
-    "name": "auto",
-    "inputRev?": "main",
-    "inherited": false}}],
+    "inherited": true}}],
  "name": "Duper"}

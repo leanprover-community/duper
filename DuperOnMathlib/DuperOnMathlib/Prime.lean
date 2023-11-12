@@ -10,7 +10,7 @@ set_option auto.tptp.solver.name "zipperposition"
 
 theorem prime_def_lt_DUPER {p : ℕ} : Prime p ↔ 2 ≤ p ∧ ∀ m < p, m ∣ p → m = 1 := by
   have : 2 ≤ p → 0 < p := by intro; linarith
-  duper [*, Nat.prime_def_lt'', Nat.le_of_dvd, Nat.lt_of_le_of_ne, Nat.lt_irrefl]
+  duper [*, Nat.prime_def_lt'', Nat.le_of_dvd, Nat.lt_of_le_of_ne, Nat.lt_irrefl] {portfolioInstance := 1}
 
 #check Nat.prime_def_lt' -- Reproving this theorem using duper:
 
@@ -33,7 +33,6 @@ theorem prime_def_le_sqrt_DUPER' {p : ℕ} : Prime p ↔ 2 ≤ p ∧ ∀ m, 2 �
     rw [prime_def_lt']
     refine ⟨h.1, ?_⟩
     have h₂ : ∀ m, 2 ≤ m → m < p → m ∣ p → 2 ≤ (p / m) := by
-      duper [*, Nat.lt_irrefl, Nat.dvd_iff_div_mul_eq, Nat.mul_zero, Nat.one_mul, two_le_iff] {portfolioInstance := 0}
-    duper
-      [*, Nat.div_dvd_of_dvd, Nat.dvd_iff_div_mul_eq, le_sqrt, Nat.mul_le_mul_right, Nat.mul_le_mul_left, mul_comm, Nat.le_total]
-      {portfolioInstance := 0}
+      duper [*, Nat.lt_irrefl, Nat.dvd_iff_div_mul_eq, Nat.mul_zero, Nat.one_mul, two_le_iff] {portfolioInstance := 1}
+    duper [*, Nat.div_dvd_of_dvd, Nat.dvd_iff_div_mul_eq, le_sqrt, Nat.mul_le_mul_right,
+      Nat.mul_le_mul_left, mul_comm, Nat.le_total] {portfolioInstance := 1}
