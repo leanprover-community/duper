@@ -52,7 +52,7 @@ abbrev BackwardSimpRule := Clause → ProverM Unit
 def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
   let res ← runRuleM (rule givenClause)
   match res with
-  | none => 
+  | none =>
     return Unapplicable
   | some cs => do
     trace[Simplification.debug] "About to remove {givenClause} because it was simplified away to produce {cs.map (fun x => x.1)}"
@@ -64,10 +64,12 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
       | some givenClauseInfo =>
         -- For forward simplification rules, each result clause has the same set of generating ancestors as givenClause
         let generatingAncestors := givenClauseInfo.generatingAncestors
+        -- For forward simplification rules, each result clause has the same generation number as givenClause
+        let generationNumber := givenClauseInfo.generationNumber
         -- Register and return first result clause without adding it to the active or passive set. Add other result clauses to passive set
-        let ci ← addNewClause c proof generatingAncestors
+        let ci ← addNewClause c proof generationNumber generatingAncestors
         for (c, proof) in restCs do
-          addNewToPassive c proof generatingAncestors
+          addNewToPassive c proof generationNumber generatingAncestors
         if ci.wasSimplified then return Removed -- No need to continue working on c because we've already seen previously that it will be simplified away
         return Applied c
       | none => throwError "givenClause {givenClause} was not found"
@@ -77,16 +79,17 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSi
   let backwardSimpRes ← runRuleM do
     withoutModifyingMCtx do
       rule givenClause
-  let mut generatingAncestorsArray : Array (Array Clause) := #[]
+  let mut generatingNumberAndAncestorsArray : Array (Nat × Array Clause) := #[]
   -- It is important that we remove each clause in clausesToRemove before reading the newly generated clauses
   for (c, _) in backwardSimpRes do
     trace[Simplification.debug] "About to remove {c} because it was simplified away"
     removeClause c [givenClause] -- givenClause must be protected when we remove c and its descendants because givenClause was used to eliminate c
     match (← getAllClauses).find? c with
-    | some ci => generatingAncestorsArray := generatingAncestorsArray.push ci.generatingAncestors
+    | some ci =>
+      generatingNumberAndAncestorsArray := generatingNumberAndAncestorsArray.push (ci.generationNumber, ci.generatingAncestors)
     | none => throwError "Could not find {c} in all clauses"
-  for (generatingAncestors, _, ocp) in generatingAncestorsArray.zip backwardSimpRes do
+  for ((generationNumber, generatingAncestors), _, ocp) in generatingNumberAndAncestorsArray.zip backwardSimpRes do
     if let some (c, proof) := ocp then
-      addNewToPassive c proof generatingAncestors
+      addNewToPassive c proof generationNumber generatingAncestors
 
 end Duper

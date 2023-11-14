@@ -136,15 +136,23 @@ def ClauseStreamHeap.fairProbe {σ} [OptionMStream ProverM σ ClauseProof]
 -- Note: This function is responsible for adding results of inference rules to the passive set.
 def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
   let (given, c, proof) := cp
+  let allClauses ← getAllClauses
+  let parentClauseInfoOpts ← proof.parents.mapM
+    (fun p =>
+      match allClauses.find? p.clause with
+      | some pi => pure pi
+      | none => throwError "ProverM.postProcessInferenceResult: Unable to find parent clause {p.clause}")
+  -- c's generation number is one greater than the sum of its parents generation numbers
+  let generationNumber := parentClauseInfoOpts.foldl (fun acc parentInfo => acc + parentInfo.generationNumber) 1
   match ← immediateSimplification given c with
   | some subsumingClause => -- subsumingClause subsumes c so we can remove c and only need to add subsumingClause
     removeClause given [subsumingClause]
     if c == subsumingClause then
-      addNewToPassive c proof (proof.parents.map (fun p => p.clause))
+      addNewToPassive c proof generationNumber (proof.parents.map (fun p => p.clause))
     else
       throwError "Unable to find {subsumingClause} in resultClauses"
   | none => -- No result clause subsumes c, so add each result clause to the passive set
-    addNewToPassive c proof (proof.parents.map (fun p => p.clause))
+    addNewToPassive c proof generationNumber (proof.parents.map (fun p => p.clause))
 
 def ProverM.performInferences (rules : List (Clause → MClause → Nat → RuleM (Array ClauseStream))) (given : Clause) : ProverM Unit := do
   trace[Prover.saturate] "perform inference with given clause {given}"

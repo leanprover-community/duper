@@ -6,11 +6,30 @@ open Std
 
 namespace Duper
 
+/-- The age of each clause will be treated as a tuple of Nats. The first Nat in the tuple will be the
+    number of inference (not simplification) rules that have been used to generate the clause. The second
+    Nat in the tuple will be the clause id (lower ids are created before greater ids). This method is
+    used rather than just using the clause id (which would be a fair measure of Age) because empirically,
+    having generation number (the number of inference rules used to generate a clause) be a consideration in
+    clause selection helps problems where there are large facts that aren't clausified all at once (e.g. if
+    a clause has lit `p ↔ q`, then two clauses will be generated via clausification, and it can take a very
+    long time for the second one to be selected).
+
+    Note: This current strategy does not guarantee total fairness in the presence of inference rules that can
+    generate infinitely many children.
+
+    TODO: Rather than make the generation number the first Nat in an age heap, just add an additional generation
+    heap to be used in addition to the weight and age heaps. The age heap would then guarantee fairness and the
+    generation heap would hopefully confer the same empirical benefits that this strategy has over just using
+    clause id for fairness. -/
+def Age := Nat × Nat
+def Age.le (x y : Age) : Bool := x.1 < y.1 || (x.1 = y.1 && x.2 ≤ y.2)
+
 -- `StrategyHeap` models GivenClause Selection
 structure StrategyHeap (α : Type u) {β : Type} [BEq α] [Hashable α] where
   set             : HashSet α := HashSet.empty -- Set of elements of `α`
   weightheap      : BinomialHeap (Nat × α) fun c d => c.1 ≤ d.1 := BinomialHeap.empty
-  ageheap         : BinomialHeap (Nat × α) fun c d => c.1 ≤ d.1 := BinomialHeap.empty
+  ageheap         : BinomialHeap (Age × α) (fun c d => Age.le c.1 d.1) := BinomialHeap.empty
   status          : β
   strategy        : β → Bool × β
   deriving Inhabited
@@ -28,7 +47,7 @@ def StrategyHeap.toList [BEq α] [Hashable α]
   (sh : StrategyHeap α (β:=β)) := sh.set.toList
 
 @[inline] def StrategyHeap.insert [BEq α] [Hashable α]
-  (sh : StrategyHeap α (β:=β)) (x : α) (weight age : Nat) : StrategyHeap α (β:=β) :=
+  (sh : StrategyHeap α (β:=β)) (x : α) (weight : Nat) (age : Age) : StrategyHeap α (β:=β) :=
   {sh with set := sh.set.insert x,
            ageheap := sh.ageheap.insert (age, x),
            weightheap := sh.weightheap.insert (weight, x)}
@@ -40,31 +59,41 @@ def StrategyHeap.toList [BEq α] [Hashable α]
 @[inline] partial def StrategyHeap.pop? [BEq α] [Hashable α]
   (sh : StrategyHeap α (β:=β)) : Option (α × StrategyHeap α (β:=β)) := Id.run <| do
   let (hid, status') := sh.strategy sh.status
-  let mut heap := if hid then sh.weightheap else sh.ageheap
-  while true do
-    if let some (x, h') := heap.deleteMin then
-      let x := x.2
-      if sh.set.contains x then
-        if hid then
+  if hid then
+    let mut heap := sh.weightheap
+    while true do
+      if let some (x, h') := heap.deleteMin then
+        let x := x.2
+        if sh.set.contains x then
           return (x, {sh with set := sh.set.erase x,
                               weightheap := heap,
                               status := status'})
         else
+          heap := h'
+      else
+        break
+    return none
+  else
+    let mut heap := sh.ageheap
+    while true do
+      if let some (x, h') := heap.deleteMin then
+        let x := x.2
+        if sh.set.contains x then
           return (x, {sh with set := sh.set.erase x,
                               ageheap := heap,
                               status := status'})
+        else
+          heap := h'
       else
-        heap := h'
-    else
-      break
-  return none
+        break
+    return none
 
 -- The clause heap, for givenClause selection
 -- The size of `heaps` should be 2. The first heap is the
 --   weight heap and the second heap is the age heap
 abbrev FairAgeHeap (α : Type u) [BEq α] [Hashable α]
   := StrategyHeap α (β:=Nat)
-  
+
 abbrev FairAgeHeap.empty (α : Type u) [BEq α] [Hashable α] (fN : Nat) : FairAgeHeap α :=
   -- status : fairnessCounter
   -- true   : weight heap
@@ -75,7 +104,7 @@ abbrev FairAgeHeap.empty (α : Type u) [BEq α] [Hashable α] (fN : Nat) : FairA
 private def heap₁ := Id.run <| do
   let mut fah := FairAgeHeap.empty Nat 3
   for i in List.range 40 do
-    fah := fah.insert i (2 * i) (100 - (i - 20) * (i - 20))
+    fah := fah.insert i (2 * i) (0, 100 - (i - 20) * (i - 20))
   return fah
 
 private def testheap₁ : IO Unit := do

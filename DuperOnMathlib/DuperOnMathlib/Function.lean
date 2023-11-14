@@ -59,11 +59,8 @@ example : f '' (f ⁻¹' u) ⊆ u := by
   exact xmem
 
 -- Zipperposition (non-portfolio): 27 iterations in 0.083s
--- TODO: Figure out why auto can solve this with maxHeartbeats 1000000 and kStep 100 but duper can't
-set_option maxHeartbeats 1000000 in
-set_option kStep 100 in
 example : f '' (f ⁻¹' u) ⊆ u := by
-  auto [subset_def, mem_image, mem_preimage]
+  duper [subset_def, mem_image, mem_preimage] {portfolioInstance := 2}
 
 example (h : Surjective f) : u ⊆ f '' (f ⁻¹' u) := by
   intro y yu
@@ -151,7 +148,9 @@ example : s ∩ f ⁻¹' u ⊆ f ⁻¹' (f '' s ∩ u) := by
   exact ⟨⟨x, xs, rfl⟩, fxu⟩
 
 -- Zipperposition (non-portfolio): 870 iterations in 1.644s
--- TODO: Figure out why auto can solve this with maxHeartbeats 800000 but Duper can't
+/- Currently, auto will solve this but duper won't. This could be for a number of reasons, but the most
+   likely one is that auto's premise selection (which only sends duper the facts that Zipperposition used
+   in its proof) is critically helpful for this problem. -/
 set_option maxHeartbeats 800000 in -- Corresponds to 200000 heartbeats if portfolio mode were disabled
 example : s ∩ f ⁻¹' u ⊆ f ⁻¹' (f '' s ∩ u) := by
   intro x; auto [mem_inter_iff, mem_image, mem_preimage]
@@ -163,7 +162,9 @@ example : s ∪ f ⁻¹' u ⊆ f ⁻¹' (f '' s ∪ u) := by
   right; exact fxu
 
 -- Zipperposition (non-portfolio): 387 iterations in 0.638s
--- TODO: Figure out why auto can solve this with maxHeartbeats 800000 but Duper can't
+/- Currently, auto will solve this but duper won't. This could be for a number of reasons, but the most
+   likely one is that auto's premise selection (which only sends duper the facts that Zipperposition used
+   in its proof) is critically helpful for this problem. -/
 set_option maxHeartbeats 800000 in -- Corresponds to 200000 heartbeats if portfolio mode were disabled
 example : s ∪ f ⁻¹' u ⊆ f ⁻¹' (f '' s ∪ u) := by
   intro x; auto [mem_union, mem_image, mem_preimage]

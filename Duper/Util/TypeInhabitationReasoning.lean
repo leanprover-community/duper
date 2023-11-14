@@ -42,7 +42,7 @@ def mkRemoveVanishedVarsProof (premises : List Expr) (parents : List ProofParent
 
 /-- mkDeriveNewNonemptyTypeProof1 expects to receive one parent of the form `Nonempty (t1 → t2) = True` where `t1` is
     a type in verifiedInhabitedTypes (and is therefore a type whose inhabitation status can be confirmed by Lean.Meta.findInstance).
-    
+
     Note: Right now, mkDeriveNewNonemptyTypeProof1 does not support lemmas of the form `True = Nonempty t`, and I think
     this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
     it should be straightforward to extend mkDeriveNewNonemptyTypeProof1 to support that case. -/
@@ -63,7 +63,7 @@ def mkDeriveNewNonemptyTypeProof1 (premises : List Expr) (parents : List ProofPa
 
 /-- mkDeriveNewNonemptyTypeProof2 expects to receive two parents, first a clause that says `Nonempty (t1 → t2) = True` and second
     a clause that says `Nonempty t1 = True`.
-    
+
     Note: Right now, mkDeriveNewNonemptyTypeProof2 does not support lemmas of the form `True = Nonempty t`, and I think
     this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
     it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
@@ -117,7 +117,7 @@ def mkDeriveNewNonemptyTypeProof2 (premises : List Expr) (parents : List ProofPa
 
 /-- mkDeriveNewNonemptyTypeProof3 expects to receive one parent of the form `Nonempty (t1 × t2) = True` and yields a proof
     of `Nonempty t1 = True`.
-    
+
     Note: Right now, mkDeriveNewNonemptyTypeProof3 does not support lemmas of the form `True = Nonempty t`, and I think
     this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
     it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
@@ -135,7 +135,7 @@ def mkDeriveNewNonemptyTypeProof3 (premises : List Expr) (parents : List ProofPa
 
 /-- mkDeriveNewNonemptyTypeProof4 expects to receive one parent of the form `Nonempty (t1 × t2) = True` and yields a proof
     of `Nonempty t2 = True`.
-    
+
     Note: Right now, mkDeriveNewNonemptyTypeProof4 does not support lemmas of the form `True = Nonempty t`, and I think
     this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
     it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
@@ -153,7 +153,7 @@ def mkDeriveNewNonemptyTypeProof4 (premises : List Expr) (parents : List ProofPa
 
 /-- mkDeriveNewNonemptyTypeProof5 expects to receive one parent of the form `Nonempty (PProd t1 t2) = True` and yields a proof
     of `Nonempty t1 = True`.
-    
+
     Note: Right now, mkDeriveNewNonemptyTypeProof5 does not support lemmas of the form `True = Nonempty t`, and I think
     this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
     it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
@@ -171,7 +171,7 @@ def mkDeriveNewNonemptyTypeProof5 (premises : List Expr) (parents : List ProofPa
 
 /-- mkDeriveNewNonemptyTypeProof6 expects to receive one parent of the form `Nonempty (PProd t1 t2) = True` and yields a proof
     of `Nonempty t2 = True`.
-    
+
     Note: Right now, mkDeriveNewNonemptyTypeProof6 does not support lemmas of the form `True = Nonempty t`, and I think
     this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
     it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
@@ -189,7 +189,7 @@ def mkDeriveNewNonemptyTypeProof6 (premises : List Expr) (parents : List ProofPa
 
 /-- mkDeriveNewNonemptyTypeProof7 expects to receive one parent of the form `Nonempty p = True` where `p : Prop`.
     mkDeriveNewNonemptyTypeProof6 yields a proof that `p = True`.
-    
+
     Note: Right now, mkDeriveNewNonemptyTypeProof7 does not support lemmas of the form `True = Nonempty t`, and I think
     this is fine because Duper should never generate clauses of that form. However, if for some reason this ever becomes a problem,
     it should be straightforward to extend mkDeriveNewNonemptyTypeProof2 to support that case. -/
@@ -290,7 +290,7 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
     that the clause should not be used to simplify away any other clauses. Otherwise, `removeVanishedVars` returns the updated
     clause and true. The only case where `removeVanishedVars` will return none is if it generates a clause that has already
     been simplified away (and therefore does not need to be re-evaluated).
-    
+
     Note: removeVanishedVars is not written as a forward simplification rule (even though it functions similarly) because
     it uniquely interacts with ProverM's verifiedInhabitedTypes and potentiallyUninhabitedTypes. -/
 def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)) := do
@@ -306,7 +306,8 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)
     match (← getAllClauses).find? givenClause with
     | some givenClauseInfo =>
       let generatingAncestors := givenClauseInfo.generatingAncestors
-      let ci ← addNewClause c cProof generatingAncestors
+      let generationNumber := givenClauseInfo.generationNumber
+      let ci ← addNewClause c cProof generationNumber generatingAncestors
       if ci.wasSimplified then return none -- No need to continue working on c because we've already seen previously that it will be simplified away
       return some (c, false)
     | none => throwError "givenClause {givenClause} was not found"
@@ -315,7 +316,8 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)
     match (← getAllClauses).find? givenClause with
     | some givenClauseInfo =>
       let generatingAncestors := givenClauseInfo.generatingAncestors
-      let ci ← addNewClause c cProof generatingAncestors
+      let generationNumber := givenClauseInfo.generationNumber
+      let ci ← addNewClause c cProof generationNumber generatingAncestors
       if ci.wasSimplified then return none -- No need to continue working on c because we've already seen previously that it will be simplified away
       return some (c, true)
     | none => throwError "givenClause {givenClause} was not found"
@@ -367,7 +369,8 @@ def deriveNewNonemptyTypesHelper (abstractedT : AbstractMVarsResult) (givenClaus
               match (← getAllClauses).find? c with
               | some cInfo =>
                 let generatingAncestors := cInfo.generatingAncestors ++ givenClauseInfo.generatingAncestors
-                addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+                let generationNumber := givenClauseInfo.generationNumber
+                addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
               | none => throwError "{c} from verifiedNonemptyTypes was not found"
             | none => throwError "givenClause {givenClause} was not found"
         | _ => throwError "Inconsistency between original and abstracted type"
@@ -378,7 +381,7 @@ def deriveNewNonemptyTypesHelper (abstractedT : AbstractMVarsResult) (givenClaus
     - If `abstracted.expr` has the form `t1 × t2` (where `×` denotes either `Prod` or `PProd`) then derive `Nonempty t1` and `Nonempty t2`
     - If `abstractedT.expr` has the form `t1 → t2` and `t1` is Inhabited or Nonempty, then derive `Nonempty t2`
     - If any type in verifiedNonemptyTypes has the form `t1 → t2` and `abstractedT` matches `t1`, then derive `Nonempty t2`
-    
+
     Jointly, these rules keep verifiedNonemptyTypes saturated with respect to application in the long run. Temporarily,
     verifiedNonemptyTypes can have a state where `α` `α → β` are both in verifiedNonemptyTypes but `β` is not, but this
     will only occur after `deriveNewNonemptyTypes` returns if either `Nonempty α` or `Nonempty (α → β)` was generated by
@@ -406,7 +409,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
         match (← getAllClauses).find? givenClause with
         | some givenClauseInfo =>
           let generatingAncestors := givenClauseInfo.generatingAncestors
-          addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+          let generationNumber := givenClauseInfo.generationNumber
+          addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
         | none => throwError "givenClause {givenClause} was not found"
       else
         match ← deriveNonempty t1' verifiedNonemptyTypes with
@@ -423,7 +427,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
           match (← getAllClauses).find? givenClause with
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
-            addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+            let generationNumber := givenClauseInfo.generationNumber
+            addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
           | none => throwError "givenClause {givenClause} was not found"
         | none =>
           if potentinallyUninhabitedTypes.contains t1' then pure ()
@@ -442,7 +447,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
               match (← getAllClauses).find? givenClause with
               | some givenClauseInfo =>
                 let generatingAncestors := givenClauseInfo.generatingAncestors
-                addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+                let generationNumber := givenClauseInfo.generationNumber
+                addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
               | none => throwError "givenClause {givenClause} was not found"
             | none => -- We learned that Meta.findInstance can't find an instance for t1 so we update potentinallyUninhabitedTypes
               setPotentiallyUninhabitedTypes (t1' :: potentinallyUninhabitedTypes)
@@ -458,7 +464,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       match (← getAllClauses).find? givenClause with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
-        addNewToPassive t1NonemptyClause t1NonemptyProof generatingAncestors
+        let generationNumber := givenClauseInfo.generationNumber
+        addNewToPassive t1NonemptyClause t1NonemptyProof generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     let t2' ← abstractMVars t2
     if !(verifiedInhabitedTypes.contains t2') && !(verifiedNonemptyTypes.any (fun (t, _) => t == t2')) then
@@ -470,7 +477,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       match (← getAllClauses).find? givenClause with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
-        addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+        let generationNumber := givenClauseInfo.generationNumber
+        addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     deriveNewNonemptyTypesHelper abstractedT givenClause
   | Expr.app (Expr.app (Expr.const ``PProd lvls) t1) t2 =>
@@ -484,7 +492,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       match (← getAllClauses).find? givenClause with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
-        addNewToPassive t1NonemptyClause t1NonemptyProof generatingAncestors
+        let generationNumber := givenClauseInfo.generationNumber
+        addNewToPassive t1NonemptyClause t1NonemptyProof generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     let t2' ← abstractMVars t2
     if !(verifiedInhabitedTypes.contains t2') && !(verifiedNonemptyTypes.any (fun (t, _) => t == t2')) then
@@ -496,7 +505,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       match (← getAllClauses).find? givenClause with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
-        addNewToPassive t2NonemptyClause t2NonemptyProof generatingAncestors
+        let generationNumber := givenClauseInfo.generationNumber
+        addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     deriveNewNonemptyTypesHelper abstractedT givenClause
   | _ =>
@@ -509,7 +519,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       match (← getAllClauses).find? givenClause with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
-        addNewToPassive originalTEqTrueClause originalTEqTrueProof generatingAncestors
+        let generationNumber := givenClauseInfo.generationNumber
+        addNewToPassive originalTEqTrueClause originalTEqTrueProof generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     deriveNewNonemptyTypesHelper abstractedT givenClause
 
@@ -548,13 +559,15 @@ def registerNewNonemptyTypes (givenClause : Clause) : ProverM Unit := do
           match (← getAllClauses).find? c with
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
-            addNewToPassive newC newCProof generatingAncestors
+            let generationNumber := givenClauseInfo.generationNumber
+            addNewToPassive newC newCProof generationNumber generatingAncestors
           | none => throwError "givenClause {givenClause} was not found"
         | NotVacuous (newC, newCProof) => -- Running removeVanishedVarsHelper generated a new clause that can directly be added to the passive set
           removeClause c -- We remove c and its descendants before readding newC to the passiveSet because newC makes c redundant
           match (← getAllClauses).find? c with
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
-            addNewToPassive newC newCProof generatingAncestors
+            let generationNumber := givenClauseInfo.generationNumber
+            addNewToPassive newC newCProof generationNumber generatingAncestors
           | none => throwError "givenClause {givenClause} was not found"
     setPotentiallyVacuousClauses potentiallyVacuousClauses
