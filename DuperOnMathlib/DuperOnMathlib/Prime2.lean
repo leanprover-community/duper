@@ -3,9 +3,6 @@ import Mathlib.Data.Nat.Prime
 
 set_option includeExpensiveRules false
 
-/- Duper can solve this theorem when `preprocessFact` in Util.Reduction.lean is disabled (set to the identity function).
-   When `preprocessFact` runs as it usually does, Duper times out when attempting to solve this theorem. Previously,
-   there were PANIC error messages caused by Duper's precCompare being incomplete, but those issues have since been resolved. -/
 theorem prime_def_lt''_new {p : ℕ} : Nat.Prime p ↔ 2 ≤ p ∧ ∀ (m) (_ : m ∣ p), m = 1 ∨ m = p := by
   have h1 : (1 : Nat) < 2 := @one_lt_two Nat _ _ _ _ _
   have h2 : ∀ {a b c : ℕ}, a < b → b ≤ c → a < c := @LT.lt.trans_le Nat _
@@ -23,6 +20,8 @@ theorem prime_def_lt''_new {p : ℕ} : Nat.Prime p ↔ 2 ≤ p ∧ ∀ (m) (_ : 
 
 set_option reduceInstances false
 
+-- Previously, turning reduceInstances off was sufficient to solve this problem.
+-- TODO: Look into why duper no longer solves it
 theorem prime_def_lt''_new2 {p : ℕ} : Nat.Prime p ↔ 2 ≤ p ∧ ∀ (m) (_ : m ∣ p), m = 1 ∨ m = p := by
   have h1 : (1 : Nat) < 2 := @one_lt_two Nat _ _ _ _ _
   have h2 : ∀ {a b c : ℕ}, a < b → b ≤ c → a < c := @LT.lt.trans_le Nat _

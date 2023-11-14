@@ -58,9 +58,8 @@ example : f '' (f ⁻¹' u) ⊆ u := by
   rintro y ⟨x, xmem, rfl⟩
   exact xmem
 
--- Zipperposition (non-portfolio): 27 iterations in 0.083s
 example : f '' (f ⁻¹' u) ⊆ u := by
-  duper [subset_def, mem_image, mem_preimage] {portfolioInstance := 2}
+  duper [subset_def, mem_image, mem_preimage]
 
 example (h : Surjective f) : u ⊆ f '' (f ⁻¹' u) := by
   intro y yu

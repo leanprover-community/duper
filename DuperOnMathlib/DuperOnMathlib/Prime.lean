@@ -8,9 +8,11 @@ set_option auto.tptp.solver.name "zipperposition"
 
 #check Nat.prime_def_lt -- Reproving this theorem using duper:
 
+/- Note: This example struggles when full preprocessing is enabled. It can be solved reasonably quickly
+   if preprocessing is set to monomorphization or no_preprocessing -/
 theorem prime_def_lt_DUPER {p : ℕ} : Prime p ↔ 2 ≤ p ∧ ∀ m < p, m ∣ p → m = 1 := by
   have : 2 ≤ p → 0 < p := by intro; linarith
-  duper [*, Nat.prime_def_lt'', Nat.le_of_dvd, Nat.lt_of_le_of_ne, Nat.lt_irrefl] {portfolioInstance := 9}
+  duper [*, Nat.prime_def_lt'', Nat.le_of_dvd, Nat.lt_of_le_of_ne, Nat.lt_irrefl] {preprocessing := monomorphization}
 
 #check Nat.prime_def_lt' -- Reproving this theorem using duper:
 
