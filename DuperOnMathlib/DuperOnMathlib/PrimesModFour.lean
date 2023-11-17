@@ -6,22 +6,17 @@ import Mathlib.Tactic
 import Mathlib.Tactic.IntervalCases
 import DuperOnMathlib.DuperInterface
 
+set_option reduceInstances false
 
 lemma composite_of_not_prime {n : ℕ} (h : 2 ≤ n) (hnp : ¬ n.Prime) :
     ∃ m k, n = m * k ∧ 1 < m ∧ 1 < k ∧ m < n ∧ k < n := by
   rw [Nat.prime_def_lt] at hnp
   have : ∃ m, m ∣ n ∧ m < n ∧ m ≠ 1 := by
-    simpa [h] using hnp
+    duper [h, hnp]
   rcases this with ⟨m, mdvd, mlt, mne⟩
   have neq : n = m * (n / m) := by symm; rwa [Nat.mul_div_eq_iff_dvd]
   use m, n / m, neq
-  have mge1 : 1 < m := by
-    have : 1 ≤ m ↔ 0 < m := Iff.refl _
-
-    -- nice try...
-    -- duper [lt_of_le_of_ne, Ne.symm, Nat.pos_of_ne_zero, mdvd, -- zero_dvd_iff, ne_of_lt, ne_eq, this, mlt, mne]
-
-    -- a fully manual proof
+  have mgt1 : 1 < m := by
     -- apply lt_of_le_of_ne _ (Ne.symm mne)
     -- rw [ne_eq] at mne
     -- apply Nat.pos_of_ne_zero
@@ -29,32 +24,25 @@ lemma composite_of_not_prime {n : ℕ} (h : 2 ≤ n) (hnp : ¬ n.Prime) :
     -- have := ne_of_lt mlt
     -- simp only [zero_dvd_iff] at mdvd
     -- simp only [mdvd] at this
-
-    apply lt_of_le_of_ne _ (Ne.symm mne)
-    rw [ne_eq] at mne
-    apply Nat.pos_of_ne_zero
-    rintro rfl
-    have := ne_of_lt mlt
-    -- this doesn't work:
-    -- duper [zero_dvd_iff, mdvd, this]
-    -- but this does:
-    duper [zero_dvd_iff.mp mdvd, this]
-  use mge1
-  have ndivmge1 : 1 < n / m := by
-    -- this doesn't work
-    -- duper [lt_of_mul_lt_mul_left, Nat.zero_le m, mul_one, neq, mlt]
-    apply lt_of_mul_lt_mul_left _ (Nat.zero_le m)
-    -- rw [mul_one, ←neq]; exact mlt
-    -- this doesn't work:
+    have : 1 ≤ m ↔ 0 < m := Iff.refl _
+    duper [zero_dvd_iff, mdvd, ne_of_lt, mlt, Nat.pos_of_ne_zero, ne_eq, this, lt_of_le_of_ne, mne]
+  use mgt1
+  have ndivmgt1 : 1 < n / m := by
+    duper [lt_of_mul_lt_mul_left, Nat.zero_le, mul_one, neq, mlt]
+    -- this also works:
+    -- apply lt_of_mul_lt_mul_left _ (Nat.zero_le m)
     -- duper [mul_one, neq, mlt]
-    -- but this does:
-    duper [mul_one m, neq, mlt]
-  use ndivmge1
+    -- but this fails:
+    -- apply lt_of_mul_lt_mul_left _ (Nat.zero_le m)
+    -- duper [mul_one, neq, mlt, lt_of_mul_lt_mul_left]
+  use ndivmgt1
   constructor
-  . rw [←mul_one m, neq]
-    exact Nat.mul_lt_mul_of_pos_left ndivmge1 (zero_lt_one.trans mge1)
+  . have : 0 < m := zero_lt_one.trans mgt1
+    duper [mul_one, neq, Nat.mul_lt_mul_of_pos_left, ndivmgt1, this]
+  -- also works:
+  -- duper [mul_one, neq, Nat.mul_lt_mul_of_pos_left, ndivmgt1, zero_lt_one, lt_trans, gt_iff_lt, mgt1]
   have : 1 * (n / m) < m * (n / m) := by
-    apply Nat.mul_lt_mul_of_pos_right mge1 (zero_lt_one.trans ndivmge1)
+    duper [Nat.mul_lt_mul_of_pos_right, mgt1, zero_lt_one.trans ndivmgt1]
   rwa [one_mul, ←neq] at this
 
 lemma composite_of_not_prime_alt (n : ℕ) (h : 2 ≤ n) (hnp : ¬ n.Prime) :
@@ -64,17 +52,17 @@ lemma composite_of_not_prime_alt (n : ℕ) (h : 2 ≤ n) (hnp : ¬ n.Prime) :
     intros m k neq mne1
     have : m ≠ 0 := by
       contrapose! nne0
-      simp [neq, nne0]
-    have mge1 : 1 < m := by
+      simp only [neq, nne0, zero_mul]
+    have mgt1 : 1 < m := by
       apply lt_of_le_of_ne _ (Ne.symm mne1)
       rwa [Nat.succ_le_iff, Nat.pos_iff_ne_zero]
-    use mge1
+    use mgt1
     have : 0 < k := by
       rw [Nat.pos_iff_ne_zero]
       contrapose! nne0
       simp [neq, nne0]
     rw [←one_mul k, neq]
-    apply Nat.mul_lt_mul_of_pos_right mge1 this
+    apply Nat.mul_lt_mul_of_pos_right mgt1 this
   have nne1 : n ≠ 1 := by linarith
   have : ∃ m, m ≠ 1 ∧ ∃ k, n = m * k ∧ k ≠ 1 := by
     simpa [←Nat.irreducible_iff_nat_prime, irreducible_iff, nne1, not_or] using hnp
@@ -152,21 +140,21 @@ lemma composite_of_not_prime {n : ℕ} (h : 2 ≤ n) (hnp : ¬ n.Prime) :
   rcases this with ⟨m, mdvd, mlt, mne⟩
   have neq : n = m * (n / m) := by symm; rwa [Nat.mul_div_eq_iff_dvd]
   use m, n / m, neq
-  have mge1 : 1 < m := by
+  have mgt1 : 1 < m := by
     apply lt_of_le_of_ne _ (Ne.symm mne)
     apply Nat.pos_of_ne_zero
     rintro rfl
     simp at mdvd; linarith
-  use mge1
-  have ndivmge1 : 1 < n / m := by
+  use mgt1
+  have ndivmgt1 : 1 < n / m := by
     apply lt_of_mul_lt_mul_left _ (Nat.zero_le m)
     rwa [mul_one, ←neq]
-  use ndivmge1
+  use ndivmgt1
   constructor
   . rw [←mul_one m, neq]
-    exact Nat.mul_lt_mul_of_pos_left ndivmge1 (zero_lt_one.trans mge1)
+    exact Nat.mul_lt_mul_of_pos_left ndivmgt1 (zero_lt_one.trans mgt1)
   have : 1 * (n / m) < m * (n / m) := by
-    apply Nat.mul_lt_mul_of_pos_right mge1 (zero_lt_one.trans ndivmge1)
+    apply Nat.mul_lt_mul_of_pos_right mgt1 (zero_lt_one.trans ndivmgt1)
   rwa [one_mul, ←neq] at this
 
 lemma composite_of_not_prime_alt (n : ℕ) (h : 2 ≤ n) (hnp : ¬ n.Prime) :
@@ -177,16 +165,16 @@ lemma composite_of_not_prime_alt (n : ℕ) (h : 2 ≤ n) (hnp : ¬ n.Prime) :
     have : m ≠ 0 := by
       contrapose! nne0
       simp [neq, nne0]
-    have mge1 : 1 < m := by
+    have mgt1 : 1 < m := by
       apply lt_of_le_of_ne _ (Ne.symm mne1)
       rwa [Nat.succ_le_iff, Nat.pos_iff_ne_zero]
-    use mge1
+    use mgt1
     have : 0 < k := by
       rw [Nat.pos_iff_ne_zero]
       contrapose! nne0
       simp [neq, nne0]
     rw [←one_mul k, neq]
-    apply Nat.mul_lt_mul_of_pos_right mge1 this
+    apply Nat.mul_lt_mul_of_pos_right mgt1 this
   have nne1 : n ≠ 1 := by linarith
   have : ∃ m, m ≠ 1 ∧ ∃ k, n = m * k ∧ k ≠ 1 := by
     simpa [←Nat.irreducible_iff_nat_prime, irreducible_iff, nne1, not_or] using hnp
@@ -253,4 +241,4 @@ theorem infinite_primes_three_mod_four : ∀ s : Finset ℕ,
   have : 2 ≤ p := primep.two_le
   linarith
 
-end
+end original
