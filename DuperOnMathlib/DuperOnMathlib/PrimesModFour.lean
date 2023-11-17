@@ -6,8 +6,6 @@ import Mathlib.Tactic
 import Mathlib.Tactic.IntervalCases
 import DuperOnMathlib.DuperInterface
 
-set_option reduceInstances false
-
 lemma composite_of_not_prime {n : ℕ} (h : 2 ≤ n) (hnp : ¬ n.Prime) :
     ∃ m k, n = m * k ∧ 1 < m ∧ 1 < k ∧ m < n ∧ k < n := by
   rw [Nat.prime_def_lt] at hnp

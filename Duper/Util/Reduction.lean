@@ -9,8 +9,13 @@ open Core
 initialize
   registerTraceClass `Preprocessing.debug
 
+/-- Note: This option should never be enabled if Duper will later call the monomorphization procedure
+    because attempting to reduce typeclass instances can interfere with monomorphization. It also does
+    not appear to provide observable benefit even when the monomorphization procedure is not being called,
+    so it is currently disabled at all times. The option is just left around (rather than deleted entirely)
+    for testing purposes. -/
 register_option reduceInstances : Bool := {
-  defValue := true
+  defValue := false
   descr := "Whether to eliminate mdata and apply whnf to instances"
 }
 

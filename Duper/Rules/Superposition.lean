@@ -35,6 +35,10 @@ register_option superpositionWatchClause2 : Nat := {
 def getSimultaneousSuperposition (opts : Options) : Bool :=
   simultaneousSuperposition.get opts
 
+def getSimultaneousSuperpositionM : CoreM Bool := do
+  let opts ← getOptions
+  return getSimultaneousSuperposition opts
+
 def getEnableSuperpositionWatchClauses (opts : Options) : Bool :=
   enableSuperpositionWatchClauses.get opts
 
@@ -61,7 +65,7 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
-    
+
     let mainParentLits := if givenIsMain then parentsLits[1]! else parentsLits[0]!
     let sideParentLits := if givenIsMain then parentsLits[0]! else parentsLits[1]!
     let appliedMainPremise := if givenIsMain then appliedPremises[1]! else appliedPremises[0]!
@@ -126,7 +130,7 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
-          let eq := 
+          let eq :=
             if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
             else heq
           let mut caseProofsMain : Array Expr := Array.mkEmpty mainParentLits.size
@@ -211,7 +215,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
         if (enableWCTrace && ((mainPremiseNum == wc1 && sidePremiseNum == wc2) || (mainPremiseNum == wc2 && sidePremiseNum == wc1))) then
           trace[Rule.superposition] "Returning none due to mainPremiseFinalEligibility (mainPremiseNum: {mainPremiseNum}, sidePremiseNum: {sidePremiseNum})"
         return none
-  
+
       -- Even though we did preliminary comparison checks before unification, we still need to do comparison checks after unification
       let sidePremiseLhs ← betaEtaReduceInstMVars sidePremiseLit.lhs -- Need to betaEtaReduce for condition 9 check
       let sidePremiseRhs ← betaEtaReduceInstMVars sidePremiseLit.rhs -- Need to betaEtaReduce for condition 10 check
@@ -220,7 +224,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
         if (enableWCTrace && ((mainPremiseNum == wc1 && sidePremiseNum == wc2) || (mainPremiseNum == wc2 && sidePremiseNum == wc1))) then
           trace[Rule.superposition] "Returning none due to sidePremiseComparison (mainPremiseNum: {mainPremiseNum}, sidePremiseNum: {sidePremiseNum})"
         return none
-  
+
       let mainPremiseLhs := mainPremise.lits[mainPremisePos.lit]!.getSide mainPremisePos.side
       let mainPremiseRhs := mainPremise.lits[mainPremisePos.lit]!.getOtherSide mainPremisePos.side
       let mainPremiseComparison ← compare mainPremiseLhs mainPremiseRhs false
@@ -271,6 +275,13 @@ def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie)
   (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
+
+  let enableWCTrace ← getEnableSuperpositionWatchClausesM
+  let wc1 ← getSuperpositionWatchClause1M
+  let wc2 ← getSuperpositionWatchClause2M
+  if (enableWCTrace && (sidePremiseNum == wc1 || sidePremiseNum == wc2)) then
+    trace[Rule.superposition] "Potential partners for {sidePremiseLit.lhs} in side clause {sidePremise.lits} (num : {sidePremiseNum}): {potentialPartners}"
+
   let mut streams := #[]
   for (mainClauseNum, mainClause, mainPos, mainClauseEligibilityOpt) in potentialPartners do
     let mainClauseEligibility ←
@@ -287,6 +298,13 @@ def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie)
 def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
   (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseEligibility : Eligibility) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
   let potentialPartners ← sidePremiseIdx.getUnificationPartners e
+
+  let enableWCTrace ← getEnableSuperpositionWatchClausesM
+  let wc1 ← getSuperpositionWatchClause1M
+  let wc2 ← getSuperpositionWatchClause2M
+  if (enableWCTrace && (mainPremiseNum == wc1 || mainPremiseNum == wc2)) then
+    trace[Rule.superposition] "Potential partners for {e} in main clause {mainPremise.lits} (num : {mainPremiseNum}): {potentialPartners}"
+
   let mut streams := #[]
   for (sideClauseNum, sideClause, sidePos, sideClauseEligibilityOpt) in potentialPartners do
     let sideClauseEligibility ←
@@ -303,8 +321,7 @@ def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (
 def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (given : Clause) (givenClause : MClause)
   (givenClauseNum : Nat) : RuleM (Array ClauseStream) := do
   -- trace[Rule.superposition] "Superposition inferences with {givenClause.lits}"
-  let opts ← getOptions
-  let simultaneousSuperposition := getSimultaneousSuperposition opts
+  let simultaneousSuperposition ← getSimultaneousSuperpositionM
   let mut streams := #[]
   -- With given clause as side premise:
   for i in [:givenClause.lits.size] do

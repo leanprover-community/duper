@@ -5,7 +5,7 @@ package «duperOnMathlib» {
   -- add any package configuration options here
 }
 
-require «mathlib» from git "https://github.com/leanprover-community/mathlib4" @ "81dd376a02781030ead59ee35ca5334a7fccc527"
+require «mathlib» from git "https://github.com/leanprover-community/mathlib4" @ "4e5518cafc0efd7c7b7d287fa960fce5201908db"
 
 require «Duper» from "../"
 

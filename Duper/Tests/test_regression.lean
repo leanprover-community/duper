@@ -680,7 +680,7 @@ example (h : Nonempty (α × β)) : Nonempty α := by duper [*]
 example (h : Nonempty (α × β)) : Nonempty β := by duper [*]
 
 -- Test duper's ability to deal with projections
-example (h1 : ∀ x : Nat, x > 0 → ∃ y : Fin x, y.1 = 0) (h2 : 3 > 0) : ∃ z : Fin 3, z.1 = 0 := by
+theorem proj_test (h1 : ∀ x : Nat, x > 0 → ∃ y : Fin x, y.1 = 0) (h2 : 3 > 0) : ∃ z : Fin 3, z.1 = 0 := by
   duper [h1, h2]
 
 def sk (a b : Nat) (c : Nat × Nat) (h1 : c = (a, b)) : c.1 = a := by

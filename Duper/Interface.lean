@@ -64,6 +64,7 @@ inductive PreprocessingOption where
   | FullPreprocessing
   | Monomorphization
   | NoPreprocessing
+  deriving DecidableEq
 
 open PreprocessingOption
 
