@@ -17,7 +17,7 @@ require duper from git "https://github.com/leanprover-community/duper.git"
 Then, make sure that your `lean-toolchain` file contains the same version of Lean 4 as Duper and that if your project imports [std4](https://github.com/leanprover/std4.git), then it uses the same version of std4 as [Auto](https://github.com/leanprover-community/lean-auto.git). This step is necessary because Duper depends on Auto which depends on std4, so errors can arise if your project attempts to import a version of std4 different from the one imported by Duper.
 
 After these steps are taken, the following testfile should successfully compile:
-```
+```lean
 import Duper.Tactic
 
 example : True := by duper
