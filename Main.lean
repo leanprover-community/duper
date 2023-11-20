@@ -2,7 +2,6 @@ import Duper.Tactic
 import Duper.TPTP -- Note: this import is needed to make sure that TPTP is compiled for the github actions
 import Duper.TPTPParser.PrattParser
 
-
 open Lean
 open Lean.Meta
 open Lean.Elab.Tactic
@@ -33,10 +32,10 @@ def run (path : String) (github : Bool) : MetaM Unit := do
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Exists, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) prop, isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Duper.Skolem.some, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) $ ← mkArrow (mkBVar 1) (mkBVar 2), isUnsafe := false})
   let env ← ofExceptKernelException $ env.addDecl (.axiomDecl {name := `Nonempty, levelParams := [`u], type := mkForall `α .default sortu prop, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl 
+  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl
     { name := `Eq.ndrec, levelParams := [`u1, `u2],
-      type := 
-        mkForall `α .implicit sortu2 $ 
+      type :=
+        mkForall `α .implicit sortu2 $
         mkForall `a .implicit (.bvar 0) $
         mkForall `motive .implicit (mkForall `x .default (.bvar 1) sortu1) $
         mkForall `m .default (mkApp (.bvar 0) (.bvar 1)) $
@@ -73,7 +72,7 @@ def run (path : String) (github : Bool) : MetaM Unit := do
       IO.println s!"SZS status Timeout for {fileName}"
 
 def main : List String → IO UInt32 := fun args => do
-  if args.length == 0 then 
+  if args.length == 0 then
     println! "Please provide problem file."
     return 1
   else
