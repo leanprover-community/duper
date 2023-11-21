@@ -46,34 +46,15 @@ theorem red_ne_green : Color.red ≠ Color.green := fun h =>
 end Color2
 
 -- Bug 5
-set_option inhabitationReasoning true in
-tptp ITP023_3 "../TPTP-v8.0.0/Problems/ITP/ITP023_3.p"
-  by duper [*] -- Fails due to error: unknown free variable '_uniq.6173142'
+example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
+  by duper {portfolioInstance := 7}
 
-set_option inhabitationReasoning false in
-tptp ITP023_3' "../TPTP-v8.0.0/Problems/ITP/ITP023_3.p"
-  by duper [*] -- Det timeout
+example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
+  by duper {portfolioInstance := 8}
 
 -- Diagnosis of the above test
 /-
 The error appears to occur during removeVanishedVarsHelper (which is only called when inhabitationReasoning is enabled).
-Specifically, when the clause `∀ (a : Type) (a_1 a_2 : a), _uniq.6179254 → p c_2Ebool_2ET_2E0 = True ∨ a_1 = a_2` is
-processed, an mvar `?m.6184382` is given the type `_uniq.6179254`. When `Meta.findInstance` is called on `?m.6184382`'s
-type (`_uniq.6179254`), the error "unknown free variable '_uniq.6173142'" is produced.
-
-To further diagnose this bug, the thing to do would be to attempt to trace how the above clause was produced (and therefore,
-where the `_uniq.6179254` constraint was imposed).
-
-I'm relegating this to low priority both because it's really hard to debug (ITP023_3 is really long) and because auto's preprocessing
-appears to sidestep the issue.
-
-Update: After inhabitation reasoning was improved, duper was able to infer the Nonempty status of enough types that this bug is now also
-visible in the following example (originally from test_inhabitationReasoning.lean):
-
-example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
-  by duper
-
-This might be a more viable example to investigate because of how much shorter it is
 -/
 
 -- Bug 8: Application type mismatch pertaining to the universe levels of skolems

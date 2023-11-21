@@ -186,7 +186,6 @@ def ora₃ (done : Prop) (inh : ∀ (α β : Type) (x : α) (y : β), α → β)
   drefl attempt 3 unifier 0 contains 0
   exact inh
 
-
 -- Polymorphism
 
 def poly₁ (done : Prop) (f : ∀ (α : Type), α)
