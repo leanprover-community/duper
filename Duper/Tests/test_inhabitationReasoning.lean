@@ -3,6 +3,7 @@ import Duper.TPTP
 
 set_option inhabitationReasoning true
 set_option trace.typeInhabitationReasoning.debug true
+set_option throwPortfolioErrors true
 
 theorem optionTest1 (t : Type) (f : Option t) : ∃ x : Option t, True := by duper
 
@@ -15,12 +16,16 @@ theorem finTest (x : Nat) (f : Fin x → Fin x)
   (h : ∃ y : Fin x, ∀ z : Fin x, (f y ≠ y) ∧ (f z = y)) : False := by duper [h]
 
 -- Needs to synthesize Inhabited (Fin default)
+set_option trace.Saturate.debug true in
 theorem finTest2
-  (h : ∀ x : Nat, ∃ f : Fin x → Fin x, ∃ y : Fin x, ∀ z : Fin x, (f y ≠ y) ∧ (f z = y)) : False := by duper [h]
+  (h : ∀ x : Nat, ∃ f : Fin x → Fin x, ∃ y : Fin x, ∀ z : Fin x, (f y ≠ y) ∧ (f z = y)) : False := by
+  duper [h] {portfolioInstance := 7}
 
 -- Needs to synthesize Inhabited (Fin [anonymous]) (pretty sure [anonymous] is a skolem var)
+set_option trace.Saturate.debug true in
 theorem finTest3 (mult_Nats : ∃ y : Nat, y ≠ 0)
-  (h : ∀ x : Nat, x ≠ 0 → ∃ f : Fin x → Fin x, ∃ y : Fin x, ∀ z : Fin x, (f y ≠ y) ∧ (f z = y)) : False := by duper [h]
+  (h : ∀ x : Nat, x ≠ 0 → ∃ f : Fin x → Fin x, ∃ y : Fin x, ∀ z : Fin x, (f y ≠ y) ∧ (f z = y)) : False := by
+  duper [h]
 
 -- Needs to synthesize Inhabited person
 set_option trace.ProofReconstruction true in

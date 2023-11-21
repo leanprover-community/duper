@@ -62,8 +62,8 @@ namespace ChNum
 
 def pellEquation₁ (done : Prop) (q : ChNat → (Nat → Nat) → (Nat → Nat) → Nat)
                   -- ?m = 2, ?n = 1
-                  (h : ∀ (m n : ChNat), 
-                  q (chmul (chadd n c2) (chadd n c2)) (idtest m)   (idtest n) = 
+                  (h : ∀ (m n : ChNat),
+                  q (chmul (chadd n c2) (chadd n c2)) (idtest m)   (idtest n) =
                   q (chadd (chmul (chmul c2 m) m) c1) (fun z => z) (fun z => z)  → done)
                   : done := by
   apply h;
@@ -73,8 +73,8 @@ def pellEquation₁ (done : Prop) (q : ChNat → (Nat → Nat) → (Nat → Nat)
 
 def pellEquation₂ (done : Prop) (q : ChNat → (Nat → Nat) → (Nat → Nat) → Nat)
                   -- ?m = 3, ?n = 6
-                  (h : ∀ (m n : ChNat), 
-                  q (chmul (chadd n c2) (chadd n c2)) (idtest m)   (idtest n) = 
+                  (h : ∀ (m n : ChNat),
+                  q (chmul (chadd n c2) (chadd n c2)) (idtest m)   (idtest n) =
                   q (chadd (chmul (chmul c7 m) m) c1) (fun z => z) (fun z => z)→ done)
                   : done := by
   apply h;
@@ -85,7 +85,7 @@ def pellEquation₂ (done : Prop) (q : ChNat → (Nat → Nat) → (Nat → Nat)
 def pythagoreanTriple₁ (done : Prop) (q : ChNat → (Nat → Nat) → (Nat → Nat) → (Nat → Nat) → Nat)
                        (h : ∀ (x y z : ChNat),
                        -- 3² + 4² = 5²
-                       q (chadd (chmul (chadd x c1) (chadd x c1))  (chmul (chadd y c1) (chadd y c1)))  (idtest x)   (idtest y)   (idtest z) = 
+                       q (chadd (chmul (chadd x c1) (chadd x c1))  (chmul (chadd y c1) (chadd y c1)))  (idtest x)   (idtest y)   (idtest z) =
                        q (chmul (chadd z c2) (chadd z c2)) (fun z => z) (fun z => z) (fun z => z) → done):
                        done := by
   apply h;
@@ -169,23 +169,27 @@ def letrefl₁  (done : Prop)
 def ora₁ (done : Prop) (inh : α → β → Nat)
   (h : ∀ (a b : α → β → Nat), (fun x y => a y x) = (fun x y => b y x) → done) : done := by
   apply h
-  drefl attempt 3 unifier 0 contains 0
+  drefl attempt 30 unifier 0 contains 0
   exact inh
 
 def ora₂ (done : Prop) (inh : ∀ (α β : Type) (x : α) (y : β), α → β)
   (h : ∀ (a b : ∀ (α β : Type) (x : α) (y : β), α → β),
     (fun β y α x => a α β x y) = (fun β y α x => b α β x y) → done) : done := by
   apply h
-  drefl attempt 3 unifier 0 contains 0
+  drefl attempt 30 unifier 0 contains 0
   exact inh
 
 def ora₃ (done : Prop) (inh : ∀ (α β : Type) (x : α) (y : β), α → β)
   (h : ∀ (a b : ∀ (α β : Type) (x : α) (y : β), α → β),
     (fun β α y x => a α β x y) = (fun β α y x => b α β x y) → done) : done := by
   apply h
-  drefl attempt 3 unifier 0 contains 0
+  drefl attempt 30 unifier 0 contains 0
   exact inh
 
+def ora₄ (done : Prop) (sk : ∀ (α : Type), α)
+  (h : ∀ (a : Fin 3) (x : Nat), (↑a : Nat) = ↑(sk (Fin x)) → done) : done := by
+  apply h
+  drefl attempt 30 unifier 0 contains 0
 
 -- Polymorphism
 
@@ -199,6 +203,7 @@ def poly₂ (done : Prop) (f : ∀ (α : Type), α)
   apply h
   drefl attempt 20 unifier 0 contains 0
 
+set_option trace.DUnif.oracles true in
 def poly₃
   (done : Prop)
   (skS : ∀ {_ : Nat} {α : Type}, α)
@@ -206,7 +211,7 @@ def poly₃
   (h : ∀ a b c d, p a (@skS (nat_lit 1) (α → β → β) a b) = p (@skS (nat_lit 0) ((α → β) → α → α) c d) (c (@skS (nat_lit 0) ((α → β) → α → α) c d)) → done) :
   done := by
   apply h
-  drefl attempt 30 unifier 0 contains 0
+  drefl attempt 60 unifier 0 contains 0
   exact f; exact x
 
 def poly₄
@@ -216,8 +221,19 @@ def poly₄
   (h : ∀ a b c d e, p a (@skS (nat_lit 1) (α → β → β → β) a b e) = p (@skS (nat_lit 0) ((α → β) → α → α) c d) (c (@skS (nat_lit 0) ((α → β) → α → α) c d)) → done) :
   done := by
   apply h
-  drefl attempt 37 unifier 0 contains 0
+  drefl attempt 60 unifier 0 contains 0
   exact f; exact f; exact x
+
+set_option drefl.reduce true in
+def poly₅
+  (done : Prop)
+  (skS : {p : Type 1} → Nat → {α : Type} → α)
+  (h : ∀ (q b : Fin 3), q.1 = (@skS Type 0 ((x_0 : Nat) → Fin x_0 → Fin x_0) 3 b).1 → done) :
+  done := by
+  apply h
+  case a =>
+    drefl attempt 10000 unifier 0 contains 0
+    case b => exact Inhabited.default
 
 -- Negative tests
 set_option trace.DUnif.debug true in

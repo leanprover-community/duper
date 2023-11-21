@@ -38,7 +38,29 @@ def oracleInst (p : UnifProblem) (eq : UnifEq) : MetaM (Option UnifProblem) := d
   --   does not consider metavariables in the type of metavariables
   if (← mustNotOccursCheck mvarId eq.rhs) then
     mvarId.assign eq.rhs
-    return some {(← p.pushParentRuleIfDbgOn (.OracleInst eq)) with checked := false, mctx := ← getMCtx}
+    /- It's not sufficient to just assigned mvarId to eq.rhs in all cases. If mvarId's type is more specific
+       than eq.rhs's type (e.g. if mvarId's type is `Fin 3` and eq.rhs's type is `Fin ?m`), then it is necessary
+       to additionally unify the types of mvarId and eq.rhs. -/
+    let mvarIdType ← Meta.inferType (.mvar mvarId)
+    let rhsType ← Meta.inferType eq.rhs
+    if mvarIdType != rhsType then
+      -- This code is loosely adapted from DUnif.imitation
+      trace[DUnif.oracles] "oracleInst: {mvarIdType} needs to be unified with {rhsType}"
+      trace[DUnif.oracles] "Before forallTelescope:"
+      trace[DUnif.oracles] "rhs: {eq.rhs} (type: {rhsType})"
+      trace[DUnif.oracles] "mvar: {mvarId} (type: {mvarIdType})"
+      Meta.forallTelescopeReducing mvarIdType fun xs β => do
+        let β ← Meta.mkLambdaFVars xs β
+        let (ys, _, _) ← Meta.forallMetaTelescopeReducing rhsType
+        let β' ← Meta.instantiateForall rhsType ys
+        let β' ← Meta.mkLambdaFVars xs β'
+        trace[DUnif.oracles] "After forallTelescope:"
+        trace[DUnif.oracles] "oracleInst: rhsType (β'): {β'}"
+        trace[DUnif.oracles] "oracleInst: mvarIdType (β): {β}"
+        let p := p.pushPrioritized (UnifEq.fromExprPair β β')
+        return some {(← p.pushParentRuleIfDbgOn (.OracleInst eq)) with checked := false, mctx := ← getMCtx}
+    else
+      return some {(← p.pushParentRuleIfDbgOn (.OracleInst eq)) with checked := false, mctx := ← getMCtx}
   else
     return none
 

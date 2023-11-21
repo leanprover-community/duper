@@ -248,9 +248,15 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       let mut mainPremiseReplaced : MClause := Inhabited.default
       let mut poses : Array ClausePos := #[]
       if simultaneousSuperposition then
+        let mainPremise ← mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
+        /- In addition to performing the replacement at the intended location, the simultaneous superposition option indicates
+           that Duper should attempt to replace sidePremiseLhs with sidePremiseRhs wherever it is found in the mainPremise -/
         let mainPremise ← mainPremise.mapM (fun e => betaEtaReduceInstMVars e)
         (mainPremiseReplaced, poses) ← mainPremise.mapMWithPos <|
           Expr.replaceGreenWithPos sidePremiseLhs sidePremiseRhs
+        /- In addition to all of the additional positions found by Expr.replaceGreenWithPos, we also need to note the position
+           of the original rewrite -/
+        poses := poses.push mainPremisePos
       else
         mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
 
