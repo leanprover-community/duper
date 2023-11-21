@@ -47,7 +47,6 @@ end Color2
 
 -- Bug 5
 set_option inhabitationReasoning true in
-set_option trace.typeInhabitationReasoning.debug true in
 tptp ITP023_3 "../TPTP-v8.0.0/Problems/ITP/ITP023_3.p"
   by duper [*] -- Fails due to error: unknown free variable '_uniq.6173142'
 
@@ -104,25 +103,3 @@ example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x =
 set_option inhabitationReasoning true in
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
   by duper {portfolioInstance := 0}
-
--- Bug 10
-axiom α : Type _
-axiom β : Type _
-axiom γ : Type -- Note, there's a bug if gamma is made universe polymorphic unrelated to the unification issue. I'm aware of it and know what needs to be done to fix it
-axiom manualSkolem : α → β → γ → γ
-axiom manualSkolemPoly.{u} : ∀ t : Sort u, t
-axiom manualSkolemVar : α → β → γ → γ
-
-theorem test1 (p : α → β → γ → Prop) [Inhabited γ]
-  (h : ∀ (x : α) (y : β) (gammaWitness : γ), p x y (manualSkolem x y gammaWitness)) :
-  ∃ (f : α → β → γ), ∀ x y, p x y (f x y) := by duper [*] {portfolioInstance := 0}
-
-set_option kStep 60 in
-example (p : α → β → γ → Prop) [Inhabited γ]
-  (h : ∀ (x : α) (y : β) (gammaWitness : γ), p x y ((sorryAx (α → β → γ → γ)) x y gammaWitness)) :
-  ∃ (f : α → β → γ), ∀ x y, p x y (f x y) := by duper [*] {portfolioInstance := 0}
-
-set_option kStep 60 in
-example (p : α → β → γ → Prop) [Inhabited γ]
-  (h : ∀ (x : α) (y : β) (gammaWitness : γ), p x y (manualSkolemPoly (α → β → γ → γ) x y gammaWitness)) :
-  ∃ (f : α → β → γ), ∀ x y, p x y (f x y) := by duper [*] {portfolioInstance := 0}

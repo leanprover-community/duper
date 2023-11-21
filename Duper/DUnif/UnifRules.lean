@@ -134,7 +134,7 @@ def derefNormEq (u : UnifEq) : MetaM UnifEq := do
   -- avoid left-rigid right-flex
   if ¬ lflex' ∧ rflex' then
     return {lhs := rhs', lflex := rflex', rhs := lhs', rflex := lflex'}
-  else 
+  else
     return {lhs := lhs', lflex := lflex', rhs := rhs', rflex := rflex'}
 
 def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := do
@@ -222,6 +222,9 @@ def failDecompose (is_prio : Bool) (p : UnifProblem) (eq : UnifEq) : MetaM (Arra
         return #[]
       let el ← Meta.mkLambdaFVars xs (← Meta.mkForallFVars ts fl.projExpr!)
       let er ← Meta.mkLambdaFVars xs (← Meta.mkForallFVars ts fr.projExpr!)
+      let tyl ← Meta.inferType el
+      let tyr ← Meta.inferType er
+      p := p.pushUnchecked (UnifEq.fromExprPair tyl tyr) true
       p := p.pushUnchecked (UnifEq.fromExprPair el er) is_prio
     else
       if fl != fr then
