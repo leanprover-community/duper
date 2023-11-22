@@ -266,7 +266,7 @@ def evalDuper : Tactic
       let proof ←
         match portfolioInstance with
         | 0 =>
-          runDuperInstance0 formulas declName? 0 configOptions.inhabitationReasoning configOptions.preprocessing
+          mkDuperInstance formulas declName? 0 configOptions.inhabitationReasoning configOptions.preprocessing
             configOptions.includeExpensiveRules configOptions.selFunction
         | 1 => runDuperInstance1 formulas declName? 0
         | 2 => runDuperInstance2 formulas declName? 0
@@ -292,6 +292,30 @@ def evalDuper : Tactic
         | 22 => runDuperInstance22 formulas declName? 0
         | 23 => runDuperInstance23 formulas declName? 0
         | 24 => runDuperInstance24 formulas declName? 0
+        | 25 => runDuperInstance25 formulas declName? 0
+        | 26 => runDuperInstance26 formulas declName? 0
+        | 27 => runDuperInstance27 formulas declName? 0
+        | 28 => runDuperInstance28 formulas declName? 0
+        | 29 => runDuperInstance29 formulas declName? 0
+        | 30 => runDuperInstance30 formulas declName? 0
+        | 31 => runDuperInstance31 formulas declName? 0
+        | 32 => runDuperInstance32 formulas declName? 0
+        | 33 => runDuperInstance33 formulas declName? 0
+        | 34 => runDuperInstance34 formulas declName? 0
+        | 35 => runDuperInstance35 formulas declName? 0
+        | 36 => runDuperInstance36 formulas declName? 0
+        | 37 => runDuperInstance37 formulas declName? 0
+        | 38 => runDuperInstance38 formulas declName? 0
+        | 39 => runDuperInstance39 formulas declName? 0
+        | 40 => runDuperInstance40 formulas declName? 0
+        | 41 => runDuperInstance41 formulas declName? 0
+        | 42 => runDuperInstance42 formulas declName? 0
+        | 43 => runDuperInstance43 formulas declName? 0
+        | 44 => runDuperInstance44 formulas declName? 0
+        | 45 => runDuperInstance45 formulas declName? 0
+        | 46 => runDuperInstance46 formulas declName? 0
+        | 47 => runDuperInstance47 formulas declName? 0
+        | 48 => runDuperInstance48 formulas declName? 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
@@ -322,7 +346,7 @@ def evalDuperTrace : Tactic
       let proof ←
         match portfolioInstance with
         | 0 =>
-          runDuperInstance0 formulas declName? 0 configOptions.inhabitationReasoning configOptions.preprocessing
+          mkDuperInstance formulas declName? 0 configOptions.inhabitationReasoning configOptions.preprocessing
             configOptions.includeExpensiveRules configOptions.selFunction
         | 1 => runDuperInstance1 formulas declName? 0
         | 2 => runDuperInstance2 formulas declName? 0
@@ -348,6 +372,30 @@ def evalDuperTrace : Tactic
         | 22 => runDuperInstance22 formulas declName? 0
         | 23 => runDuperInstance23 formulas declName? 0
         | 24 => runDuperInstance24 formulas declName? 0
+        | 25 => runDuperInstance25 formulas declName? 0
+        | 26 => runDuperInstance26 formulas declName? 0
+        | 27 => runDuperInstance27 formulas declName? 0
+        | 28 => runDuperInstance28 formulas declName? 0
+        | 29 => runDuperInstance29 formulas declName? 0
+        | 30 => runDuperInstance30 formulas declName? 0
+        | 31 => runDuperInstance31 formulas declName? 0
+        | 32 => runDuperInstance32 formulas declName? 0
+        | 33 => runDuperInstance33 formulas declName? 0
+        | 34 => runDuperInstance34 formulas declName? 0
+        | 35 => runDuperInstance35 formulas declName? 0
+        | 36 => runDuperInstance36 formulas declName? 0
+        | 37 => runDuperInstance37 formulas declName? 0
+        | 38 => runDuperInstance38 formulas declName? 0
+        | 39 => runDuperInstance39 formulas declName? 0
+        | 40 => runDuperInstance40 formulas declName? 0
+        | 41 => runDuperInstance41 formulas declName? 0
+        | 42 => runDuperInstance42 formulas declName? 0
+        | 43 => runDuperInstance43 formulas declName? 0
+        | 44 => runDuperInstance44 formulas declName? 0
+        | 45 => runDuperInstance45 formulas declName? 0
+        | 46 => runDuperInstance46 formulas declName? 0
+        | 47 => runDuperInstance47 formulas declName? 0
+        | 48 => runDuperInstance48 formulas declName? 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       mkDuperCallSuggestion duperStxRef (← getRef) facts factsContainsDuperStar portfolioInstance configOptions.inhabitationReasoning

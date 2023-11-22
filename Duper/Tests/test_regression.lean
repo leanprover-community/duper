@@ -613,7 +613,6 @@ example : @Color1.rec (fun _ => Nat) a .red = a := by duper [Color1.rec]
 
 example : ∀ a b, @Nat.rec (fun _ => Bool) a b Nat.zero = a := by duper [Nat.rec]
 
-set_option simultaneousSuperposition false in
 example : ∀ a b, @Nat.rec (fun _ => Bool) a b Nat.zero = a := by duper [Nat.rec]
 
 end RecursorTests
@@ -629,13 +628,12 @@ instance : Add (Int → Int) := (⟨fun f g x => f x + g x⟩ : Add (Int → Int
 instance : Add (Nat → Nat) := (⟨fun f g x => f x + g x⟩ : Add (Nat → Nat))
 
 example (f : Int → Int) (hf : ∀ x, f (-x) = f x) : even_int_fun f := by -- The goal is the same as hf
-  duper [hf, even_int_fun] {portfolioInstance := 3} -- Duper only finds the proof when fluidSup is enabled, times out in portfolio mode
+  duper [hf, even_int_fun]
 
 example (f : Nat → Nat) (hf : ∀ x, f (-x) = f x) : even_nat_fun f := by -- The goal is the same as hf
-  duper [hf, even_nat_fun] {portfolioInstance := 3} -- Duper only finds the proof when fluidSup is enabled, times out in portfolio mode
+  duper [hf, even_nat_fun]
 --###############################################################################################################################
 -- Tests duper's ability to derive that types are nonempty
-
 example (p : α → β → Prop) (h : ∀ (x : α), ∃ y, p x y) : ∃ (f : α → β), ∀ x, p x (f x) :=
   by duper [*]
 
