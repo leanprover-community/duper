@@ -123,11 +123,11 @@ def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (l : Lit) : m Lit
 def fold {α : Type v} (f : α → Expr → α) (init : α) (l : Lit) : α :=
   f (f init l.lhs) l.rhs
 
-def foldWithTypeM {β : Type v} {m : Type v → Type w} [Monad m] 
+def foldWithTypeM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → m β) (init : β) (l : Lit) : m β := do
   f (← f (← f init l.ty) l.lhs) l.rhs
 
-def foldM {β : Type v} {m : Type v → Type w} [Monad m] 
+def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
   f (← f init l.lhs ⟨LitSide.lhs, ExprPos.empty⟩) l.rhs ⟨LitSide.rhs, ExprPos.empty⟩
 
@@ -135,7 +135,7 @@ def foldGreenM {β : Type} [Monad m] [MonadLiftT MetaM m]
     (f : β → Expr → LitPos → m β) (init : β) (l : Lit) : m β := do
   let fLhs := fun acc e p => f acc e ⟨LitSide.lhs, p⟩
   let fRhs := fun acc e p => f acc e ⟨LitSide.rhs, p⟩
-  l.rhs.foldGreenM fRhs (← l.lhs.foldGreenM fLhs init) 
+  l.rhs.foldGreenM fRhs (← l.lhs.foldGreenM fLhs init)
 
 def getAtPos! [Monad m] [MonadLiftT MetaM m] (l : Lit) (pos : LitPos) : m Expr :=
   match pos.side with
@@ -186,7 +186,7 @@ def abstractAtPos! (l : Lit) (pos : LitPos) : MetaM Lit := do
   | LitSide.rhs => return {l with rhs := ← l.rhs.abstractAtPos! pos.pos}
 
 def symm (l : Lit) : Lit :=
-{l with 
+{l with
   lhs := l.rhs
   rhs := l.lhs}
 
@@ -251,7 +251,7 @@ def compare (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced 
 
     | Equal, _, _, Equal, _ => return Equal
     | _, Equal, Equal, _, _ => return Equal
-    
+
     | Equal, _, _, _, c => return c
     | _, Equal, _, _, c => return c
     | _, _, Equal, _, c => return c
@@ -265,7 +265,7 @@ end Lit
 -- where `l = len(bVarTypes)`. Each Clause `c` will be
 -- associated with a proof `p`.
 -- !!!!!!!!!!!!!!!!! We keep an invariant !!!!!!!!!!!!!!!!
---               `p : c.toForallExpr` 
+--               `p : c.toForallExpr`
 structure Clause :=
 (paramNames : Array Name)
 (bVarTypes : Array Expr)
@@ -296,7 +296,7 @@ def litsToExpr : List Lit → Expr
 def toExpr (c : Clause) : Expr :=
   litsToExpr c.lits.data
 
-def foldM {β : Type v} {m : Type v → Type w} [Monad m] 
+def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → ClausePos → m β) (init : β) (c : Clause) : m β := do
   let mut acc := init
   for i in [:c.lits.size] do
@@ -344,10 +344,16 @@ instance : ToMessageData Clause :=
 def weight (c : Clause) : Nat :=
   c.lits.foldl (fun acc lit => acc + lit.lhs.weight + lit.rhs.weight) 0
 
+/-- Determines the precedence clause `c` should have for clause selection. Lower values indicate higher precedence -/
+def selectionPrecedence (c : Clause) (goalDistance : Nat) : Nat :=
+  /- TODO: Experiment with different coefficients for c.weight and goalDistance. Zipperposition's goal_oriented
+     clause selection function has (among other heuristics) c.weight given a coefficient of 4 and goalDistance given
+     a coefficient of 1 (meaning the returned precedence would be `4 * c.weight + goalDistance`) -/
+  c.weight + goalDistance
+
 def ClauseAndClausePos.format (c : Clause × ClausePos) : MessageData :=
   m!"({c.1}, {c.2})"
 
 instance : ToMessageData (Clause × ClausePos) := ⟨ClauseAndClausePos.format⟩
 
 end Clause
-

@@ -4,14 +4,18 @@ import Duper.Tactic
 open Lean Auto
 
 def Auto.duperRaw (lemmas : Array Lemma) : MetaM Expr := do
-  let lemmas : Array (Expr × Expr × Array Name) ← lemmas.mapM
-    (fun ⟨proof, ty, _⟩ => do return (ty, ← Meta.mkAppM ``eq_true #[proof], #[]))
+  /- Adding `isFromGoal := false` to each formula because there is no means of distinguishing goal formulas
+     from non-goal formulas in this context -/
+  let lemmas : Array (Expr × Expr × Array Name × Bool) ←
+    lemmas.mapM (fun ⟨proof, ty, _⟩ => do return (ty, ← Meta.mkAppM ``eq_true #[proof], #[], false))
   runDuper lemmas.data 0
 
 def Auto.duperPort (lemmas : Array Lemma) : MetaM Expr := do
-  let lemmas : Array (Expr × Expr × Array Name) ← lemmas.mapM
-    (fun ⟨proof, ty, _⟩ => do return (ty, ← Meta.mkAppM ``eq_true #[proof], #[]))
-  runDuperPortfolioMode lemmas.data .none
+  /- Adding `isFromGoal := false` to each formula because there is no means of distinguishing goal formulas
+     from non-goal formulas in this context -/
+  let formulas : Array (Expr × Expr × Array Name × Bool) ←
+    lemmas.mapM (fun ⟨proof, ty, _⟩ => do return (ty, ← Meta.mkAppM ``eq_true #[proof], #[], false))
+  runDuperPortfolioMode formulas.data .none
     { portfolioMode := true,
       portfolioInstance := none,
       inhabitationReasoning := none,

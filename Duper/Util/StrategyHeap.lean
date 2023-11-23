@@ -14,9 +14,14 @@ inductive ClauseSelectionStrategy where
 
 open ClauseSelectionStrategy
 
+initialize
+  registerTraceClass `ClauseSelection.debug
+
 /-- `StrategyHeap` models GivenClause Selection. `StrategyHeap` contains 3 internal heaps: a weight heap, a
     generation heap, and an age heap.
-    - The weight heap is used to select the smallest clause (with ties chosen arbitrarily).
+    - The weight heap is used to select the "smallest" clause (with ties chosen arbitrarily). Here, "smallest" does
+      not exactly refer to KBO size but instaed refers to size with penalties given by various clause selection heuristics.
+      The "weight" of each clause, as used by this heap, is calculated in `Clause.selectionPrecedence` in Clause.lean.
     - The generation heap is used to select the clause that has been generated with the fewest inferences
       (with older clauses being preferred over younger as a tiebreaker).
     - The age heap is used to select the oldest clause.

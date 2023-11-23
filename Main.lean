@@ -48,6 +48,9 @@ def run (path : String) (github : Bool) : MetaM Unit := do
 
   TPTP.compileFile path fun formulas => do
     let formulas := Array.toList formulas
+    /- Adding `isFromGoal := false` to each formula as a placeholder.
+       TODO: Update TPTP.compileFile to distinguish between lemmas/axioms and the goal. -/
+    let formulas := formulas.map (fun (e, proof, paramNames) => (e, proof, paramNames, false))
     let formulas ← unfoldDefinitions formulas
     let skSorryName ← addSkolemSorry
     let (_, state) ←

@@ -31,16 +31,20 @@ lemma composite_of_not_prime {n : ℕ} (h : 2 ≤ n) (hnp : ¬ n.Prime) :
     -- apply lt_of_mul_lt_mul_left _ (Nat.zero_le m)
     -- duper [mul_one, neq, mlt]
     -- but this fails:
-    -- apply lt_of_mul_lt_mul_left _ (Nat.zero_le m)
-    -- duper [mul_one, neq, mlt, lt_of_mul_lt_mul_left]
+    /-
+    apply lt_of_mul_lt_mul_left _ (Nat.zero_le m)
+    duper [mul_one, neq, mlt, lt_of_mul_lt_mul_left] {portfolioInstance := 1}
+    -- ConstInst2FVarId :: Cannot find canonicalized instance of
+    -- ConstInst ⦗⦗ @OfNat.ofNat (ℕ) (0) (Zero.toOfNat0) ⦘⦘
+    -/
   use ndivmgt1
   constructor
   . have : 0 < m := zero_lt_one.trans mgt1
-    duper [mul_one, neq, Nat.mul_lt_mul_of_pos_left, ndivmgt1, this]
+    duper [mul_one, neq, mul_lt_mul_of_pos_left, ndivmgt1, this]
   -- also works:
   -- duper [mul_one, neq, Nat.mul_lt_mul_of_pos_left, ndivmgt1, zero_lt_one, lt_trans, gt_iff_lt, mgt1]
   have : 1 * (n / m) < m * (n / m) := by
-    duper [Nat.mul_lt_mul_of_pos_right, mgt1, zero_lt_one.trans ndivmgt1]
+    duper [mul_lt_mul_of_pos_right, mgt1, zero_lt_one.trans ndivmgt1]
   rwa [one_mul, ←neq] at this
 
 lemma composite_of_not_prime_alt (n : ℕ) (h : 2 ≤ n) (hnp : ¬ n.Prime) :

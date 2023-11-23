@@ -92,25 +92,26 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     let paramNames := abstres.paramNames
     return (← inferType e, e, paramNames)
 
-def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl) : TacticM (List (Expr × Expr × Array Name)) := do
+def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl) : TacticM (List (Expr × Expr × Array Name × Bool)) := do
   let mut formulas := []
   if withAllLCtx then -- Load all local decls
     for fVarId in (← getLCtx).getFVarIds do
       let ldecl ← Lean.FVarId.getDecl fVarId
       unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
         let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[]) :: formulas
+        let isFromGoal := goalDecls.any (fun goalDecl => goalDecl.index = ldecl.index)
+        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal) :: formulas
   else -- Even if withAllLCtx is false, we still need to load the goal decls
     for ldecl in goalDecls do
       unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
         let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[]) :: formulas
+        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[], true) :: formulas
   -- Load user-provided facts
   for factStx in facts do
     for (fact, proof, params) in ← elabFact factStx do
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
-        formulas := (fact, ← mkAppM ``eq_true #[proof], params) :: formulas
+        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false) :: formulas
       else
         throwError "Invalid fact {factStx} for duper. Proposition expected"
   return formulas

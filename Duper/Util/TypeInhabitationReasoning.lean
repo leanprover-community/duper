@@ -307,7 +307,8 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)
     | some givenClauseInfo =>
       let generatingAncestors := givenClauseInfo.generatingAncestors
       let generationNumber := givenClauseInfo.generationNumber
-      let ci ← addNewClause c cProof generationNumber generatingAncestors
+      let goalDistance := givenClauseInfo.goalDistance
+      let ci ← addNewClause c cProof goalDistance generationNumber generatingAncestors
       if ci.wasSimplified then return none -- No need to continue working on c because we've already seen previously that it will be simplified away
       return some (c, false)
     | none => throwError "givenClause {givenClause} was not found"
@@ -317,7 +318,8 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)
     | some givenClauseInfo =>
       let generatingAncestors := givenClauseInfo.generatingAncestors
       let generationNumber := givenClauseInfo.generationNumber
-      let ci ← addNewClause c cProof generationNumber generatingAncestors
+      let goalDistance := givenClauseInfo.goalDistance
+      let ci ← addNewClause c cProof goalDistance generationNumber generatingAncestors
       if ci.wasSimplified then return none -- No need to continue working on c because we've already seen previously that it will be simplified away
       return some (c, true)
     | none => throwError "givenClause {givenClause} was not found"
@@ -370,7 +372,8 @@ def deriveNewNonemptyTypesHelper (abstractedT : AbstractMVarsResult) (givenClaus
               | some cInfo =>
                 let generatingAncestors := cInfo.generatingAncestors ++ givenClauseInfo.generatingAncestors
                 let generationNumber := givenClauseInfo.generationNumber
-                addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
+                let goalDistance := givenClauseInfo.goalDistance
+                addNewToPassive t2NonemptyClause t2NonemptyProof goalDistance generationNumber generatingAncestors
               | none => throwError "{c} from verifiedNonemptyTypes was not found"
             | none => throwError "givenClause {givenClause} was not found"
         | _ => throwError "Inconsistency between original and abstracted type"
@@ -410,7 +413,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
         | some givenClauseInfo =>
           let generatingAncestors := givenClauseInfo.generatingAncestors
           let generationNumber := givenClauseInfo.generationNumber
-          addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
+          let goalDistance := givenClauseInfo.goalDistance
+          addNewToPassive t2NonemptyClause t2NonemptyProof goalDistance generationNumber generatingAncestors
         | none => throwError "givenClause {givenClause} was not found"
       else
         match ← deriveNonempty t1' verifiedNonemptyTypes with
@@ -428,7 +432,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
             let generationNumber := givenClauseInfo.generationNumber
-            addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
+            let goalDistance := givenClauseInfo.goalDistance
+            addNewToPassive t2NonemptyClause t2NonemptyProof goalDistance generationNumber generatingAncestors
           | none => throwError "givenClause {givenClause} was not found"
         | none =>
           if potentinallyUninhabitedTypes.contains t1' then pure ()
@@ -448,7 +453,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
               | some givenClauseInfo =>
                 let generatingAncestors := givenClauseInfo.generatingAncestors
                 let generationNumber := givenClauseInfo.generationNumber
-                addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
+                let goalDistance := givenClauseInfo.goalDistance
+                addNewToPassive t2NonemptyClause t2NonemptyProof goalDistance generationNumber generatingAncestors
               | none => throwError "givenClause {givenClause} was not found"
             | none => -- We learned that Meta.findInstance can't find an instance for t1 so we update potentinallyUninhabitedTypes
               setPotentiallyUninhabitedTypes (t1' :: potentinallyUninhabitedTypes)
@@ -465,7 +471,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
-        addNewToPassive t1NonemptyClause t1NonemptyProof generationNumber generatingAncestors
+        let goalDistance := givenClauseInfo.goalDistance
+        addNewToPassive t1NonemptyClause t1NonemptyProof goalDistance generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     let t2' ← abstractMVars t2
     if !(verifiedInhabitedTypes.contains t2') && !(verifiedNonemptyTypes.any (fun (t, _) => t == t2')) then
@@ -478,7 +485,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
-        addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
+        let goalDistance := givenClauseInfo.goalDistance
+        addNewToPassive t2NonemptyClause t2NonemptyProof goalDistance generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     deriveNewNonemptyTypesHelper abstractedT givenClause
   | Expr.app (Expr.app (Expr.const ``PProd lvls) t1) t2 =>
@@ -493,7 +501,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
-        addNewToPassive t1NonemptyClause t1NonemptyProof generationNumber generatingAncestors
+        let goalDistance := givenClauseInfo.goalDistance
+        addNewToPassive t1NonemptyClause t1NonemptyProof goalDistance generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     let t2' ← abstractMVars t2
     if !(verifiedInhabitedTypes.contains t2') && !(verifiedNonemptyTypes.any (fun (t, _) => t == t2')) then
@@ -506,7 +515,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
-        addNewToPassive t2NonemptyClause t2NonemptyProof generationNumber generatingAncestors
+        let goalDistance := givenClauseInfo.goalDistance
+        addNewToPassive t2NonemptyClause t2NonemptyProof goalDistance generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     deriveNewNonemptyTypesHelper abstractedT givenClause
   | _ =>
@@ -520,7 +530,8 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
-        addNewToPassive originalTEqTrueClause originalTEqTrueProof generationNumber generatingAncestors
+        let goalDistance := givenClauseInfo.goalDistance
+        addNewToPassive originalTEqTrueClause originalTEqTrueProof goalDistance generationNumber generatingAncestors
       | none => throwError "givenClause {givenClause} was not found"
     deriveNewNonemptyTypesHelper abstractedT givenClause
 
@@ -560,7 +571,8 @@ def registerNewNonemptyTypes (givenClause : Clause) : ProverM Unit := do
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
             let generationNumber := givenClauseInfo.generationNumber
-            addNewToPassive newC newCProof generationNumber generatingAncestors
+            let goalDistance := givenClauseInfo.goalDistance
+            addNewToPassive newC newCProof goalDistance generationNumber generatingAncestors
           | none => throwError "givenClause {givenClause} was not found"
         | NotVacuous (newC, newCProof) => -- Running removeVanishedVarsHelper generated a new clause that can directly be added to the passive set
           removeClause c -- We remove c and its descendants before readding newC to the passiveSet because newC makes c redundant
@@ -568,6 +580,7 @@ def registerNewNonemptyTypes (givenClause : Clause) : ProverM Unit := do
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
             let generationNumber := givenClauseInfo.generationNumber
-            addNewToPassive newC newCProof generationNumber generatingAncestors
+            let goalDistance := givenClauseInfo.goalDistance
+            addNewToPassive newC newCProof goalDistance generationNumber generatingAncestors
           | none => throwError "givenClause {givenClause} was not found"
     setPotentiallyVacuousClauses potentiallyVacuousClauses

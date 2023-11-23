@@ -74,9 +74,9 @@ def updateWeight (α? : Option ClauseProof) (weight : Nat) (nProbed : Nat) : Pro
   else
     return weight + Nat.max 2 (nProbed - 16)
 
--- Following `Making Higher-Order Superposition Work`
---   Extract an `Option Clause` from the stream.
---   Add the rest of the stream to the heap.
+/-- Following `Making Higher-Order Superposition Work`.
+    Extract an `Option Clause` from the stream.
+    Add the rest of the stream to the heap. -/
 def ClauseStreamHeap.extractClause {σ} [OptionMStream ProverM σ ClauseProof]
   (Q : ClauseStreamHeap σ) (nProbed : Nat) (precs : Array Nat) (s : σ) : ProverM (Option ClauseProof × ClauseStreamHeap σ) := do
   have : Inhabited σ := ⟨s⟩
@@ -132,8 +132,7 @@ def ClauseStreamHeap.fairProbe {σ} [OptionMStream ProverM σ ClauseProof]
     Q := Q'
   return (collectedClauses, Q)
 
--- Here `c` is `simplifiedGivenClause`
--- Note: This function is responsible for adding results of inference rules to the passive set.
+/-- Here `c` is `simplifiedGivenClause`. This function is responsible for adding results of inference rules to the passive set. -/
 def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
   let (given, c, proof) := cp
   let allClauses ← getAllClauses
@@ -144,15 +143,17 @@ def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
       | none => throwError "ProverM.postProcessInferenceResult: Unable to find parent clause {p.clause}")
   -- c's generation number is one greater than the sum of its parents generation numbers
   let generationNumber := parentClauseInfoOpts.foldl (fun acc parentInfo => acc + parentInfo.generationNumber) 1
+  -- c's goalDistance is at most maxGoalDistance and is otherwise one greater than the distance of the parent closest to the goal
+  let goalDistance := parentClauseInfoOpts.foldl (fun acc parentInfo => Nat.min acc (parentInfo.goalDistance + 1)) maxGoalDistance
   match ← immediateSimplification given c with
   | some subsumingClause => -- subsumingClause subsumes c so we can remove c and only need to add subsumingClause
     removeClause given [subsumingClause]
     if c == subsumingClause then
-      addNewToPassive c proof generationNumber (proof.parents.map (fun p => p.clause))
+      addNewToPassive c proof goalDistance generationNumber (proof.parents.map (fun p => p.clause))
     else
       throwError "Unable to find {subsumingClause} in resultClauses"
   | none => -- No result clause subsumes c, so add each result clause to the passive set
-    addNewToPassive c proof generationNumber (proof.parents.map (fun p => p.clause))
+    addNewToPassive c proof goalDistance generationNumber (proof.parents.map (fun p => p.clause))
 
 def ProverM.performInferences (rules : List (Clause → MClause → Nat → RuleM (Array ClauseStream))) (given : Clause) : ProverM Unit := do
   trace[Prover.saturate] "perform inference with given clause {given}"
@@ -181,12 +182,10 @@ def ProverM.runProbe
   setQStreamSet Q'
   let _ ← arrcp.mapM ProverM.postProcessInferenceResult
 
--- We have to repeatedly call `runProbe` and test `(← getPassiveSet).isEmpty`
--- If we return immediately when `fairProbe` yields a nonempty
---   list of clauses, it is possible that all of these clauses
---   are redundant and `postProcessInferenceResult` will remove all
---   of them, which will cause `saturate` to think that the prover
---   has saturated.
+/-- We have to repeatedly call `runProbe` and test `(← getPassiveSet).isEmpty`
+    If we return immediately when `fairProbe` yields a nonempty list of clauses, it is possible that all of these clauses
+    are redundant and `postProcessInferenceResult` will remove all of them, which will cause `saturate` to think that the prover
+    has saturated. -/
 def ProverM.runForceProbe : ProverM Unit := do
     let maxIter := getForceProbeRetry (← getOptions)
     let mut fpiter := 0

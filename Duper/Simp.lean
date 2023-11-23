@@ -66,10 +66,16 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
         let generatingAncestors := givenClauseInfo.generatingAncestors
         -- For forward simplification rules, each result clause has the same generation number as givenClause
         let generationNumber := givenClauseInfo.generationNumber
+        /- Here, we define goalDistance as the same as the given clause's goal distance (since simplification rules don't add distance). Zipperposition
+           does something slightly different, taking the goal distance of the parent closest to the goal (meaning if res was created by demodulation and
+           the side clause was closer to the goal than the main clause, res's goal distance would be the same as the side clause's rather than the main
+           clause). It might make sense to modify this code in the future to match that strategy, but for now, it's significantly more convenient to just
+           use the given clause's distance to the goal. -/
+        let goalDistance := givenClauseInfo.goalDistance
         -- Register and return first result clause without adding it to the active or passive set. Add other result clauses to passive set
-        let ci ← addNewClause c proof generationNumber generatingAncestors
+        let ci ← addNewClause c proof goalDistance generationNumber generatingAncestors
         for (c, proof) in restCs do
-          addNewToPassive c proof generationNumber generatingAncestors
+          addNewToPassive c proof goalDistance generationNumber generatingAncestors
         if ci.wasSimplified then return Removed -- No need to continue working on c because we've already seen previously that it will be simplified away
         return Applied c
       | none => throwError "givenClause {givenClause} was not found"
@@ -79,17 +85,21 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSi
   let backwardSimpRes ← runRuleM do
     withoutModifyingMCtx do
       rule givenClause
-  let mut generatingNumberAndAncestorsArray : Array (Nat × Array Clause) := #[]
+  -- acc is used to store the goalDistance, generationNumber, and generatingAncestors of each clause in backwardSimpRes
+  let mut acc : Array (Nat × Nat × Array Clause) := #[]
   -- It is important that we remove each clause in clausesToRemove before reading the newly generated clauses
   for (c, _) in backwardSimpRes do
     trace[Simplification.debug] "About to remove {c} because it was simplified away"
     removeClause c [givenClause] -- givenClause must be protected when we remove c and its descendants because givenClause was used to eliminate c
     match (← getAllClauses).find? c with
     | some ci =>
-      generatingNumberAndAncestorsArray := generatingNumberAndAncestorsArray.push (ci.generationNumber, ci.generatingAncestors)
+      /- To match the strategy used for forward simplification, we use `ci.goalDistance` to ensure that the new clause is given the same goal distance as
+         its main parent `c`. But if, in the future, we adopt Zipperposition's approach of giving the new clause the minimum goal distance of all its parents
+         (i.e. `c` and `givenClause`), then we would replace `ci.goalDistance` below with the minimum of and ci.goalDistance givenClause.goalDistance. -/
+      acc := acc.push (ci.goalDistance, ci.generationNumber, ci.generatingAncestors)
     | none => throwError "Could not find {c} in all clauses"
-  for ((generationNumber, generatingAncestors), _, ocp) in generatingNumberAndAncestorsArray.zip backwardSimpRes do
+  for ((goalDistance, generationNumber, generatingAncestors), _, ocp) in acc.zip backwardSimpRes do
     if let some (c, proof) := ocp then
-      addNewToPassive c proof generationNumber generatingAncestors
+      addNewToPassive c proof goalDistance generationNumber generatingAncestors
 
 end Duper
