@@ -397,8 +397,6 @@ def runDuper (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMax
     return contradictionProof
   | Result.saturated =>
     printSaturation state
-    /- Note: If this error message changes, make sure to grep the current message and change any code that uses the content
-       of this error message to determine whether Duper threw an error due to saturation. -/
     throwError "Duper saturated"
   | Result.unknown =>
     /- Note: If this error message changes, make sure to grep the current message and change any code that uses the content
@@ -1201,8 +1199,6 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool))
           pure (none, false) -- No reason to retry with inhabitation reasoning, portfolio mode should just move on to the next instance in the loop
         else if ← getThrowPortfolioErrorsM then
           throw e -- Throw the error because it doesn't appear to pertain to inhabitation reasoning or a timeout
-        else if errorMessage.startsWith "Duper saturated" then
-          pure (none, false) -- Even though the instance threw an error, keep trying other instances
         else
           pure (none, false) -- Even though the instance threw an error, keep trying other instances
     -- Update numInstancesTried
@@ -1244,8 +1240,6 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool))
             pure none -- Duper instance just timed out, try again with the next instance
           else if ← getThrowPortfolioErrorsM then
             throw e -- Error unrelated to timeout, and inhabitation reasoning is already enabled, so throw the error
-          else if (← e.toMessageData.toString).startsWith "Duper saturated" then
-            pure none
           else -- Even though the instance threw an error, the throwPortfolioErrors option is set to false, so keep trying other instances
             pure none
       match proofOption with
