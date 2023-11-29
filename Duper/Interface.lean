@@ -113,8 +113,8 @@ By default, `duper` will call multiple instances of itself with different option
 option configuration that is best suited for the current problem. This behavior can be changed by including the option
 `portfolioMode := false` in the comma separated options list. Running `duper` with `portfolioMode` enabled means that
 each instance of `duper` will be given less time to run. To increase the amount of time allocated to `duper`, use
-`set_option maxHeartbeats N` (setting `N` to 3 times the default value will ensure that each `duper` instance is given
-as much time as it would receive if run with `portfolioMode` disabled).
+`set_option maxHeartbeats <num>` (setting `<num>` to 3 times the default value will ensure that each `duper` instance is
+given as much time as it would receive if run with `portfolioMode` disabled).
 
 The variant `duper?` will call `duper` and, if a proof is found, return a `Try this` suggestion that will call `duper`
 using just the option configuration that succeeded in finding a proof. If the suggestion is used, then on all subsequent
@@ -397,11 +397,13 @@ def runDuper (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMax
     return contradictionProof
   | Result.saturated =>
     printSaturation state
-    throwError "Duper saturated."
+    /- Note: If this error message changes, make sure to grep the current message and change any code that uses the content
+       of this error message to determine whether Duper threw an error due to saturation. -/
+    throwError "Duper saturated"
   | Result.unknown =>
     /- Note: If this error message changes, make sure to grep the current message and change any code that uses the content
        of this error message to determine whether Duper threw an error due to an actual problem or due to timeout. -/
-    throwError "Duper was terminated."
+    throwError "Duper was terminated"
 
 /- Note for converting between Duper's formulas format and Auto's lemmas format. If `hp : p`, then Duper stores the formula
    `(p, eq_true hp, #[], isFromGoal)` whereas Auto stores the lemma `⟨hp, p, #[]⟩`. Importantly, Duper stores the proof of `p = True` and
@@ -1129,6 +1131,7 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool))
   let mut maxInstanceHeartbeats := maxHeartbeats / numInstances -- Allocate total heartbeats among all instances
   let mut numInstancesTried := 0
   let mut inhabitationReasoningEnabled := configOptions.inhabitationReasoning
+  let mut moreTimeMayHelp := false -- This variable is set to false initially, but as soon as any instance fails due to timeout, it is set to true
   for (duperInstanceNum, duperInstanceFn) in instances do
     -- If inhabitationReasoning is explicitly specified, modify the current instance to ensure that inhabitationReasoning is set appropriately
     let (duperInstanceNum, duperInstanceFn) :=
@@ -1147,7 +1150,6 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool))
         | none => (duperInstanceNum, duperInstanceFn)
         | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas declName?)
     -- If includeExpensiveRules is explicitly specified, modify the current instance to ensure that includeExpensiveRules is set appropriately
-    trace[Misc.debug] "configOptions.includeExpensiveRules: {configOptions.includeExpensiveRules}"
     let (duperInstanceNum, duperInstanceFn) :=
       match configOptions.includeExpensiveRules with
       | none => (duperInstanceNum, duperInstanceFn)
@@ -1195,9 +1197,12 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool))
           else
             pure (none, true) -- Attempting to solve this problem with inhabitation reasoning disabled leads to failed proof reconstruction
         else if errorMessage.startsWith "Duper was terminated" then
+          moreTimeMayHelp := true
           pure (none, false) -- No reason to retry with inhabitation reasoning, portfolio mode should just move on to the next instance in the loop
         else if ← getThrowPortfolioErrorsM then
           throw e -- Throw the error because it doesn't appear to pertain to inhabitation reasoning or a timeout
+        else if errorMessage.startsWith "Duper saturated" then
+          pure (none, false) -- Even though the instance threw an error, keep trying other instances
         else
           pure (none, false) -- Even though the instance threw an error, keep trying other instances
     -- Update numInstancesTried
@@ -1234,12 +1239,15 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool))
           pure $ some proof
         catch e =>
           -- Only `e` is an error arising from the Duper instance timing out, it should be caught. Otherwise, it should be thrown.
-          if (← e.toMessageData.toString).startsWith "Duper was terminated" then pure none -- Duper instance just timed out, try again with the next instance
-          else
-            if ← getThrowPortfolioErrorsM then
-              throw e -- Error unrelated to timeout, and inhabitation reasoning is already enabled, so throw the error
-            else
-              pure none
+          if (← e.toMessageData.toString).startsWith "Duper was terminated" then
+            moreTimeMayHelp := true
+            pure none -- Duper instance just timed out, try again with the next instance
+          else if ← getThrowPortfolioErrorsM then
+            throw e -- Error unrelated to timeout, and inhabitation reasoning is already enabled, so throw the error
+          else if (← e.toMessageData.toString).startsWith "Duper saturated" then
+            pure none
+          else -- Even though the instance threw an error, the throwPortfolioErrors option is set to false, so keep trying other instances
+            pure none
       match proofOption with
       | some proof =>
         if ← getPrintPortfolioInstanceM then IO.println s!"Solved by Duper instance {duperInstanceNum}"
@@ -1249,4 +1257,11 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool))
           mkDuperCallSuggestion duperStxRef origSpan facts withDuperStar duperInstanceNum
           return proof
       | none => continue -- Duper timed out or otherwise failed, try the next instance
-  throwError "Duper failed to solve the goal in the allotted time. To rerun Duper for longer, use set_option maxHeartbeats N."
+  if moreTimeMayHelp then
+    throwError
+      m!"Duper encountered a (deterministic) timeout. The maximum number of heartbeats {maxHeartbeats / 1000} " ++
+      m!"has been reached (use 'set_option maxHeartbeats <num>' to set the limit)"
+  else
+    throwError
+      m!"Duper failed to solve the goal and determined that it will be unable to do so with the current " ++
+      m!"configuration of options and selection of premises"

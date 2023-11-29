@@ -260,7 +260,7 @@ partial def saturate : ProverM Unit := do
           break
       -- Collect inference rules and perform inference
       let some givenClause ← chooseGivenClause
-        | throwError "saturate :: Saturation should have been checked in the beginning of the loop."
+        | throwError "Saturate :: Saturation should have been checked in the beginning of the loop."
       trace[Prover.saturate] "Given clause: {givenClause}"
       let some (simplifiedGivenClause, simplifiedGivenClauseSafe) ← forwardSimplify givenClause
         | continue
