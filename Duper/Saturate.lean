@@ -8,6 +8,7 @@ import Duper.Rules.BetaEtaReduction
 import Duper.Rules.BoolSimp
 import Duper.Rules.Clausification
 import Duper.Rules.ClausifyPropEq
+import Duper.Rules.DecElim
 import Duper.Rules.ElimDupLit
 import Duper.Rules.ElimResolvedLit
 import Duper.Rules.EqualityFactoring
@@ -54,27 +55,49 @@ open SimpResult
 
 def forwardSimpRules : ProverM (Array SimpRule) := do
   let subsumptionTrie ← getSubsumptionTrie
-  return #[
-    betaEtaReduction.toSimpRule,
-    clausificationStep.toSimpRule,
-    syntacticTautologyDeletion1.toSimpRule,
-    syntacticTautologyDeletion2.toSimpRule,
-    boolSimp.toSimpRule,
-    syntacticTautologyDeletion3.toSimpRule,
-    elimDupLit.toSimpRule,
-    elimResolvedLit.toSimpRule,
-    destructiveEqualityResolution.toSimpRule,
-    identPropFalseElim.toSimpRule,
-    identBoolFalseElim.toSimpRule,
-    (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
-    (forwardClauseSubsumption subsumptionTrie).toSimpRule,
-    (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
-    (forwardContextualLiteralCutting subsumptionTrie).toSimpRule,
-    (forwardPositiveSimplifyReflect subsumptionTrie).toSimpRule,
-    (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
-    -- Higher order rules
-    identBoolHoist.toSimpRule
-  ]
+  if ← getIncludeExpensiveRulesM then
+    return #[
+      betaEtaReduction.toSimpRule,
+      clausificationStep.toSimpRule,
+      syntacticTautologyDeletion1.toSimpRule,
+      syntacticTautologyDeletion2.toSimpRule,
+      boolSimp.toSimpRule,
+      syntacticTautologyDeletion3.toSimpRule,
+      elimDupLit.toSimpRule,
+      elimResolvedLit.toSimpRule,
+      destructiveEqualityResolution.toSimpRule,
+      decElim.toSimpRule, -- decElim subsumes identPropFalseElim and identBoolFalseElim
+      (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
+      (forwardClauseSubsumption subsumptionTrie).toSimpRule,
+      (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
+      (forwardContextualLiteralCutting subsumptionTrie).toSimpRule,
+      (forwardPositiveSimplifyReflect subsumptionTrie).toSimpRule,
+      (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
+      -- Higher order rules
+      identBoolHoist.toSimpRule
+    ]
+  else
+    return #[
+      betaEtaReduction.toSimpRule,
+      clausificationStep.toSimpRule,
+      syntacticTautologyDeletion1.toSimpRule,
+      syntacticTautologyDeletion2.toSimpRule,
+      boolSimp.toSimpRule,
+      syntacticTautologyDeletion3.toSimpRule,
+      elimDupLit.toSimpRule,
+      elimResolvedLit.toSimpRule,
+      destructiveEqualityResolution.toSimpRule,
+      identPropFalseElim.toSimpRule,
+      identBoolFalseElim.toSimpRule,
+      (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
+      (forwardClauseSubsumption subsumptionTrie).toSimpRule,
+      (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
+      (forwardContextualLiteralCutting subsumptionTrie).toSimpRule,
+      (forwardPositiveSimplifyReflect subsumptionTrie).toSimpRule,
+      (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
+      -- Higher order rules
+      identBoolHoist.toSimpRule
+    ]
 
 -- The first `Clause` is the given clause
 -- The second `MClause` is a loaded clause
