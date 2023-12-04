@@ -34,10 +34,10 @@ def tokens := [
   "~", ",", "(", ")", "*", "!", "?", "^", ":", "[", "]", "!>", ".", "*"
 ] -- TODO: Add ?? and !!
 
-def tokenHashMap : HashSet String := 
+def tokenHashMap : HashSet String :=
   HashSet.empty.insertMany tokens
 
-def tokenPrefixes : HashSet String := 
+def tokenPrefixes : HashSet String :=
   HashSet.empty.insertMany $ tokens.bind (fun t => Id.run do
     let mut res := []
     let mut pref := ""
@@ -60,13 +60,13 @@ def addToCurrToken (char : Char) : TokenizerM Unit := do
 
 def getCurrToken : TokenizerM String := do
   return (← get).currToken
-  
+
 def addCurrToken : TokenizerM Unit := do
-  modify fun (s : State) => 
-    {s with 
+  modify fun (s : State) =>
+    {s with
       res := s.res.push $
-        match s.status with 
-        | .default => .op s.currToken 
+        match s.status with
+        | .default => .op s.currToken
         | .ident => .ident s.currToken
         | .string => .ident s.currToken
         | .comment => panic! s!"Cannot add comment as token"
@@ -76,7 +76,7 @@ def addCurrToken : TokenizerM Unit := do
 def finalizeToken : TokenizerM Unit := do
   if (← getStatus) == .string || (← getCurrToken) != "" then
     match ← getStatus with
-    | .default => 
+    | .default =>
       if tokenHashMap.contains (← getCurrToken)
       then addCurrToken
       else throw $ IO.userError s!"Invalid token: {(← getCurrToken)}"
@@ -124,9 +124,9 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
     | .comment =>
       if char == '\n' then
         setStatus .default
-          
-          
-  
+
+
+
   finalizeToken
 
   def tokenize (s : String) : IO (Array Token) := do
@@ -155,7 +155,7 @@ def peek : ParserM Token := do
   return ts[i]!
 
 def peek? : ParserM (Option Token) := do
-  if ← isEOF then return none else return ← peek 
+  if ← isEOF then return none else return ← peek
 
 def next : ParserM Token := do
   let c ← peek
@@ -204,8 +204,8 @@ partial def parseSep (sep : Token) (p : ParserM α) : ParserM (List α) := do
     return [t]
 
 mutual
-partial def parseTerm (minbp : Nat := 0) : ParserM Term := do        
-  let lhs ← parseLhs 
+partial def parseTerm (minbp : Nat := 0) : ParserM Term := do
+  let lhs ← parseLhs
   let res ← addOpAndRhs lhs minbp
   return res
 
@@ -226,7 +226,7 @@ partial def parseLhs : ParserM Term := do
       let p ← next
       parseToken (.op ")")
       return ⟨p, []⟩
-    else      
+    else
     let lhs ← parseTerm 0
     parseToken (.op ")")
     return lhs
@@ -307,7 +307,7 @@ def parseCommand : ParserM Command := do
 
 
 partial def parseFile : ParserM (List Command) := do
-  if ← isEOF 
+  if ← isEOF
   then return []
   else
     let c ← parseCommand
@@ -375,19 +375,19 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   | ⟨.op "!=", []⟩  => pure $ mkConst `Ne
   | ⟨.op "=", []⟩   => pure $ mkConst `Eq
   | ⟨.op "~|", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $ 
+                         mkLambda `y .default (mkSort levelZero) $
                            mkAppN (mkConst ``Not) #[mkAppN (mkConst ``Or) #[.bvar 1, .bvar 0]]
   | ⟨.op "~&", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $ 
+                         mkLambda `y .default (mkSort levelZero) $
                            mkAppN (mkConst ``Not) #[mkAppN (mkConst ``And) #[.bvar 1, .bvar 0]]
   | ⟨.op "<~>", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $ 
+                         mkLambda `y .default (mkSort levelZero) $
                            mkAppN (mkConst ``Not) #[mkAppN (mkConst ``Iff) #[.bvar 1, .bvar 0]]
   | ⟨.op "=>", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $ 
+                         mkLambda `y .default (mkSort levelZero) $
                            Lean.mkForall `i BinderInfo.default (.bvar 1) (.bvar 1)
   | ⟨.op "<=", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $ 
+                         mkLambda `y .default (mkSort levelZero) $
                            Lean.mkForall `i BinderInfo.default (.bvar 0) (.bvar 2)
 
   | ⟨.op ">", [⟨.op "*", [a, b]⟩, c]⟩   => toLeanExpr ⟨.op ">", [a, ⟨.op ">", [b, c]⟩]⟩
@@ -446,16 +446,19 @@ partial def resolveIncludes (cmds : List Parser.Command) (dir : System.FilePath)
       let cmds' ← resolveIncludes cmds' dir
       for cmd' in cmds' do
         res := res.push cmd'
-    | _ => res := res.push cmd   
+    | _ => res := res.push cmd
   return res.toList
 
-abbrev Formulas := Array (Expr × Expr × Array Name)
+/-- First argument is the Prop itself, second argument is the proof of the Prop, third argument is an array of
+    paramNames, and the final argument is a bool which indicates if of kind "conjecture" (i.e. whether the facts
+    come from the goal) -/
+abbrev Formulas := Array (Expr × Expr × Array Name × Bool)
 
 def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → MetaM α): MetaM α := do
   match cmds with
   | ⟨cmd, args⟩ :: cs =>
     match cmd with
-    | "thf" | "tff" | "cnf" | "fof" => 
+    | "thf" | "tff" | "cnf" | "fof" =>
       match args with
       | [_, ⟨.ident "type", _⟩, ⟨.ident id, [ty]⟩]  =>
         withLocalDeclD id (← ty.toLeanExpr) fun _ => do
@@ -463,8 +466,9 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
       | [⟨.ident name, []⟩, ⟨.ident kind, _⟩, val] =>
         let val ← val.toLeanExpr
         let val := if kind == "conjecture" then ← mkAppM ``Not #[val] else val
+        let isFromGoal := kind == "conjecture"
         withLocalDeclD ("H_" ++ name) val fun x => do
-          let acc := acc.push (val, x, #[])
+          let acc := acc.push (val, x, #[], isFromGoal)
           compileCmds cs acc k
       | _ => throwError "Unknown declaration kind: {args.map repr}"
     | "include" => throwError "includes should have been unfolded first: {args.map repr}"
@@ -477,26 +481,26 @@ partial def collectConstantsOfCmd (topLevel : Bool) (acc : HashMap String Expr) 
   | ⟨.ident n, as⟩ => do
     let acc ← as.foldlM (collectConstantsOfCmd false) acc
     if n.data[0]!.isLower && n.data[0]! != '$' && !acc.contains n
-    then 
-      let ty ← as.foldlM 
+    then
+      let ty ← as.foldlM
         (fun acc _ => mkArrow (mkConst `Iota) acc)
         (if topLevel then mkSort levelZero else mkConst `Iota)
       let acc := acc.insert n ty
       return acc
-    else 
+    else
       return acc
   | ⟨.op "!", body :: _⟩ | ⟨.op "?", body :: _⟩ =>
     collectConstantsOfCmd topLevel acc body
   | ⟨.op "~", as⟩
   | ⟨.op "|", as⟩
   | ⟨.op "&", as⟩
-  | ⟨.op "<=>", as⟩ 
-  | ⟨.op "=>", as⟩ | ⟨.op "<=", as⟩ 
-  | ⟨.op "~|", as⟩ 
-  | ⟨.op "~&", as⟩  
-  | ⟨.op "<~>", as⟩ => 
+  | ⟨.op "<=>", as⟩
+  | ⟨.op "=>", as⟩ | ⟨.op "<=", as⟩
+  | ⟨.op "~|", as⟩
+  | ⟨.op "~&", as⟩
+  | ⟨.op "<~>", as⟩ =>
     as.foldlM (collectConstantsOfCmd topLevel) acc
-  | ⟨.op "!=", as⟩ 
+  | ⟨.op "!=", as⟩
   | ⟨.op "=", as⟩ =>
     as.foldlM (collectConstantsOfCmd false) acc
   | _ => throwError "Failed to collect constants: {repr t}"

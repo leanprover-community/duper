@@ -8,8 +8,32 @@ open Lean.Elab.Tactic
 open Duper
 open ProverM
 
-def run (path : String) (github : Bool) : MetaM Unit := do
+/-- Entry point for calling a single instance of duper using the options determined by (← getOptions).
 
+    Formulas should consist of lemmas supplied by the user (to see how to obtain formulas from duper's input syntax, see `collectAssumptions`).
+    InstanceMaxHeartbeats should indicate how many heartbeats duper should run for before timing out (if instanceMaxHeartbeats is set to 0,
+    then duper will run until it is timed out by the Core `maxHeartbeats` option). If Duper succeeds in deriving a contradiction and constructing
+    a proof for it, then `runDuper` returns that proof as an expression. Otherwise, Duper will throw an error. -/
+def runDuperOnTPTP (fileName : String) (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMaxHeartbeats : Nat) : MetaM Unit := do
+  let state ←
+    withNewMCtxDepth do
+      let formulas ← unfoldDefinitions formulas
+      /- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv` because new definitional equations might be
+          generated during `collectAssumptions` -/
+      withoutModifyingCoreEnv <| do
+        -- Add the constant `skolemSorry` to the environment
+        let skSorryName ← addSkolemSorry
+        let (_, state) ←
+          ProverM.runWithExprs (ctx := {}) (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
+            ProverM.saturateNoPreprocessingClausification
+            formulas
+        pure state
+  match state.result with
+  | Result.contradiction => IO.println s!"SZS status Theorem for {fileName}"
+  | Result.saturated => IO.println s!"SZS status GaveUp for {fileName}"
+  | Result.unknown => IO.println s!"SZS status Timeout for {fileName}"
+
+def run (path : String) (github : Bool) : MetaM Unit := do
   let env ← getEnv
   let prop := mkSort levelZero
   let type := mkSort levelOne
@@ -48,31 +72,20 @@ def run (path : String) (github : Bool) : MetaM Unit := do
 
   TPTP.compileFile path fun formulas => do
     let formulas := Array.toList formulas
-    /- Adding `isFromGoal := false` to each formula as a placeholder.
-       TODO: Update TPTP.compileFile to distinguish between lemmas/axioms and the goal. -/
-    let formulas := formulas.map (fun (e, proof, paramNames) => (e, proof, paramNames, false))
-    let formulas ← unfoldDefinitions formulas
-    let skSorryName ← addSkolemSorry
-    let (_, state) ←
-      ProverM.runWithExprs (ctx := {}) (s := {skolemSorryName := skSorryName})
-        ProverM.saturateNoPreprocessingClausification
-        formulas
     let fileName := (path : System.FilePath).fileName.get!
-    match state.result with
-    | Result.contradiction => do
-      trace[TPTP_Testing] "Final Active Set: {state.activeSet.toArray}"
-      try
-        IO.println s!"SZS status Theorem for {fileName}"
-        if !github then
-          IO.println s!"SZS output start Proof for {fileName}"
-          printProof state
-          IO.println s!"SZS output end Proof for {fileName}"
-      catch
-      | _ => IO.println s!"SZS status Error for {fileName}"
-    | Result.saturated =>
-      IO.println s!"SZS status GaveUp for {fileName}"
-    | Result.unknown =>
-      IO.println s!"SZS status Timeout for {fileName}"
+    /- Going to try without Auto's preprocessing first. Although Duper performs better with Auto's preprocessing generally speaking, it's very plausible that Auto's preprocessing
+       won't be particularly helpful for TPTP problems (though I should test it both ways, because it's possible that the preprocessing steps Auto performs aside from monomorphization
+       are still helpful) -/
+
+    /- Using the options from Duper instance 9:
+       - preprocessing = no_preprocessing
+       - inhabitationReasoning = false
+       - selFunction = 4 (which corresponds to Zipperposition's default selection function)
+       - includeExpensiveRules = false
+
+       Additionally, we set maxHeartbeats to 0 so that Duper will run until the bash script terminates Duper -/
+    withOptions (fun o => (((o.set `inhabitationReasoning false).set `selFunction 4).set `includeExpensiveRules false).set `maxHeartbeats 0) $
+      runDuperOnTPTP fileName formulas 0
 
 def main : List String → IO UInt32 := fun args => do
   if args.length == 0 then
