@@ -7,7 +7,7 @@ open RuleM
 open Lean
 open Meta
 
-initialize Lean.registerTraceClass `Rule.equalityResolution
+initialize Lean.registerTraceClass `duper.rule.equalityResolution
 
 def mkEqualityResolutionProof (i : Nat) (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr :=
@@ -51,12 +51,12 @@ def equalityResolutionAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Ar
       if not $ ← eligibilityPostUnificationCheck c (alreadyReduced := false) i eligibility then
         return none
       let c := c.eraseLit i
-      some <$> yieldClause c "equality resolution" 
+      some <$> yieldClause c "equality resolution"
         (mkProof := mkEqualityResolutionProof i)
     return #[ClauseStream.mk ug given yC "equality resolution"]
-      
+
 def equalityResolution (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.equalityResolution] "EqRes inferences with {c.lits}"
+  trace[duper.rule.equalityResolution] "EqRes inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = false then

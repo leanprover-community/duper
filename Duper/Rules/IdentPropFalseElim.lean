@@ -8,7 +8,7 @@ open SimpResult
 open Lean
 open Meta
 
-initialize Lean.registerTraceClass `Rule.identPropFalseElim
+initialize Lean.registerTraceClass `duper.rule.identPropFalseElim
 
 /-- Determines whether a literal has exactly the form `False = True` or `True = False`-/
 def isFalsePropLiteral (lit : Lit) : MetaM Bool := do
@@ -59,7 +59,7 @@ def mkIdentPropFalseElimProof (refs : List (Option Nat)) (premises : List Expr) 
     let proof ← orCases (parentLits.map Lit.toExpr) proofCases
     Meta.mkLambdaFVars xs $ mkApp proof appliedPremise
 
-/-- Eliminate literals that are exactly of the form `False = True` or `True = False`. 
+/-- Eliminate literals that are exactly of the form `False = True` or `True = False`.
     This is a special case of the propFalseElim inference rule in which σ is the identity. -/
 def identPropFalseElim : MSimpRule := fun c => do
   let c ← loadClause c
@@ -80,10 +80,10 @@ def identPropFalseElim : MSimpRule := fun c => do
   newLits := newLits.reverse
   refs := refs.reverse
   if (newLits.length = c.lits.size) then
-    trace[Rule.identPropFalseElim] "Returning Unapplicable on {c.lits}"
+    trace[duper.rule.identPropFalseElim] "Returning Unapplicable on {c.lits}"
     return none
   else
-    trace[Rule.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
+    trace[duper.rule.identPropFalseElim] "Succeeded on {c.lits}, yielding {newLits}"
     let resultClause ← yieldClause (MClause.mk newLits.toArray) "identity prop false elimination"
       (some (mkIdentPropFalseElimProof refs))
     return some #[resultClause]

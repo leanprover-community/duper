@@ -9,9 +9,9 @@ open ProverM
 open Lean.Parser
 
 initialize
-  registerTraceClass `Saturate.debug
-  registerTraceClass `Portfolio.debug
-  registerTraceClass `Monomorphization.debug
+  registerTraceClass `duper.saturate.debug
+  registerTraceClass `duper.portfolio.debug
+  registerTraceClass `duper.monomorphization.debug
 
 register_option printPortfolioInstance : Bool := {
   defValue := false
@@ -358,13 +358,13 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name × Bool)) : M
     return newFormulas
 
 def printSaturation (state : ProverM.State) : MetaM Unit := do
-  trace[Prover.saturate] "Final Active Set: {state.activeSet.toArray}"
-  trace[Saturate.debug] "Final active set numbers: {state.activeSet.toArray.map (fun c => (state.allClauses.find! c).number)}"
-  trace[Saturate.debug] "Final Active Set: {state.activeSet.toArray}"
-  trace[Saturate.debug] "Verified Inhabited Types: {state.verifiedInhabitedTypes.map (fun x => x.expr)}"
-  trace[Saturate.debug] "Verified Nonempty Types: {state.verifiedNonemptyTypes.map (fun x => x.1.expr)}"
-  trace[Saturate.debug] "Potentially Uninhabited Types: {state.potentiallyUninhabitedTypes.map (fun x => x.expr)}"
-  trace[Saturate.debug] "Potentially Vacuous Clauses: {state.potentiallyVacuousClauses.toArray}"
+  trace[duper.prover.saturate] "Final Active Set: {state.activeSet.toArray}"
+  trace[duper.saturate.debug] "Final active set numbers: {state.activeSet.toArray.map (fun c => (state.allClauses.find! c).number)}"
+  trace[duper.saturate.debug] "Final Active Set: {state.activeSet.toArray}"
+  trace[duper.saturate.debug] "Verified Inhabited Types: {state.verifiedInhabitedTypes.map (fun x => x.expr)}"
+  trace[duper.saturate.debug] "Verified Nonempty Types: {state.verifiedNonemptyTypes.map (fun x => x.1.expr)}"
+  trace[duper.saturate.debug] "Potentially Uninhabited Types: {state.potentiallyUninhabitedTypes.map (fun x => x.expr)}"
+  trace[duper.saturate.debug] "Potentially Vacuous Clauses: {state.potentiallyVacuousClauses.toArray}"
 
 def formulasToMessageData : Expr × Expr × Array Name × Bool → MessageData
 | (ty, term, names, isFromGoal) => .compose (.compose m!"{names} @ " m!"{term} : ") m!"{ty}"
@@ -432,9 +432,9 @@ def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × Array
   let prover : Array Auto.Lemma → MetaM Expr :=
     fun lemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
-      trace[Monomorphization.debug] "Original formulas: {formulas}"
-      trace[Monomorphization.debug] "Lemmas (translated from formulas): {lemmas}"
-      trace[Monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas}"
+      trace[duper.monomorphization.debug] "Original formulas: {formulas}"
+      trace[duper.monomorphization.debug] "Lemmas (translated from formulas): {lemmas}"
+      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas}"
       inst monomorphizedFormulas instanceMaxHeartbeats
   Auto.monoInterface lemmas inhFacts prover
 
@@ -449,9 +449,9 @@ def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr × Arra
   let prover : Array Auto.Lemma → MetaM Expr :=
     fun lemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
-      trace[Monomorphization.debug] "Original formulas: {formulas}"
-      trace[Monomorphization.debug] "Lemmas (translated from formulas): {lemmas}"
-      trace[Monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas}"
+      trace[duper.monomorphization.debug] "Original formulas: {formulas}"
+      trace[duper.monomorphization.debug] "Lemmas (translated from formulas): {lemmas}"
+      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas}"
       inst monomorphizedFormulas instanceMaxHeartbeats
   Auto.runNativeProverWithAuto declName? prover lemmas inhFacts
 

@@ -23,9 +23,9 @@ example
   (hthm: ¬∃ N, mult N three = three) : False := by duper [*]
 
 -- Ex27 is example 27 from https://matryoshka-project.github.io/pubs/hosup_report.pdf
-set_option trace.Print_Proof true in
-set_option trace.Rule.neHoist true in
-set_option trace.ProofReconstruction true in
+set_option trace.duper.printProof true in
+set_option trace.duper.rule.neHoist true in
+set_option trace.duper.proofReconstruction true in
 theorem ex27 (t : Type) (g : Prop → t) (h : t → t) (A B : t)
   (eq1 : A ≠ B)
   (eq2 : ∀ y : t → t, h (y B) ≠ h (g False) ∨ h (y A) ≠ h (g True)) : False :=

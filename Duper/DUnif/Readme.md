@@ -1,7 +1,7 @@
 __Debugging__
 * To debug unification procedure, use
   ```
-  set_option trace.DUnif.debug true
+  set_option trace.duper.dUnif.debug true
   ```
 * To enable advanced debugging functionality, use
   ```

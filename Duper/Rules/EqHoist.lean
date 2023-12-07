@@ -10,7 +10,7 @@ open RuleM
 open SimpResult
 
 
-initialize Lean.registerTraceClass `Rule.eqHoist
+initialize Lean.registerTraceClass `duper.rule.eqHoist
 
 theorem eq_hoist_proof (x y : α) (f : Prop → Prop) (h : f (x = y)) : f False ∨ x = y := by
   by_cases x_eq_y : x = y
@@ -87,13 +87,13 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromExpr freshVarEquality]
-      trace[Rule.eqHoist] "Created {newClause.lits} from {c.lits}"
+      trace[duper.rule.eqHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkEqHoistProof pos
       yieldClause newClause "eqHoist" mkProof (transferExprs := #[freshVar1, freshVar2])
     return #[ClauseStream.mk ug given yC "eqHoist"]
 
 def eqHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.eqHoist] "Running EqHoist on {c.lits}"
+  trace[duper.rule.eqHoist] "Running EqHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← eqHoistAtExpr e.consumeMData pos given c
     return streams.append str

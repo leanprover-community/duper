@@ -7,7 +7,7 @@ open Meta
 open Core
 
 initialize
-  registerTraceClass `Preprocessing.debug
+  registerTraceClass `duper.preprocessing.debug
 
 /-- Note: This option should never be enabled if Duper will later call the monomorphization procedure
     because attempting to reduce typeclass instances can interfere with monomorphization. It also does
@@ -34,7 +34,7 @@ partial def preprocessFact (fact : Expr) : MetaM Expr := do
       let e ← whnf e
       return .continue e
     -- Reduce
-    trace[Preprocessing.debug] "fact before preprocessing: {fact}"
+    trace[duper.preprocessing.debug] "fact before preprocessing: {fact}"
     let fact ← withTransparency .instances <| Meta.transform fact (pre := red) (usedLetOnly := false)
     let restoreNE (e : Expr) : MetaM TransformStep := do
       match e with
@@ -44,10 +44,10 @@ partial def preprocessFact (fact : Expr) : MetaM Expr := do
     -- Restore ≠, i.e., ¬ a = b ⇒ a ≠ b
     -- If we don't do this, it seems that clausification will become more inefficient
     let fact ← Core.transform fact (pre := restoreNE)
-    trace[Preprocessing.debug] "fact after preprocessing: {fact}"
+    trace[duper.preprocessing.debug] "fact after preprocessing: {fact}"
     return fact
   else
-    trace[Preprocessing.debug] "Skipping preprocessing because reduceInstances option is set to false"
+    trace[duper.preprocessing.debug] "Skipping preprocessing because reduceInstances option is set to false"
     return fact
 
 /-- Eta-expand a beta-reduced expression. This function is currently unused -/

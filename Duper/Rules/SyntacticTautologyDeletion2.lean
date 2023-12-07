@@ -5,7 +5,7 @@ open Lean
 open RuleM
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.syntacticTautologyDeletion
+initialize Lean.registerTraceClass `duper.rule.syntacticTautologyDeletion
 
 /-- This implements the rule syntactic tautology deletion 2 (TD2) -/
 def syntacticTautologyDeletion2 : MSimpRule := fun c => do
@@ -16,14 +16,14 @@ def syntacticTautologyDeletion2 : MSimpRule := fun c => do
     let rhs := lit.rhs
     if lit.sign then {
       if(ne_pairs.contains (lhs, rhs) || ne_pairs.contains (rhs, lhs)) then
-        trace[Rule.syntacticTautologyDeletion] "syntacticTautologyDeletion2 returning Removed due to literals {lhs} and {rhs} from the clause {c.lits}"
+        trace[duper.rule.syntacticTautologyDeletion] "syntacticTautologyDeletion2 returning Removed due to literals {lhs} and {rhs} from the clause {c.lits}"
         return some #[] -- The literal lhs = rhs and the literal lhs ≠ rhs are both in the clause, so the clause can be removed
       else
         eq_pairs := eq_pairs.insert (lhs, rhs)
     }
     else {
       if(eq_pairs.contains (lhs, rhs) || eq_pairs.contains (rhs, lhs)) then
-        trace[Rule.syntacticTautologyDeletion] "syntacticTautologyDeletion2 returning Removed due to literals {lhs} and {rhs} from the clause {c.lits}"
+        trace[duper.rule.syntacticTautologyDeletion] "syntacticTautologyDeletion2 returning Removed due to literals {lhs} and {rhs} from the clause {c.lits}"
         return some #[] -- The literal lhs ≠ rhs and the literal lhs = rhs are both in the clause, so the clause can be removed
       else
         ne_pairs := ne_pairs.insert (lhs, rhs)

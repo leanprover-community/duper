@@ -9,7 +9,7 @@ open Std
 open List
 open Expr
 
-initialize Lean.registerTraceClass `SubsumptionTrie.debug
+initialize Lean.registerTraceClass `duper.subsumptionTrie.debug
 
 inductive SubsumptionTrieFeatureValue where
   | N : Nat → SubsumptionTrieFeatureValue -- Feature is a number

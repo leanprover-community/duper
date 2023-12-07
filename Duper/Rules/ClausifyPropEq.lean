@@ -7,7 +7,7 @@ open RuleM
 open Lean
 open Meta
 
-initialize Lean.registerTraceClass `Rule.clausifyPropEq
+initialize Lean.registerTraceClass `duper.rule.clausifyPropEq
 
 theorem c1_soundness {p : Prop} {q : Prop} (h : p = q) : (p = True) ∨ (q = False) := by
   rw [h]
@@ -78,7 +78,7 @@ def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (tra
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
 def clausifyPropEq (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.clausifyPropEq] "ClausifyPropEq inferences with {c.lits}"
+  trace[duper.rule.clausifyPropEq] "ClausifyPropEq inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     let lit := c.lits[i]!
@@ -88,7 +88,7 @@ def clausifyPropEq (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array Cl
         let c' := c.eraseLit i
         let c1 := c'.appendLits #[Lit.fromSingleExpr lit.lhs true, Lit.fromSingleExpr lit.rhs false]
         let c2 := c'.appendLits #[Lit.fromSingleExpr lit.lhs false, Lit.fromSingleExpr lit.rhs true]
-        trace[Rule.clausifyPropEq] "clausifyPropEq called on {lit} in {c.lits} to produce {c1.lits} and {c2.lits}"
+        trace[duper.rule.clausifyPropEq] "clausifyPropEq called on {lit} in {c.lits} to produce {c1.lits} and {c2.lits}"
         let loaded ← getLoadedClauses
         let ug ← unifierGenerator #[]
         let yield1 := do

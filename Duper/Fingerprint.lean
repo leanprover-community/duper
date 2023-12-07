@@ -8,7 +8,7 @@ open Lean
 open RuleM
 open Std
 
-initialize Lean.registerTraceClass `Fingerprint.debug
+initialize Lean.registerTraceClass `duper.fingerprint.debug
 
 inductive FingerprintFeatureValue where
   | F : Expr → FingerprintFeatureValue
@@ -249,11 +249,11 @@ private def getUnificationPartnersHelper (t : ClauseFingerprintTrie) (f : Finger
 
 /-- Returns all clause and position pairs that indicate subexpressions that may be unifiable with e -/
 def getUnificationPartners (t : RootCFPTrie) (e : Expr) : RuleM (Array (Nat × Clause × ClausePos × (Option Eligibility))) := do
-  trace[Fingerprint.debug] "About to call getUnificationPartnersHelper with {t.root} and {← getFingerprint e}"
+  trace[duper.fingerprint.debug] "About to call getUnificationPartnersHelper with {t.root} and {← getFingerprint e}"
   let unfilteredRes ← getUnificationPartnersHelper t.root (← getFingerprint e)
-  trace[Fingerprint.debug] "Unfiltered result from getUnificationPartners {e}: {unfilteredRes}"
-  trace[Fingerprint.debug] "{e} fingerprint: {← getFingerprint e}"
-  trace[Fingerprint.debug] "Current RootCFPTrie: {t.root}"
+  trace[duper.fingerprint.debug] "Unfiltered result from getUnificationPartners {e}: {unfilteredRes}"
+  trace[duper.fingerprint.debug] "{e} fingerprint: {← getFingerprint e}"
+  trace[duper.fingerprint.debug] "Current RootCFPTrie: {t.root}"
   return Array.filter (fun c => not (t.filterSet.contains c.2.1)) unfilteredRes
 
 private def getMatchOntoPartnersHelper (t : ClauseFingerprintTrie) (f : Fingerprint) :

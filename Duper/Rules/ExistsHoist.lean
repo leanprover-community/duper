@@ -9,7 +9,7 @@ open Meta
 open RuleM
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.existsHoist
+initialize Lean.registerTraceClass `duper.rule.existsHoist
 
 theorem exists_hoist_proof {y : α → Prop} (x : α) (f : Prop → Prop) (h : f (∃ z : α, y z)) : f True ∨ y x = False := by
   by_cases z_hyp : ∃ z : α, y z
@@ -68,7 +68,7 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
     -- Make freshVars, freshVarExistsExpr and newLitLhs
     let freshVar1 ← mkFreshExprMVar none
     let freshVar1Ty ← inferType freshVar1
-    let freshVar2Ty := Expr.forallE .anonymous freshVar1Ty (mkSort levelZero) BinderInfo.default -- freshVar1Ty → Prop 
+    let freshVar2Ty := Expr.forallE .anonymous freshVar1Ty (mkSort levelZero) BinderInfo.default -- freshVar1Ty → Prop
     let freshVar2 ← mkFreshExprMVar freshVar2Ty
     let freshVarExistsExpr ← mkAppM ``Exists #[freshVar2]
     let newLitLhs := .app freshVar2 freshVar1
@@ -89,12 +89,12 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let some replacedLit ← lit.replaceAtPosUpdateType? ⟨pos.side, pos.pos⟩ (mkConst ``True)
         | return none
       let newClause := cErased.appendLits #[replacedLit, Lit.fromSingleExpr newLitLhs (sign := false)]
-      trace[Rule.existsHoist] "Created {newClause.lits} from {c.lits}"
+      trace[duper.rule.existsHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (transferExprs := #[freshVar1])
     return #[ClauseStream.mk ug given yC "existsHoist"]
 
 def existsHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.existsHoist] "Running ExistsHoist on {c.lits}"
+  trace[duper.rule.existsHoist] "Running ExistsHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← existsHoistAtExpr e.consumeMData pos given c
     return streams.append str

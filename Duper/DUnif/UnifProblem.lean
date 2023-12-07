@@ -5,8 +5,8 @@ open Lean
 
 namespace DUnif
 
-initialize Lean.registerTraceClass `DUnif.debug
-initialize Lean.registerTraceClass `DUnif.result
+initialize Lean.registerTraceClass `duper.dUnif.debug
+initialize Lean.registerTraceClass `duper.dUnif.result
 
 register_option dUnifDbgOn : Bool := {
   defValue := false

@@ -25,7 +25,7 @@ def backwardSimpRules : ProverM (Array BackwardSimpRule) := do
     Additionally, for each clause removed from the active set in this way, all descendents of said clause should also be removed from
     the current state's allClauses and passiveSet -/
 def backwardSimplify (givenClause : Clause) : ProverM Unit := do
-  trace[Prover.saturate] "backward simplify with {givenClause}"
+  trace[duper.prover.saturate] "backward simplify with {givenClause}"
   let backwardSimpRules ← backwardSimpRules
   for i in [0 : backwardSimpRules.size] do
     let simpRule := backwardSimpRules[i]!

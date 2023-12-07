@@ -10,7 +10,7 @@ open Lean
 open Meta
 open Core
 
-initialize registerTraceClass `Rule.betaEtaReduce
+initialize registerTraceClass `duper.rule.betaEtaReduce
 
 def mkBetaEtaReductionProof (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr := do

@@ -7,8 +7,8 @@ open Duper
 open ProverM
 
 initialize
-  registerTraceClass `Print_Proof
-  registerTraceClass `ProofReconstruction
+  registerTraceClass `duper.printProof
+  registerTraceClass `duper.proofReconstruction
 
 def getClauseInfo! (state : ProverM.State) (c : Clause) : CoreM ClauseInfo := do
   let some ci := state.allClauses.find? c
@@ -32,7 +32,7 @@ partial def printProof (state : ProverM.State) : MetaM Unit := do
     let info ← getClauseInfo! state c
     let parentInfo ← info.proof.parents.mapM (fun pp => getClauseInfo! state pp.clause)
     let parentIds := parentInfo.map fun info => info.number
-    trace[Print_Proof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
+    trace[duper.printProof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
     -- println!  s!"Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {toString (← ppExpr c.toForallExpr)}"
 
 abbrev ClauseHeap := Std.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
@@ -63,7 +63,7 @@ partial def collectLevelRequests (state : ProverM.State) (c : Clause)
     match acc.find? info.number with
     | some set => set
     | none     => HashMap.empty
-  trace[ProofReconstruction] "Request {c.paramNames} ↦ {lvls} for {c}"
+  trace[duper.proofReconstruction] "Request {c.paramNames} ↦ {lvls} for {c}"
   acc := acc.insert info.number (lvlset.insert lvls lvlset.size)
   for proofParent in info.proof.parents do
     let lvls' := proofParent.paramSubst.map
@@ -143,7 +143,7 @@ partial def PRM.matchSkolem : Expr → PRM TransformStep
       let userName := Name.num `skol skid
       PRM.mkLetDecl fvarId userName skTy skProof
       runMetaAsPRM <| do
-        trace[ProofReconstruction] "Reconstructing skolem, {(mkFVar fvarId).dbgToString} ≡≡ {mkFVar fvarId} : {skTy} := {skProof}"
+        trace[duper.proofReconstruction] "Reconstructing skolem, {(mkFVar fvarId).dbgToString} ≡≡ {mkFVar fvarId} : {skTy} := {skProof}"
       modify fun s => {s with constructedSkolems := s.constructedSkolems.insert skid fvarId}
       let trailingArgs := args.extract 3 args.size
       let trailingArgs ← trailingArgs.mapM (fun e => Core.transform e PRM.matchSkolem)
@@ -172,7 +172,7 @@ partial def mkClauseProof : List Clause → PRM Expr
       let parentPrfFvar := (← get).constructedClauses.find! (parentNumber, instantiatedParentParamSubst)
       parents := parents.push parentPrfFvar
       runMetaAsPRM <| do
-        trace[ProofReconstruction] (
+        trace[duper.proofReconstruction] (
           m!"Instantiating parent {parent.clause} ≡≡ {parent.expr} with " ++
           m!"param subst {parent.clause.paramNames} ↦ {instantiatedParentParamSubst}"
         )
@@ -189,7 +189,7 @@ partial def mkClauseProof : List Clause → PRM Expr
     let instC := c.instantiateLevelParamsArray c.paramNames req
     let instC ← instC.mapMUpdateType (fun e => Core.transform e PRM.matchSkolem)
     runMetaAsPRM <| do
-      trace[ProofReconstruction] (
+      trace[duper.proofReconstruction] (
         m!"Reconstructing proof for #{info.number} " ++
         m!": {instC.paramNames} ↦ {req} @ {instC}, Rule Name: {info.proof.ruleName}"
       )
@@ -206,7 +206,7 @@ partial def mkClauseProof : List Clause → PRM Expr
         return prf.instantiateLevelParamsArray c.paramNames req)
     let newTarget := instC.toForallExpr
     runMetaAsPRM <|
-      do trace[ProofReconstruction] "#{info.number}'s newProof: {newProof}"
+      do trace[duper.proofReconstruction] "#{info.number}'s newProof: {newProof}"
     if cs == [] then return newProof
     -- Add the new proof to the local context
     let fvarId ← mkFreshFVarId
@@ -242,8 +242,8 @@ def reconstructProof (state : ProverM.State) : MetaM Expr := do
   let some emptyClause := state.emptyClause
     | throwError "applyProof :: Can't find empty clause in ProverM's state"
   let l := (← collectClauses state emptyClause (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
-  trace[ProofReconstruction] "Collected clauses: {l}"
+  trace[duper.proofReconstruction] "Collected clauses: {l}"
   -- First make proof for skolems, then make proof for clauses
   let proof ← mkAllProof state l
-  trace[ProofReconstruction] "Proof: {proof}"
+  trace[duper.proofReconstruction] "Proof: {proof}"
   return proof

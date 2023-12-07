@@ -10,7 +10,7 @@ open RuleM
 open SimpResult
 open Comparison
 
-initialize Lean.registerTraceClass `Rule.demodulation
+initialize Lean.registerTraceClass `duper.rule.demodulation
 
 def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) (isForward : Bool)
   (premises : List Expr) (parents : List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
@@ -94,15 +94,15 @@ def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTri
       -- forwardDemodulationWithPartner succeeded so we need to add cToLoad to loadedClauses in the state
       setLoadedClauses ((← getLoadedClauses).push cToLoad)
       let cp ← yieldClause res.1 "forward demodulation" res.2
-      trace[Rule.demodulation] "Main clause: {givenMainClause.lits} at lit: {pos.lit} at expression: {e}"
-      trace[Rule.demodulation] "Side clause: {partnerClause} at lit: {partnerPos.lit}"
-      trace[Rule.demodulation] "Result: {res.1.lits}"
+      trace[duper.rule.demodulation] "Main clause: {givenMainClause.lits} at lit: {pos.lit} at expression: {e}"
+      trace[duper.rule.demodulation] "Side clause: {partnerClause} at lit: {partnerPos.lit}"
+      trace[duper.rule.demodulation] "Result: {res.1.lits}"
       return some #[cp]
   return none
 
 /-- Performs rewriting of positive and negative literals (demodulation) with the given clause c as the main clause. We only attempt
     to use c as the main clause (rather than attempt to use it as a side clause as well) because if we used c as a side clause, we
-    would remove the wrong clause from the active set (we would remove c rather than the main clause that c is paired with). c will 
+    would remove the wrong clause from the active set (we would remove c rather than the main clause that c is paired with). c will
     considered as a side clause in the backward simplificaiton loop (i.e. in backwardDemodulation) -/
 def forwardDemodulation (sideIdx : RootCFPTrie) : MSimpRule := fun c => do
   let (cMVars, c) ← loadClauseCore c
@@ -148,9 +148,9 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs false) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
   let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseLit.rhs
-  trace[Rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
-  trace[Rule.demodulation] "(Backward) Side clause (after matching): {sidePremise.lits}"
-  trace[Rule.demodulation] "(Backward) Result: {mainPremiseReplaced.lits}"
+  trace[duper.rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
+  trace[duper.rule.demodulation] "(Backward) Side clause (after matching): {sidePremise.lits}"
+  trace[duper.rule.demodulation] "(Backward) Result: {mainPremiseReplaced.lits}"
   some <$> yieldClause mainPremiseReplaced "backward demodulation" (some $ mkDemodulationProof sidePremiseLhs mainPremisePos false)
 
 /-- Performs rewriting of positive and negative literals (demodulation) with the given clause as the side clause. Returns the list of

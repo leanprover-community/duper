@@ -21,8 +21,8 @@ set_option pp.match false
 
 -- This bug demonstrates the difficulty Duper has dealing with inductive arguments and facts such as Color.rec
 set_option inhabitationReasoning false in
-set_option trace.Saturate.debug true in
-set_option trace.Timeout.debug true in
+set_option trace.duper.saturate.debug true in
+set_option trace.duper.timeout.debug true in
 example : ∃ c : Color, test c = .green := by
   duper [test, test.match_1, Color.rec, Color.casesOn] {portfolioInstance := 0}
 
@@ -52,6 +52,15 @@ example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
 example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
   by duper {portfolioInstance := 8}
 
+/- Here is another example where the same problem appears to occur
+def Evens : Type := {x : Nat // 2 ∣ x}
+def Odds : Type := {x : Nat // ∃ y : Nat, 2 * y + 1 = x}
+example : ∀ o : Odds, ∃ e : Evens, o.1 = e.1 + 1 := by
+  duper [Subtype.property] {portfolioInstance := 7}
+
+Fundamentally, it is `Subtype.property` that is causing an issue in this example
+-/
+
 -- Diagnosis of the above test
 /-
 The error appears to occur during removeVanishedVarsHelper (which is only called when inhabitationReasoning is enabled).
@@ -63,7 +72,7 @@ axiom f.{u} : Type u → Prop
 axiom ftrue.{u} : f.{u} (Sort u)
 
 axiom exftrue.{u} : ∃ (x : Type u), f x
-set_option trace.ProofReconstruction true in
+set_option trace.duper.proofReconstruction true in
 def test : ∃ x : Type u, ∃ y : Type v, f x = f y := by
   duper [exftrue]
 /-

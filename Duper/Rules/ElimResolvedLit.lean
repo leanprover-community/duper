@@ -8,7 +8,7 @@ open SimpResult
 open Lean
 open Meta
 
-initialize Lean.registerTraceClass `Rule.elimResolvedLit
+initialize Lean.registerTraceClass `duper.rule.elimResolvedLit
 
 def mkElimResolvedLitProof (refs : List (Option Nat)) (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr := do
@@ -34,7 +34,7 @@ def mkElimResolvedLitProof (refs : List (Option Nat)) (premises : List Expr) (pa
         match refs[i]! with
         | none =>
           panic! "There is a bug in ElimResolvedLit.lean (The refs invariant is not satisfied)"
-        | some j => 
+        | some j =>
           let proofCase ← Meta.withLocalDeclD `h parentLits[i]!.toExpr fun h => do
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j h
           proofCases := proofCases.push proofCase
@@ -65,7 +65,7 @@ def elimResolvedLit : MSimpRule := fun c => do
   if (newLits.length = c.lits.size) then
     return none
   else
-    trace[Rule.elimResolvedLit] "elimResolvedLit applied with the newLits: {newLits}"
+    trace[duper.rule.elimResolvedLit] "elimResolvedLit applied with the newLits: {newLits}"
     let yc ← yieldClause (MClause.mk newLits.toArray) "eliminate resolved literals" (some (mkElimResolvedLitProof refs))
     return some #[yc]
 

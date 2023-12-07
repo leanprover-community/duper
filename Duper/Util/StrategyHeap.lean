@@ -15,7 +15,7 @@ inductive ClauseSelectionStrategy where
 open ClauseSelectionStrategy
 
 initialize
-  registerTraceClass `ClauseSelection.debug
+  registerTraceClass `duper.clauseSelection.debug
 
 /-- `StrategyHeap` models GivenClause Selection. `StrategyHeap` contains 3 internal heaps: a weight heap, a
     generation heap, and an age heap.

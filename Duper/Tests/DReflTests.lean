@@ -9,7 +9,7 @@ opaque w : Nat
 set_option dUnifDbgOn true
 
 -- Trivial
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def tri₁ : 1 = 1 := by drefl attempt 3 unifier 0 contains 0
 
 def tri₂ (done : Prop)
@@ -20,12 +20,12 @@ def tri₂ (done : Prop)
 
 @[reducible] def fooNat := Nat
 
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def tri₃ : (Nat → Nat → Nat → Nat → Nat) = (Nat → Nat → Nat → fooNat → Nat) := by
   drefl attempt 11 unifier 0 contains 0
 
 -- Iteration
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 set_option oracleInstOn false in
 def iter₁ (done : Prop)
           (gene : ∀ (H : (Nat → Nat) → Nat → Nat) F X, H F X = F X → done) :
@@ -34,7 +34,7 @@ def iter₁ (done : Prop)
   case a => drefl attempt 1500 unifier 0 contains 0 iteron
             case X => exact w
 
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def iter₂ (done : Prop) (a : Nat)
           (gene : ∀ (F G : Nat → Nat), F a = G a → done) :
           done := by
@@ -142,7 +142,7 @@ def dep₂ (done : Prop)
 -- This tests DUnif's ability to avoid assigning `e` to mvar `m` when
 --   some mvars in `e` depends on `m`. This mostly concerns the binding
 --   `oracleInst` and `identification`.
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 set_option trace.Meta.Tactic true in
 def dep₃ (done : Prop) (inh : Sort u)
          (h : ∀ (r : Type u) (a_1 : r → Prop) (a_2 : r), a_1 a_2 = Nonempty r → done) : done := by
@@ -221,7 +221,7 @@ def poly₄
 -- Projection
 
 set_option drefl.reduce false
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def proj₁
   (done : Prop)
   (skS : ∀ {_ : Nat} {α : Type}, α)
@@ -232,22 +232,22 @@ def proj₁
     drefl attempt 10 unifier 0 contains 0
 
 -- Negative tests
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def neg₁ (done : Prop) (f : Nat → Nat)
          (h : ∀ x, x = f x → done) : done := by
   apply h
   case a => drefl attempt 10 unifier 0 contains 0
 
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def neg₂ (done : Prop) (f : Nat → Nat) (g : Nat → Nat →  Nat)
          (h : ∀ x y, g x y = g y (f x) → done) : done := by
   apply h
   case a => drefl attempt 10 unifier 0 contains 0
 
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def neg₃ : (Nat → Bool → Nat → Bool → Nat) = (Bool → Nat → Bool → Nat → Bool) := by
   drefl attempt 11 unifier 0 contains 0
 
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def neg₄ : (Nat → Type 2 → Type 1) = (Nat → Bool → Type 2) := by
   drefl attempt 11 unifier 0 contains 0

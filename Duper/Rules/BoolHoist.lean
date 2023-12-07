@@ -10,7 +10,7 @@ open RuleM
 open Meta
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.boolHoist
+initialize Lean.registerTraceClass `duper.rule.boolHoist
 
 def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
@@ -38,12 +38,12 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromSingleExpr e true]
-      trace[Rule.boolHoist] "Created {newClause.lits} from {c.lits}"
+      trace[duper.rule.boolHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "boolHoist" $ some (mkBoolHoistProof pos false)
     return #[ClauseStream.mk ug given yC "boolHoist"]
 
 def boolHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.boolHoist] "Running BoolHoist on {c.lits}"
+  trace[duper.rule.boolHoist] "Running BoolHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← boolHoistAtExpr e pos given c
     return streams.append str

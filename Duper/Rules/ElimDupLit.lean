@@ -7,7 +7,7 @@ open SimpResult
 open Lean
 open Meta
 
-initialize Lean.registerTraceClass `Rule.elimDupLit
+initialize Lean.registerTraceClass `duper.rule.elimDupLit
 
 def mkElimDupLitProof (refs : Array (Nat × Bool)) (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr)
   (c : Clause) : MetaM Expr := do
@@ -42,17 +42,17 @@ def elimDupLit : MSimpRule := fun c => do
   for i in [:c.lits.size] do
     match newLits.getIdx? c.lits[i]! with
     | some j => do
-      trace[Rule.elimDupLit] "Accessed nonsymmetry case"
+      trace[duper.rule.elimDupLit] "Accessed nonsymmetry case"
       refs := refs.push (j, false) -- j is index of duplicate lit, false indicates the literal is not flipped
     | none => do
       match newLits.getIdx? (c.lits[i]!.symm) with
       | some j => do
-        trace[Rule.elimDupLit] "Accessed symmetry case"
+        trace[duper.rule.elimDupLit] "Accessed symmetry case"
         refs := refs.push (j, true) -- j is index of duplicate lit, false indicates the literal is flipped
       | none => do
         refs := refs.push (newLits.size, false)
         newLits := newLits.push c.lits[i]!
-  
+
   if newLits.size = c.lits.size then
     return none
   else

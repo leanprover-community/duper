@@ -7,10 +7,10 @@ namespace Duper
 open RuleM
 open Lean
 
-initialize Lean.registerTraceClass `InstantiatePremises
+initialize Lean.registerTraceClass `duper.instantiatePremises
 
 -- `xs` is usually obtained by `Meta.forallTelescope c.toForallExpr fun xs body =>`
-def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) (transferExprs : Array Expr) : 
+def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs : Array Expr) (transferExprs : Array Expr) :
   MetaM (List (Array Lit) × List Expr × Array Expr) := do
   let mut parentsLits := []
   let mut appliedPremises := []
@@ -31,7 +31,7 @@ def instantiatePremises (parents : List ProofParent) (premises : List Expr) (xs 
         throwError "instantiatePremises :: Failed to find instance for {ty}"
     -- `parentInstantiations = mvars[fvars]`
     let parentInstantiations := finstantiatedparent.getAppArgs
-    trace[InstantiatePremises] "parentInstantiations: {parentInstantiations}"
+    trace[duper.instantiatePremises] "parentInstantiations: {parentInstantiations}"
     let parentLits := parent.clause.lits.map fun lit =>
     lit.map (fun e => (e.instantiateRev parentInstantiations))
     parentsLits := parentLits :: parentsLits

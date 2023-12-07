@@ -11,7 +11,7 @@ open RuleM
 open Meta
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.clausification
+initialize Lean.registerTraceClass `duper.rule.clausification
 
 theorem not_of_eq_false (h: p = False) : ¬ p :=
   fun hp => h ▸ hp
@@ -375,7 +375,7 @@ def clausificationStepE (e : Expr) (sign : Bool) : RuleM (Array ClausificationRe
         ⟨#[Lit.fromSingleExpr e₁ true, Lit.fromSingleExpr e₂ true], pr2, #[]⟩
       ]
   | _, _ => do
-    trace[Rule.clausification] "### clausificationStepE is unapplicable with e = {e} and sign = {sign}"
+    trace[duper.rule.clausification] "### clausificationStepE is unapplicable with e = {e} and sign = {sign}"
     return #[]
 
 -- Important: We return `Array ClausificationResult` instead of
@@ -459,7 +459,7 @@ def clausificationStep : MSimpRule := fun c => do
             let r ← Meta.mkLambdaFVars xs $ mkApp r appliedPremise
             return r
       let newClause := ⟨c.lits.eraseIdx i ++ d⟩
-      trace[Rule.clausification] "Yielding newClause: {newClause.lits}"
+      trace[duper.rule.clausification] "Yielding newClause: {newClause.lits}"
       let newResult ← yieldClause newClause "clausification" mkProof tr
       resultClauses := resultClauses.push newResult
     return some resultClauses

@@ -8,7 +8,7 @@ open Lean
 namespace DUnif
 
 initialize
-  registerTraceClass `DUnif.oracles
+  registerTraceClass `duper.dUnif.oracles
 
 register_option oracleInstOn : Bool := {
   defValue := true

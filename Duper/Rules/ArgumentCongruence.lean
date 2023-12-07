@@ -7,7 +7,7 @@ open RuleM
 open Lean
 open Meta
 
-initialize Lean.registerTraceClass `Rule.argCong
+initialize Lean.registerTraceClass `duper.rule.argCong
 
 def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr) (premises : List Expr) (parents : List ProofParent)
   (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
@@ -29,12 +29,12 @@ def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr) (premises : List 
         let pjl ← Meta.mkAppM' pj.lhs newMVars
         let able_to_match ← Meta.performMatch #[(cjl, pjl)] #[]
         if able_to_match then
-          trace[Rule.argCong] m!"lhs of conclusion: {cjl}, lhs of parent: {pjl}"
+          trace[duper.rule.argCong] m!"lhs of conclusion: {cjl}, lhs of parent: {pjl}"
           let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
             let mut pr := h
             for x in newFVars do
               pr ← Meta.mkAppM ``congrFun #[pr, x]
-            trace[Rule.argCong] m!"pr: {pr}, type: {← Meta.inferType pr}"
+            trace[duper.rule.argCong] m!"pr: {pr}, type: {← Meta.inferType pr}"
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j pr
           caseProofs := caseProofs.push pr
         else
@@ -46,7 +46,7 @@ def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr) (premises : List 
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) j h
         caseProofs := caseProofs.push pr
-    
+
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
@@ -57,7 +57,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
     if ← eligibilityNoUnificationCheck c (alreadyReduced := true) i (strict := true) then
       let ty ← inferType lit.lhs
       let (mVars, _, _) ← forallMetaTelescope ty
-      trace[Rule.argCong] s!"Lhs: {lit.lhs}, Level: {lit.lvl}, Type of lhs: {ty}, Telescope: {mVars}"
+      trace[duper.rule.argCong] s!"Lhs: {lit.lhs}, Level: {lit.lvl}, Type of lhs: {ty}, Telescope: {mVars}"
       let lhs := lit.lhs; let rhs := lit.rhs;
       let mut newMVars := #[]
       let mut mVarTys := #[]
@@ -82,7 +82,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
     return streams
 
 def argCong (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.argCong] "ArgCong inferences with {c.lits}"
+  trace[duper.rule.argCong] "ArgCong inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = true then

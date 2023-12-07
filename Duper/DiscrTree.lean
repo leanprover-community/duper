@@ -9,7 +9,7 @@ namespace Duper
 open Lean
 open RuleM
 
-initialize Lean.registerTraceClass `DiscrTree.debug
+initialize Lean.registerTraceClass `duper.discrTree.debug
 
 inductive Key where
   | const : Name → Nat → Key
@@ -426,6 +426,3 @@ def delete (d : DiscrTree α) (c : Clause) : RuleM (DiscrTree α) := do
 
 end DiscrTree
 end Duper
-
-
-

@@ -11,7 +11,7 @@ def wh₀ (f : Nat → Prop) (h : ∀ x, f x) : f wh₁ :=
   by dapply h attempt 5 unifier 0 contains 0
 
 -- Imitation
-set_option trace.DUnif.debug true in
+set_option trace.duper.dUnif.debug true in
 def imt₀ (f : Nat → Prop) (h : ∀ x, f x) : f 3 :=
   by dapply h attempt 30 unifier 0 contains 0
 
@@ -62,7 +62,7 @@ opaque ww : Nat → Nat := id
 opaque w : Nat
 
 -- Elimination
-def elm₁ (p : Nat → Prop) 
+def elm₁ (p : Nat → Prop)
          (a b : Nat) (h : ∀ (f : Nat → Nat → Nat), p (f a b))
          (g : ∀ (ay : Nat), p ay → False)
          : False := by

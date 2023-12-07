@@ -10,8 +10,8 @@ open Lean
 open Meta
 
 initialize
-  registerTraceClass `Rule.fluidBoolHoist
-  registerTraceClass `Rule.fluidLoobHoist
+  registerTraceClass `duper.rule.fluidBoolHoist
+  registerTraceClass `duper.rule.fluidLoobHoist
 
 theorem fluid_bool_hoist_proof {α} (f : α → Prop) (x : Prop) (z : Prop → α) (H : f (z x)) : f (z False) ∨ x = True := by
   by_cases hx : x
@@ -102,7 +102,7 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
       let cErased := c.eraseLit pos.lit
       let litOriginal := c.lits[pos.lit]! -- No lhs/rhs swap
       let newClause := cErased.appendLits #[← litOriginal.replaceAtPos! ⟨pos.side, pos.pos⟩ freshFunctionGivenFalse, Lit.fromSingleExpr freshPropVar true]
-      trace[Rule.fluidBoolHoist] "Created {newClause.lits} from {c.lits}"
+      trace[duper.rule.fluidBoolHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkFluidBoolHoistProof pos false -- Is fluidBoolHoist not fluidLoobHoist
       yieldClause newClause "fluidBoolHoist" mkProof (transferExprs := #[freshFunctionOutputType, freshFunction, freshPropVar])
 
@@ -126,10 +126,10 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
       let cErased := c.eraseLit pos.lit
       let litOriginal := c.lits[pos.lit]! -- No lhs/rhs swap
       let newClause := cErased.appendLits #[← litOriginal.replaceAtPos! ⟨pos.side, pos.pos⟩ freshFunctionGivenTrue, Lit.fromSingleExpr freshPropVar false]
-      trace[Rule.fluidLoobHoist] "Created {newClause.lits} from {c.lits}"
+      trace[duper.rule.fluidLoobHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkFluidBoolHoistProof pos true -- True because this is fluidLoobHoist
       yieldClause newClause "fluidLoobHoist" mkProof (transferExprs := #[freshFunctionOutputType, freshFunction, freshPropVar])
-    
+
     return #[ClauseStream.mk ug given boolHoistYC "fluidBoolHoist", ClauseStream.mk ug given loobHoistYC "fluidLoobHoist"]
 
 def fluidBoolHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do

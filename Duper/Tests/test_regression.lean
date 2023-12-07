@@ -1,9 +1,6 @@
 import Duper.Tactic
 import Duper.TPTP
 
--- set_option trace.Meta.debug true
--- set_option trace.Prover.saturate true
--- set_option trace.Prover.debug true
 -- set_option pp.all true
 -- set_option pp.rawOnError true
 set_option printPortfolioInstance true
@@ -245,7 +242,7 @@ theorem barber_paradox_inline3 {person : Type} {shaves : person → person → P
 --###############################################################################################################################
 -- syntacticTautologyDeletion2 and elimResolvedLit tests
 /-
-Prover becomes saturated as expected, but the point is just to confirm that trace.Simp.debug is printing that the correct clause is being removed
+Prover becomes saturated as expected, but the point is just to confirm that trace.duper.simp.debug is printing that the correct clause is being removed
 for the correct reason
 
 theorem syntacticTautologyDeletionTest {t : Type} (a : t) (b : t) (c : t)
@@ -350,11 +347,11 @@ tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
 #print PUZ012_1
 --###############################################################################################################################
 -- Tests that (in the current commit at least) use positive simplify reflect
-set_option trace.Rule.simplifyReflect true in
+set_option trace.duper.rule.simplifyReflect true in
 tptp NUN004_5 "../TPTP-v8.0.0/Problems/NUN/NUN004_5.p"
   by duper [*]
 
-set_option trace.Rule.simplifyReflect true in
+set_option trace.duper.rule.simplifyReflect true in
 tptp ITP209_2 "../TPTP-v8.0.0/Problems/ITP/ITP209_2.p"
   by duper [*]
 
@@ -397,57 +394,57 @@ theorem assoc_test : Nat.add (Nat.add x y) z = Nat.add x (Nat.add y z) := by dup
 --###############################################################################################################################
 -- Hoist tests (note: forallHoist and existsHoist are only truly tested if identBoolHoist is diabled)
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem eqHoistTest (a b : Nat) (f : Prop → Prop) (h : f (a = b)) : ∃ p : Prop, f p :=
   by duper [h]
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem neHoistTest (a b : Nat) (f : Prop → Prop) (h : f (a ≠ b)) : ∃ p : Prop, f p :=
   by duper [*]
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem existsHoistTest1 (f : Prop → Nat) : f (∃ (x : Nat), x = Nat.zero) = f True := by duper
 
-set_option trace.Print_Proof true in
-set_option trace.Rule.existsHoist true in
+set_option trace.duper.printProof true in
+set_option trace.duper.rule.existsHoist true in
 theorem existsHoistTest2 (f : Prop → Nat) : ∀ y : Nat, f (∃ x : Nat, x = y) = f True := by duper
 
-set_option trace.Print_Proof true in
-set_option trace.Rule.existsHoist true in
+set_option trace.duper.printProof true in
+set_option trace.duper.rule.existsHoist true in
 theorem existsHoistTest3 (f : Prop → Nat) (h : ∀ z : Nat, ∀ y : Nat, f (∃ x : Nat, (x = y ∧ x = z)) ≠ f True) : False := by duper [*]
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem existsHoistTest4 (f : Prop → Nat)
   (h : ∀ x : Nat, f (∃ y : Nat, ∀ a : Nat, ∃ b : Nat, x = y ↔ a = b) ≠ f True) : False := by duper [*]
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem existsHoistTest5 (f : Prop → Nat)
   (h : ∀ x : Nat, ∃ y : Nat, f ((∃ z : Nat, z = x) ∧ (∃ z : Nat, z = y)) ≠ f True) : False := by duper [*]
 
-set_option trace.Print_Proof true in
-set_option trace.Rule.existsHoist true in
+set_option trace.duper.printProof true in
+set_option trace.duper.rule.existsHoist true in
 theorem existsHoistTest6 (f : Prop → Nat) : ∀ y : Nat, f (∃ x : Nat, 0 = 0) = f True := by duper
 
-set_option trace.Print_Proof true in
-set_option trace.Rule.existsHoist true in
+set_option trace.duper.printProof true in
+set_option trace.duper.rule.existsHoist true in
 theorem existsHoistTest7 (f : Prop → Nat) : ∀ y : Nat, f (∃ x : Nat, y = y) = f True := by duper
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem forallHoistTest1 (f : Prop → Nat) : f (∀ (x : Nat), x ≠ Nat.zero) = f False := by duper
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem forallHoistTest2 (f : Prop → Nat)
   (h : ∀ x : Nat, f (∀ y : Nat, x = y) ≠ f False) : False := by duper [*]
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem forallHoistTest3 (f : Prop → Nat)
   (h : ∃ x : Nat, f (∀ y : Nat, x = y) ≠ f False) : False := by duper [*]
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem forallHoistTest4 (f : Prop → Nat)
   (h : ∀ x : Nat, ∀ y : Nat, f (∀ z : Nat, x = z ↔ y = z) ≠ f False) : False := by duper [*]
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 theorem forallHoistTest5 (f : Prop → Nat)
   (h : ∀ x : Nat, ∃ y : Nat, f (∀ z : Nat, x = z ∧ y = z) ≠ f False) : False := by duper [*]
 
@@ -491,7 +488,7 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
 tptp SEU123 "../TPTP-v8.0.0/Problems/SEU/SEU123+1.p"
   by duper [*]
 
-set_option trace.Rule.superposition true in
+set_option trace.duper.rule.superposition true in
 tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
   by duper [*]
 
@@ -583,19 +580,19 @@ axiom f.{u} : Type u → Prop
 
 axiom ftrue.{u} : f.{u} (Sort u)
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 def unitst₁ : f.{max u v} (Sort (max u v)) ∧ f.{v} (Sort v) := by
   duper [ftrue]
 
 axiom fmoretrue.{u} : ∀ (x : Type u), f x
 
-set_option trace.Print_Proof true in
+set_option trace.duper.printProof true in
 def unitst₂ : ∀ (x : Type v), f x := by
   duper [fmoretrue]
 
 axiom exftrue.{u} : ∃ (x : Type u), f x
 
-set_option trace.ProofReconstruction true in
+set_option trace.duper.proofReconstruction true in
 def skuniverse.{u} : ∃ (x : Type u), f x := by
   duper [exftrue]
 

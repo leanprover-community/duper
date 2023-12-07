@@ -8,7 +8,7 @@ open SimpResult
 open Lean
 open Meta
 
-initialize registerTraceClass `Rule.falseElim
+initialize registerTraceClass `duper.rule.falseElim
 
 /-- Determines whether a literal has can be unified with the form `False = True` or `True = False`. If it can
     be, then the substitution necessary to achieve that match is applied (if the match is unsuccessful, then
@@ -66,14 +66,14 @@ def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array Claus
       setLoadedClauses loaded
       if (not $ ← eligibilityPostUnificationCheck c (alreadyReduced := false) i eligibility (strict := true)) then return none
       let c := c.eraseLit i
-      trace[Rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"
+      trace[duper.rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"
       yieldClause c "falseElim" $ some (mkFalseElimProof i)
     return #[ClauseStream.mk ug given yC "falseElim"]
 
 /-- If there is a substitution σ and literal l in c such that σ(l) equates `True` and `False`, then
     falseElim yields the clause obtained by removing l from c and applying sigma to the rest of c -/
 def falseElim (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.falseElim] "Running FalseElim on {c.lits}"
+  trace[duper.rule.falseElim] "Running FalseElim on {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign then

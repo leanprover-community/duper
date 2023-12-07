@@ -3,7 +3,7 @@ import Lean
 open Lean
 open Lean.Meta
 
-initialize Lean.registerTraceClass `Match.debug
+initialize Lean.registerTraceClass `duper.match.debug
 
 /-- Given an array of expression pairs (match_target, e), attempts to assign mvars in e to make e equal to match_target (without
     making any assignments to mvars that appear in protected_mvars).
@@ -12,7 +12,7 @@ partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) (protected_mvars :
   Core.checkMaxHeartbeats "match"
   let state ← saveState
   try
-    trace[Match.debug] "About to attempt to match {l}"
+    trace[duper.match.debug] "About to attempt to match {l}"
 
     for (match_target, e) in l do
       let match_target_type := (← instantiateMVars (← inferType match_target))
@@ -26,7 +26,7 @@ partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) (protected_mvars :
         state.restore
         return false
 
-    trace[Match.debug] "Successfully matched {l}"
+    trace[duper.match.debug] "Successfully matched {l}"
     return true
   catch ex =>
     state.restore

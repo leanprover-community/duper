@@ -9,7 +9,7 @@ open Meta
 open RuleM
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.neHoist
+initialize Lean.registerTraceClass `duper.rule.neHoist
 
 theorem ne_hoist_proof (x y : α) (f : Prop → Prop) (h : f (x ≠ y)) : f True ∨ x = y := by
   by_cases x_eq_y : x = y
@@ -87,13 +87,13 @@ def neHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
       let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``True), Lit.fromExpr freshVarEquality]
-      trace[Rule.neHoist] "Created {newClause.lits} from {c.lits}"
+      trace[duper.rule.neHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkNeHoistProof pos
       yieldClause newClause "neHoist" mkProof (transferExprs := #[freshVar1, freshVar2])
     return #[ClauseStream.mk ug given yC "neHoist"]
 
 def neHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.neHoist] "Running NeHoist on {c.lits}"
+  trace[duper.rule.neHoist] "Running NeHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← neHoistAtExpr e.consumeMData pos given c
     return streams.append str

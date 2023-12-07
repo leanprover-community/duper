@@ -1,8 +1,8 @@
 import Duper.Tactic
 import Duper.TPTP
 
-set_option trace.Saturate.debug true
-set_option trace.Rule.fluidSup true
+set_option trace.duper.saturate.debug true
+set_option trace.duper.rule.fluidSup true
 
 -- Examples taken from https://matryoshka-project.github.io/pubs/lamsup_article.pdf pages 9 and 10
 

@@ -19,9 +19,9 @@ open RuleM
 open Expr
 
 initialize
-  registerTraceClass `Simplification.debug
-  registerTraceClass `ImmediateSimplification.debug
-  registerTraceClass `typeInhabitationReasoning.debug
+  registerTraceClass `duper.simplification.debug
+  registerTraceClass `duper.immediateSimplification.debug
+  registerTraceClass `duper.typeInhabitationReasoning.debug
 
 inductive Result :=
 | unknown
@@ -103,9 +103,8 @@ instance [MetaEval α] : MetaEval (ProverM α) :=
   ⟨fun env opts x _ => MetaEval.eval env opts x.run' true⟩
 
 initialize
-  registerTraceClass `Prover
-  registerTraceClass `Prover.saturate
-  registerTraceClass `Prover.createdClauses
+  registerTraceClass `duper.prover.saturate
+  registerTraceClass `duper.createdClauses
 
 def getInstanceMaxHeartbeats : ProverM Nat :=
   return (← get).instanceMaxHeartbeats
@@ -270,7 +269,7 @@ def markAsDescendantToGeneratingAncestors (c : Clause) (generatingAncestors : Ar
     Typically, you'll want to use `addNewToPassive` instead. -/
 def addNewClause (c : Clause) (proof : Proof) (goalDistance : Nat) (generationNumber : Nat) (generatingAncestors : Array Clause) : ProverM ClauseInfo := do
   markAsDescendantToGeneratingAncestors c generatingAncestors
-  trace[ClauseSelection.debug] "addNewClause: c: {c}, c.weight: {c.weight}, goalDistance: {goalDistance}, c.selectionPrecedence: {c.selectionPrecedence goalDistance}"
+  trace[duper.clauseSelection.debug] "addNewClause: c: {c}, c.weight: {c.weight}, goalDistance: {goalDistance}, c.selectionPrecedence: {c.selectionPrecedence goalDistance}"
   let allClauses ← getAllClauses
   let ci ← (do
     match allClauses.find? c with
@@ -303,11 +302,11 @@ def addNewClause (c : Clause) (proof : Proof) (goalDistance : Nat) (generationNu
           setEmptyClause c
           throwEmptyClauseException
         return ci)
-  trace[Prover.saturate] (
+  trace[duper.prover.saturate] (
     let parentInfos := proof.parents.map (fun p => allClauses.find! p.clause)
     m!"New clause #{ci.number} by {proof.ruleName} on {parentInfos.map (fun i => i.number)}: {c}"
   )
-  trace[Prover.createdClauses] (
+  trace[duper.createdClauses] (
     let parentInfos := proof.parents.map (fun p => allClauses.find! p.clause)
     m!"New clause #{ci.number} by {proof.ruleName} on {parentInfos.map (fun i => i.number)}: {c}"
   )
@@ -321,7 +320,7 @@ def addNewToPassive (c : Clause) (proof : Proof) (goalDistance : Nat) (generatio
   | some ci =>
     if (ci.wasSimplified) then pure () -- No need to add c to the passive set because it would just be simplified away later
     else if(ci.isOrphan) then -- We've seen c before, but we should readd it because it was only removed as an orphan (and wasn't simplified away)
-      trace[Prover.saturate] "Reading prior orphan to the passive set: {c}"
+      trace[duper.prover.saturate] "Reading prior orphan to the passive set: {c}"
       -- Update c's generating ancestors and orphan status because it has been added to the passiveSet by new ancestors
       let ci := {ci with generatingAncestors := generatingAncestors, isOrphan := false}
       setAllClauses ((← getAllClauses).insert c ci)
@@ -369,7 +368,7 @@ def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name
   return res
 
 def addPotentiallyVacuousClause (c : Clause) : ProverM Unit := do
-  trace[typeInhabitationReasoning.debug] "Registering {c} as potentially vacuous"
+  trace[duper.typeInhabitationReasoning.debug] "Registering {c} as potentially vacuous"
   setPotentiallyVacuousClauses $ (← getPotentiallyVacuousClauses).insert c
 
 /-- Adds `c` to demodSidePremiseIdx and subsumptionTrie, which are the two indices that a potentiallyVacuous clause will not
@@ -497,7 +496,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
   let mut allClauses ← getAllClauses
   for d in ci.descendants do
     if protectedClauses.contains d then continue
-    trace[Simplification.debug] "Marking {d} as orphan because it is a descendant of {c} and does not appear in {protectedClauses}"
+    trace[duper.simplification.debug] "Marking {d} as orphan because it is a descendant of {c} and does not appear in {protectedClauses}"
     match allClauses.find? d with
     | some dInfo =>
       -- Tag d as an orphan in allClauses
@@ -521,7 +520,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
     ancestor (without intending to remove itself), so the protectedClauses argument ensures that no clause inadvertently
     removes itself in the process of simplifying away a different clause. -/
 partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) : ProverM Unit := do
-  trace[Simplification.debug] "Calling removeClause with c: {c} and protectedClauses: {protectedClauses}"
+  trace[duper.simplification.debug] "Calling removeClause with c: {c} and protectedClauses: {protectedClauses}"
   let mut activeSet ← getActiveSet
   let mut passiveSet ← getPassiveSet
   let mut potentiallyVacuousClauses ← getPotentiallyVacuousClauses
@@ -561,7 +560,7 @@ def immediateSimplification (givenClause : Clause) (resultClause : Clause) :
     let givenMClauseMVarIds := givenMClauseMVars.map Expr.mvarId!
     let c := resultClause
     if c != givenClause && (← subsumptionCheck (← loadClause c) givenMClause givenMClauseMVarIds) then
-      trace[ImmediateSimplification.debug] "Immediately simplified {givenClause} with {c}"
+      trace[duper.immediateSimplification.debug] "Immediately simplified {givenClause} with {c}"
       return some c
     return none
 

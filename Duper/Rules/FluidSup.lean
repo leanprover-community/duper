@@ -8,7 +8,7 @@ open RuleM
 open Lean
 open Meta
 
-initialize registerTraceClass `Rule.fluidSup
+initialize registerTraceClass `duper.rule.fluidSup
 
 def mkFluidSupProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (mainPremisePos : ClausePos)
   (givenIsMain : Bool) (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
@@ -129,12 +129,12 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
 
       let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos freshFunctionWithRhs
       if mainPremiseReplaced.isTrivial then
-        trace[Rule.fluidSup] "trivial: {mainPremiseReplaced.lits}"
+        trace[duper.rule.fluidSup] "trivial: {mainPremiseReplaced.lits}"
         return none
 
       let res := MClause.append restOfSidePremise mainPremiseReplaced
       let mkProof := mkFluidSupProof sidePremiseLitIdx sidePremiseSide mainPremisePos givenIsMain
-      trace[Rule.fluidSup]
+      trace[duper.rule.fluidSup]
         m!"FluidSup successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
         m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
       some <$> yieldClause res "fluidSup" mkProof (transferExprs := #[freshFunction, freshFunctionOutputType])

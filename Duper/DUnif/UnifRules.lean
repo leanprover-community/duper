@@ -110,7 +110,7 @@ def exprPairForallToLambda (e₁ : Expr) (e₂ : Expr) (n : Nat) : MetaM (Option
     | .forallE _ _ _ _  => do
       -- type can't be applied
       if body.getAppNumArgs != 0 then
-        trace[DUnif.debug] "Type {fn} is applied to arguments in {body}"
+        trace[duper.dUnif.debug] "Type {fn} is applied to arguments in {body}"
       let (body, flex) ← derefNormType fn
       let e' ← Meta.mkLambdaFVars xs' body
       return (e', flex)
@@ -260,20 +260,20 @@ def applyRules (p : UnifProblem) (config : Config) : MetaM UnifRuleResult := do
   setMCtx p.mctx
   -- If `dUnifDbg` is off, then we can't check `contains` because we don't push parent clause
   if ¬ (← getDUnifDbgOn) ∨ p.parentClauses.toList.contains config.contains then
-    Meta.withoutMVarAssignments <| do trace[DUnif.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
+    Meta.withoutMVarAssignments <| do trace[duper.dUnif.debug] m!"{(← p.instantiateTrackedExpr).dropParentRulesButLast 8}"
   let is_prio : Bool := ¬ p.prioritized.isEmpty
   if let some (eq, p') := p.pop? then
     let (lh, lhtype) ← structInfo p eq.lhs
     let (rh, rhtype) ← structInfo p eq.rhs
     if let .Other _ _ _ := lhtype then
-      trace[DUnif.debug] m!"applyRule :: Type of head is `Other`"
+      trace[duper.dUnif.debug] m!"applyRule :: Type of head is `Other`"
     if let .Other _ _ _ := rhtype then
-      trace[DUnif.debug] m!"applyRule :: Type of head is `Other`"
+      trace[duper.dUnif.debug] m!"applyRule :: Type of head is `Other`"
     if eq.lflex != lhtype.isFlex then
-      trace[DUnif.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
+      trace[duper.dUnif.debug] m!"applyRule :: Flex-rigid-cache mismatch in lhs of {eq}"
       return .NewArray #[]
     if eq.rflex != rhtype.isFlex then
-      trace[DUnif.debug] m!"applyRule :: Flex-rigid-cache mismatch in rhs of {eq}"
+      trace[duper.dUnif.debug] m!"applyRule :: Flex-rigid-cache mismatch in rhs of {eq}"
       return .NewArray #[]
     -- Delete, except for term pairs containing constants with
     --   unifiable but unequal level mvars
@@ -450,7 +450,7 @@ def UnifierGenerator.takeWithRetry (ug : UnifierGenerator) (nRetry : Nat) :
     if let some ou := ou then
       withoutModifyingMCtx <| do
         setMCtx ou.mctx
-        trace[DUnif.result] "Produced unifier: {ou}"
+        trace[duper.dUnif.result] "Produced unifier: {ou}"
       return (ou, ug')
     else
       ug := ug'

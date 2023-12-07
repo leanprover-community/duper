@@ -15,7 +15,7 @@ open RuleM
 open SimpResult
 
 initialize
-  registerTraceClass `Unary_first.debug
+  registerTraceClass `duper.unaryFirst.debug
 
 /-- Naively applies clausificationStep.toSimpRule to everything in the passive set (and everything produced by
     clausifying clauses in the passive set) without removing anything from the passive set. This preprocessing
@@ -41,14 +41,14 @@ partial def preprocessingClausification : ProverM Unit := do
           | some clausifiedGivenClause => clausified := clausified.push clausifiedGivenClause
         | none => moreToClausify := false
       -- Return everything in clausified back to the passive set
-      trace[Preprocessing.debug] "Clausified after preprocessing: {clausified}"
+      trace[duper.preprocessing.debug] "Clausified after preprocessing: {clausified}"
       for c in clausified do
         addClausifiedToPassive c
     catch
     | e =>
-      trace[Timeout.debug] "Timed out during preprocessingClausification"
-      trace[Timeout.debug] "Passive set: {(← getPassiveSet).toArray}"
-      trace[Timeout.debug] "Clausified: {clausified}"
+      trace[duper.timeout.debug] "Timed out during preprocessingClausification"
+      trace[duper.timeout.debug] "Passive set: {(← getPassiveSet).toArray}"
+      trace[duper.timeout.debug] "Clausified: {clausified}"
       throw e
 
 /-- Updates symbolFreqArityMap to increase the count of all symbols that appear in f (and if a symbol in f appears n
@@ -103,12 +103,12 @@ partial def buildSymbolFreqArityMap (clauses : List Clause) : ProverM (HashMap S
     for l in c.lits do
       symbolFreqArityMap ← updateSymbolFreqArityMap l.lhs symbolFreqArityMap
       symbolFreqArityMap ← updateSymbolFreqArityMap l.rhs symbolFreqArityMap
-  trace[Unary_first.debug] "symbolFreqArityMap: {symbolFreqArityMap.toArray}"
+  trace[duper.unaryFirst.debug] "symbolFreqArityMap: {symbolFreqArityMap.toArray}"
   return symbolFreqArityMap
 
 /-- Builds the symbolPrecMap from the input assumptions. Note that lower numbers in the symbol prec
     map correspond to higher precedences (so that symbol s is maximal iff s maps to 0).
-    
+
     In addition to returning the symbolPrecMap itself, we also return a boolean that indicates whether
     the highest precedence symbol has arity zero (i.e. is a first-order constant). This is necessary
     because if it is, then the firstmaximal0 weight generation scheme cannot be used. -/
@@ -150,7 +150,7 @@ def buildSymbolPrecMap (clauses : List Clause) : ProverM (SymbolPrecMap × Bool)
   for (s, sFreq, sArity) in symbolFreqArityMap.toArray do
     -- We use unaryFirstGt as the lt argument for binInsert so that symbols with higher precedence come first in symbolPrecArray
     symbolPrecArr := symbolPrecArr.binInsert unaryFirstGt (s, sFreq, sArity)
-  trace[Unary_first.debug] "symbolPrecArr: {symbolPrecArr}"
+  trace[duper.unaryFirst.debug] "symbolPrecArr: {symbolPrecArr}"
   let mut symbolPrecMap := HashMap.empty
   let mut counter := 0
   let mut highesetPrecSymbolHasArityZero := false
@@ -158,5 +158,5 @@ def buildSymbolPrecMap (clauses : List Clause) : ProverM (SymbolPrecMap × Bool)
     if counter == 0 && sArity == 0 then highesetPrecSymbolHasArityZero := true
     symbolPrecMap := symbolPrecMap.insert s counter -- Map s to its index in symbolPrecArr
     counter := counter + 1
-  trace[Unary_first.debug] "symbolPrecMap: {symbolPrecMap.toArray}"
+  trace[duper.unaryFirst.debug] "symbolPrecMap: {symbolPrecMap.toArray}"
   return (symbolPrecMap, highesetPrecSymbolHasArityZero)

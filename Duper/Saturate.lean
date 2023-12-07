@@ -46,10 +46,10 @@ open ProverM
 open RuleM
 
 initialize
-  registerTraceClass `Timeout.debug
-  registerTraceClass `Timeout.debug.fullActiveSet
-  registerTraceClass `Timeout.debug.fullPassiveSet
-  registerTraceClass `Misc.debug
+  registerTraceClass `duper.timeout.debug
+  registerTraceClass `duper.timeout.debug.fullActiveSet
+  registerTraceClass `duper.timeout.debug.fullPassiveSet
+  registerTraceClass `duper.misc.debug
 
 open SimpResult
 
@@ -147,7 +147,7 @@ def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) :
     In addition to returning the simplifiedGivenClause, forwardSimplify also returns a Bool which indicates whether the
     clause can safely be used to simplify away other clauses. -/
 partial def forwardSimplify (givenClause : Clause) : ProverM (Option (Clause × Bool)) := do
-  trace[Prover.saturate] "forward simplifying {givenClause}"
+  trace[duper.prover.saturate] "forward simplifying {givenClause}"
   Core.checkMaxHeartbeats "forwardSimpLoop"
   let activeSet ← getActiveSet
   if activeSet.contains givenClause then return none
@@ -221,22 +221,22 @@ def checkSaturationTerminationCriterion (iter : Nat) (initHeartbeats : Nat) : Pr
 
 def printTimeoutDebugStatements (startTime : Nat) : ProverM Unit := do
   checkSaturationTimeout startTime
-  trace[Timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
-  trace[Timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
-  trace[Timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
-  trace[Timeout.debug] m!"Active set unit clause numbers: " ++
+  trace[duper.timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
+  trace[duper.timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
+  trace[duper.timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
+  trace[duper.timeout.debug] m!"Active set unit clause numbers: " ++
     m!"{← ((← getActiveSet).toArray.filter (fun x => x.lits.size = 1)).mapM (fun c => return (← getClauseInfo! c).number)}"
-  trace[Timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
-  trace[Timeout.debug] "Verified Inhabited Types: {(← getVerifiedInhabitedTypes).map (fun x => x.expr)}"
-  trace[Timeout.debug] "Verified Nonempty Types: {(← getVerifiedNonemptyTypes).map (fun x => x.1.expr)}"
-  trace[Timeout.debug] "Potentially Uninhabited Types: {(← getPotentiallyUninhabitedTypes).map (fun x => x.expr)}"
-  trace[Timeout.debug] "Potentially Vacuous Clauses: {(← getPotentiallyVacuousClauses).toArray}"
-  trace[Timeout.debug.fullActiveSet] m!"Active set numbers: " ++
+  trace[duper.timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
+  trace[duper.timeout.debug] "Verified Inhabited Types: {(← getVerifiedInhabitedTypes).map (fun x => x.expr)}"
+  trace[duper.timeout.debug] "Verified Nonempty Types: {(← getVerifiedNonemptyTypes).map (fun x => x.1.expr)}"
+  trace[duper.timeout.debug] "Potentially Uninhabited Types: {(← getPotentiallyUninhabitedTypes).map (fun x => x.expr)}"
+  trace[duper.timeout.debug] "Potentially Vacuous Clauses: {(← getPotentiallyVacuousClauses).toArray}"
+  trace[duper.timeout.debug.fullActiveSet] m!"Active set numbers: " ++
     m!"{← ((← getActiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
-  trace[Timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
-  trace[Timeout.debug.fullPassiveSet] m!"Passive set numbers: " ++
+  trace[duper.timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
+  trace[duper.timeout.debug.fullPassiveSet] m!"Passive set numbers: " ++
     m!"{← ((← getPassiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
-  trace[Timeout.debug.fullPassiveSet] "Active set: {(← getPassiveSet).toArray}"
+  trace[duper.timeout.debug.fullPassiveSet] "Active set: {(← getPassiveSet).toArray}"
 
 partial def saturate : ProverM Unit := do
   let startTime ← IO.monoMsNow
@@ -261,10 +261,10 @@ partial def saturate : ProverM Unit := do
       -- Collect inference rules and perform inference
       let some givenClause ← chooseGivenClause
         | throwError "Saturate :: Saturation should have been checked in the beginning of the loop."
-      trace[Prover.saturate] "Given clause: {givenClause}"
+      trace[duper.prover.saturate] "Given clause: {givenClause}"
       let some (simplifiedGivenClause, simplifiedGivenClauseSafe) ← forwardSimplify givenClause
         | continue
-      trace[Prover.saturate] "Given clause after simp: {simplifiedGivenClause} (simplifiedGivenClauseSafe: {simplifiedGivenClauseSafe})"
+      trace[duper.prover.saturate] "Given clause after simp: {simplifiedGivenClause} (simplifiedGivenClauseSafe: {simplifiedGivenClauseSafe})"
       if ← getInhabitationReasoningM then registerNewNonemptyTypes simplifiedGivenClause
       if simplifiedGivenClauseSafe then backwardSimplify simplifiedGivenClause -- Only do this if simplifiedGivenClause is certainly not vacuous
       else addPotentiallyVacuousClause simplifiedGivenClause -- We should re-evaluate simplifiedGivenClause when we learn new Nonempty type facts
@@ -278,7 +278,7 @@ partial def saturate : ProverM Unit := do
         runProbe (ClauseStreamHeap.fairProbe (fairnessCounter / kFair))
       else
         runProbe ClauseStreamHeap.heuristicProbe
-      trace[Prover.saturate] "New active Set: {(← getActiveSet).toArray}"
+      trace[duper.prover.saturate] "New active Set: {(← getActiveSet).toArray}"
       continue
     catch
     | e@(Exception.internal id _)  =>

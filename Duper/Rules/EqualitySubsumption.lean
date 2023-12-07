@@ -9,9 +9,9 @@ open Meta
 open RuleM
 open SimpResult
 open Comparison
-initialize Lean.registerTraceClass `Rule.equalitySubsumption
+initialize Lean.registerTraceClass `duper.rule.equalitySubsumption
 
-/-- Checks that (getAtPos mainPremise[pos.lit].lhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseLhs and that 
+/-- Checks that (getAtPos mainPremise[pos.lit].lhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseLhs and that
     (getAtPos mainPremise[pos.lit].rhs mainPremisePos.pos) can be matched with sidePremise[0].sidePremiseRhs. Importantly, this function
     does NOT check mainPremise[pos.lit].sign or that mainPremise[pos.lit].lhs and mainPremise[pos.lit].rhs agree outside of the given pos. -/
 def equalitySubsumptionWithPartner (mainPremise : MClause) (mainPremiseMVarIds : Array MVarId)
@@ -36,7 +36,7 @@ def forwardEqualitySubsumptionAtExpr (mainPremise : MClause) (pos : ClausePos)
       match ← equalitySubsumptionWithPartner mainPremise mainMVarIds pos sideMClause with
       | Unapplicable => continue
       | Removed =>
-        trace[Rule.equalitySubsumption] "Main clause: {mainPremise.lits} removed by side clause {potentialSubsumingClause.lits}"
+        trace[duper.rule.equalitySubsumption] "Main clause: {mainPremise.lits} removed by side clause {potentialSubsumingClause.lits}"
         return true
       | Applied _ => throwError "Invalid equality subsumption result"
     return false
@@ -98,7 +98,7 @@ def backwardEqualitySubsumption (subsumptionTrie : SubsumptionTrie) : BackwardMS
         | true => return true -- If it has been determined that nextClause can be removed, no need to check further
       let nextClauseCanBeRemoved ← nextClauseM.foldGreenM inner_fold_fn false
       if nextClauseCanBeRemoved then
-        trace[Rule.equalitySubsumption] "Main clause {nextClause.lits} subsumed by {givenSubsumingClause.lits} (backward equality subsumption)"
+        trace[duper.rule.equalitySubsumption] "Main clause {nextClause.lits} subsumed by {givenSubsumingClause.lits} (backward equality subsumption)"
         return (true, acc.push nextClause)
       else return (false, acc)
   let subsumed ← potentialSubsumedClauses.foldlM fold_fn #[]

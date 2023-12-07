@@ -12,7 +12,7 @@ open Meta
 open SimpResult
 open Comparison
 
-initialize Lean.registerTraceClass `Rule.boolSimp
+initialize Lean.registerTraceClass `duper.rule.boolSimp
 
 /-
   Rules 1 through 15 are from Leo-III. Rules 16 through 22 and 25 through 27 are from "Superposition with
@@ -814,7 +814,7 @@ def applyBoolSimpRulesWithIndices (e : Expr) : RuleM (Option ((Nat × Nat) × Bo
     Clausification" and "Extensional Paramodulation for Higher-Order Logic and its Effective Implementation Leo-III" -/
 def boolSimp : MSimpRule := fun c => do
   let c ← loadClause c
-  trace[Rule.boolSimp] "Running boolSimp on {c.lits}"
+  trace[duper.rule.boolSimp] "Running boolSimp on {c.lits}"
   let fold_fn := fun acc e pos => do
     match acc.2 with
     | some _ => return acc -- If boolSimp ever succeeds, just return on first success
@@ -828,7 +828,7 @@ def boolSimp : MSimpRule := fun c => do
       match ← applyBoolSimpRules e with
       | some (e', boolSimpRule) =>
         if let some replacedMClause ← c.replaceAtPosUpdateType? pos e' then
-          trace[Rule.boolSimp] "Replaced {e} with {e'} in {c.lits} to produce {replacedMClause.lits} via {boolSimpRule}"
+          trace[duper.rule.boolSimp] "Replaced {e} with {e'} in {c.lits} to produce {replacedMClause.lits} via {boolSimpRule}"
           return (replacedMClause, mkBoolSimpProof pos boolSimpRule none)
         else
           return acc
@@ -836,7 +836,7 @@ def boolSimp : MSimpRule := fun c => do
         match ← applyBoolSimpRulesWithIndices e with
         | some (ij, boolSimpRule) =>
           if let some replacedMClause ← c.replaceAtPosUpdateType? pos (mkConst ``True) then
-            trace[Rule.boolSimp] "Replaced {e} with True in {c.lits} to produce {replacedMClause.lits} via {boolSimpRule}"
+            trace[duper.rule.boolSimp] "Replaced {e} with True in {c.lits} to produce {replacedMClause.lits} via {boolSimpRule}"
             return (replacedMClause, mkBoolSimpProof pos boolSimpRule (some ij))
           else
             return acc

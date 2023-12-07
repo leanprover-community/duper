@@ -9,7 +9,7 @@ open Meta
 open RuleM
 open SimpResult
 open Comparison
-initialize Lean.registerTraceClass `Rule.contextualLiteralCutting
+initialize Lean.registerTraceClass `duper.rule.contextualLiteralCutting
 
 def mkContextualLiteralCuttingProof (negatedLitMainIdx : Nat) (assignment : List (Nat × Bool)) (isForward : Bool) (premises : List Expr)
   (parents : List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
@@ -83,9 +83,9 @@ def forwardContextualLiteralCuttingWithPartner (mainClauseWithNegatedLit : MClau
   withoutModifyingLoadedClauses do
     let sideClause ← loadClause sideClause
     match ← subsumptionCheck' sideClause mainClauseWithNegatedLit mainClauseMVarIds with
-    | some assignment => 
+    | some assignment =>
       let mainClauseWithNegatedLitRemoved := mainClauseWithNegatedLit.eraseLit negatedLitIdx
-      trace[Rule.contextualLiteralCutting] "Forward CLC: Produced {mainClauseWithNegatedLitRemoved.lits} from {mainClauseWithNegatedLit.lits} and {sideClause.lits}"
+      trace[duper.rule.contextualLiteralCutting] "Forward CLC: Produced {mainClauseWithNegatedLitRemoved.lits} from {mainClauseWithNegatedLit.lits} and {sideClause.lits}"
       yieldClause mainClauseWithNegatedLitRemoved
         "forward contextual literal cutting" $ some (mkContextualLiteralCuttingProof negatedLitIdx assignment true)
     | none => return none
@@ -111,7 +111,8 @@ def backwardContextualLiteralCuttingWithPartner (sideClauseWithNegatedLit : MCla
       | some assignment =>
         let negatedLitMainIdx := assignment[negatedLitIdx]!.1
         let mainClauseWithNegatedLitRemoved := mainClause.eraseLit negatedLitMainIdx
-        trace[Rule.contextualLiteralCutting] "Backward CLC: Produced {mainClauseWithNegatedLitRemoved.lits} from {mainClause.lits} and {sideClauseWithNegatedLit.lits}"
+        trace[duper.rule.contextualLiteralCutting]
+          "Backward CLC: Produced {mainClauseWithNegatedLitRemoved.lits} from {mainClause.lits} and {sideClauseWithNegatedLit.lits}"
         yieldClause mainClauseWithNegatedLitRemoved
           "backward contextual literal cutting" $ some (mkContextualLiteralCuttingProof negatedLitMainIdx assignment false)
       | none => return none
@@ -124,6 +125,6 @@ def backwardContextualLiteralCutting (subsumptionTrie : SubsumptionTrie) : Backw
     let givenSideClauseWithNegatedLit ← negateMClauseLit givenSideClause negatedLitIdx
     let potentialMainClauses ← subsumptionTrie.getPotentialSubsumedClauses' givenSideClauseWithNegatedLit
     for mainClause in potentialMainClauses do
-      if let some rc ← backwardContextualLiteralCuttingWithPartner givenSideClauseWithNegatedLit mainClause negatedLitIdx then 
+      if let some rc ← backwardContextualLiteralCuttingWithPartner givenSideClauseWithNegatedLit mainClause negatedLitIdx then
         result := result.push (mainClause, some rc)
   return result

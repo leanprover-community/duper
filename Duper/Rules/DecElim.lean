@@ -8,7 +8,7 @@ open SimpResult
 open Lean
 open Meta
 
-initialize Lean.registerTraceClass `Rule.decElim
+initialize Lean.registerTraceClass `duper.rule.decElim
 
 /-- Checks whether a literal is decidable, and if it is, uses mkDecide to return whether the literal is
     decidably true or false. If the literal is not decidable, returns none. -/
@@ -40,17 +40,17 @@ def mkDecElimProof (refs : List (Option Nat)) (premises : List Expr) (parents : 
       | none =>
         -- This is adapted from the internals of `decide`
         let expectedType := lit.toExpr
-        trace[Rule.decElim] "Trying to decide {expectedType}"
+        trace[duper.rule.decElim] "Trying to decide {expectedType}"
         let d ← mkDecide expectedType
         let d ← instantiateMVars d
         let r ← withDefault <| whnf d
         unless r.isConstOf ``false do
           throwError "mkDecElimProof: Failed to reduce to 'false'{indentExpr r}"
-        trace[Rule.decElim] "{d} is false"
+        trace[duper.rule.decElim] "{d} is false"
         let s := d.appArg! -- get instance from `d`
         let rflPrf ← mkEqRefl (toExpr false)
         let proofCase := mkApp3 (Lean.mkConst ``of_decide_eq_false) expectedType s rflPrf
-        trace[Rule.decElim] "Built {proofCase} proving {d} is false"
+        trace[duper.rule.decElim] "Built {proofCase} proving {d} is false"
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let proofCase := mkApp proofCase h
           let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
@@ -88,7 +88,7 @@ def decElim : MSimpRule := fun c => do
   -- To achieve the desired spec for newLits and refs, I must reverse them
   newLits := newLits.reverse
   refs := refs.reverse
-  trace[Rule.decElim] "newLits: {newLits}, refs: {refs}"
+  trace[duper.rule.decElim] "newLits: {newLits}, refs: {refs}"
   if (newLits.length = c.lits.size) then
     return none
   else

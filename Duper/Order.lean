@@ -45,7 +45,7 @@ instance : ToMessageData Comparison := ⟨
 | LessThan => "<"
 | Equal => "="
 | Incomparable => "?"
-⟩ 
+⟩
 
 end Comparison
 
@@ -56,8 +56,8 @@ open Comparison
 def Weight := Int × Int
 deriving Inhabited, DecidableEq
 
-instance : Add Weight := ⟨fun (a₁, b₁) (a₂, b₂) => (a₁ + a₂, b₁ + b₂)⟩ 
-instance : Sub Weight := ⟨fun (a₁, b₁) (a₂, b₂) => (a₁ - a₂, b₁ - b₂)⟩ 
+instance : Add Weight := ⟨fun (a₁, b₁) (a₂, b₂) => (a₁ + a₂, b₁ + b₂)⟩
+instance : Sub Weight := ⟨fun (a₁, b₁) (a₂, b₂) => (a₁ - a₂, b₁ - b₂)⟩
 instance : OfNat Weight n := ⟨(0, n)⟩
 instance : LT Weight := ⟨fun (a₁, b₁) (a₂, b₂) => a₁ < a₂ ∨ (a₁ = a₂ ∧ b₁ < b₂)⟩
 instance (v w : Weight) : Decidable (v < w) :=
@@ -309,7 +309,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 
 | Expr.sort l .., Expr.sort m .. => if l == m then return Equal else return Incomparable -- TODO?
 | Expr.const ``LAM _, Expr.const ``LAM _ => return Equal
-| Expr.bvar m .., Expr.bvar n .. => 
+| Expr.bvar m .., Expr.bvar n .. =>
   if m == n then return Equal
   else if m > n then return GreaterThan
   else if m < n then return LessThan
@@ -378,7 +378,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
   else if l2 < l1 then return GreaterThan
   else return Equal
 
-| Expr.mvar v, Expr.mvar w => 
+| Expr.mvar v, Expr.mvar w =>
   if v == w then return Equal else return Incomparable
 | _, Expr.mvar _ => return Incomparable
 | Expr.mvar _, _ => return Incomparable
@@ -394,7 +394,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 | _, Expr.letE .. => panic! s!"precCompare: let expressions need to be eliminated before computing order {toString f} <> {toString g}"
 
 /-- Overapproximation of being fluid -/
-def isFluid (t : Expr) := 
+def isFluid (t : Expr) :=
   let t := t.consumeMData
   (t.isApp && t.getAppFn.isMVar') || (t.isLambda && t.hasMVar)
 
@@ -408,13 +408,13 @@ mutual
     (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
     if alreadyReduced then
       let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
-      trace[Unary_first.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
+      trace[duper.unaryFirst.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
       return res
     else
       let t1 ← betaEtaReduceInstMVars t1
       let t2 ← betaEtaReduceInstMVars t2
       let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
-      trace[Unary_first.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
+      trace[duper.unaryFirst.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
       return res
 
   /-- Update variable balance, weight balance, and check whether the term contains the fluid term s.
@@ -435,7 +435,7 @@ mutual
           then wb + headWeight h symbolPrecMap highesetPrecSymbolHasArityZero belowLam
           else wb - headWeight h symbolPrecMap highesetPrecSymbolHasArityZero belowLam
         balance_weight_rec wb vb args s pos (belowLam := h.isConstOf ``LAM) false symbolPrecMap highesetPrecSymbolHasArityZero
-  
+
   /-- balance_weight for the case where t is an applied variable -/
   partial def balance_weight_var (wb : Weight) (vb : VarBalance) (t : Expr) (s : Option Expr) (pos : Bool)
     (belowLam : Bool) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM (Weight × VarBalance × Bool) := do
@@ -447,16 +447,16 @@ mutual
       let vb := vb.addNegVar (t, belowLam)
       let wb := wb - weightVarHeaded
       return (wb, vb, s == some t)
-  
+
   /-- list version of the previous one, threaded with the check result -/
   partial def balance_weight_rec (wb : Weight) (vb : VarBalance) (terms : List Expr) (s : Option Expr) (pos : Bool) (belowLam : Bool)
-    (res : Bool) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM (Weight × VarBalance × Bool) := 
+    (res : Bool) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM (Weight × VarBalance × Bool) :=
     match terms with
     | [] => pure (wb, vb, res)
     | t::terms' => do
       let (wb, vb, res') := ← balance_weight wb vb t s pos belowLam symbolPrecMap highesetPrecSymbolHasArityZero
       return ← balance_weight_rec wb vb terms' s pos belowLam (res || res') symbolPrecMap highesetPrecSymbolHasArityZero
-  
+
   /-- lexicographic comparison -/
   partial def tckbolex (wb : Weight) (vb : VarBalance) (terms1 terms2 : List Expr) (belowLam : Bool) (symbolPrecMap : SymbolPrecMap)
     (highesetPrecSymbolHasArityZero : Bool) : MetaM (Weight × VarBalance × Comparison) := do
@@ -475,7 +475,7 @@ mutual
     | _, [] =>
       let (wb, vb, _) := ← balance_weight_rec wb vb terms1 none (pos := true) belowLam false symbolPrecMap highesetPrecSymbolHasArityZero
       return (wb, vb, Comparison.GreaterThan)
-  
+
   /-- length-lexicographic comparison -/
   partial def tckbolenlex (wb : Weight) (vb : VarBalance) (terms1 terms2 : List Expr) (belowLam : Bool) (symbolPrecMap : SymbolPrecMap)
     (highesetPrecSymbolHasArityZero : Bool) : MetaM (Weight × VarBalance × Comparison) := do
@@ -487,10 +487,10 @@ mutual
       let (wb, vb, _) := ← balance_weight_rec wb vb terms2 none (pos := false) belowLam false symbolPrecMap highesetPrecSymbolHasArityZero
       let res :=
         if List.length terms1 > List.length terms2
-        then Comparison.GreaterThan 
+        then Comparison.GreaterThan
         else Comparison.LessThan
       return (wb, vb, res)
-  
+
   /-- tupled version of kbo (kbo_5 of the paper) -/
   partial def tckbo (wb : Weight) (vb : VarBalance) (t1 t2 : Expr) (belowLam : Bool) (symbolPrecMap : SymbolPrecMap)
     (highesetPrecSymbolHasArityZero : Bool) : MetaM (Weight × VarBalance × Comparison) := do
@@ -510,9 +510,9 @@ mutual
         let vb := vb.addNegVar (t2, belowLam);
         let (wb, vb, contains) ← balance_weight wb vb t1 (some t2) (pos := true) belowLam symbolPrecMap highesetPrecSymbolHasArityZero
         return ((wb - weightVarHeaded), vb, if contains then GreaterThan else Incomparable)
-      | h1, h2 => 
+      | h1, h2 =>
         return ← tckbo_composite wb vb h1 h2 (getArgs t1) (getArgs t2) belowLam symbolPrecMap highesetPrecSymbolHasArityZero
-  
+
   /-- tckbo, for non-variable-headed terms). -/
   partial def tckbo_composite (wb : Weight) (vb : VarBalance) (f g : Expr) (ss ts : List Expr) (belowLam : Bool)
     (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM (Weight × VarBalance × Comparison) := do
@@ -525,7 +525,7 @@ mutual
     /- lexicographic product of weight and precedence -/
     if wb > 0 then return (wb, vb, g_or_n)
     else if wb < 0 then return (wb, vb, l_or_n)
-    else 
+    else
       match ← precCompare f g symbolPrecMap with
       | GreaterThan => return (wb, vb, g_or_n)
       | LessThan => return (wb, vb, l_or_n)
@@ -535,7 +535,7 @@ mutual
         else if res == GreaterThan then return (wb, vb, g_or_n)
         else return (wb, vb, Incomparable)
       | _ => return (wb, vb, Incomparable)
-  
+
   /-- recursive comparison -/
   partial def tckbo_rec (wb : Weight) (vb : VarBalance) (f g : Expr) (ss ts : List Expr) (belowLam : Bool)
     (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM (Weight × VarBalance × Comparison) := do

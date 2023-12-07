@@ -9,7 +9,7 @@ open Meta
 open RuleM
 open SimpResult
 
-initialize Lean.registerTraceClass `Rule.forallHoist
+initialize Lean.registerTraceClass `duper.rule.forallHoist
 
 theorem forall_hoist_proof {y : α → Prop} (x : α) (f : Prop → Prop) (h : f (∀ z : α, y z)) : f False ∨ y x = True := by
   by_cases y_always_true : ∀ z : α, y z
@@ -99,12 +99,12 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let some replacedLit ← lit.replaceAtPosUpdateType? ⟨pos.side, pos.pos⟩ (mkConst ``False)
         | return none
       let newClause := cErased.appendLits #[replacedLit, Lit.fromSingleExpr newLitLhs (sign := true)]
-      trace[Rule.forallHoist] "Created {newClause.lits} from {c.lits}"
+      trace[duper.rule.forallHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (transferExprs := #[freshVar1])
     return #[ClauseStream.mk ug given yC "forallHoist"]
 
 def forallHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
-  trace[Rule.forallHoist] "Running ForallHoist on {c.lits}"
+  trace[duper.rule.forallHoist] "Running ForallHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
     let str ← forallHoistAtExpr e.consumeMData pos given c
     return streams.append str
