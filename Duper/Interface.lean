@@ -432,9 +432,8 @@ def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × Array
   let prover : Array Auto.Lemma → MetaM Expr :=
     fun lemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
-      trace[duper.monomorphization.debug] "Original formulas: {formulas}"
-      trace[duper.monomorphization.debug] "Lemmas (translated from formulas): {lemmas}"
-      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas}"
+      trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => f.1)}"
+      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => f.1)}"
       inst monomorphizedFormulas instanceMaxHeartbeats
   Auto.monoInterface lemmas inhFacts prover
 
@@ -449,9 +448,8 @@ def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr × Arra
   let prover : Array Auto.Lemma → MetaM Expr :=
     fun lemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
-      trace[duper.monomorphization.debug] "Original formulas: {formulas}"
-      trace[duper.monomorphization.debug] "Lemmas (translated from formulas): {lemmas}"
-      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas}"
+      trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => f.1)}"
+      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => f.1)}"
       inst monomorphizedFormulas instanceMaxHeartbeats
   Auto.runNativeProverWithAuto declName? prover lemmas inhFacts
 

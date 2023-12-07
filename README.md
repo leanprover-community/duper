@@ -48,3 +48,23 @@ Each of the `options` supplied to Duper have the form `option := value` and are 
 ### Proof Scripts
 
 Although we recommend enabling Duper's portfolio mode to find initial proofs, running multiple instances of Duper is less efficient than just running the single instance that the user knows will find the proof. By calling `duper?` rather than `duper`, you can instruct Duper to generate a tactic script of the form `duper [facts] {portfolioInstance := n}` which will call just the Duper instance that was successful in proving the current goal.
+
+### Debugging
+
+The fact that Duper is a saturation-based theorem prover (meaning it attempts to prove the goal by negating the target and generating clauses until it derives a contradiction) creates some inherent debugging challenges. If Duper fails to prove a particular goal because it timed out, then it likely generated hundreds or thousands of clauses in the attempt. Often, the volume of generated clauses makes understanding why Duper failed to prove the goal prohibitively time-consuming. Nonetheless, for the minority of cases where it is feasible to understand why Duper failed, we provide a variety of trace options to facilitate examination of the Duper's state.
+
+If Duper times out, the following trace options are available:
+- Using `set_option trace.duper.timeout.debug true` will cause Duper to print:
+    - The total number of clauses in the active set (these are the clauses that Duper has proven and fully processed)
+    - The total number of clauses in the passive set (these are the clauses that Duper has proven but has not yet fully processed)
+    - The total number of generated clauses
+    - The set of unit clauses in the active set (i.e. the set of fully processed clauses that can be expressed as equalities or inequalities)
+    - Information about types that have been identified in the problem and whether they are provably inhabited by typeclass reasoning, provably nonempty from assumptions given to duper, or potentially uninhabited
+- Using `set_option trace.duper.timeout.debug.fullActiveSet true` will cause Duper to print the full active set (i.e. all clauses that Duper has fully processed, not just those that can be expressed with a single equality or inequality). Note that for some problems, enabling this option can cause VSCode to crash (because it struggles to handle the amount of trace output).
+- Using `set_option trace.duper.timeout.debug.fullPassiveSet true` will cause Duper to print the full passive set (i.e. all clauses that Duper has proven but not yet fully processed). Note that for some problems, enabling this option can cause VSCode to crash (because it struggles to handle the amount of trace output).
+
+If Duper saturates, meaning Duper fully processed all clauses and was unable to generate more, then `set_option duper.saturate.debug true` will cause Duper to print:
+- The final active set (i.e. all clauses that Duper generated and fully processed)
+- Information about types that have been identified in the problem and whether they are provably inhabited by typeclass reasoning, provably nonempty from assumptions given to duper, or potentially uninhabited
+
+In our experience, we have generally found attempting to debug problems that Duper saturates on to be more fruitful than problems that Duper timed out on (because there is typically a smaller volume of clauses to look at). This is most helpful when Duper is capable of solving a problem in principle but needs to be provided some additional fact that it is not natively aware of. Additionally, we have generally found trace output to be more readable when preprocessing is disabled, since the current preprocessing procedure transforms input lemmas into facts with uninformative names. If you need to look at Duper's trace output even with preprocessing enabled, then `set_option trace.duper.monomorphization.debug true` will cause Duper to print its input facts before and after the monomorphization procedure. This can help in understanding how the monomorphized constants that appear in Duper's clauses correspond to constants in the original problem.
