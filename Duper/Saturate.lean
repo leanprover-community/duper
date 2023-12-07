@@ -66,7 +66,9 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       elimDupLit.toSimpRule,
       elimResolvedLit.toSimpRule,
       destructiveEqualityResolution.toSimpRule,
-      decElim.toSimpRule, -- decElim subsumes identPropFalseElim and identBoolFalseElim
+      identPropFalseElim.toSimpRule,
+      identBoolFalseElim.toSimpRule,
+      decElim.toSimpRule,
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
       (forwardClauseSubsumption subsumptionTrie).toSimpRule,
       (forwardEqualitySubsumption subsumptionTrie).toSimpRule,

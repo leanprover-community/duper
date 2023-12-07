@@ -10,18 +10,15 @@ open Meta
 
 initialize Lean.registerTraceClass `duper.rule.decElim
 
-/-- Checks whether a literal is decidable, and if it is, uses mkDecide to return whether the literal is
-    decidably true or false. If the literal is not decidable, returns none. -/
-def decideLiteral (lit : Lit) : MetaM (Option Bool) := do
+/-- Checks whether a literal is decidably false. Returns true if the literal is decidably false and false otherwise. -/
+def isDecidablyFalse (lit : Lit) : MetaM Bool := do
   try
     let d ← mkDecide lit.toExpr
     let d ← instantiateMVars d
     let r ← withDefault <| whnf d
-    if r.isConstOf ``false then return some false
-    else if r.isConstOf ``true then return some true
-    else return none
+    return r.isConstOf ``false
   catch _ =>
-    return none
+    return false
 
 def mkDecElimProof (refs : List (Option Nat)) (premises : List Expr) (parents : List ProofParent)
   (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
@@ -77,12 +74,9 @@ def decElim : MSimpRule := fun c => do
   let mut newLits : List Lit := []
   let mut refs : List (Option Nat) := []
   for lit in c.lits do
-    match ← decideLiteral lit with
-    | some true => -- Remove the entire clause because it is decidably true
-      return some #[]
-    | some false => -- Remove the decidably false literal from the clause
+    if ← isDecidablyFalse lit then -- Remove the decidably false literal from the clause
       refs := none :: refs
-    | none =>
+    else
       refs := (some newLits.length) :: refs
       newLits := lit :: newLits
   -- To achieve the desired spec for newLits and refs, I must reverse them
