@@ -6,6 +6,7 @@ require auto from git "https://github.com/leanprover-community/lean-auto.git"@"4
 
 package Duper {
   precompileModules := true
+  preferReleaseBuild := true
 }
 
 lean_lib Duper
