@@ -321,7 +321,7 @@ open Duper.AbstractMVars in
 -- Note: It is expected that no mvarId that appears in mvarIdsToRemove appears in c or transferExprs
 def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array LoadedClause)
   (inhabitationClauses : Array LoadedClause) (transferExprs : Array Expr)
-  (mvarIdsToRemove : Array MVarId) : M (Clause × Array ProofParent × Array Expr) := do
+  (mvarIdsToRemove : List MVarId) : M (Clause × Array ProofParent × Array Expr) := do
   -- process c, `umvars` stands for "uninstantiated mvars"
   -- `ec = concl[umvars]`
   let ec := c.toExpr
@@ -359,25 +359,9 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
   -- Process local context
   let cst ← get
   let lctx := cst.lctx
-  -- Before building abstec, we want to process cst.lctx and cst.fvars to remove redundant abstractions
-  -- An abstraction is redundant if it does not appear in fec or any transfer expression and has a type
-  -- which has already been abstracted
-  -- Ex: `∀ x : t, ∀ y : t, ∀ z : t, ∀ a : Nat, ∀ b : Nat, f a b` should become `∀ x : t, ∀ a : Nat, ∀ b : Nat, f a b`
+  -- Before building abstec, we want to remove all fvars that correspond to mvars that are in mvarsToRemove
   let mut fvars := cst.fvars
   let mut erasedFVars := #[]
-  let mut abstractedTypes := HashSet.empty
-  for fvar in cst.fvars do
-    let fvarId := fvar.fvarId!
-    let fvarDecl := lctx.getFVar! fvar
-    let fvarType := fvarDecl.type
-    if abstractedTypes.contains fvarType then
-      if !fec.containsFVar fvarId && ftransferExprs.all (fun transferExpr => !transferExpr.containsFVar fvarId) then
-        -- fvar is redundant
-        fvars := fvars.erase fvar
-        erasedFVars := erasedFVars.push fvar
-    else
-      abstractedTypes := abstractedTypes.insert fvarDecl.type
-  -- In addition to removing redundant abstractions, we want to remove fvars that correspond to mvars that are in mvarsToRemove
   for mvarId in mvarIdsToRemove do
     let fvar := cst.emap.find! mvarId
     fvars := fvars.erase fvar
@@ -393,7 +377,7 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
   return (c, proofParents, transferExprs)
 
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
-  (transferExprs : Array Expr := #[]) (mvarIdsToRemove : Array MVarId := #[]) : RuleM (Clause × Proof) := do
+  (transferExprs : Array Expr := #[]) (mvarIdsToRemove : List MVarId := []) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
   let ((c, proofParents, transferExprs), st) :=
     if ← getInhabitationReasoningM then

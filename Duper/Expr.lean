@@ -19,6 +19,20 @@ end Duper
 namespace Lean.Expr
 open Duper
 
+/-- Return true iff `e` contains an mvar which satisfies `p`. This is adapted from `Lean.Expr.hasAnyFVar` -/
+@[inline] def hasAnyMVar (e : Expr) (p : MVarId → Bool) : Bool :=
+  let rec @[specialize] visit (e : Expr) := if !e.hasMVar then false else
+    match e with
+    | Expr.forallE _ d b _   => visit d || visit b
+    | Expr.lam _ d b _       => visit d || visit b
+    | Expr.mdata _ e         => visit e
+    | Expr.letE _ t v b _    => visit t || visit v || visit b
+    | Expr.app f a           => visit f || visit a
+    | Expr.proj _ _ e        => visit e
+    | Expr.mvar mvarId       => p mvarId
+    | _                      => false
+  visit e
+
 /-- This should be used in place of Lean.Expr.isMVar so that mvars surrounded by mdata are not missed. -/
 def isMVar' (e : Expr) := e.consumeMData.isMVar
 

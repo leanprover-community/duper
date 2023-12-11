@@ -45,20 +45,29 @@ theorem red_ne_green : Color.red ≠ Color.green := fun h =>
 
 end Color2
 
--- Bug 5
+-- What was previously bug 5 (though I would no longer call it a bug per se)
 example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
   by duper {portfolioInstance := 7}
 
 example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
   by duper {portfolioInstance := 8}
 
-/- Here is another example where the same problem appears to occur
-def Evens : Type := {x : Nat // 2 ∣ x}
-def Odds : Type := {x : Nat // ∃ y : Nat, 2 * y + 1 = x}
-example : ∀ o : Odds, ∃ e : Evens, o.1 = e.1 + 1 := by
-  duper [Subtype.property] {portfolioInstance := 7}
+/-
+The previous bug 5 error of unknown fvars has been corrected. However, this example still fails when
+inhabitation reasoning is enabled. The issue that occurs is that when inhabitation reasoning is enabled,
+the clause `∀ (a a_1 : Type), (a_1 → a) → a_1 → False` is recognized as potentially vacuous. This makes
+sense because if `a_1` is assigned an empty type, then no contradiction can be yielded by this clause.
 
-Fundamentally, it is `Subtype.property` that is causing an issue in this example
+Duper happens to be able to derive a contradiction from this clause when inhabitation reasoning is disabled
+because the default instances that `Lean.Meta.findInstance` attempts happen to work well for this example,
+though there are other examples where that strategy would not work. For instance, Duper will fail to
+derive a contradiction from the clause `∀ x : Nat, Fin x → False` because the default `Nat` is 0. If the
+default Nat were 1, then Duper would be able to derive a contradiction from this when inhabitation reasoning
+is disabled (though Duper would still consider the clause vacuous with inhabitation reasoning enabled).
+
+I wouldn't call the current behavior a bug so much as an area where Duper has a lot of room for improvement.
+Supporting dependent type reasoning is a relatively low priority, but I'll leave this example documented
+here for the future. More examples of related behavior are included at the end of test_inhabitationReasoning.lean.
 -/
 
 -- Diagnosis of the above test

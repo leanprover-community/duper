@@ -3,20 +3,21 @@ import Duper.TPTP
 
 set_option inhabitationReasoning true
 set_option trace.duper.typeInhabitationReasoning.debug true
-set_option throwPortfolioErrors true
 
 theorem optionTest1 (t : Type) (f : Option t) : ∃ x : Option t, True := by duper
 
 theorem optionTest2 : ∀ t : Type, ∃ x : Option t, True := by duper
 
-theorem nonemptyHypTest (t : Type) (eh : Nonempty t = True ∧ True) (h : ∀ x : t, False ≠ False) : False := by duper [eh, h]
+theorem nonemptyHypTest (t : Type) (eh : Nonempty t = True ∧ True) (h : ∀ x : t, False ≠ False) : False := by
+  duper [eh, h]
 
 -- Needs to synthesize Inhabited (Fin x)
 theorem finTest (x : Nat) (f : Fin x → Fin x)
   (h : ∃ y : Fin x, ∀ z : Fin x, (f y ≠ y) ∧ (f z = y)) : False := by duper [h]
 
 -- Needs to synthesize Inhabited (Fin default)
-set_option trace.duper.saturate.debug true in
+set_option trace.duper.timeout.debug true in
+set_option maxHeartbeats 5000 in
 theorem finTest2
   (h : ∀ x : Nat, ∃ f : Fin x → Fin x, ∃ y : Fin x, ∀ z : Fin x, (f y ≠ y) ∧ (f z = y)) : False := by
   duper [h] {portfolioInstance := 7}
@@ -38,11 +39,16 @@ theorem letDecBug {t : Type} (h : (∀ p : t, p = p) = False) : False :=
 
 -- Interesting type inhabited examples (they require more advanced reasoning about type inhabitation)
 example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
-  by duper
+  by duper {portfolioInstance := 7}
 
-set_option trace.duper.saturate.debug true in
+example : ((∃ (A B : Type) (f : B → A) (x : B), f x = f x) = True) :=
+  by duper {portfolioInstance := 8}
+
 example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
-  by duper
+  by duper {portfolioInstance := 7}
+
+example : ∃ (A : Type) (B : A → Type) (f : ∀ (a : A), B a) (x : A), (f x = f x) = True :=
+  by duper {portfolioInstance := 8}
 
 set_option trace.duper.proofReconstruction true in
 example : ((∀ (A : Type) (f : Nat → A) (x : Nat), f x = f x) = True) :=

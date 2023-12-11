@@ -2,6 +2,7 @@ import Lean
 import Duper.Util.Misc
 import Duper.BackwardSimplification
 import Duper.Util.ProofReconstruction
+import Duper.Expr
 
 namespace Duper
 
@@ -229,16 +230,33 @@ def deriveNonempty (abstractedType : AbstractMVarsResult) (verifiedNonemptyTypes
     encounters types whose inhabitation status has not previously been checked. -/
 def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMVarList) (verifiedNonemptyTypes : abstractedMVarAndClauseList)
   (potentiallyUninhabitedTypes : abstractedMVarList) : RuleM (VarRemovalRes × abstractedMVarList × abstractedMVarList) := do
+  trace[duper.typeInhabitationReasoning.debug] "Calling removeVanishedVarsHelper on {c}"
   let (mvars, mclause) ← loadClauseCore c
   let mut verifiedInhabitedTypes := verifiedInhabitedTypes
+  let mut potentiallyUninhabitedTypes := potentiallyUninhabitedTypes
   let (_, s) := AbstractMVars.abstractExprMVars mclause.toExpr { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
-  let mut mvarIdsToRemove := #[]
+  let mut mvarIdsToRemove := []
   let mut resPotentiallyVacuous := false
-  for mvar in mvars do
+  let mut preservedMVarTypes : Array Expr := #[] -- The mvarTypes that are to be preserved in the clause. We can't remove any mvars that any of these types depend on
+  /- Iterate through each of the mclause's mvars, determining whether the mvar needs to be preserved (in which case, its type is added to `preservedMVarTypes`) or
+     whether it can be removed (in which case, its id is added to `mvarIdsToRemove`).
+
+     We iterate through the mclause's mvars in reverse order so that we can handle dependencies between types correctly. For example, if we have
+     `∀ x : t, ∀ y : f(x), p(y)`, then we cannot remove `y` because the clause body depends on it, and because we cannot remove `y`, we also cannot remove `x` (since
+     `y`'s type depends on it). By iterating through the clause's mvars in reverse order, we ensure that we see `y` and add its type `f(x)` to `preservedMVarTypes`
+     before we see `x`, so that when we see `x`, we can identify that it must be kept on the grounds that there is a type in `preservedMVarTypes` that depends on `x`.
+
+     Note that because we have mvarIdsToRemove as a list (and add elements using cons rather than append), the last mvarIds we add to the list will appear first
+     in the list which ensures that at the end, mvarIds corresponding to earlier bvars appear before mvarIds corresponding to later bvars. When dependent types are
+     at play, preserving this invariant is important to ensure that `Duper.RuleM.neutralizeMClauseInhabitedReasoningOn` processes `mvarIdsToRemove` correctly. -/
+  for mvar in mvars.reverse do
+    trace[duper.typeInhabitationReasoning.debug] "Looking at {mvar}"
     let mvarId := mvar.mvarId!
     let mvarType ← inferType mvar
     let abstractedType ← abstractMVars mvarType
-    if s.emap.contains mvarId then
+    if s.emap.contains mvarId || preservedMVarTypes.any (fun preservedType => preservedType.hasAnyMVar (fun m => m == mvarId)) then
+      trace[duper.typeInhabitationReasoning.debug] "{mvar} is to be preserved"
+      preservedMVarTypes := preservedMVarTypes.push mvarType -- Either the clause body or a later mvarType depends on the current mvar
       if verifiedInhabitedTypes.contains abstractedType then
         continue -- Don't remove mvarId because it appears in clause body
       match ← deriveNonempty abstractedType verifiedNonemptyTypes with
@@ -249,37 +267,47 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
         else -- This is a type we haven't seen yet. Try to synthesize Inhabited
           match ← Meta.findInstance mvarType with
           | none =>
+            potentiallyUninhabitedTypes := abstractedType :: potentiallyUninhabitedTypes
             resPotentiallyVacuous := true
           | some _ => -- Don't remove mvarId because it appears in clause body
             verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
     else
       if verifiedInhabitedTypes.contains abstractedType then
-        mvarIdsToRemove := mvarIdsToRemove.push mvarId
+        trace[duper.typeInhabitationReasoning.debug] "{mvar} is to be removed because verifiedInhabitedTypes contains the abstracted version of {mvarType}"
+        mvarIdsToRemove := mvarId :: mvarIdsToRemove
         continue
       match ← deriveNonempty abstractedType verifiedNonemptyTypes with
       | some c =>
+        trace[duper.typeInhabitationReasoning.debug] "{mvar} is to be removed because deriveNonempty found {c}"
         let _ ← loadInhabitationClause c  -- Adding c as a parent so that its proof will
                                           -- be reconstructed by proof reconstruction,
                                           -- and we'll be able to obtain the inhabitation
                                           -- proof in `findInstance`
-        mvarIdsToRemove := mvarIdsToRemove.push mvarId
+        mvarIdsToRemove := mvarId :: mvarIdsToRemove
       | none =>
         if potentiallyUninhabitedTypes.contains abstractedType then
+          trace[duper.typeInhabitationReasoning.debug] "{mvar} is to be preserved because the abstracted version of its type {mvarType} is potentially uninhabited"
+          preservedMVarTypes := preservedMVarTypes.push mvarType -- Preserve current mvarType because the current mvar could not be removed
           resPotentiallyVacuous := true
         else -- This is a type we haven't seen yet. Try to synthesize Inhabited
           match ← Meta.findInstance mvarType with
           | none =>
+            trace[duper.typeInhabitationReasoning.debug] "{mvar} is to be preserved because Meta.findInstance couldn't find an instance for {mvarType}"
+            potentiallyUninhabitedTypes := abstractedType :: potentiallyUninhabitedTypes
+            preservedMVarTypes := preservedMVarTypes.push mvarType -- Preserve current mvarType because the current mvar could not be removed
             resPotentiallyVacuous := true
           | some _ =>
+            trace[duper.typeInhabitationReasoning.debug] "{mvar} is to be removed because Meta.findInstance found an instance for {mvarType}"
             verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
-            mvarIdsToRemove := mvarIdsToRemove.push mvarId
-  if mvarIdsToRemove.size == 0 then
+            mvarIdsToRemove := mvarId :: mvarIdsToRemove
+  if mvarIdsToRemove.isEmpty then
     if resPotentiallyVacuous then
       return (NoChangePotentiallyVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
     else
       return (NoChangeNotVacuous, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
   else
     let cp ← yieldClause mclause "removeVanishedVars" mkRemoveVanishedVarsProof (mvarIdsToRemove := mvarIdsToRemove)
+    trace[duper.typeInhabitationReasoning.debug] "mkRemoveVanishedVarsProof: Yielded {cp.1} from {c}"
     if resPotentiallyVacuous then
       return (PotentiallyVacuous cp, verifiedInhabitedTypes, potentiallyUninhabitedTypes)
     else
