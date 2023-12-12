@@ -44,9 +44,7 @@ jobs:
       - uses: actions/checkout@v4
 
       - name: Build package
-        run: |
-          set -o pipefail
-          lake build
+        run: lake build
 
       - name: Create release for tag
         if: github.ref_type == 'tag'
