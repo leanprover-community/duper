@@ -1,4 +1,4 @@
-# This file was copied from ProofWidgets4
+# This file was modified from ProofWidgets4's build.yml code
 on:
   push:
   pull_request:
@@ -43,15 +43,10 @@ jobs:
 
       - uses: actions/checkout@v4
 
-      # TODO: investigate why `lake build` deadlocks on macOS
-      - name: Build widgets
-        run: npm clean-install && npm run build
-        working-directory: ./widget
-        env:
-          NODE_OPTIONS: "--max-old-space-size=4096"
-
       - name: Build package
-        run: lake build ProofWidgets
+        run: |
+          set -o pipefail
+          lake build
 
       - name: Create release for tag
         if: github.ref_type == 'tag'
