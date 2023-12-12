@@ -13,6 +13,9 @@ jobs:
       run:
         shell: ${{ matrix.shell || 'sh' }}
     strategy:
+      # There currently appears to be issues building Duper on Windows. Setting fail-fast to false is mean to
+      # ensure that Github will still try to build Duper on MacOS and Ubuntu even if building on Windows fails
+      fail-fast: false
       matrix:
         include:
         - name: Build on Ubuntu
