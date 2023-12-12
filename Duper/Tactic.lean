@@ -9,6 +9,18 @@ open Lean.Parser
 
 namespace Lean.Elab.Tactic
 
+register_option printTimeInformation : Bool := {
+  defValue := false
+  descr := "Whether to print the total time it took for Duper to construct a proof"
+}
+
+def getPrintTimeInformation (opts : Options) : Bool :=
+  printTimeInformation.get opts
+
+def getPrintTimeInformationM : CoreM Bool := do
+  let opts ← getOptions
+  return getPrintTimeInformation opts
+
 /-- Produces definional equations for a recursor `recVal` such as
 
   `@Nat.rec m z s (Nat.succ n) = s n (@Nat.rec m z s n)`
@@ -258,7 +270,8 @@ def evalDuper : Tactic
     if configOptions.portfolioMode then
       let proof ← runDuperPortfolioMode formulas declName? configOptions none
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
-      IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+      if ← getPrintTimeInformationM then
+        IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     else
       let portfolioInstance ←
         match configOptions.portfolioInstance with
@@ -319,7 +332,8 @@ def evalDuper : Tactic
         | 48 => runDuperInstance48 formulas declName? 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
-      IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+      if ← getPrintTimeInformationM then
+        IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
 | _ => throwUnsupportedSyntax
 
 @[tactic duperTrace]
@@ -338,7 +352,8 @@ def evalDuperTrace : Tactic
     if configOptions.portfolioMode then
       let proof ← runDuperPortfolioMode formulas declName? configOptions (some (duperStxRef, ← getRef, facts, factsContainsDuperStar))
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
-      IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+      if ← getPrintTimeInformationM then
+        IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
     else
       let portfolioInstance ←
         match configOptions.portfolioInstance with
@@ -401,9 +416,11 @@ def evalDuperTrace : Tactic
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       mkDuperCallSuggestion duperStxRef (← getRef) facts factsContainsDuperStar portfolioInstance configOptions.inhabitationReasoning
         configOptions.preprocessing configOptions.includeExpensiveRules configOptions.selFunction
-      IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
+      if ← getPrintTimeInformationM then
+        IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
 | _ => throwUnsupportedSyntax
 
+/-- Note: This tactic exists primarily for internal github testing and is not intended for external use. -/
 syntax (name := duper_no_timing) "duper_no_timing" ("[" term,* "]")? : tactic
 
 macro_rules
