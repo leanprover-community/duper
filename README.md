@@ -4,11 +4,26 @@ Duper is an automatic proof-producing theorem prover broadly similar to Isabelle
 
 ## Building/Installation
 
-With [elan](https://github.com/leanprover/elan) installed, cloning this repository and running `lake build` in the root directory should suffice to build and test Duper. Duper itself does not depend on Mathlib, so we additionally include a subdirectory DuperOnMathlib which has its own lakefile that imports both Duper and Mathlib. To build this subdirectory, we recommend navigating to DuperOnMathlib and running `lake exe cache get` followed by `lake build`.
+### With VSCode
+
+To build this project with VSCode directly, first make sure that the Lean 4 [VSCode extension](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4) is installed and enabled. Then, on the VSCode welcome page, choose "Clone Git repository" and paste [this](https://github.com/JOSHCLUNE/DuperDemo) url. You will likely see a variety of prompts, potentially asking you to install Lean, rebuild imports, or restart the Lean server. Click the blue buttons on each of them and VSCode will build this project. Note that the first time this project is opened, it may take a couple of minutes to build, though the process should proceed much more quickly after it has successfully been built once.
+
+### With the command line
+
+With [elan](https://github.com/leanprover/elan) installed, the following commands should clone and build this project.
+```
+git clone https://github.com/leanprover-community/duper.git
+cd duper
+lake exe cache get
+lake build
+```
+Unfortunately, Duper can currently only be built via the command line on Mac and Linux, so Windows users will have to build the project using VSCode directly.
 
 ## Adding Duper to Your Project
 
-To use Duper in a Lean 4 project, first add this package as a dependency. In your lakefile.lean, add:
+### Adding Duper to an existing project
+
+To use Duper in an existing Lean 4 project, first add this package as a dependency. In your lakefile.lean, add:
 
 ```lean
 require duper from git "https://github.com/leanprover-community/duper.git"
@@ -22,6 +37,10 @@ import Duper.Tactic
 
 example : True := by duper
 ```
+
+### Adding Duper to a new project
+
+To use Duper in a new Lean 4 project, one option is to simply create a new project and then follow the steps described in the above section. But for users that just want to experiment with Duper, we have made [DuperDemo](https://github.com/JOSHCLUNE/DuperDemo), a repository that imports both Duper and Mathlib and can be used to easily experiment with Duper's capabilities.
 
 ## Using Duper
 
