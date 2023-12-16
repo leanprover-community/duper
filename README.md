@@ -2,43 +2,28 @@
 
 Duper is an automatic proof-producing theorem prover broadly similar to Isabelle's `Metis`. Duper has primarily been developed by Joshua Clune (Github: JOSHCLUNE), Yicheng Qian (Github: PratherConid), and Alex Bentkamp (Github: abentkamp). It is currently in active development and pull requests are welcome. For additional questions or bug reports, feel free to reach out to Joshua Clune on [Lean Zulip](https://leanprover.zulipchat.com).
 
-## Building/Installation
-
-### With VSCode
-
-To build this project with VSCode directly, first make sure that the Lean 4 [VSCode extension](https://marketplace.visualstudio.com/items?itemName=leanprover.lean4) is installed and enabled. Then, on the VSCode welcome page, choose "Clone Git repository" and paste [this](https://github.com/JOSHCLUNE/DuperDemo) url. You will likely see a variety of prompts, potentially asking you to install Lean, rebuild imports, or restart the Lean server. Click the blue buttons on each of them and VSCode will build this project. Note that the first time this project is opened, it may take a couple of minutes to build, though the process should proceed much more quickly after it has successfully been built once.
-
-### With the command line
-
-With [elan](https://github.com/leanprover/elan) installed, the following commands should clone and build this project.
-```
-git clone https://github.com/leanprover-community/duper.git
-cd duper
-lake exe cache get
-lake build
-```
-Unfortunately, Duper can currently only be built via the command line on Mac and Linux, so Windows users will have to build the project using VSCode directly.
-
-## Adding Duper to Your Project
-
-### Adding Duper to an existing project
+## Adding Duper to an existing project
 
 To use Duper in an existing Lean 4 project, first add this package as a dependency. In your lakefile.lean, add:
 
 ```lean
-require duper from git "https://github.com/leanprover-community/duper.git"
+require duper from git "https://github.com/leanprover-community/duper.git" @ "v0.0.3"
 ```
 
-Then, make sure that your `lean-toolchain` file contains the same version of Lean 4 as Duper and that if your project imports [std4](https://github.com/leanprover/std4.git), then it uses the same version of std4 as [Auto](https://github.com/leanprover-community/lean-auto.git). This step is necessary because Duper depends on Auto which depends on std4, so errors can arise if your project attempts to import a version of std4 different from the one imported by Duper.
+Then, make sure that your `lean-toolchain` file contains the same version of Lean 4 as Duper and that if your project imports [std4](https://github.com/leanprover/std4.git), then it uses the same version of std4 as the Duper branch of [Auto](https://github.com/leanprover-community/lean-auto.git). This step is necessary because Duper depends on Auto which depends on std4, so errors can arise if your project attempts to import a version of std4 different from the one imported by Duper.
 
-After these steps are taken, the following testfile should successfully compile:
+After these steps are taken, add the following code to a Lean file that your project's root (usually Main.lean) depends on.
 ```lean
 import Duper.Tactic
 
 example : True := by duper
 ```
 
-### Adding Duper to a new project
+Once the testfile has been created, you can either restart the Lean server in VSCode (using Ctrl-Shift-P or Command-Shift-P to access the command palette and then choosing the command "Lean 4: Server: Restart Server") or run `lake build` in your project's directory. On Mac and Linux, either option should work equally well, but unfortunately, for now Windows users must build using VSCode.
+
+Once that is complete, you can check that Duper has been successfully imported by confirming that the goal of `True` was proven by Duper.
+
+## Experimenting with Duper in a new project
 
 To use Duper in a new Lean 4 project, one option is to simply create a new project and then follow the steps described in the above section. But for users that just want to experiment with Duper, we have made [DuperDemo](https://github.com/JOSHCLUNE/DuperDemo), a repository that imports both Duper and Mathlib and can be used to easily experiment with Duper's capabilities.
 
