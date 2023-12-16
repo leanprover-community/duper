@@ -7,14 +7,14 @@ Duper is an automatic proof-producing theorem prover broadly similar to Isabelle
 To use Duper in an existing Lean 4 project, first add this package as a dependency. In your lakefile.lean, add:
 
 ```lean
-require duper from git "https://github.com/leanprover-community/duper.git" @ "v0.0.3"
+require duper from git "https://github.com/leanprover-community/duper.git" @ "v0.0.4"
 ```
 
 Then, make sure that your `lean-toolchain` file contains the same version of Lean 4 as Duper and that if your project imports [std4](https://github.com/leanprover/std4.git), then it uses the same version of std4 as the Duper branch of [Auto](https://github.com/leanprover-community/lean-auto.git). This step is necessary because Duper depends on Auto which depends on std4, so errors can arise if your project attempts to import a version of std4 different from the one imported by Duper.
 
 After these steps are taken, add the following code to a Lean file that your project's root (usually Main.lean) depends on.
 ```lean
-import Duper.Tactic
+import Duper
 
 example : True := by duper
 ```
