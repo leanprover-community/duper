@@ -19,7 +19,7 @@ import Duper.Tactic
 example : True := by duper
 ```
 
-Once the testfile has been created, you can either restart the Lean server in VSCode (using Ctrl-Shift-P or Command-Shift-P to access the command palette and then choosing the command "Lean 4: Server: Restart Server") or run `lake build` in your project's directory. On Mac and Linux, either option should work equally well, but unfortunately, for now Windows users must build using VSCode.
+Once the above snippet has been added, you can either restart the Lean server in VSCode (using Ctrl-Shift-P or Command-Shift-P to access the command palette and then choosing the command "Lean 4: Server: Restart Server") or run `lake build` in your project's directory. On Mac and Linux, either option should work equally well, but unfortunately, for now Windows users must build using VSCode.
 
 Once that is complete, you can check that Duper has been successfully imported by confirming that the goal of `True` was proven by Duper.
 
