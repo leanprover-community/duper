@@ -4,20 +4,20 @@ Released under Apache 2.0 license as described in the file LICENSE.
 Author: Leonardo de Moura
 -/
 
-inductive LazyList (α : Type u)
+inductive Duper.LazyList (α : Type u)
 | nil                             : LazyList α
 | cons (hd : α) (tl : LazyList α) : LazyList α
 | delayed (t : Thunk (LazyList α)): LazyList α
 
 -- @[extern cpp inline "#2"]
-def List.toLazy {α : Type u} : List α → LazyList α
-| []     => LazyList.nil
-| (h::t) => LazyList.cons h (List.toLazy t)
+def Duper.List.toLazy {α : Type u} : List α → Duper.LazyList α
+| []     => Duper.LazyList.nil
+| (h::t) => Duper.LazyList.cons h (Duper.List.toLazy t)
 
-namespace LazyList
+namespace Duper.LazyList
 variable {α : Type u} {β : Type v} {δ : Type w}
 
-instance : Inhabited (LazyList α) :=
+instance : Inhabited (Duper.LazyList α) :=
 ⟨nil⟩
 
 partial def nats i := cons i (delayed (nats (i + 1)))
@@ -178,43 +178,40 @@ def approxToString [ToString α] (as : LazyList α) (n : Nat := 10) : String :=
 
 instance [ToString α] : ToString (LazyList α) := ⟨approxToString⟩
 
-end LazyList
-
-
+end Duper.LazyList
 
 -- Other utilities
 
-def List.lazySubsequences {α : Type u} : List α → LazyList (List α)
+def List.lazySubsequences {α : Type u} : List α → Duper.LazyList (List α)
 | .nil => .cons .nil .nil
-| .cons a as => List.lazySubsequences as ++ .delayed (LazyList.map (List.cons a) (lazySubsequences as))
+| .cons a as => List.lazySubsequences as ++ .delayed (Duper.LazyList.map (List.cons a) (lazySubsequences as))
 
 
 
 -- Testing
+def fib : Duper.LazyList Nat :=
+  Duper.LazyList.iterate₂ (·+·) 0 1
 
-def fib : LazyList Nat :=
-  LazyList.iterate₂ (·+·) 0 1
-
-def tst : LazyList String := do
-  let x ← [1, 2, 3].toLazy
-  let y ← [2, 3, 4].toLazy
+def tst : Duper.LazyList String := do
+  let x ← Duper.List.toLazy [1, 2, 3]
+  let y ← Duper.List.toLazy [2, 3, 4]
   -- dbgTrace (toString x ++ " " ++ toString y) $ λ _,
   guard (x + y > 5)
   pure (toString x ++ " + " ++ toString y ++ " = " ++ toString (x+y))
 
-open LazyList
+open Duper.LazyList
 
-def iota (i : UInt32 := 0) : LazyList UInt32 :=
+def iota (i : UInt32 := 0) : Duper.LazyList UInt32 :=
   iterate (·+1) i
 
 set_option pp.explicit true
 
-partial def sieve : LazyList UInt32 → LazyList UInt32
+partial def sieve : Duper.LazyList UInt32 → Duper.LazyList UInt32
 | nil          => nil
 | (cons a as)  => cons a (delayed (sieve (filter (λ b => b % a != 0) as)))
 | (delayed as) => sieve as.get
 
-partial def primes : LazyList UInt32 :=
+partial def primes : Duper.LazyList UInt32 :=
   sieve (iota 2)
 
 def maintest : IO Unit := do
@@ -229,4 +226,4 @@ def maintest : IO Unit := do
   -- IO.println $ ((iota.map (+10)).filter (λ v, v % 2 == 0)),
   pure ()
 
-partial def natuple := LazyList.bindω (LazyList.nats 0) (fun i => (LazyList.nats 0).zip (repeats i))
+partial def natuple := Duper.LazyList.bindω (Duper.LazyList.nats 0) (fun i => (Duper.LazyList.nats 0).zip (repeats i))

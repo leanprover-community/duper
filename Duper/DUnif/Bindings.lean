@@ -29,7 +29,7 @@ def withoutModifyingMCtx (x : MetaM α) : MetaM α := do
   finally
     setMCtx s
 
-def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
+def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : MetaM (Duper.LazyList <| MetaM (Array UnifProblem)) := do
   setMCtx p.mctx
   let Fty ← Meta.inferType F
   Meta.forallTelescopeReducing Fty fun xs β₁ => (do
@@ -79,8 +79,8 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
       )
       -- Get rid of metavariables in `xys`
       setMCtx p.mctx
-    let iterAtIArr := iterAtIFuns.map (fun f => (LazyList.nats 0).map f)
-    return LazyList.interleaveN iterAtIArr
+    let iterAtIArr := iterAtIFuns.map (fun f => (Duper.LazyList.nats 0).map f)
+    return Duper.LazyList.interleaveN iterAtIArr
   )
 
 /-- `F` is a metavariable -/
@@ -185,7 +185,7 @@ def imitProj (F : Expr) (nLam : Nat) (iTy : Expr) (oTy : Expr) (name : Name) (id
     the left-hand side, we will see that `h + n - k - len(bin_F) = m - len(bin_g)`, i.e.
   · `h = m + k + len(bin_F) - n - len(bin_g)`
   The above equation can be used to determine the value of `h`.
-  
+
   Now we specify the types of fresh metavariables and the resulting equations
   · The type of `?Hᵢ (1 ≤ i ≤ min (l, h))` is taken care of by `forallMetaTelescopeReducing`
   · If `h ≤ l`, the type of `binding` should be unified with the type of `F`. This
@@ -233,7 +233,7 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Arr
       MVarId.assign F.mvarId! mt
       return #[{(← p.pushParentRuleIfDbgOn (.Imitation eq F g mt)) with checked := false, mctx := ← getMCtx}]
 
-def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (LazyList <| MetaM (Array UnifProblem)) := do
+def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Duper.LazyList <| MetaM (Array UnifProblem)) := do
   setMCtx p.mctx
   let lctx₀ ← getLCtx
   let Fty ← Meta.inferType F

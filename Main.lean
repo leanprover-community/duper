@@ -1,4 +1,4 @@
-import Duper.Tactic
+import Duper
 import Duper.TPTP -- Note: this import is needed to make sure that TPTP is compiled for the github actions
 import Duper.TPTPParser.PrattParser
 

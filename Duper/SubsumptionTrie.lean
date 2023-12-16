@@ -229,7 +229,7 @@ def emptyNode : SubsumptionTrie := node #[]
 
 def singleton (c : Clause) (features : FeatureVector) : SubsumptionTrie :=
   match features with
-  | nil => leaf (HashSet.empty.insert c)
+  | [] => leaf (HashSet.empty.insert c)
   | fstFeature :: restFeatures => node #[(fstFeature, singleton c restFeatures)]
 
 private def insertHelper (t : SubsumptionTrie) (c : Clause) (features : FeatureVector) : RuleM SubsumptionTrie :=
@@ -243,7 +243,7 @@ private def insertHelper (t : SubsumptionTrie) (c : Clause) (features : FeatureV
         return node children'
       curIdx := curIdx + 1
     return node (children.push (fstFeature, singleton c restFeatures))
-  | leaf vals, nil => return leaf (vals.insert c)
+  | leaf vals, [] => return leaf (vals.insert c)
   | _, _ => throwError "Features: {features} length does not match depth of trie {t}"
 
 def insert (t : SubsumptionTrie) (c : Clause) : RuleM SubsumptionTrie :=
@@ -260,7 +260,7 @@ private def deleteHelper (t : SubsumptionTrie) (c : Clause) (features : FeatureV
         return node children'
       curIdx := curIdx + 1
     return node children -- c not found in t, so just return original t
-  | leaf vals, nil => return leaf (vals.erase c)
+  | leaf vals, [] => return leaf (vals.erase c)
   | _, _ => throwError "Features: {features} length does not match depth of trie {t}"
 
 def delete (t : SubsumptionTrie) (c : Clause) : RuleM SubsumptionTrie :=
@@ -274,7 +274,7 @@ private def getPotentialSubsumingClausesHelper (t : SubsumptionTrie) (features :
       if SubsumptionTrieFeatureValueLe childFeature fstFeature then
         potentialSubsumingClauses := potentialSubsumingClauses.append (← getPotentialSubsumingClausesHelper childTrie restFeatures)
     return potentialSubsumingClauses
-  | leaf vals, nil => return vals.toArray
+  | leaf vals, [] => return vals.toArray
   | _, _ => throwError "Features: {features} length does not match depth of trie {t}"
 
 def getPotentialSubsumingClauses (t : SubsumptionTrie) (c : Clause) : RuleM (Array Clause) :=
@@ -292,7 +292,7 @@ private def getPotentialSubsumedClausesHelper (t : SubsumptionTrie) (features : 
       if SubsumptionTrieFeatureValueLe fstFeature childFeature then
         potentialSubsumingClauses := potentialSubsumingClauses.append (← getPotentialSubsumedClausesHelper childTrie restFeatures)
     return potentialSubsumingClauses
-  | leaf vals, nil => return vals.toArray
+  | leaf vals, [] => return vals.toArray
   | _, _ => throwError "Features: {features} length does not match depth of trie {t}"
 
 def getPotentialSubsumedClauses (t : SubsumptionTrie) (c : Clause) : RuleM (Array Clause) :=

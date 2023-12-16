@@ -400,5 +400,5 @@ def structInfo (p : UnifProblem) (e : Expr) : MetaM (Expr × StructType) := do
 -- Bool : True -> Succeed, False -> Fail
 inductive UnifRuleResult
 | NewArray : Array UnifProblem → UnifRuleResult
-| NewLazyList : LazyList (MetaM (Array UnifProblem)) → UnifRuleResult
+| NewLazyList : Duper.LazyList (MetaM (Array UnifProblem)) → UnifRuleResult
 | Succeed : UnifRuleResult
