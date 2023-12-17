@@ -19,7 +19,7 @@ import Duper
 example : True := by duper
 ```
 
-Once the above snippet has been added, you can either restart the Lean server in VSCode (using Ctrl-Shift-P or Command-Shift-P to access the command palette and then choosing the command "Lean 4: Server: Restart Server") or run `lake build` in your project's directory. On Mac and Linux, either option should work equally well, but unfortunately, for now Windows users must build using VSCode.
+Once the above snippet has been added, you can either restart the Lean server in VS Code (using Ctrl-Shift-P or Command-Shift-P to access the command palette and then choosing the command "Lean 4: Server: Restart Server") or run `lake build` in your project's directory. On Mac and Linux, either option should work equally well, but unfortunately, some versions of Windows may have `lake build` fail with a 'too many exported symbols' error. If that happens, Windows users should still be able to build Duper using VS Code.
 
 Once that is complete, you can check that Duper has been successfully imported by confirming that the goal of `True` was proven by Duper.
 
@@ -64,8 +64,8 @@ If Duper times out, the following trace options are available:
     - The total number of generated clauses
     - The set of unit clauses in the active set (i.e. the set of fully processed clauses that can be expressed as equalities or inequalities)
     - Information about types that have been identified in the problem and whether they are provably inhabited by typeclass reasoning, provably nonempty from assumptions given to duper, or potentially uninhabited
-- Using `set_option trace.duper.timeout.debug.fullActiveSet true` will cause Duper to print the full active set (i.e. all clauses that Duper has fully processed, not just those that can be expressed with a single equality or inequality). Note that for some problems, enabling this option can cause VSCode to crash (because it struggles to handle the amount of trace output).
-- Using `set_option trace.duper.timeout.debug.fullPassiveSet true` will cause Duper to print the full passive set (i.e. all clauses that Duper has proven but not yet fully processed). Note that for some problems, enabling this option can cause VSCode to crash (because it struggles to handle the amount of trace output).
+- Using `set_option trace.duper.timeout.debug.fullActiveSet true` will cause Duper to print the full active set (i.e. all clauses that Duper has fully processed, not just those that can be expressed with a single equality or inequality). Note that for some problems, enabling this option can cause VS Code to crash (because it struggles to handle the amount of trace output).
+- Using `set_option trace.duper.timeout.debug.fullPassiveSet true` will cause Duper to print the full passive set (i.e. all clauses that Duper has proven but not yet fully processed). Note that for some problems, enabling this option can cause VS Code to crash (because it struggles to handle the amount of trace output).
 
 If Duper saturates, meaning Duper fully processed all clauses and was unable to generate more, then `set_option trace.duper.saturate.debug true` will cause Duper to print:
 - The final active set (i.e. all clauses that Duper generated and fully processed)
