@@ -1,3 +1,5 @@
+.lake
+DuperOnMathlib/.lake
 /build
 /lake-packages
 /lean_packages

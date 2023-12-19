@@ -1,3 +1,2 @@
 import DuperOnMathlib.Prime
 import DuperOnMathlib.Cantor
-import DuperOnMathlib.PrimesModFour

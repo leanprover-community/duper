@@ -682,4 +682,4 @@ theorem proj_test (h1 : ∀ x : Nat, x > 0 → ∃ y : Fin x, y.1 = 0) (h2 : 3 >
 def sk (a b : Nat) (c : Nat × Nat) (h1 : c = (a, b)) : c.1 = a := by
   duper [h1]
 
-#print sk.proof_1
+#print sk
