@@ -22,9 +22,11 @@ jobs:
         - name: Build on Ubuntu
           os: ubuntu-latest
           lean_os: linux
-        - name: Build on macOS
-          os: macos-latest
-          lean_os: macOS
+        # Removing the mac build because Lean won't differentiate between x86 and ARM64, meaning that if an
+        # ARM64 mac user tries to use github's cloud release, they'll encounter a linker error
+        # - name: Build on macOS
+        #   os: macos-latest
+        #   lean_os: macOS
         - name: Build on Windows
           os: windows-latest
           lean_os: windows
