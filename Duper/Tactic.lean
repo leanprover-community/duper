@@ -9,13 +9,13 @@ open Lean.Parser
 
 namespace Lean.Elab.Tactic
 
-register_option printTimeInformation : Bool := {
+register_option duper.printTimeInformation : Bool := {
   defValue := false
   descr := "Whether to print the total time it took for Duper to construct a proof"
 }
 
 def getPrintTimeInformation (opts : Options) : Bool :=
-  printTimeInformation.get opts
+  duper.printTimeInformation.get opts
 
 def getPrintTimeInformationM : CoreM Bool := do
   let opts ← getOptions

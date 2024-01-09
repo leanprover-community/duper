@@ -3,8 +3,8 @@ import Duper.TPTP
 
 -- set_option pp.all true
 -- set_option pp.rawOnError true
-set_option printPortfolioInstance true
-set_option printTimeInformation true
+set_option duper.printPortfolioInstance true
+set_option duper.printTimeInformation true
 
 axiom a : Nat
 axiom b : Nat

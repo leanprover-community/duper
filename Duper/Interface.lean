@@ -13,21 +13,21 @@ initialize
   registerTraceClass `duper.portfolio.debug
   registerTraceClass `duper.monomorphization.debug
 
-register_option printPortfolioInstance : Bool := {
+register_option duper.printPortfolioInstance : Bool := {
   defValue := false
   descr := "Whether to print the portfolio instance that solved the proof"
 }
 
-register_option throwPortfolioErrors : Bool := {
+register_option duper.throwPortfolioErrors : Bool := {
   defValue := false
   descr := "Whether to halt portfolio mode and throw an error if a subinstance throws an error"
 }
 
 def getPrintPortfolioInstance (opts : Options) : Bool :=
-  printPortfolioInstance.get opts
+  duper.printPortfolioInstance.get opts
 
 def getThrowPortfolioErrors (opts : Options) : Bool :=
-  throwPortfolioErrors.get opts
+  duper.throwPortfolioErrors.get opts
 
 def getPrintPortfolioInstanceM : CoreM Bool := do
   let opts ← getOptions
