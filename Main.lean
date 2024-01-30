@@ -67,6 +67,20 @@ def run (path : String) (github : Bool) : MetaM Unit := do
         mkForall `h .default (mkApp3 (mkConst ``Eq [.param `u2]) (.bvar 4) (.bvar 3) (.bvar 0)) $
         (mkApp (.bvar 3) (.bvar 1)),
       isUnsafe := false})
+  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl
+    { name := `eq_true, levelParams := [],
+      type :=
+        mkForall `p .implicit prop $
+        mkForall `h .default (.bvar 0) $
+        (mkApp3 (mkConst ``Eq [levelOne]) prop (.bvar 1) (mkConst ``True [])),
+      isUnsafe := false})
+  let env ← ofExceptKernelException $ env.addDecl (.axiomDecl
+    { name := `of_eq_true, levelParams := [],
+      type :=
+        mkForall `p .implicit prop $
+        mkForall `h .default (mkApp3 (mkConst ``Eq [levelOne]) prop (.bvar 0) (mkConst ``True [])) $
+        (.bvar 1),
+      isUnsafe := false})
 
   setEnv env
 
