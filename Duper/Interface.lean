@@ -413,7 +413,7 @@ def runDuper (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMax
 def formulasToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool)) : MetaM (Array Auto.Lemma) :=
   formulas.toArray.mapM
     (fun (fact, proof, params, isFromGoal) => -- For now, isFromGoal is ignored
-      return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params})
+      return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"❰{fact}❱")})
 
 /-- Converts formulas/lemmas from the format used by Auto to the format used by Duper. -/
 def autoLemmasToFormulas (lemmas : Array Auto.Lemma) : MetaM (List (Expr × Expr × Array Name × Bool)) :=
