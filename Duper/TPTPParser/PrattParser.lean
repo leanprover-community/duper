@@ -265,13 +265,25 @@ partial def addOpAndRhs (lhs : Term) (minbp : Nat) : ParserM Term := do
       return ← addOpAndRhs (Term.mk op [lhs, rhs]) minbp
 
 partial def parseTypeDecl : ParserM Term := do
-  let ident ← parseIdent
-  if (← peek?) == some (.op ":") then
-    parseToken (.op ":")
-    let ty ← parseTerm
-    return Term.mk (.ident ident) [ty]
+  if (← peek?) == some (.op "(") then
+    parseToken (.op "(")
+    let ident ← parseIdent
+    if (← peek?) == some (.op ":") then
+      parseToken (.op ":")
+      let ty ← parseTerm
+      parseToken (.op ")")
+      return Term.mk (.ident ident) [ty]
+    else
+      parseToken (.op ")")
+      return Term.mk (.ident ident) []
   else
-    return Term.mk (.ident ident) []
+    let ident ← parseIdent
+    if (← peek?) == some (.op ":") then
+      parseToken (.op ":")
+      let ty ← parseTerm
+      return Term.mk (.ident ident) [ty]
+    else
+      return Term.mk (.ident ident) []
 end
 
 structure Command where
@@ -468,7 +480,7 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
         let val := if kind == "conjecture" then ← mkAppM ``Not #[val] else val
         let isFromGoal := kind == "conjecture"
         withLocalDeclD ("H_" ++ name) val fun x => do
-          let acc := acc.push (val, x, #[], isFromGoal)
+          let acc := acc.push (val, ← mkAppM ``eq_true #[x], #[], isFromGoal)
           compileCmds cs acc k
       | _ => throwError "Unknown declaration kind: {args.map repr}"
     | "include" => throwError "includes should have been unfolded first: {args.map repr}"

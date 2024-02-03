@@ -75,7 +75,6 @@ instance : Append (LazyList α) :=
 | as           , (delayed bs) =>
   have : size as + size (Thunk.get bs) < size as + size (delayed bs) := by simp_arith [size]
   map₂ f as bs.get
-termination_by map₂ f as bs => size as + size bs
 
 -- interleave between 2 lists
 def interleave : LazyList α → LazyList α → LazyList α
@@ -86,7 +85,7 @@ def interleave : LazyList α → LazyList α → LazyList α
 | (delayed as) , bs  =>
   have : size (Thunk.get as) + size bs < size (delayed as) + size bs := by simp_arith [size]
   delayed (interleave as.get bs)
-termination_by interleave as bs => size as + size bs
+termination_by as bs => size as + size bs
 
 -- interleave between N lists
 partial def interleaveN : Array (LazyList α) → LazyList α := fun x => iNrec (Std.Queue.empty.enqueueAll x.toList)
