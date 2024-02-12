@@ -342,7 +342,8 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name × Bool)) : M
               let f := abstracted.instantiate1 rhs'
               let fproof ← withTransparency .default do mkAppOptM ``Eq.ndrec #[none,
                 some lhs,
-                some $ mkLambda `x .default ty' (← Meta.mkAppM ``Eq #[abstracted, mkConst ``True]),
+                some (← Meta.withLocalDeclD `_ ty' fun fvar => do
+                  Meta.mkLambdaFVars #[fvar] $ ← Meta.mkAppM ``Eq #[abstracted.instantiate1 fvar, mkConst ``True]),
                 some fproof,
                 rhs',
                 proof']
