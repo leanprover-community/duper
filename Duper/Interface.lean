@@ -328,9 +328,9 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name × Bool)) : M
     for (e, proof, paramNames, isFromGoal) in formulas do
       let update (ty lhs rhs : Expr) newFormulas (containedIn : Expr → Bool) : MetaM _ := do
         if containedIn rhs then pure newFormulas else
-          newFormulas.mapM fun (f, fproof, fparamNames) => do
+          newFormulas.mapM fun (f, fproof, fparamNames, fIsFromGoal) => do
             if !containedIn f then
-              return (f, fproof, fparamNames)
+              return (f, fproof, fparamNames, fIsFromGoal)
             else
               let us ← paramNames.mapM fun _ => mkFreshLevelMVar
               let lhs'   := lhs.instantiateLevelParamsArray paramNames us
@@ -347,7 +347,7 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name × Bool)) : M
                 some fproof,
                 rhs',
                 proof']
-              return (f, ← instantiateMVars $ fproof, fparamNames)
+              return (f, ← instantiateMVars $ fproof, fparamNames, isFromGoal || fIsFromGoal)
       match e with
       | .app ( .app ( .app (.const ``Eq _) ty) (.fvar fid)) rhs =>
         let containedIn := fun e => (e.find? (· == .fvar fid)).isSome
