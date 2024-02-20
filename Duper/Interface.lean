@@ -410,18 +410,30 @@ def runDuper (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMax
    to be in alignment with how Auto stores lemmas to avoid the unnecessary cost of this conversion, but for now, it suffices to
    add or remove `eq_true` as needed) -/
 
-/-- Converts formulas/lemmas from the format used by Duper to the format used by Auto. -/
+partial def getLeavesFromDTr (t : Auto.DTr) : Array String :=
+  match t with
+  | Auto.DTr.node _ subTrees => (subTrees.map getLeavesFromDTr).flatten
+  | Auto.DTr.leaf s => #[s]
+
+/-- Converts formulas/lemmas from the format used by Duper to the format used by Auto. Duper uses Auto's deriv DTr to keep
+    track of `isFromGoal` information through the monomorphization procedure. -/
 def formulasToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool)) : MetaM (Array Auto.Lemma) :=
   formulas.toArray.mapM
     (fun (fact, proof, params, isFromGoal) => -- For now, isFromGoal is ignored
-      return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"❰{fact}❱")})
+      return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}")})
 
 /-- Converts formulas/lemmas from the format used by Auto to the format used by Duper. -/
 def autoLemmasToFormulas (lemmas : Array Auto.Lemma) : MetaM (List (Expr × Expr × Array Name × Bool)) :=
   /- Currently, we don't have any means of determining which lemmas are originally from the goal, so for now, we are
      indicating that all lemmas don't come from the goal. This behavior should be updated once we get a means of tracking
      that information through the monomorphization procedure. -/
-  lemmas.toList.mapM (fun lem => return (lem.type, ← Meta.mkAppM ``eq_true #[lem.proof], lem.params, false))
+  lemmas.toList.mapM
+    (fun lem => do
+      let derivLeaves := getLeavesFromDTr lem.deriv
+      let isFromGoal := derivLeaves.contains "true"
+      trace[duper.monomorphization.debug] "deriv for {lem.type}: {lem.deriv}"
+      trace[duper.monomorphization.debug] "derivLeaves for {lem.type}: {derivLeaves}"
+      return (lem.type, ← Meta.mkAppM ``eq_true #[lem.proof], lem.params, isFromGoal))
 
 /-- Given `formulas`, `instanceMaxHeartbeats`, and an instance of Duper `inst`, runs `inst` with monomorphization preprocessing. -/
 def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMaxHeartbeats : Nat)
@@ -433,8 +445,8 @@ def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × Array
   let prover : Array Auto.Lemma → MetaM Expr :=
     fun lemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
-      trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => f.1)}"
-      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => f.1)}"
+      trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => (f.1, f.2.2.2))}"
+      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => (f.1, f.2.2.2))}"
       inst monomorphizedFormulas instanceMaxHeartbeats
   Auto.monoInterface lemmas inhFacts prover
 
@@ -449,8 +461,8 @@ def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr × Arra
   let prover : Array Auto.Lemma → MetaM Expr :=
     fun lemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
-      trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => f.1)}"
-      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => f.1)}"
+      trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => (f.1, f.2.2.2))}"
+      trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => (f.1, f.2.2.2))}"
       inst monomorphizedFormulas instanceMaxHeartbeats
   Auto.runNativeProverWithAuto declName? prover lemmas inhFacts
 
