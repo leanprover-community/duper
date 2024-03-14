@@ -1,4 +1,3 @@
-import Std.Lean.CoreM
 import Duper.ProofReconstruction
 import Auto.Tactic
 
@@ -251,13 +250,13 @@ def mkDuperCallSuggestion (duperStxRef : Syntax) (origSpan : Syntax) (facts : Sy
   let configOptionsStx : Syntax.TSepArray `Duper.configOption "," := {elemsAndSeps := configOptionsArr}
   if withDuperStar && facts.elemsAndSeps.isEmpty then
     let suggestion ←`(tactic| duper [*] {$configOptionsStx,*})
-    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+    Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
   else if withDuperStar then
     let suggestion ←`(tactic| duper [*, $facts,*] {$configOptionsStx,*})
-    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+    Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
   else
     let suggestion ←`(tactic| duper [$facts,*] {$configOptionsStx,*})
-    Std.Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
+    Tactic.TryThis.addSuggestion duperStxRef suggestion (origSpan? := origSpan)
 
 /-- We save the `CoreM` state. This is because we will add a constant `skolemSorry` to the environment to support skolem constants with
     universe levels. We want to erase this constant after the saturation procedure ends -/
@@ -431,8 +430,6 @@ def autoLemmasToFormulas (lemmas : Array Auto.Lemma) : MetaM (List (Expr × Expr
     (fun lem => do
       let derivLeaves := getLeavesFromDTr lem.deriv
       let isFromGoal := derivLeaves.contains "true"
-      trace[duper.monomorphization.debug] "deriv for {lem.type}: {lem.deriv}"
-      trace[duper.monomorphization.debug] "derivLeaves for {lem.type}: {derivLeaves}"
       return (lem.type, ← Meta.mkAppM ``eq_true #[lem.proof], lem.params, isFromGoal))
 
 /-- Given `formulas`, `instanceMaxHeartbeats`, and an instance of Duper `inst`, runs `inst` with monomorphization preprocessing. -/
