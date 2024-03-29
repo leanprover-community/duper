@@ -44,11 +44,12 @@ partial def preprocessFact (fact : Expr) : MetaM Expr := do
     -- Restore ≠, i.e., ¬ a = b ⇒ a ≠ b
     -- If we don't do this, it seems that clausification will become more inefficient
     let fact ← Core.transform fact (pre := restoreNE)
+    let fact ← zetaReduce fact
     trace[duper.preprocessing.debug] "fact after preprocessing: {fact}"
     return fact
   else
-    trace[duper.preprocessing.debug] "Skipping preprocessing because reduceInstances option is set to false"
-    return fact
+    trace[duper.preprocessing.debug] "reduceInstances option is set to false, only applying zeta reduction"
+    zetaReduce fact
 
 /-- Eta-expand a beta-reduced expression. This function is currently unused -/
 partial def etaLong (e : Expr) : MetaM Expr := do
@@ -101,13 +102,13 @@ partial def etaReduce (e : Expr) : MetaM Expr := do
     | none => return .done e
   Meta.transform e (post := post) (usedLetOnly := true)
 
-/-- Instantiates mvars then applies beta, eta and zeta reduction exhaustively. -/
+/-- Instantiates mvars then applies beta and eta reduction exhaustively. -/
 def betaEtaReduceInstMVars (e : Expr) : MetaM Expr := do
   let e ← instantiateMVars e
   let e ← Core.betaReduce e
   etaReduce e
 
-/-- Applies beta, eta and zeta reduction exhaustively -/
+/-- Applies beta and eta reduction exhaustively -/
 def betaEtaReduce (e : Expr) : MetaM Expr := do
   let e ← Core.betaReduce e
   etaReduce e

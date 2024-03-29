@@ -157,7 +157,7 @@ def transformToUntypedFirstOrderTerm [Monad m] [MonadLiftT MetaM m] (e : Expr) :
      -/
     return .bvar bvarNum
   | Expr.mdata _ e => transformToUntypedFirstOrderTerm e
-  | Expr.letE _ _ _ _ _ => panic! "The letE expression {e} should have been removed by zeta reduction"
+  | Expr.letE _ _ _ _ _ => panic! s!"The letE expression {e} should have been removed by zeta reduction"
   -- Strip away levels
   | Expr.const name _ => return Expr.const name []
   | _ => return e -- Expr.fvar, Expr.mvar, Expr.lit, Expr.const, and Expr.sort cases
