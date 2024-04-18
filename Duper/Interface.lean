@@ -418,7 +418,7 @@ partial def getLeavesFromDTr (t : Auto.DTr) : Array String :=
     track of `isFromGoal` information through the monomorphization procedure. -/
 def formulasToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool)) : MetaM (Array Auto.Lemma) :=
   formulas.toArray.mapM
-    (fun (fact, proof, params, isFromGoal) => -- For now, isFromGoal is ignored
+    (fun (fact, proof, params, isFromGoal) =>
       return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}")})
 
 /-- Converts formulas/lemmas from the format used by Auto to the format used by Duper. -/
