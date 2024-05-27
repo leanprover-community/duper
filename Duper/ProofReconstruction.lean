@@ -35,7 +35,7 @@ partial def printProof (state : ProverM.State) : MetaM Unit := do
     trace[duper.printProof] "Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {c}"
     -- println!  s!"Clause #{info.number} (by {info.proof.ruleName} {parentIds}): {toString (← ppExpr c.toForallExpr)}"
 
-abbrev ClauseHeap := Std.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
+abbrev ClauseHeap := Batteries.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 
 partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Nat × ClauseHeap)) : MetaM (Array Nat × ClauseHeap) := do
   Core.checkMaxHeartbeats "collectClauses"
@@ -241,7 +241,7 @@ partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr :
 def reconstructProof (state : ProverM.State) : MetaM Expr := do
   let some emptyClause := state.emptyClause
     | throwError "applyProof :: Can't find empty clause in ProverM's state"
-  let l := (← collectClauses state emptyClause (#[], Std.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
+  let l := (← collectClauses state emptyClause (#[], Batteries.BinomialHeap.empty)).2.toList.eraseDups.map Prod.snd
   trace[duper.proofReconstruction] "Collected clauses: {l}"
   -- First make proof for skolems, then make proof for clauses
   let proof ← mkAllProof state l

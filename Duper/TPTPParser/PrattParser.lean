@@ -350,7 +350,7 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   | ⟨.ident "$true", []⟩ => return mkConst `True
   | ⟨.ident "$false", []⟩ => return mkConst `False
   | ⟨.ident n, as⟩ => do
-    let some decl := (← getLCtx).findFromUserName? n
+    let some decl := (← getLCtx).findFromUserName? n.toName
       | throwError "Unknown variable name {n}"
     return mkAppN (mkFVar decl.fvarId) (← as.mapM toLeanExpr).toArray
   | ⟨.op "!", body :: var :: tail⟩ =>
@@ -413,7 +413,7 @@ where
       | [ty] => ty.toLeanExpr
       | [] => pure $ mkConst `Iota
       | _ => throwError "invalid bound var: {repr var}"
-      withLocalDeclD v ty k
+      withLocalDeclD v.toName ty k
     | _ => throwError "invalid bound var: {repr var}"
 
 end Term
@@ -473,13 +473,14 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
     | "thf" | "tff" | "cnf" | "fof" =>
       match args with
       | [_, ⟨.ident "type", _⟩, ⟨.ident id, [ty]⟩]  =>
-        withLocalDeclD id (← ty.toLeanExpr) fun _ => do
+        withLocalDeclD id.toName (← ty.toLeanExpr) fun _ => do
           compileCmds cs acc k
       | [⟨.ident name, []⟩, ⟨.ident kind, _⟩, val] =>
         let val ← val.toLeanExpr
-        let val := if kind == "conjecture" then ← mkAppM ``Not #[val] else val
+        let notVal ← mkAppM ``Not #[val]
+        let val := if kind == "conjecture" then notVal else val
         let isFromGoal := kind == "conjecture"
-        withLocalDeclD ("H_" ++ name) val fun x => do
+        withLocalDeclD ("H_".toName ++ name.toName) val fun x => do
           let acc := acc.push (val, ← mkAppM ``eq_true #[x], #[], isFromGoal)
           compileCmds cs acc k
       | _ => throwError "Unknown declaration kind: {args.map repr}"
@@ -531,7 +532,7 @@ def compile [Inhabited α] (code : String) (dir : System.FilePath) (k : Formulas
   let cmds ← Parser.parse code
   let cmds ← resolveIncludes cmds dir
   let constants ← collectCnfFofConstants cmds
-  withLocalDeclsD (constants.toArray.map fun (n, ty) => (n, fun _ => pure ty)) fun _ => do
+  withLocalDeclsD (constants.toArray.map fun (n, ty) => (n.toName, fun _ => pure ty)) fun _ => do
     compileCmds cmds #[] k
 
 def compileFile [Inhabited α] (path : String) (k : Formulas → MetaM α) : MetaM α := do

@@ -379,12 +379,17 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
 def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofReconstructor)
   (transferExprs : Array Expr := #[]) (mvarIdsToRemove : List MVarId := []) : RuleM (Clause × Proof) := do
   -- Refer to `Lean.Meta.abstractMVars`
+  let loadedClauses ← getLoadedClauses
+  let inhabitationClauses ← getInhabitationClauses
+  let mctx ← getMCtx
+  let lctx ← getLCtx
+  let ngen ← getNGen
   let ((c, proofParents, transferExprs), st) :=
     if ← getInhabitationReasoningM then
-      neutralizeMClauseInhabitedReasoningOn mc (← getLoadedClauses) (← getInhabitationClauses) transferExprs mvarIdsToRemove
-        { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+      neutralizeMClauseInhabitedReasoningOn mc loadedClauses inhabitationClauses transferExprs mvarIdsToRemove
+        { mctx := mctx, lctx := lctx, ngen := ngen }
     else
-      neutralizeMClause mc (← getLoadedClauses) transferExprs { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+      neutralizeMClause mc loadedClauses transferExprs { mctx := mctx, lctx := lctx, ngen := ngen }
   setNGen st.ngen
   -- This is redundant because the `mctx` won't change
   -- We should not reset `lctx` because fvars introduced by

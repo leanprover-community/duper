@@ -63,7 +63,7 @@ def fold {β : Type v} (f : β → Expr → β) (init : β) (c : MClause) : β :
     acc := c.lits[i]!.fold f' acc
   return acc
 
-def foldM {β : Type v} {m : Type v → Type w} [Monad m] 
+def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → ClausePos → m β) (init : β) (c : MClause) : m β := do
   let mut acc := init
   for i in [:c.lits.size] do
@@ -126,9 +126,9 @@ open Comparison
 /-- Returns the list of minimal literal indices that satisfy the provided filter_fn -/
 def getMinimalLits (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause)
   (filter_fn : Lit → Bool) : MetaM (Array Nat) := do
-  let c :=
-    if alreadyReduced then c
-    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
+  let c ←
+    if alreadyReduced then pure c
+    else c.mapM (fun e => betaEtaReduceInstMVars e)
   let mut minLits : Array Nat := #[]
   for i in [:c.lits.size] do
     let curLit := c.lits[i]!
@@ -145,9 +145,9 @@ def getMinimalLits (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyR
 /-- Returns the list of maximal literal indices that satisfy the provided filter_fn -/
 def getMaximalLits (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause)
   (filter_fn : Lit → Bool) : MetaM (Array Nat) := do
-  let c :=
-    if alreadyReduced then c
-    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
+  let c ←
+    if alreadyReduced then pure c
+    else c.mapM (fun e => betaEtaReduceInstMVars e)
   let mut maxLits : Array Nat := #[]
   for i in [:c.lits.size] do
     let curLit := c.lits[i]!
@@ -166,9 +166,9 @@ def getMaximalLits (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyR
     selection functions. -/
 def getMaxDiffLits (getNetWeight : Expr → Expr → Bool → MetaM Order.Weight) (alreadyReduced : Bool) (c : MClause)
   (filter_fn : Lit → Nat → Bool) : MetaM (Array Nat) := do
-  let c :=
-    if alreadyReduced then c
-    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
+  let c ←
+    if alreadyReduced then pure c
+    else c.mapM (fun e => betaEtaReduceInstMVars e)
   let mut maxDiffLits : Array Nat := #[]
   let mut maxDiff : Order.Weight := 0
   for i in [:c.lits.size] do
@@ -190,9 +190,9 @@ def getMaxDiffLits (getNetWeight : Expr → Expr → Bool → MetaM Order.Weight
 /-- Determines whether c.lits[idx]! is maximal in c. If strict is set to true, then there can be no idx' such that c.lits[idx]! and
     c.lits[idx']! are evaluated as equal by the comparison function -/
 def isMaximalLit (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) (strict := false) : MetaM Bool := do
-  let c :=
-    if alreadyReduced then c
-    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
+  let c ←
+    if alreadyReduced then pure c
+    else c.mapM (fun e => betaEtaReduceInstMVars e)
   for j in [:c.lits.size] do
     if j == idx then continue
     let cmp ← Lit.compare ord true c.lits[idx]! c.lits[j]!
@@ -207,9 +207,9 @@ def isMaximalLit (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyRed
     Note that for this function, strictness does not actually matter, because regardless of whether we are considering potential strict maximality
     or potential nonstrict maximality, we can only determine that idx can never be maximal if we find an idx' that is strictly gerater than it -/
 def canNeverBeMaximal (ord : Expr → Expr → Bool → MetaM Comparison) (alreadyReduced : Bool) (c : MClause) (idx : Nat) : MetaM Bool := do
-  let c :=
-    if alreadyReduced then c
-    else ← c.mapM (fun e => betaEtaReduceInstMVars e)
+  let c ←
+    if alreadyReduced then pure c
+    else c.mapM (fun e => betaEtaReduceInstMVars e)
   for j in [:c.lits.size] do
     if j != idx && (← Lit.compare ord true c.lits[idx]! c.lits[j]!) == LessThan then
       return true

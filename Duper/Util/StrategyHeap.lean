@@ -1,8 +1,8 @@
-import Std.Data.BinomialHeap
+import Batteries.Data.BinomialHeap
 import Lean
 
 open Lean
-open Std
+open Batteries
 
 namespace Duper
 

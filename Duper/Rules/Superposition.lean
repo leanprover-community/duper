@@ -76,9 +76,9 @@ def mkSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
-          let eq :=
-            if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
-            else heq
+          let eq ←
+            if sidePremiseLitSide == LitSide.rhs then Meta.mkAppM ``Eq.symm #[heq]
+            else pure heq
           let mut caseProofsMain : Array Expr := Array.mkEmpty mainParentLits.size
           for i in [:mainParentLits.size] do
             let lit := mainParentLits[i]!
@@ -130,9 +130,9 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
-          let eq :=
-            if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
-            else heq
+          let eq ←
+            if sidePremiseLitSide == LitSide.rhs then Meta.mkAppM ``Eq.symm #[heq]
+            else pure heq
           let mut caseProofsMain : Array Expr := Array.mkEmpty mainParentLits.size
           for i in [:mainParentLits.size] do
             let lit := mainParentLits[i]!

@@ -58,7 +58,7 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
           let yty ← withReader (fun ctx : Meta.Context => { ctx with lctx := lctx }) do
             Meta.mkFreshExprMVar (mkSort yty_ty)
           let fvarId ← mkFreshFVarId
-          lctx := lctx.mkLocalDecl fvarId s!"iter{i}.{j}" yty .default
+          lctx := lctx.mkLocalDecl fvarId s!"iter{i}.{j}".toName yty .default
           let fvar := mkFVar fvarId
           ys := ys.push fvar
         -- Make Gᵢs
@@ -69,7 +69,7 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
         -- Make H
         let lastExprTy ← Meta.inferType lastExpr
         -- Assuming that β₂ contains no loose bound variables
-        let Hty : Expr ← Meta.withLocalDeclD s!"iter{i}.last" lastExprTy <| fun fv =>
+        let Hty : Expr ← Meta.withLocalDeclD s!"iter{i}.last".toName lastExprTy <| fun fv =>
           Meta.mkForallFVars #[fv] β₁
         let mH ← Meta.mkFreshExprMVar Hty
         let mt ← Meta.mkLambdaFVars xs (mkApp mH lastExpr)
@@ -143,7 +143,7 @@ def imitForall (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Array UnifPro
     -- BinderType
     let bty_ty ← Meta.mkFreshLevelMVar
     let bty ← Meta.mkFreshExprMVar (mkSort bty_ty)
-    let newt ← Meta.withLocalDeclD "imf" bty fun fv => do
+    let newt ← Meta.withLocalDeclD "imf".toName bty fun fv => do
       let newMVar ← Meta.mkFreshExprMVar β
       Meta.mkForallFVars #[fv] newMVar
     let mt ← Meta.mkLambdaFVars xs newt
@@ -220,8 +220,8 @@ def imitation (F : Expr) (g : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Arr
       MVarId.assign F.mvarId! mt
       return #[{(← p.pushParentRuleIfDbgOn (.Imitation eq F g mt)) with checked := false, mctx := ← getMCtx}]
     else
-      let βAbst :=
-        if imitDepFn.get (← getOptions) then ← mkGeneralFnTy (h - ys.size) β else ← mkImplication (h - ys.size) β
+      let βAbst ←
+        if imitDepFn.get (← getOptions) then mkGeneralFnTy (h - ys.size) β else mkImplication (h - ys.size) β
       -- Put them in a block so as not to affect `βAbst` and `β` on the outside
       if true then
         let βAbst ← Meta.mkLambdaFVars xs βAbst

@@ -29,9 +29,9 @@ def mkFluidSupProof (sidePremiseLitIdx : Nat) (sidePremiseLitSide : LitSide) (ma
       if j == sidePremiseLitIdx then
         let eqLit := sideParentLits[j]!
         let pr ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
-          let eq :=
-            if sidePremiseLitSide == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
-            else heq
+          let eq ←
+            if sidePremiseLitSide == LitSide.rhs then Meta.mkAppM ``Eq.symm #[heq]
+            else pure heq
           let eq ← mkAppM ``congrArg #[freshFunctionVar, eq]
           let mut caseProofsMain : Array Expr := Array.mkEmpty mainParentLits.size
           for i in [:mainParentLits.size] do

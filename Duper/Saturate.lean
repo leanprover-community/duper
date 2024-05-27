@@ -1,4 +1,3 @@
-import Std.Data.BinomialHeap
 import Duper.ClauseStreamHeap
 import Duper.RuleM
 import Duper.MClause
@@ -41,7 +40,6 @@ open Lean
 open Meta
 open Lean.Core
 open Result
-open Std
 open ProverM
 open RuleM
 

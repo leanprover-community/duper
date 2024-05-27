@@ -1,5 +1,4 @@
 import Lean
-import Std.Data.Array.Basic
 open Lean
 
 namespace DUnif

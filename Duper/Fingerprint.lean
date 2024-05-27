@@ -144,7 +144,7 @@ def transformToUntypedFirstOrderTerm [Monad m] [MonadLiftT MetaM m] (e : Expr) :
     match e.getTopSymbol with
     | Expr.mvar mvarId => return .mvar mvarId
     | _ => return .app (← transformToUntypedFirstOrderTerm f) (← transformToUntypedFirstOrderTerm a)
-  | Expr.proj tyName idx e => return .app (.const (s!"proj_{idx}_" ++ tyName) []) (← transformToUntypedFirstOrderTerm e)
+  | Expr.proj tyName idx e => return .app (.const (s!"proj_{idx}_".toName ++ tyName) []) (← transformToUntypedFirstOrderTerm e)
   | Expr.bvar bvarNum =>
     /-
       The specification of ⌊e⌋ calls for a fresh constant for each type and bvarNum, but since there isn't a

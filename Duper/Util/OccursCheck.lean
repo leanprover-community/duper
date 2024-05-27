@@ -20,7 +20,7 @@ partial def mustNotOccursCheck (mvarId : MVarId) (e : Expr) : MetaM Bool := do
 where
   visitMVar (mvarId' : MVarId) : ExceptT Unit (StateT ExprSet MetaM) Unit := do
     if mvarId == mvarId' then
-      throw (self:=instMonadExcept _ _) () -- found
+      throw (self:=instMonadExceptOfMonadExceptOf _ _) () -- found
     else
       let mvarTy' ← Meta.inferType (mkMVar mvarId')
       -- Modification : We also need to check whether metavariables
