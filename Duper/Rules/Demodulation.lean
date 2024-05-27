@@ -27,9 +27,9 @@ def mkDemodulationProof (sidePremiseLhs : LitSide) (mainPremisePos : ClausePos) 
 
     let proof ← Meta.withLocalDeclD `heq eqLit.toExpr fun heq => do
       let mut caseProofs : Array Expr := Array.mkEmpty mainParentLits.size
-      let eq :=
-        if sidePremiseLhs == LitSide.rhs then ← Meta.mkAppM ``Eq.symm #[heq]
-        else heq
+      let eq ←
+        if sidePremiseLhs == LitSide.rhs then Meta.mkAppM ``Eq.symm #[heq]
+        else pure heq
       for i in [:mainParentLits.size] do
         let lit := mainParentLits[i]!
         let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do

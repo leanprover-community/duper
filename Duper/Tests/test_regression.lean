@@ -539,7 +539,7 @@ end NegativeBoolSimpTests
 
 /- ClauseStreamHeap tests -/
 tptp MGT008 "../TPTP-v8.0.0/Problems/MGT/MGT008+1.p"
-  by duper [*] {portfolioInstance := 5} -- Runs out of time if run in portfolio mode
+  by duper [*]
 
 example (f : Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat)
   (g : Nat → Nat → Nat → Nat → Nat → Nat)

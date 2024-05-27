@@ -1,5 +1,5 @@
 import Duper.Clause
-import Std.Data.BinomialHeap
+import Batteries.Data.BinomialHeap
 import Duper.Fingerprint
 import Duper.Selection
 import Duper.SubsumptionTrie
