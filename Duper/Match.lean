@@ -1,7 +1,7 @@
 import Lean
+import Duper.Util.Reduction
 
-open Lean
-open Lean.Meta
+open Lean Lean.Meta Duper
 
 initialize Lean.registerTraceClass `duper.match.debug
 
@@ -15,8 +15,8 @@ partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) (protected_mvars :
     trace[duper.match.debug] "About to attempt to match {l}"
 
     for (match_target, e) in l do
-      let match_target_type := (← instantiateMVars (← inferType match_target))
-      let e_type := (← instantiateMVars (← inferType e))
+      let match_target_type ← betaEtaReduceInstMVars $ ← inferType match_target
+      let e_type ← betaEtaReduceInstMVars $ ← inferType e
       if not (← match1 match_target_type e_type protected_mvars) then
         state.restore
         return false
@@ -29,6 +29,7 @@ partial def Lean.Meta.performMatch (l : Array (Expr × Expr)) (protected_mvars :
     trace[duper.match.debug] "Successfully matched {l}"
     return true
   catch ex =>
+    trace[duper.match.debug] "Encountered error {ex.toMessageData} in match procedure"
     state.restore
     throw ex
 where
@@ -36,7 +37,7 @@ where
     let match_target ← instantiateMVars match_target
     let e ← instantiateMVars e
     if match_target == e then return true else
-    match_target.withApp fun match_target_hd match_target_tl => e.withApp fun e_hd e_tl =>
+    match_target.withApp fun match_target_hd match_target_tl => e.withApp fun e_hd e_tl => do
       match match_target_hd, e_hd with
       | Expr.fvar fid, Expr.fvar gid => do
         if fid == gid then
@@ -50,7 +51,9 @@ where
         else
           return false
       | Expr.forallE .., Expr.forallE .. =>
-        return match_target == e
+        return match_target_hd == e_hd && (← matchArgs match_target_tl e_tl)
+      | Expr.lam .., Expr.lam .. =>
+        return match_target_hd == e_hd && (← matchArgs match_target_tl e_tl)
       | Expr.fvar .., Expr.mvar .. =>
         matchRigidFlex match_target e protected_mvars
       | Expr.const .., Expr.mvar .. =>
