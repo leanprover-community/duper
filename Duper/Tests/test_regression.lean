@@ -683,3 +683,10 @@ def sk (a b : Nat) (c : Nat × Nat) (h1 : c = (a, b)) : c.1 = a := by
   duper [h1]
 
 #print sk
+--###############################################################################################################################
+-- This test previously failed due to a bug in ArgCong
+example (a b : Nat) (matrix : Fin a → Fin b → Nat)
+  (transpose : ∀ n : Nat, ∀ m : Nat, (Fin n → Fin m → Nat) → (Fin m → Fin n → Nat))
+  (h : ∀ n : Nat, ∀ m : Nat, (fun x => transpose n m (transpose m n x)) = (fun x => x)) :
+  transpose b a (transpose a b matrix) = matrix := by
+  duper [h]

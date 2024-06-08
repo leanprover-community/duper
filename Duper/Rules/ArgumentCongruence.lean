@@ -9,13 +9,14 @@ open Meta
 
 initialize Lean.registerTraceClass `duper.rule.argCong
 
-def mkArgumentCongruenceProof (i : Nat) (mVarTys : Array Expr) (premises : List Expr) (parents : List ProofParent)
+def mkArgumentCongruenceProof (i : Nat) (premises : List Expr) (parents : List ProofParent)
   (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let cLits := c.lits.map (fun l => l.map (fun e => e.instantiateRev xs))
     let (parentsLits, appliedPremises, transferExprs) ← instantiatePremises parents premises xs transferExprs
     let parentLits := parentsLits[0]!
     let appliedPremise := appliedPremises[0]!
+    let mVarTys := transferExprs
 
     let mut caseProofs := Array.mkEmpty parentLits.size
     for j in [:parentLits.size] do
@@ -64,7 +65,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
       let loaded ← getLoadedClauses
       for m in mVars do
         newMVars := newMVars.push m
-        mVarTys := mVarTys.push (← inferType m)
+        mVarTys := mVarTys.push (← instantiateMVars (← inferType m))
         let newlhs := mkAppN lhs newMVars
         let newrhs := mkAppN rhs newMVars
         let newty ← inferType newlhs
@@ -77,7 +78,7 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
         let ug ← unifierGenerator #[]
         let yC := do
           setLoadedClauses loaded
-          yieldClause c' "argument congruence" (mkProof := mkArgumentCongruenceProof i mVarTys)
+          yieldClause c' "argument congruence" (mkProof := mkArgumentCongruenceProof i) (transferExprs := mVarTys)
         streams := streams.push (ClauseStream.mk ug given yC "argument congruence")
     return streams
 
