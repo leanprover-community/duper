@@ -270,6 +270,8 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
             potentiallyUninhabitedTypes := abstractedType :: potentiallyUninhabitedTypes
             resPotentiallyVacuous := true
           | some _ => -- Don't remove mvarId because it appears in clause body
+            let abstractedType ← abstractMVars mvarType -- Need to redefine `abstractedType` because `Meta.findInstance` can modify metavariables that appear in `mvarType`
+            trace[duper.typeInhabitationReasoning.debug] "Adding abstractedType {abstractedType.expr} corresponding to {mvarType} to verifiedInhabitedtypes"
             verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
     else
       if verifiedInhabitedTypes.contains abstractedType then
@@ -298,6 +300,8 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
             resPotentiallyVacuous := true
           | some _ =>
             trace[duper.typeInhabitationReasoning.debug] "{mvar} is to be removed because Meta.findInstance found an instance for {mvarType}"
+            let abstractedType ← abstractMVars mvarType -- Need to redefine `abstractedType` because `Meta.findInstance` can modify metavariables that appear in `mvarType`
+            trace[duper.typeInhabitationReasoning.debug] "Adding abstractedType {abstractedType.expr} corresponding to {mvarType} to verifiedInhabitedtypes"
             verifiedInhabitedTypes := abstractedType :: verifiedInhabitedTypes
             mvarIdsToRemove := mvarId :: mvarIdsToRemove
   if mvarIdsToRemove.isEmpty then
