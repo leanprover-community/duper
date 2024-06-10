@@ -68,7 +68,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       destructiveEqualityResolution.toSimpRule,
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
-      distPos.toSimpRule, -- Inductive datatype rule
+      datatypeDistinctness.toSimpRule, -- Inductive datatype rule
       decElim.toSimpRule,
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
       (forwardClauseSubsumption subsumptionTrie).toSimpRule,
@@ -91,7 +91,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       destructiveEqualityResolution.toSimpRule,
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
-      distPos.toSimpRule, -- Inductive datatype rule
+      datatypeDistinctness.toSimpRule, -- Inductive datatype rule
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
       (forwardClauseSubsumption subsumptionTrie).toSimpRule,
       (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
