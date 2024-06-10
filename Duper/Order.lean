@@ -85,7 +85,7 @@ def getHead (t : Expr) := match t with
 | Expr.forallE .. => mkConst ``FORALL
 | Expr.app (Expr.app (Expr.const ``Exists _) _) _  => mkConst ``EXISTS
 | Expr.mdata _ t => getHead t
-| _ => t.getAppFn
+| _ => t.getAppFn'
 
 def getArgs (t : Expr) := match t with
 | Expr.lam _ ty b _ => [ty, b]
@@ -396,7 +396,7 @@ def precCompare (f g : Expr) (symbolPrecMap : SymbolPrecMap) : MetaM Comparison 
 /-- Overapproximation of being fluid -/
 def isFluid (t : Expr) :=
   let t := t.consumeMData
-  (t.isApp && t.getAppFn.isMVar') || (t.isLambda && t.hasMVar)
+  (t.isApp && t.getAppFn'.isMVar') || (t.isLambda && t.hasMVar)
 
 mutual
 

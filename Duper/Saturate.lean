@@ -26,6 +26,8 @@ import Duper.Rules.EqHoist
 import Duper.Rules.ExistsHoist
 import Duper.Rules.ForallHoist
 import Duper.Rules.NeHoist
+-- Inductive datatype rules
+import Duper.Rules.DatatypeDistinctness
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
 import Duper.Rules.FluidSup
@@ -66,6 +68,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       destructiveEqualityResolution.toSimpRule,
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
+      distPos.toSimpRule, -- Inductive datatype rule
       decElim.toSimpRule,
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
       (forwardClauseSubsumption subsumptionTrie).toSimpRule,
@@ -73,8 +76,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       (forwardContextualLiteralCutting subsumptionTrie).toSimpRule,
       (forwardPositiveSimplifyReflect subsumptionTrie).toSimpRule,
       (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
-      -- Higher order rules
-      identBoolHoist.toSimpRule
+      identBoolHoist.toSimpRule -- Higher order rule
     ]
   else
     return #[
@@ -89,14 +91,14 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       destructiveEqualityResolution.toSimpRule,
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
+      distPos.toSimpRule, -- Inductive datatype rule
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
       (forwardClauseSubsumption subsumptionTrie).toSimpRule,
       (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
       (forwardContextualLiteralCutting subsumptionTrie).toSimpRule,
       (forwardPositiveSimplifyReflect subsumptionTrie).toSimpRule,
       (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
-      -- Higher order rules
-      identBoolHoist.toSimpRule
+      identBoolHoist.toSimpRule -- Higher order rule
     ]
 
 -- The first `Clause` is the given clause

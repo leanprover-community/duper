@@ -690,3 +690,32 @@ example (a b : Nat) (matrix : Fin a → Fin b → Nat)
   (h : ∀ n : Nat, ∀ m : Nat, (fun x => transpose n m (transpose m n x)) = (fun x => x)) :
   transpose b a (transpose a b matrix) = matrix := by
   duper [h]
+
+--###############################################################################################################################
+-- Inductive datatype tests
+
+inductive myType
+| const1 : myType
+| const2 : myType
+
+inductive myType2 (t : Type _)
+| const3 : t → myType2 t
+| const4 : t → myType2 t
+
+inductive myType3
+| const5 : myType3
+| const6 : myType3 → myType3
+
+open myType myType2 myType3
+
+example : const1 ≠ const2 := by
+  duper
+
+example : const3 (Type 8) ≠ const4 (Type 8) := by
+  duper
+
+example : const5 ≠ const6 const5 := by
+  duper
+
+example : [] ≠ [2] := by
+  duper
