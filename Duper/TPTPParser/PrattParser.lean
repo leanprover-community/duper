@@ -331,7 +331,7 @@ def parse (s : String) : IO (List Command) := do
   return res.1
 
 open Tokenizer
-#eval tokenize "(a)"
+-- #eval tokenize "(a)"
 
 
 namespace Term
@@ -339,8 +339,6 @@ namespace Term
 open Parser
 open Lean
 open Meta
-
-#check MetavarContext.mkLambda
 
 partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   match t with
@@ -559,10 +557,12 @@ def toLeanExpr (s : String) : MetaM Expr := do
   return r
 
 set_option trace.Meta.debug true
+/-
 #eval toLeanExpr "?[a : $tType, b : $tType]: a = b"
 #eval toLeanExpr "![x : $tType]: ![a : x]: a != a"
 #eval toLeanExpr "$true != $true"
 #eval toLeanExpr "$true & $true"
 #eval toLeanExpr "(<=)"
+-/
 
 end TPTP

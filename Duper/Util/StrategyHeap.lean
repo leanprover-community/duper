@@ -139,4 +139,4 @@ private def testheap₁ : IO Unit := do
     else
       println! "No"
 
-#eval testheap₁
+-- #eval testheap₁
