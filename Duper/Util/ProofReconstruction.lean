@@ -6,6 +6,7 @@ import Duper.Util.Misc
 namespace Duper
 open RuleM
 open Lean
+open Meta
 
 initialize Lean.registerTraceClass `duper.instantiatePremises
 
@@ -89,7 +90,7 @@ def andBuild (l : List Expr) : MetaM Expr :=
   | l1 :: List.nil => return l1
   | l1 :: restL => return mkApp2 (mkConst ``And) l1 $ ← andBuild restL
 
-/-- Given a proof of `l[0] ∧ ... ∧ l[n]`, constructs a proof of `l[i]` -/
+/-- Given a proof of a conjunction with `n` conjuncts, constructs a proof of `i`-th conjunct -/
 def andGet (l : List Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
   match l with
   | List.nil => throwError "andGet index {i} out of bound (l is {l})"
@@ -99,5 +100,38 @@ def andGet (l : List Expr) (i : Nat) (proof : Expr) : MetaM Expr := do
   | l1 :: restL => -- restL is not List.nil so it is safe to pass into andbuild
     if i == 0 then return mkApp3 (mkConst ``And.left) l1 (← andBuild restL) proof
     else andGet restL (i - 1) $ mkApp3 (mkConst ``And.right) l1 (← andBuild restL) proof
+
+/-- Assuming `e` has the form `e1 ∧ e2 ∧ ... ∧ en`, returns an array `#[e1, e2, ... en]`.
+    Note: If e has the form `(e1a ∧ e1b) ∧ e2 ∧ ... ∧ en`, then the conjunction `(e1a ∧ e1b)` will
+    be considered `e1` (and the conjunction e1 will not be broken down further). This decision is made
+    to reflect the form of the conjunction assumed by `andGet` -/
+partial def getConjunctiveHypothesesHelper (e : Expr) (hyps : Array Expr := #[]) : Array Expr :=
+  match e.consumeMData with
+  | Expr.app (Expr.app (Expr.const ``And _) e1) e2 => getConjunctiveHypothesesHelper e2 (hyps.push e1)
+  | _ => hyps.push e
+
+/-- Assuming `e` has the form `e1 ∧ e2 ∧ ... ∧ en`, returns a list `[e1, e2, ... en]`.
+    Note: If `e` has the form `(e1a ∧ e1b) ∧ e2 ∧ ... ∧ en`, then the conjunction `(e1a ∧ e1b)` will
+    be considered `e1` (and the conjunction `e1` will not be broken down further). This decision is made
+    to reflect the form of the conjunction assumed by `andGet` -/
+def getConjunctiveHypotheses (e : Expr) : List Expr := (getConjunctiveHypothesesHelper e #[]).toList
+
+theorem not_and_or (p q : Prop) : ¬(p ∧ q) ↔ ¬p ∨ ¬q := by
+  have : Decidable p := Classical.propDecidable p
+  exact Decidable.not_and_iff_or_not_not
+
+/-- Given a proof `prf` of type `e` which has the form `¬(p1 ∧ p2 ∧ ... pn)`, constructs a proof of `¬p1 ∨ ¬p2 ∨ ... ¬pn` -/
+partial def notAndDistribute (e prf : Expr) : MetaM Expr := do
+  match e.consumeMData with
+  | Expr.app (Expr.const ``Not _) (Expr.app (Expr.app (Expr.const ``And _) e1) e2) =>
+    let prf ← mkAppM ``Iff.mp #[mkApp2 (mkConst ``not_and_or) e1 e2, prf]
+    let rightMVar ← mkFreshExprMVar $ ← mkAppM ``Not #[e2]
+    let distributedE2Prf ← notAndDistribute e2 rightMVar
+    let distributedE2Type ← inferType distributedE2Prf
+    let rightPrf ← mkLambdaFVars #[rightMVar] $ ← mkAppOptM ``Or.inr #[some (← mkAppM ``Not #[e1]), none, some (← notAndDistribute e2 rightMVar)]
+    let leftMVar ← mkFreshExprMVar $ ← mkAppM ``Not #[e1]
+    let leftPrf ← mkLambdaFVars #[leftMVar] $ ← mkAppOptM ``Or.inl #[none, some distributedE2Type, some leftMVar]
+    mkAppM ``Or.elim #[prf, leftPrf, rightPrf]
+  | _ => pure prf
 
 end Duper

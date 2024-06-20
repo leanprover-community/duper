@@ -223,19 +223,10 @@ partial def mkRule26Theorem (e : Expr) (counter : Nat) (i : Nat) (j : Nat) : Met
     let iIdx := (counter - 1) - i
     orIntro goals j (Expr.bvar iIdx)
 
-/-- Assuming e has the form e1 ∧ e2 ∧ ... ∧ en, returns an array #[e1, e2, ... en].
-    Note: If e has the form (e1a ∧ e1b) ∧ e2 ∧ ... ∧ en, then the conjunction (e1a ∧ e1b) will
-    be considered e1 (and the conjunction e1 will not be broken down further). This decision is made
-    to reflect the form of the conjunction assumed by ProofReconstruction.lean's `andGet` -/
-partial def getConjunctiveHypotheses (e : Expr) (hyps : Array Expr) : Array Expr :=
-  match e.consumeMData with
-  | Expr.app (Expr.app (Expr.const ``And _) e1) e2 => getConjunctiveHypotheses e2 (hyps.push e1)
-  | _ => hyps.push e
-
 partial def mkRule27Theorem (e : Expr) (i : Nat) (j : Nat) : MetaM Expr := do
   match e.consumeMData with
   | Expr.forallE _ t b _ =>
-    let hyps := (getConjunctiveHypotheses t #[]).toList
+    let hyps := getConjunctiveHypotheses t
     let goals := getDisjunctiveGoals b #[]
     let iHypProof ← andGet hyps i (Expr.bvar 0)
     let innerBody ← orIntro goals j iHypProof
@@ -547,7 +538,7 @@ partial def applyRule27 (e : Expr) : RuleM (Option (Nat × Nat)) := do
   | e@(Expr.forallE ..) => Meta.forallBoundedTelescope e (some 1) fun xs b => do
     if !(← inferType b).isProp then return none -- Prevents applying rule27 to expressions like Nat → Nat
     let t ← inferType xs[0]!
-    let hyps := getConjunctiveHypotheses t #[]
+    let hyps := getConjunctiveHypothesesHelper t
     let goals := getDisjunctiveGoals b #[]
     let mut goalIdx := 0
     for goal in goals do

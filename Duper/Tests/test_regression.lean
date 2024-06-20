@@ -706,7 +706,10 @@ inductive myType3
 | const5 : myType3
 | const6 : myType3 → myType3
 
-open myType myType2 myType3
+inductive myType4 (t1 t2 : Type _)
+| const7 : t1 → t2 → myType4 t1 t2
+
+open myType myType2 myType3 myType4
 
 example : const1 ≠ const2 := by
   duper
@@ -719,3 +722,19 @@ example : const5 ≠ const6 const5 := by
 
 example : [] ≠ [2] := by
   duper
+
+example (p : Prop) (t1 t2 : Type a) (t3 t4 : Type b) (h : p = True ∨ const7 t1 t3 = const7 t2 t4) :
+  ¬p → t1 = t2 ∧ t3 = t4 := by
+  duper [h]
+
+example (p : Prop) (a b c : Nat) (h : [0, 1, 2] = [a, b, c] ∨ p = True) :
+  ¬p → 0 = a ∧ 1 = b ∧ 2 = c := by duper [h]
+
+example (a b x y : Nat) (f : Nat → Nat)
+  (h1 : ∀ z1 z2 : Nat, z1 ≠ z2 → f z1 ≠ f z2)
+  (h2 : [0, a, x, 3] ≠ [0, b, y, 3]) :
+  f a ≠ f b ∨ f x ≠ f y := by
+  duper [h1, h2] {portfolioInstance := 7}
+
+example (x y : Nat) (h : [x] ≠ [y]) : x ≠ y := by
+  duper [h] {portfolioInstance := 7}

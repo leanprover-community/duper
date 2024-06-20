@@ -28,6 +28,7 @@ import Duper.Rules.ForallHoist
 import Duper.Rules.NeHoist
 -- Inductive datatype rules
 import Duper.Rules.DatatypeDistinctness
+import Duper.Rules.DatatypeInjectivity
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
 import Duper.Rules.FluidSup
@@ -69,6 +70,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
       datatypeDistinctness.toSimpRule, -- Inductive datatype rule
+      datatypeInjectivity.toSimpRule, -- Inductive datatype rule
       decElim.toSimpRule,
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
       (forwardClauseSubsumption subsumptionTrie).toSimpRule,
@@ -92,6 +94,7 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
       datatypeDistinctness.toSimpRule, -- Inductive datatype rule
+      datatypeInjectivity.toSimpRule, -- Inductive datatype rule
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
       (forwardClauseSubsumption subsumptionTrie).toSimpRule,
       (forwardEqualitySubsumption subsumptionTrie).toSimpRule,

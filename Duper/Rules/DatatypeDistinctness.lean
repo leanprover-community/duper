@@ -10,7 +10,7 @@ open Meta
 
 initialize Lean.registerTraceClass `duper.rule.datatypeDistinctness
 
-/-- Returns `none` if `lit` does not compare distinct instructors, returns `some false` if `lit` says two distinct
+/-- Returns `none` if `lit` does not compare distinct constructors, returns `some false` if `lit` says two distinct
     constructors are equal, and returns `some true` if `lit` says two distinct constructors are not equal. -/
 def litComparesDistinctConstructors (lit : Lit) : MetaM (Option Bool) := do
   let litTyIsInductive ← matchConstInduct lit.ty.getAppFn' (fun _ => pure false) (fun _ _ => pure true)
