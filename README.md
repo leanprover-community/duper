@@ -55,7 +55,7 @@ Although we recommend enabling Duper's portfolio mode to find initial proofs, ru
 
 ### Debugging
 
-The fact that Duper is a saturation-based theorem prover (meaning it attempts to prove the goal by negating the target and generating clauses until it derives a contradiction) creates some inherent debugging challenges. If Duper fails to prove a particular goal because it timed out, then it likely generated hundreds or thousands of clauses in the attempt. Often, the volume of generated clauses makes understanding why Duper failed to prove the goal prohibitively time-consuming. Nonetheless, for the minority of cases where it is feasible to understand why Duper failed, we provide a variety of trace options to facilitate examination of the Duper's state.
+The fact that Duper is a saturation-based theorem prover (meaning it attempts to prove the goal by negating the target and generating clauses until it derives a contradiction) creates some inherent debugging challenges. If Duper fails to prove a particular goal because it timed out, then it likely generated hundreds or thousands of clauses in the attempt. Often, the volume of generated clauses makes understanding why Duper failed to prove the goal prohibitively time-consuming. Nonetheless, for the minority of cases where it is feasible to understand why Duper failed, we provide a variety of trace options to facilitate examination of Duper's state.
 
 If Duper times out, the following trace options are available:
 - Using `set_option trace.duper.timeout.debug true` will cause Duper to print:
