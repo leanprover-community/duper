@@ -298,6 +298,8 @@ partial def saturate : ProverM Unit := do
       printTimeoutDebugStatements startTime
       throw e
 
+/-- Note: This definition is outdated (does not support datatype exhaustiveness reasoning). See `saturateNoPreprocessingClausification`
+    for additions that need to be made to make this usable. -/
 def clausifyThenSaturate : ProverM Unit := do
   Core.withCurrHeartbeats $
     preprocessingClausification;
@@ -306,12 +308,18 @@ def clausifyThenSaturate : ProverM Unit := do
     setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
     saturate
 
-def saturateNoPreprocessingClausification : ProverM Unit := do
+def saturateNoPreprocessingClausification (generateDatatypeExhaustivenessFacts : Bool) : ProverM Unit := do
   Core.withCurrHeartbeats $ do
-    let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getPassiveSet).toList;
-    setSymbolPrecMap symbolPrecMap;
-    setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
-    saturate
+    if generateDatatypeExhaustivenessFacts then
+      let (symbolPrecMap, highesetPrecSymbolHasArityZero, datatypeList) ← buildSymbolPrecMapAndDatatypeList (← getPassiveSet).toList;
+      setSymbolPrecMap symbolPrecMap;
+      setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
+      saturate
+    else
+      let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getPassiveSet).toList;
+      setSymbolPrecMap symbolPrecMap;
+      setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
+      saturate
 
 end ProverM
 

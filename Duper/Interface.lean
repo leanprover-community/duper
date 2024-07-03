@@ -22,11 +22,19 @@ register_option duper.throwPortfolioErrors : Bool := {
   descr := "Whether to halt portfolio mode and throw an error if a subinstance throws an error"
 }
 
+register_option duper.collectDatatypes : Bool := {
+  defValue := false
+  descr := "Whether to collect inductive datatypes for the purpose of generating datatype exhaustiveness facts"
+}
+
 def getPrintPortfolioInstance (opts : Options) : Bool :=
   duper.printPortfolioInstance.get opts
 
 def getThrowPortfolioErrors (opts : Options) : Bool :=
   duper.throwPortfolioErrors.get opts
+
+def getCollectDataTypes (opts : Options) : Bool :=
+  duper.collectDatatypes.get opts
 
 def getPrintPortfolioInstanceM : CoreM Bool := do
   let opts ← getOptions
@@ -35,6 +43,10 @@ def getPrintPortfolioInstanceM : CoreM Bool := do
 def getThrowPortfolioErrorsM : CoreM Bool := do
   let opts ← getOptions
   return getThrowPortfolioErrors opts
+
+def getCollectDataTypesM : CoreM Bool := do
+  let opts ← getOptions
+  return getCollectDataTypes opts
 
 declare_syntax_cat Duper.bool_lit (behavior := symbol)
 
@@ -376,6 +388,7 @@ def formulasToMessageData : Expr × Expr × Array Name × Bool → MessageData
     then duper will run until it is timed out by the Core `maxHeartbeats` option). If Duper succeeds in deriving a contradiction and constructing
     a proof for it, then `runDuper` returns that proof as an expression. Otherwise, Duper will throw an error. -/
 def runDuper (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMaxHeartbeats : Nat) : MetaM Expr := do
+  let generateDatatypeExhaustivenessFacts ← getCollectDataTypesM
   let state ←
     withNewMCtxDepth do
       let formulas ← unfoldDefinitions formulas
@@ -387,7 +400,7 @@ def runDuper (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMax
         let skSorryName ← addSkolemSorry
         let (_, state) ←
           ProverM.runWithExprs (ctx := {}) (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
-            ProverM.saturateNoPreprocessingClausification
+            (ProverM.saturateNoPreprocessingClausification generateDatatypeExhaustivenessFacts)
             formulas
         pure state
   match state.result with
