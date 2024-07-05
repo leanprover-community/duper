@@ -6,6 +6,15 @@ open ProverM RuleM Lean Meta
 
 initialize Lean.registerTraceClass `duper.rule.datatypeExhaustiveness
 
+def mkEmptyDatatypeExhaustivenessProof (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
+  Meta.forallTelescope c.toForallExpr fun xs body => do
+    let emptyTypeFVar := xs[xs.size - 1]!
+    let emptyType ← inferType emptyTypeFVar
+    let some (emptyTypeName, lvls) ← matchConstInduct emptyType.getAppFn' (fun _ => pure none) (fun ival lvls => pure (some (ival.name, lvls)))
+      | throwError "mkEmptyDatatypeExhaustivenessProof :: {emptyType} is not an inductive datatype"
+    let motive := .lam `_ emptyType (mkConst ``False) .default -- motive is `fun _ : emptyType => False`
+    mkLambdaFVars xs $ ← mkAppM' (mkConst (.str emptyTypeName "casesOn") (0 :: lvls)) #[motive, emptyTypeFVar]
+
 /-- Given an expression `∀ x1 : t1, x2 : t2, ... xn : tn, b`, returns `[t1, t2, ..., tn]`. If the given expression is not
     a forall expression, then `getForallArgumentTypes` just returns the empty list -/
 partial def getForallArgumentTypes (e : Expr) : List Expr :=
@@ -48,8 +57,7 @@ def generateDatatypeExhaustivenessFact (idt : Expr) : ProverM Unit := do
       let cExp ← mkForallFVars #[idtFVar] $ mkConst ``False
       let paramNames := #[] -- Assuming this is empty temporarily; This assumption does not hold if `idt` is universe polymorphic
       let c := Clause.fromForallExpr paramNames cExp
-      let mkProof := fun _ _ _ _ => Lean.Meta.mkSorry cExp (synthetic := true)
-      addNewToPassive c {parents := #[], ruleName := "datatypeExhaustiveness (empty inductive datatype)", mkProof := mkProof} maxGoalDistance 0 #[]
+      addNewToPassive c {parents := #[], ruleName := "datatypeExhaustiveness (empty inductive datatype)", mkProof := mkEmptyDatatypeExhaustivenessProof} maxGoalDistance 0 #[]
     | ctor1 :: restConstructors =>
       let mut cBody ← makeConstructorEquality idtFVar ctor1 lvls idtArgs
       for ctor in restConstructors do

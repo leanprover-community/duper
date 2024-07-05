@@ -709,6 +709,8 @@ inductive myType3
 inductive myType4 (t1 t2 : Type _)
 | const7 : t1 → t2 → myType4 t1 t2
 
+inductive myEmpty (t1 : Type _) (t2 : Type _)
+
 open myType myType2 myType3 myType4
 
 example : const1 ≠ const2 := by
@@ -738,3 +740,11 @@ example (a b x y : Nat) (f : Nat → Nat)
 
 example (x y : Nat) (h : [x] ≠ [y]) : x ≠ y := by
   duper [h] {portfolioInstance := 7}
+
+set_option duper.collectDatatypes true in
+example : ¬∃ x : Empty, True := by
+  duper
+
+set_option duper.collectDatatypes true in
+example : ¬∃ x : (myEmpty Prop Type), True := by
+  duper
