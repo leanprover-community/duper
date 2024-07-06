@@ -748,3 +748,27 @@ example : ¬∃ x : Empty, True := by
 set_option duper.collectDatatypes true in
 example : ¬∃ x : (myEmpty Prop Type), True := by
   duper
+
+set_option duper.collectDatatypes true in
+example : ∀ x : myType, x = const1 ∨ x = const2 := by
+  duper {portfolioInstance := 7}
+
+set_option duper.collectDatatypes true in
+example : ∀ x : Type 1, ∀ y : Type 2, ¬∃ z : (myEmpty y x), True := by
+  duper
+
+set_option duper.collectDatatypes true in
+example : ∀ l : List Nat, l = [] ∨ ∃ n : Nat, ∃ l' : List Nat, l = n :: l' := by
+  duper {portfolioInstance := 7}
+
+set_option duper.collectDatatypes true in
+example : ¬(∃ n : Nat, n ≠ 0 ∧ ∀ m : Nat, n ≠ m + 1) := by
+  duper [Nat.succ_eq_add_one] {portfolioInstance := 7}
+
+set_option duper.collectDatatypes true in
+example : ∀ α : Type 2, ∀ x : myType2 α, ∃ t : α, x = const3 t ∨ ∃ t : α, x = const4 t := by
+  duper {portfolioInstance := 7}
+
+set_option duper.collectDatatypes true in
+example (t1 : Type 1) (t2 : Type 2) (x : myType4 t1 t2) :
+  ∃ y : t1, ∃ z : t2, x = const7 y z := by duper {portfolioInstance := 7}
