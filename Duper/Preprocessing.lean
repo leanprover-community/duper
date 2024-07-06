@@ -95,11 +95,12 @@ partial def updateSymbolFreqArityMap (f : Expr) (symbolFreqArityMap : HashMap Sy
   | Expr.bvar .. => return symbolFreqArityMap
   | Expr.lit .. => return symbolFreqArityMap
 
-/-- Checks whether the type `t` is an inductive datatype that is not a type class-/
-def isInductiveAndNotTypeClass (t : Expr) : ProverM Bool := do
+/-- Checks whether the type `t` is an inductive datatype that is neither a type class nor a Prop -/
+def isInductiveAndNonPropAndNotTypeClass (t : Expr) : ProverM Bool := do
   let isInductiveDatatype ← matchConstInduct t.getAppFn' (fun _ => pure false) (fun _ _ => pure true)
   let isClass := Option.isSome $ ← isClass? t
-  return isInductiveDatatype && !isClass
+  let isProp := (← inferType t).isProp
+  return isInductiveDatatype && !isClass && !isProp
 
 /-- Updates symbolFreqArityMap to increase the count of all symbols that appear in f (and if a symbol in f appears n
     times, then updates f's result in symbolFreqMap to be n greater than it was originally). Note that as with Expr.weight,
@@ -117,7 +118,7 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
       match (← getLCtx).fvarIdToDecl.find? fVarId with
       | some fDecl =>
         let fType := fDecl.type
-        let fTypeIsInductive ← isInductiveAndNotTypeClass fType
+        let fTypeIsInductive ← isInductiveAndNonPropAndNotTypeClass fType
         if fTypeIsInductive && !datatypeList.contains fType then
           return (symbolFreqArityMap.insert fSymbol (1, getArity fType), fType :: datatypeList)
         else
@@ -130,28 +131,28 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
       return (symbolFreqArityMap.insert fSymbol (fFreq + 1, fArity), datatypeList)
     | none =>
       let fType ← inferType f
-      let fTypeIsInductive ← isInductiveAndNotTypeClass fType
+      let fTypeIsInductive ← isInductiveAndNonPropAndNotTypeClass fType
       if fTypeIsInductive && !datatypeList.contains fType then
         return (symbolFreqArityMap.insert fSymbol (1, getArity fType), fType :: datatypeList)
       else
         return (symbolFreqArityMap.insert fSymbol (1, getArity fType), datatypeList)
   | Expr.app f1 f2 =>
     let fType ← inferType f
-    let fTypeIsInductive ← isInductiveAndNotTypeClass fType
+    let fTypeIsInductive ← isInductiveAndNonPropAndNotTypeClass fType
     let datatypeList :=
       if fTypeIsInductive && !datatypeList.contains fType then fType :: datatypeList
       else datatypeList
     let (symbolFreqArityMap', datatypeList') ← updateSymbolFreqArityMapAndDatatypeList f1 symbolFreqArityMap datatypeList
     updateSymbolFreqArityMapAndDatatypeList f2 symbolFreqArityMap' datatypeList'
   | Expr.lam _ t b _ =>
-    let tIsInductive ← isInductiveAndNotTypeClass t
+    let tIsInductive ← isInductiveAndNonPropAndNotTypeClass t
     let datatypeList :=
       if tIsInductive && !datatypeList.contains t then t :: datatypeList
       else datatypeList
     let (symbolFreqArityMap', datatypeList') ← updateSymbolFreqArityMapAndDatatypeList t symbolFreqArityMap datatypeList
     updateSymbolFreqArityMapAndDatatypeList b symbolFreqArityMap' datatypeList'
   | Expr.forallE _ t b _ =>
-    let tIsInductive ← isInductiveAndNotTypeClass t
+    let tIsInductive ← isInductiveAndNonPropAndNotTypeClass t
     let datatypeList :=
       if tIsInductive && !datatypeList.contains t then t :: datatypeList
       else datatypeList
@@ -162,7 +163,7 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
     updateSymbolFreqArityMapAndDatatypeList b symbolFreqArityMap' datatypeList'
   | Expr.proj _ _ b =>
     let fType ← inferType f
-    let fTypeIsInductive ← isInductiveAndNotTypeClass fType
+    let fTypeIsInductive ← isInductiveAndNonPropAndNotTypeClass fType
     if fTypeIsInductive && !datatypeList.contains fType then
       updateSymbolFreqArityMapAndDatatypeList b symbolFreqArityMap (fType :: datatypeList)
     else
@@ -171,7 +172,7 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
   | Expr.sort .. => return (symbolFreqArityMap, datatypeList)
   | Expr.mvar .. =>
     let fType ← inferType f
-    let fTypeIsInductive ← isInductiveAndNotTypeClass fType
+    let fTypeIsInductive ← isInductiveAndNonPropAndNotTypeClass fType
     if fTypeIsInductive && !datatypeList.contains fType then
       return (symbolFreqArityMap, fType :: datatypeList)
     else
@@ -179,7 +180,7 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
   | Expr.bvar .. => return (symbolFreqArityMap, datatypeList)
   | Expr.lit .. =>
     let fType ← inferType f
-    let fTypeIsInductive ← isInductiveAndNotTypeClass fType
+    let fTypeIsInductive ← isInductiveAndNonPropAndNotTypeClass fType
     if fTypeIsInductive && !datatypeList.contains fType then
       return (symbolFreqArityMap, fType :: datatypeList)
     else
