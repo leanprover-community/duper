@@ -13,6 +13,15 @@ partial def getForallArgumentTypes (e : Expr) : List Expr :=
   | Expr.forallE _ t b _ => t :: (getForallArgumentTypes b)
   | _ => []
 
+/-- Given an expression `λ x1 : t1, x2 : t2, ... xn : tn => b`, returns `[t1, t2, ..., tn]` and `b`. If the given expression is not
+    a lambda expression, then `getLambdaArgumentTypes` just returns the empty list and `e` -/
+partial def getLambdaArgumentTypesAndBody (e : Expr) : List Expr × Expr :=
+  match e.consumeMData with
+  | Expr.lam _ t b _ =>
+    let (args, b) := getLambdaArgumentTypesAndBody b
+    (t :: args, b)
+  | _ => ([], e)
+
 def mkEmptyDatatypeExhaustivenessProof (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let emptyTypeFVar := xs[xs.size - 1]!
@@ -113,11 +122,12 @@ def makeConstructorEquality (e : Expr) (ctor : ConstructorVal) (lvls : List Leve
     collected properly, and because this code assumes that the generated clause has no parameters (which is not necessarily true
     when `idt` is universe polymorphic) -/
 def generateDatatypeExhaustivenessFact (idt : Expr) : ProverM Unit := do
+  let (idtParams, idt) := getLambdaArgumentTypesAndBody idt
   let some (idtIndVal, lvls) ← matchConstInduct idt.getAppFn' (fun _ => pure none) (fun ival lvls => pure (some (ival, lvls)))
     | throwError "generateDatatypeExhaustivenessFact :: {idt} is not an inductive datatype"
   let idtArgs := idt.getAppArgs
   let constructors ← idtIndVal.ctors.mapM getConstInfoCtor
-  trace[duper.rule.datatypeExhaustiveness] "Inductive datatype {idt} with args {idtArgs} has constructors {constructors.map (fun x => x.name)}"
+  trace[duper.rule.datatypeExhaustiveness] "Inductive datatype {idt} with params {idtParams} and args {idtArgs} has constructors {constructors.map (fun x => x.name)}"
   withLocalDeclD `_ idt fun idtFVar => do
     match constructors with
     | [] => -- `idt` is an inductive datatype with no constructors. This means that there cannot exist any elements of type `idt`

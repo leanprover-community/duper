@@ -142,22 +142,48 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
     let datatypeList :=
       if fTypeIsInductive && !datatypeList.contains fType then fType :: datatypeList
       else datatypeList
-    let (symbolFreqArityMap', datatypeList') ← updateSymbolFreqArityMapAndDatatypeList f1 symbolFreqArityMap datatypeList
-    updateSymbolFreqArityMapAndDatatypeList f2 symbolFreqArityMap' datatypeList'
+    let (symbolFreqArityMap, datatypeList) ← updateSymbolFreqArityMapAndDatatypeList f1 symbolFreqArityMap datatypeList
+    updateSymbolFreqArityMapAndDatatypeList f2 symbolFreqArityMap datatypeList
   | Expr.lam _ t b _ =>
     let tIsInductive ← isInductiveAndNonPropAndNotTypeClass t
     let datatypeList :=
       if tIsInductive && !datatypeList.contains t then t :: datatypeList
       else datatypeList
-    let (symbolFreqArityMap', datatypeList') ← updateSymbolFreqArityMapAndDatatypeList t symbolFreqArityMap datatypeList
-    updateSymbolFreqArityMapAndDatatypeList b symbolFreqArityMap' datatypeList'
+    let (symbolFreqArityMap, datatypeList) ← updateSymbolFreqArityMapAndDatatypeList t symbolFreqArityMap datatypeList
+    -- Modify `b` to not contain loose bvars
+    let freshMVar ← mkFreshExprMVar t
+    let freshMVarId := freshMVar.mvarId!
+    let b' := b.instantiate1 freshMVar
+    let (symbolFreqArityMap, datatypeList) ← updateSymbolFreqArityMapAndDatatypeList b' symbolFreqArityMap datatypeList
+    let mut datatypeArr := #[]
+    -- Remove freshMVar from all acquired datatypes
+    for datatype in datatypeList do
+      if datatype.hasAnyMVar (fun mvarid => mvarid == freshMVarId) then
+        let datatype ← mkLambdaFVars #[freshMVar] datatype
+        datatypeArr := datatypeArr.push datatype
+      else
+        datatypeArr := datatypeArr.push datatype
+    pure (symbolFreqArityMap, datatypeArr.toList)
   | Expr.forallE _ t b _ =>
     let tIsInductive ← isInductiveAndNonPropAndNotTypeClass t
     let datatypeList :=
       if tIsInductive && !datatypeList.contains t then t :: datatypeList
       else datatypeList
-    let (symbolFreqArityMap', datatypeList') ← updateSymbolFreqArityMapAndDatatypeList t symbolFreqArityMap datatypeList
-    updateSymbolFreqArityMapAndDatatypeList b symbolFreqArityMap' datatypeList'
+    let (symbolFreqArityMap, datatypeList) ← updateSymbolFreqArityMapAndDatatypeList t symbolFreqArityMap datatypeList
+    -- Modify `b` to not contain loose bvars
+    let freshMVar ← mkFreshExprMVar t
+    let freshMVarId := freshMVar.mvarId!
+    let b' := b.instantiate1 freshMVar
+    let (symbolFreqArityMap, datatypeList) ← updateSymbolFreqArityMapAndDatatypeList b' symbolFreqArityMap datatypeList
+    let mut datatypeArr := #[]
+    -- Remove freshMVar from all acquired datatypes
+    for datatype in datatypeList do
+      if datatype.hasAnyMVar (fun mvarid => mvarid == freshMVarId) then
+        let datatype ← mkLambdaFVars #[freshMVar] datatype
+        datatypeArr := datatypeArr.push datatype
+      else
+        datatypeArr := datatypeArr.push datatype
+    pure (symbolFreqArityMap, datatypeArr.toList)
   | Expr.letE _ _ v b _ =>
     let (symbolFreqArityMap', datatypeList') ← updateSymbolFreqArityMapAndDatatypeList v symbolFreqArityMap datatypeList
     updateSymbolFreqArityMapAndDatatypeList b symbolFreqArityMap' datatypeList'
@@ -202,14 +228,15 @@ partial def buildSymbolFreqArityMap (clauses : List Clause) : ProverM (HashMap S
     - A HashMap that maps each symbol to a tuple containing:
       - The number of times they appear in formulas
       - Its arity
-    - A list containing every inductive datatype that appears in any clause
-    Note: The current code does not yet support polymorphic inductive datatypes -/
+    - A list containing every inductive datatype that appears in any clause. Polymorphic inductive datatypes are represented
+      as lambdas from parameters to the overall inductive type. For example, the polymorphic list datatype is represented
+      via `fun x => List x` -/
 partial def buildSymbolFreqArityMapAndDatatypeList (clauses : List Clause) : ProverM (HashMap Symbol (Nat × Nat) × List Expr) := do
   let mut symbolFreqArityMap := HashMap.empty
   let mut datatypeList := []
   for c in clauses do
     -- In order to accurately collect inductive datatypes, I need to use mclauses rather than clauses.
-    -- This ensures, for instance, that polymorphic lists will appear as `List ?m` rather than `List #1`.
+    -- This specifically ensures that level parameters are replaced with fresh level metavariables
     let c ← runRuleM $ loadClause c
     trace[duper.collectDatatypes.debug] "Loaded clause c: {c.lits}"
     for l in c.lits do
@@ -275,7 +302,8 @@ def buildSymbolPrecMap (clauses : List Clause) : ProverM (SymbolPrecMap × Bool)
   return (symbolPrecMap, highesetPrecSymbolHasArityZero)
 
 /-- Like `buildSymbolPrecMap` but it also returns a list of all inductive datatypes that appear in any clause.
-    Note: The current code does not yet support polymorphic inductive datatypes -/
+    Polymorphic inductive datatypes are represented as lambdas from parameters to the overall inductive type.
+    For example, the polymorphic list datatype is represented via `fun x => List x`-/
 def buildSymbolPrecMapAndDatatypeList (clauses : List Clause) : ProverM (SymbolPrecMap × Bool × List Expr) := do
   let (symbolFreqArityMap, datatypeList) ← buildSymbolFreqArityMapAndDatatypeList clauses
   trace[duper.collectDatatypes.debug] "datatypeList collected by buildSymbolPrecMap: {datatypeList}"
