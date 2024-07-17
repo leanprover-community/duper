@@ -762,6 +762,14 @@ example : ∀ l : List Nat, l = [] ∨ ∃ n : Nat, ∃ l' : List Nat, l = n :: 
   duper {portfolioInstance := 7}
 
 set_option duper.collectDatatypes true in
+example : ∀ l : List α, l = [] ∨ ∃ x : α, ∃ l' : List α, l = x :: l' := by
+  duper {portfolioInstance := 7}
+
+set_option duper.collectDatatypes true in
+example : ∀ α : Type u, ∀ x : α × Int, ∃ y : α, ∃ z : Int, x = (y, z) := by
+  duper [*] {portfolioInstance := 7}
+
+set_option duper.collectDatatypes true in
 example : ¬(∃ n : Nat, n ≠ 0 ∧ ∀ m : Nat, n ≠ m + 1) := by
   duper [Nat.succ_eq_add_one] {portfolioInstance := 7}
 
@@ -772,3 +780,7 @@ example : ∀ α : Type 2, ∀ x : myType2 α, ∃ t : α, x = const3 t ∨ ∃ 
 set_option duper.collectDatatypes true in
 example (t1 : Type 1) (t2 : Type 2) (x : myType4 t1 t2) :
   ∃ y : t1, ∃ z : t2, x = const7 y z := by duper {portfolioInstance := 7}
+
+set_option duper.collectDatatypes true in
+example (P : α × β → Prop) (h : ∀ x : α, ∀ y : β, P (x, y)) : ∀ z : α × β, P z := by
+  duper [*] {portfolioInstance := 7}

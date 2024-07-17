@@ -13,15 +13,6 @@ partial def getForallArgumentTypes (e : Expr) : List Expr :=
   | Expr.forallE _ t b _ => t :: (getForallArgumentTypes b)
   | _ => []
 
-/-- Given an expression `λ x1 : t1, x2 : t2, ... xn : tn => b`, returns `[t1, t2, ..., tn]` and `b`. If the given expression is not
-    a lambda expression, then `getLambdaArgumentTypes` just returns the empty list and `e` -/
-partial def getLambdaArgumentTypesAndBody (e : Expr) : List Expr × Expr :=
-  match e.consumeMData with
-  | Expr.lam _ t b _ =>
-    let (args, b) := getLambdaArgumentTypesAndBody b
-    (t :: args, b)
-  | _ => ([], e)
-
 def mkEmptyDatatypeExhaustivenessProof (premises : List Expr) (parents: List ProofParent) (transferExprs : Array Expr) (c : Clause) : MetaM Expr := do
   Meta.forallTelescope c.toForallExpr fun xs body => do
     let emptyTypeFVar := xs[xs.size - 1]!
@@ -71,7 +62,6 @@ def mkDatatypeExhaustivenessProof (premises : List Expr) (parents: List ProofPar
                 let baseRflProof ← mkAppM ``Eq.refl #[fullyAppliedCtor]
                 let mut existsProof ← mkAppOptM ``Exists.intro #[none, some existsIntroArg, some ctorArgs[0]!, some baseRflProof]
                 let mut ctorArgNum := 0
-                trace[duper.rule.datatypeExhaustiveness] "Before entering loop, existsProof: {existsProof} (type: {← inferType existsProof})"
                 for (ctorArg, ctorArg') in ctorArgs.zip ctorArgs' do
                   if ctorArgNum = 0 then
                     ctorArgNum := 1
@@ -86,15 +76,12 @@ def mkDatatypeExhaustivenessProof (premises : List Expr) (parents: List ProofPar
                   let existsIntroArg ← mkLambdaFVars #[ctorArg'] innerExistsProp
                   existsProof ← mkAppOptM ``Exists.intro #[none, some existsIntroArg, some ctorArg, some existsProof]
                   ctorArgNum := ctorArgNum + 1
-                  trace[duper.rule.datatypeExhaustiveness] "End of iteration {ctorArgNum} of loop"
-                  trace[duper.rule.datatypeExhaustiveness] "existsProof: {existsProof} (type: {← inferType existsProof})"
                 pure existsProof
             let existsProof ← mkAppM ``eq_true #[existsProof]
             let idtFVarSubst := {map := AssocList.cons idtFVar.fvarId! fullyAppliedCtor AssocList.nil}
             let cLits := cLits.map (fun l => l.map (fun e => e.applyFVarSubst idtFVarSubst))
             let orProof ← orIntro (cLits.map Lit.toExpr) orIdx existsProof
             mkLambdaFVars ctorArgs orProof
-      trace[duper.rule.datatypeExhaustiveness] "casesOnArg for {ctor.name}: {curCasesOnArg} (type: {← inferType curCasesOnArg})"
       casesOnArgs := casesOnArgs.push $ some curCasesOnArg
     mkLambdaFVars xs $ ← mkAppOptM' (mkConst (.str idtIndVal.name "casesOn") (0 :: lvls)) (idtArgs ++ #[some motive, some idtFVar] ++ casesOnArgs)
 
@@ -111,41 +98,38 @@ def makeConstructorEquality (e : Expr) (ctor : ConstructorVal) (lvls : List Leve
       for ctorArg in ctorArgs do
         res ← mkLambdaFVars #[ctorArg] res
         res ← mkAppM ``Exists #[res]
-      trace[duper.rule.datatypeExhaustiveness] "makeConstructorEquality :: Returning {res} from e {e} and ctor {ctor.name}"
       mkAppM ``Eq #[res, mkConst ``True]
 
 /-- Given an inductive datatype `idt`, with constructors `ctor₁, ctor₂, ... ctorₙ`, generates a fact of the form
     `∀ x : idt, x = ctor₁ ∨ x = ctor₂ ∨ ... x = ctorₙ` and adds it to the passive set. For example, if `idt = List Nat`,
     then `generateDatatypeExhaustivenessFact` generates `∀ l : List Nat, l = [] ∨ ∃ n : Nat, ∃ l' : List Nat, l = n :: l'`
 
-    Note: This code does not currently support polymorphic inductive datatypes, both because the arguments are not presently
-    collected properly, and because this code assumes that the generated clause has no parameters (which is not necessarily true
-    when `idt` is universe polymorphic) -/
-def generateDatatypeExhaustivenessFact (idt : Expr) : ProverM Unit := do
-  let (idtParams, idt) := getLambdaArgumentTypesAndBody idt
-  let some (idtIndVal, lvls) ← matchConstInduct idt.getAppFn' (fun _ => pure none) (fun ival lvls => pure (some (ival, lvls)))
-    | throwError "generateDatatypeExhaustivenessFact :: {idt} is not an inductive datatype"
-  let idtArgs := idt.getAppArgs
-  let constructors ← idtIndVal.ctors.mapM getConstInfoCtor
-  trace[duper.rule.datatypeExhaustiveness] "Inductive datatype {idt} with params {idtParams} and args {idtArgs} has constructors {constructors.map (fun x => x.name)}"
-  withLocalDeclD `_ idt fun idtFVar => do
-    match constructors with
-    | [] => -- `idt` is an inductive datatype with no constructors. This means that there cannot exist any elements of type `idt`
-      let cExp ← mkForallFVars #[idtFVar] $ mkConst ``False
-      let paramNames := #[] -- Assuming this is empty temporarily; This assumption does not hold if `idt` is universe polymorphic
-      let c := Clause.fromForallExpr paramNames cExp
-      addNewToPassive c {parents := #[], ruleName := "datatypeExhaustiveness (empty inductive datatype)", mkProof := mkEmptyDatatypeExhaustivenessProof} maxGoalDistance 0 #[]
-    | ctor1 :: restConstructors =>
-      let mut cBody ← makeConstructorEquality idtFVar ctor1 lvls idtArgs
-      for ctor in restConstructors do
-        let ctorEquality ← makeConstructorEquality idtFVar ctor lvls idtArgs
-        cBody ← mkAppM ``Or #[ctorEquality, cBody]
-      let cExp ← mkForallFVars #[idtFVar] cBody
-      let paramNames := #[] -- Assuming this is empty temporarily; This assumption does not hold if `idt` is universe polymorphic
-      let c := Clause.fromForallExpr paramNames cExp
-      addNewToPassive c {parents := #[], ruleName := "datatypeExhaustiveness", mkProof := mkDatatypeExhaustivenessProof} maxGoalDistance 0 #[]
+    Polymorphic inductive datatypes are represented as universally quantified types paired with an array of parameters
+    that can appear in the inductive datatype. For example, the polymorphic list datatype `List α` of where `α : Type u`
+    is represented via `idt` `∀ (α : Type u), List α` and `paramNames` `#[u]` -/
+def generateDatatypeExhaustivenessFact (idt : Expr) (paramNames : Array Name) : ProverM Unit := do
+  forallTelescope idt fun idtParams idtBody => do
+    let some (idtIndVal, lvls) ← matchConstInduct idtBody.getAppFn' (fun _ => pure none) (fun ival lvls => pure (some (ival, lvls)))
+      | throwError "generateDatatypeExhaustivenessFact :: {idt} is not an inductive datatype"
+    let idtArgs := idtBody.getAppArgs
+    let constructors ← idtIndVal.ctors.mapM getConstInfoCtor
+    withLocalDeclD `_ idtBody fun idtFVar => do
+      match constructors with
+      | [] => -- `idtBody` is an inductive datatype with no constructors. This means that there cannot exist any elements of type `idtBody`
+        let cExp ← mkForallFVars (idtParams.push idtFVar) $ mkConst ``False
+        let c := Clause.fromForallExpr paramNames cExp
+        addNewToPassive c {parents := #[], ruleName := "datatypeExhaustiveness (empty inductive datatype)", mkProof := mkEmptyDatatypeExhaustivenessProof} maxGoalDistance 0 #[]
+      | ctor1 :: restConstructors =>
+        let mut cBody ← makeConstructorEquality idtFVar ctor1 lvls idtArgs
+        for ctor in restConstructors do
+          let ctorEquality ← makeConstructorEquality idtFVar ctor lvls idtArgs
+          cBody ← mkAppM ``Or #[ctorEquality, cBody]
+        let cExp ← mkForallFVars (idtParams.push idtFVar) cBody
+        let c := Clause.fromForallExpr paramNames cExp
+        trace[duper.rule.datatypeExhaustiveness] "About to add {c} to passive set"
+        addNewToPassive c {parents := #[], ruleName := "datatypeExhaustiveness", mkProof := mkDatatypeExhaustivenessProof} maxGoalDistance 0 #[]
 
 /-- For each inductive datatype in `inductiveDataTypes`, generates an exhaustiveness lemma
     (e.g. `∀ l : List Nat, l = [] ∨ ∃ n : Nat, ∃ l' : List Nat, l = n :: l'`) and adds it to the passive set -/
-partial def generateDatatypeExhaustivenessFacts (inductiveDataTypes : List Expr) : ProverM Unit :=
-  inductiveDataTypes.forM generateDatatypeExhaustivenessFact
+partial def generateDatatypeExhaustivenessFacts (inductiveDataTypes : List (Expr × Array Name)) : ProverM Unit :=
+  inductiveDataTypes.forM (fun x => generateDatatypeExhaustivenessFact x.1 x.2)
