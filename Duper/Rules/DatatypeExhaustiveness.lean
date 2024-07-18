@@ -45,37 +45,39 @@ def mkDatatypeExhaustivenessProof (premises : List Expr) (parents: List ProofPar
           let cLits := cLits.map (fun l => l.map (fun e => e.applyFVarSubst idtFVarSubst))
           orIntro (cLits.map Lit.toExpr) orIdx rflProof
         else
-          withLocalDeclsD (ctorArgTypes.map fun ty => (`_, fun _ => pure ty)).toArray fun ctorArgs => do
+          withLocalDeclsD (ctorArgTypes.map fun ty => (`_, fun prevArgs => pure (ty.instantiate prevArgs))).toArray fun ctorArgs => do
             let fullyAppliedCtor ← mkAppM' ctorBeforeFields ctorArgs
             let existsProof ←
-              withLocalDeclsD (ctorArgTypes.map fun ty => (`_, fun _ => pure ty)).toArray fun ctorArgs' => do
+              withLocalDeclsD (ctorArgTypes.map fun ty => (`_, fun prevArgs => pure (ty.instantiate prevArgs))).toArray fun ctorArgs' => do
                 /-  Suppose ctorArgs = #[ctorArg0, ctorArg1] and ctorArgs' = #[ctorArg0', ctorArg1']
                     Then we need to build:
-                    - @Exists.intro _ p1 ctorArg1 $ @Exists.intro _ p0 ctorArg0 $ Eq.refl (ctor ctorArg0 ctorArg1)
+                    - @Exists.intro _ p0 ctorArg0 $ @Exists.intro _ p1 ctorArg1 $ Eq.refl (ctor ctorArg0 ctorArg1)
                     Where:
-                    - p0 = `fun x => ctor ctorArg0 ctorArg1 = ctor x ctorArg1` (made via mkLambdaFVars #[ctorArg0']...)
-                    - p1 = `fun y => ∃ x : ctorArg1Type, ctor ctorArg0 ctorArg1 = ctor x y` -/
+                    - p1 = `fun x => ctor ctorArg0 ctorArg1 = ctor ctorArg0 x` (made via mkLambdaFVars #[ctorArg1']...)
+                    - p0 = `fun y => ∃ x : ctorArg1Type, ctor ctorArg0 ctorArg1 = ctor y x` -/
                 let mut rhsCtorArgs := ctorArgs
-                rhsCtorArgs := rhsCtorArgs.set! 0 ctorArgs'[0]!
+                let numCtorArgs := ctorArgs.size -- ctorArgs.size = ctorArgs'.size
+                rhsCtorArgs := rhsCtorArgs.set! (numCtorArgs - 1) ctorArgs'[numCtorArgs - 1]!
                 let baseEquality ← mkAppM ``Eq #[fullyAppliedCtor, ← mkAppM' ctorBeforeFields rhsCtorArgs]
-                let existsIntroArg ← mkLambdaFVars #[ctorArgs'[0]!] baseEquality
+                let existsIntroArg ← mkLambdaFVars #[ctorArgs'[numCtorArgs - 1]!] baseEquality
                 let baseRflProof ← mkAppM ``Eq.refl #[fullyAppliedCtor]
-                let mut existsProof ← mkAppOptM ``Exists.intro #[none, some existsIntroArg, some ctorArgs[0]!, some baseRflProof]
-                let mut ctorArgNum := 0
-                for (ctorArg, ctorArg') in ctorArgs.zip ctorArgs' do
-                  if ctorArgNum = 0 then
-                    ctorArgNum := 1
+                let mut existsProof ← mkAppOptM ``Exists.intro #[none, some existsIntroArg, some ctorArgs[numCtorArgs - 1]!, some baseRflProof]
+                let mut ctorArgNum := numCtorArgs - 1
+                for (ctorArg, ctorArg') in (ctorArgs.zip ctorArgs').reverse do
+                  if ctorArgNum = numCtorArgs - 1 then
+                    ctorArgNum := ctorArgNum - 1
                     continue
                   rhsCtorArgs := rhsCtorArgs.set! ctorArgNum ctorArgs'[ctorArgNum]!
                   let innerExistsProp ← do
                     let mut innerExistsProp ← mkAppM ``Eq #[fullyAppliedCtor, ← mkAppM' ctorBeforeFields rhsCtorArgs]
-                    for i in [0:ctorArgNum] do
-                      innerExistsProp ← mkLambdaFVars #[ctorArgs'[i]!] innerExistsProp
+                    for i in [ctorArgNum + 1:numCtorArgs] do
+                      let j := numCtorArgs - i
+                      innerExistsProp ← mkLambdaFVars #[ctorArgs'[j]!] innerExistsProp
                       innerExistsProp ← mkAppM ``Exists #[innerExistsProp]
                     pure innerExistsProp
                   let existsIntroArg ← mkLambdaFVars #[ctorArg'] innerExistsProp
                   existsProof ← mkAppOptM ``Exists.intro #[none, some existsIntroArg, some ctorArg, some existsProof]
-                  ctorArgNum := ctorArgNum + 1
+                  ctorArgNum := ctorArgNum - 1
                 pure existsProof
             let existsProof ← mkAppM ``eq_true #[existsProof]
             let idtFVarSubst := {map := AssocList.cons idtFVar.fvarId! fullyAppliedCtor AssocList.nil}
@@ -93,9 +95,9 @@ def makeConstructorEquality (e : Expr) (ctor : ConstructorVal) (lvls : List Leve
     let ctorBeforeFields ← mkAppOptM' (mkConst ctor.name lvls) (params.map some)
     let ctorType ← inferType ctorBeforeFields
     let ctorArgTypes := getForallArgumentTypes ctorType
-    withLocalDeclsD (ctorArgTypes.map fun ty => (`_, fun _ => pure ty)).toArray fun ctorArgs => do
+    withLocalDeclsD (ctorArgTypes.map fun ty => (`_, fun prevArgs => pure (ty.instantiate prevArgs))).toArray fun ctorArgs => do
       let mut res ← mkAppM ``Eq #[e, ← mkAppM' ctorBeforeFields ctorArgs]
-      for ctorArg in ctorArgs do
+      for ctorArg in ctorArgs.reverse do -- Need to reverse `ctorArgs` to support arguments that depend on previous arguments
         res ← mkLambdaFVars #[ctorArg] res
         res ← mkAppM ``Exists #[res]
       mkAppM ``Eq #[res, mkConst ``True]
@@ -118,6 +120,7 @@ def generateDatatypeExhaustivenessFact (idt : Expr) (paramNames : Array Name) : 
       | [] => -- `idtBody` is an inductive datatype with no constructors. This means that there cannot exist any elements of type `idtBody`
         let cExp ← mkForallFVars (idtParams.push idtFVar) $ mkConst ``False
         let c := Clause.fromForallExpr paramNames cExp
+        trace[duper.rule.datatypeExhaustiveness] "About to add {c} to passive set"
         addNewToPassive c {parents := #[], ruleName := "datatypeExhaustiveness (empty inductive datatype)", mkProof := mkEmptyDatatypeExhaustivenessProof} maxGoalDistance 0 #[]
       | ctor1 :: restConstructors =>
         let mut cBody ← makeConstructorEquality idtFVar ctor1 lvls idtArgs
