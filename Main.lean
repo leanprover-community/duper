@@ -15,6 +15,7 @@ open ProverM
     then duper will run until it is timed out by the Core `maxHeartbeats` option). If Duper succeeds in deriving a contradiction and constructing
     a proof for it, then `runDuper` returns that proof as an expression. Otherwise, Duper will throw an error. -/
 def runDuperOnTPTP (fileName : String) (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMaxHeartbeats : Nat) : MetaM Unit := do
+  let generateDatatypeExhaustivenessFacts ← getCollectDataTypesM
   let state ←
     withNewMCtxDepth do
       let formulas ← unfoldDefinitions formulas
@@ -25,7 +26,7 @@ def runDuperOnTPTP (fileName : String) (formulas : List (Expr × Expr × Array N
         let skSorryName ← addSkolemSorry
         let (_, state) ←
           ProverM.runWithExprs (ctx := {}) (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
-            ProverM.saturateNoPreprocessingClausification
+            (ProverM.saturateNoPreprocessingClausification generateDatatypeExhaustivenessFacts)
             formulas
         pure state
   match state.result with

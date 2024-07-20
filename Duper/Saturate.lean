@@ -30,6 +30,7 @@ import Duper.Rules.NeHoist
 import Duper.Rules.DatatypeDistinctness
 import Duper.Rules.DatatypeInjectivity
 import Duper.Rules.DatatypeAcyclicity
+import Duper.Rules.DatatypeExhaustiveness
 -- Higher order rules
 import Duper.Rules.ArgumentCongruence
 import Duper.Rules.FluidSup
@@ -298,6 +299,8 @@ partial def saturate : ProverM Unit := do
       printTimeoutDebugStatements startTime
       throw e
 
+/-- Note: This definition is outdated (does not support datatype exhaustiveness reasoning). See `saturateNoPreprocessingClausification`
+    for additions that need to be made to make this usable. -/
 def clausifyThenSaturate : ProverM Unit := do
   Core.withCurrHeartbeats $
     preprocessingClausification;
@@ -306,12 +309,19 @@ def clausifyThenSaturate : ProverM Unit := do
     setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
     saturate
 
-def saturateNoPreprocessingClausification : ProverM Unit := do
+def saturateNoPreprocessingClausification (withDatatypeExhaustivenessFacts : Bool) : ProverM Unit := do
   Core.withCurrHeartbeats $ do
-    let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getPassiveSet).toList;
-    setSymbolPrecMap symbolPrecMap;
-    setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
-    saturate
+    if withDatatypeExhaustivenessFacts then
+      let (symbolPrecMap, highesetPrecSymbolHasArityZero, datatypeList) ← buildSymbolPrecMapAndDatatypeList (← getPassiveSet).toList
+      generateDatatypeExhaustivenessFacts datatypeList
+      setSymbolPrecMap symbolPrecMap
+      setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero
+      saturate
+    else
+      let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getPassiveSet).toList
+      setSymbolPrecMap symbolPrecMap
+      setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero
+      saturate
 
 end ProverM
 
