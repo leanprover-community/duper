@@ -86,7 +86,9 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
         return none
       -- All side conditions have been met. Yield the appropriate clause
       let cErased := c.eraseLit pos.lit
-      let newClause := cErased.appendLits #[← lit.replaceAtPos! ⟨pos.side, pos.pos⟩ (mkConst ``False), Lit.fromExpr freshVarEquality]
+      let some newLit ← lit.replaceAtPosUpdateType? ⟨pos.side, pos.pos⟩ (mkConst ``False)
+        | return none -- If `lit` can't be safely changed at position `pos`, then don't apply `eqHoist` at `pos`
+      let newClause := cErased.appendLits #[newLit, Lit.fromExpr freshVarEquality]
       trace[duper.rule.eqHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkEqHoistProof pos
       yieldClause newClause "eqHoist" mkProof (transferExprs := #[freshVar1, freshVar2])

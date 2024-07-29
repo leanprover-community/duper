@@ -248,7 +248,8 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
       let mut mainPremiseReplaced : MClause := Inhabited.default
       let mut poses : Array ClausePos := #[]
       if simultaneousSuperposition then
-        let mainPremise ← mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
+        let some mainPremise ← mainPremise.replaceAtPosUpdateType? mainPremisePos sidePremiseRhs
+          | return none -- If `mainPremise` can't be safely changed at `mainPremisePos`, then don't apply `superposition` at `mainPremisePos`
         /- In addition to performing the replacement at the intended location, the simultaneous superposition option indicates
            that Duper should attempt to replace sidePremiseLhs with sidePremiseRhs wherever it is found in the mainPremise -/
         let mainPremise ← mainPremise.mapM (fun e => betaEtaReduceInstMVars e)
@@ -258,7 +259,9 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
            of the original rewrite -/
         poses := poses.push mainPremisePos
       else
-        mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseRhs
+        match ← mainPremise.replaceAtPosUpdateType? mainPremisePos sidePremiseRhs with
+        | some updatedMainPremise => mainPremiseReplaced := updatedMainPremise
+        | none => return none -- If `mainPremise` can't be safely changed at `mainPremisePos`, then don't apply `superposition` at `mainPremisePos`
 
       if mainPremiseReplaced.isTrivial then
         if (enableWCTrace && ((mainPremiseNum == wc1 && sidePremiseNum == wc2) || (mainPremiseNum == wc2 && sidePremiseNum == wc1))) then

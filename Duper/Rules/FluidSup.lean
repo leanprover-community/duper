@@ -127,7 +127,8 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
       let freshFunctionWithRhs ← Core.betaReduce freshFunctionWithRhs
       if (freshFunctionWithLhs == freshFunctionWithRhs) then return none
 
-      let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos freshFunctionWithRhs
+      let some mainPremiseReplaced ← mainPremise.replaceAtPosUpdateType? mainPremisePos freshFunctionWithRhs
+        | return none -- If `mainPremise` can't be safely changed at `mainPremisePos` then don't apply `fluidSup` at `mainPremisePos`
       if mainPremiseReplaced.isTrivial then
         trace[duper.rule.fluidSup] "trivial: {mainPremiseReplaced.lits}"
         return none

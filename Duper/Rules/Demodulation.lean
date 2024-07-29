@@ -80,7 +80,8 @@ def forwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds :
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs false) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
-  let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseLit.rhs
+  let some mainPremiseReplaced ← mainPremise.replaceAtPosUpdateType? mainPremisePos sidePremiseLit.rhs
+    | return none -- If `mainPremise` cannot be safely changed at `mainPremisePos`, then don't apply demodulation
   return some (mainPremiseReplaced, (some $ mkDemodulationProof sidePremiseLhs mainPremisePos true))
 
 def forwardDemodulationAtExpr (e : Expr) (pos : ClausePos) (sideIdx : RootCFPTrie) (givenMainClause : MClause)
@@ -147,7 +148,8 @@ def backwardDemodulationWithPartner (mainPremise : MClause) (mainPremiseMVarIds 
     return none -- Cannot perform demodulation because we could not match sidePremiseLit.lhs to mainPremiseSubterm
   if (← compare sidePremiseLit.lhs sidePremiseLit.rhs false) != Comparison.GreaterThan then
     return none -- Cannot perform demodulation because side condition 2 listed above is not met
-  let mainPremiseReplaced ← mainPremise.replaceAtPos! mainPremisePos sidePremiseLit.rhs
+  let some mainPremiseReplaced ← mainPremise.replaceAtPosUpdateType? mainPremisePos sidePremiseLit.rhs
+    | return none -- If `mainPremise` cannot be safely changed at `mainPremisePos`, then don't apply demodulation
   trace[duper.rule.demodulation] "(Backward) Main mclause (after matching): {mainPremise.lits}"
   trace[duper.rule.demodulation] "(Backward) Side clause (after matching): {sidePremise.lits}"
   trace[duper.rule.demodulation] "(Backward) Result: {mainPremiseReplaced.lits}"
