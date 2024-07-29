@@ -36,6 +36,8 @@ Duper is a terminal tactic that will look at the current main goal and either so
 The `facts` supplied to Duper are separated by commas and can include:
 - Hypotheses (of type `Prop`) from the local context
 - External lemmas
+- Definitions (which will prompt Duper to use the defining equations for each provided definition)
+- Recursors (which will prompt Duper to produce definitional equations for each provided recursor)
 - The symbol `*` to indicate that Duper should consider all proofs in the current local context
 
 If the `[facts]` argument are omitted from the Duper call, then Duper will only reason about the goal, meaning `by duper` is equivalent to `by duper []`. Duper performs best when it is given a minimal set of facts that can be used to prove the goal, and it also performs better when more specific lemmas are used (e.g. Duper will generally perform better if given `Nat.mul_one` rather than `mul_one`, though it is capable of working with either). We do not yet have Duper connected to a relevance filter so for now it is necessary to manually provide Duper all of the lemmas it needs, though we hope to improve this state of affairs in the future.
