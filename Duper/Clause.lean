@@ -158,7 +158,7 @@ def replaceAtPos! [Monad m] [MonadLiftT MetaM m] [MonadError m] (l : Lit) (pos :
   | LitSide.lhs => return {l with lhs := ← l.lhs.replaceAtPos! pos.pos replacement}
   | LitSide.rhs => return {l with rhs := ← l.rhs.replaceAtPos! pos.pos replacement}
 
--- Note : This function will throw error if ``pos`` is not a valid ``pos`` for `l`
+/-- Note : This function will throw error if ``pos`` is not a valid ``pos`` for `l` -/
 def replaceAtPosUpdateType? (l : Lit) (pos : LitPos) (replacement : Expr) : MetaM (Option Lit) := do
   let repPos ← replaceAtPos! l pos replacement
   try

@@ -101,7 +101,9 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
       -- All side conditions for fluidBoolHoist have been met
       let cErased := c.eraseLit pos.lit
       let litOriginal := c.lits[pos.lit]! -- No lhs/rhs swap
-      let newClause := cErased.appendLits #[← litOriginal.replaceAtPos! ⟨pos.side, pos.pos⟩ freshFunctionGivenFalse, Lit.fromSingleExpr freshPropVar true]
+      let some newLit ← litOriginal.replaceAtPosUpdateType? ⟨pos.side, pos.pos⟩ freshFunctionGivenFalse
+        | return none -- If `litOriginal` can't be safely changed at position `pos`, then don't apply fluidBoolHoist at `pos`
+      let newClause := cErased.appendLits #[newLit, Lit.fromSingleExpr freshPropVar true]
       trace[duper.rule.fluidBoolHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkFluidBoolHoistProof pos false -- Is fluidBoolHoist not fluidLoobHoist
       yieldClause newClause "fluidBoolHoist" mkProof (transferExprs := #[freshFunctionOutputType, freshFunction, freshPropVar])
@@ -125,7 +127,9 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
       -- All side conditions for fluidLoobHoist have been met
       let cErased := c.eraseLit pos.lit
       let litOriginal := c.lits[pos.lit]! -- No lhs/rhs swap
-      let newClause := cErased.appendLits #[← litOriginal.replaceAtPos! ⟨pos.side, pos.pos⟩ freshFunctionGivenTrue, Lit.fromSingleExpr freshPropVar false]
+      let some newLit ← litOriginal.replaceAtPosUpdateType? ⟨pos.side, pos.pos⟩ freshFunctionGivenTrue
+        | return none -- If `litOriginal` can't be safely changed at position `pos`, then don't apply fluidBoolHoist at `pos`
+      let newClause := cErased.appendLits #[newLit, Lit.fromSingleExpr freshPropVar false]
       trace[duper.rule.fluidLoobHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkFluidBoolHoistProof pos true -- True because this is fluidLoobHoist
       yieldClause newClause "fluidLoobHoist" mkProof (transferExprs := #[freshFunctionOutputType, freshFunction, freshPropVar])

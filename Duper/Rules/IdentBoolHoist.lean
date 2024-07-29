@@ -84,13 +84,15 @@ def identBoolHoistAtExpr (e : Expr) (pos : ClausePos) (c : MClause) : RuleM (Opt
       else
         trace[duper.rule.identBoolHoist] m!"BoolHoist at literal {l}, side {s}, position {p} in clause {c.lits.map Lit.toExpr}"
         let litl := c.lits[l]!
+        let some litl1 ← litl.replaceAtPosUpdateType? ⟨s, p⟩ (mkConst ``True)
+          | return none -- If `litl` can't be safely changed at position `p`, then don't apply `identBoolHoist` at `p`
+        let some litl2 ← litl.replaceAtPosUpdateType? ⟨s, p⟩ (mkConst ``False)
+          | return none -- If `litl` can't be safely changed at position `p`, then don't apply `identBoolHoist` at `p`
         let c_erased := c.eraseLit l
-        let nc := c_erased.appendLits
-          #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``True), Lit.fromSingleExpr e false]
+        let nc := c_erased.appendLits #[litl1, Lit.fromSingleExpr e false]
         trace[duper.rule.identBoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
         let cp1 ← yieldClause nc "identity loobHoist" (some (mkBoolHoistProof pos true))
-        let nc := c_erased.appendLits
-          #[← litl.replaceAtPos! ⟨s, p⟩ (mkConst ``False), Lit.fromSingleExpr e true]
+        let nc := c_erased.appendLits #[litl2, Lit.fromSingleExpr e true]
         trace[duper.rule.identBoolHoist] s!"New Clause: {nc.lits.map Lit.toExpr}"
         let cp2 ← yieldClause nc "identity boolHoist" (some (mkBoolHoistProof pos false))
         return some #[cp1, cp2]
