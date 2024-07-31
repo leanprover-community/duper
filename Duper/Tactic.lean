@@ -67,6 +67,7 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
         let facts ← addRecAsFact val
         let facts ← facts.mapM fun (fact, proof, paramNames) => do
           return (← instantiateMVars fact, ← instantiateMVars proof, paramNames)
+        trace[duper.elabFact.debug] "Adding recursor {expr} as the following facts: {facts.map (fun x => x.1)}"
         return facts.toArray
       | some (.defnInfo defval) =>
         let term := defval.value
@@ -79,6 +80,7 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
         -- Generate definitional equation for the fact
         if let some eqns ← getEqnsFor? exprConstName (nonRec := true) then
           ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
+        trace[duper.elabFact.debug] "Adding definition {expr} as the following facts: {ret.map (fun x => x.1)}"
         return ret
       | some (.axiomInfo _)  => return #[← elabFactAux stx]
       | some (.thmInfo _)    => return #[← elabFactAux stx]

@@ -11,6 +11,7 @@ initialize
   registerTraceClass `duper.saturate.debug
   registerTraceClass `duper.portfolio.debug
   registerTraceClass `duper.monomorphization.debug
+  registerTraceClass `duper.elabFact.debug
 
 register_option duper.printPortfolioInstance : Bool := {
   defValue := false
