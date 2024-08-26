@@ -1,4 +1,4 @@
-import Duper.Tactic
+import Duper
 import Duper.TPTP
 
 -- set_option pp.all true

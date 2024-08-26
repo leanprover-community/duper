@@ -1,13 +1,9 @@
 import Lean
 import Duper.Interface
 
-open Lean
-open Lean.Meta
-open Duper
-open ProverM
-open Lean.Parser
+open Lean Meta Duper ProverM Parser Elab Tactic
 
-namespace Lean.Elab.Tactic
+namespace Duper
 
 register_option duper.printTimeInformation : Bool := {
   defValue := false
@@ -143,7 +139,7 @@ macro_rules
 /-- Given a Syntax.TSepArray of facts provided by the user (which may include `*` to indicate that duper should read in the
     full local context) `removeDuperStar` returns the Syntax.TSepArray with `*` removed and a boolean that indicates whether `*`
     was included in the original input. -/
-def removeDuperStar (facts : Syntax.TSepArray [`duperStar, `term] ",") : Bool × Syntax.TSepArray `term "," := Id.run do
+def removeDuperStar (facts : Syntax.TSepArray [`Duper.duperStar, `term] ",") : Bool × Syntax.TSepArray `term "," := Id.run do
   let factsArr := facts.elemsAndSeps -- factsArr contains both the elements of facts and separators, ordered like `#[e1, s1, e2, s2, e3]`
   let mut newFactsArr : Array Syntax := #[]
   let mut removedDuperStar := false
@@ -440,4 +436,4 @@ def evalDuperNoTiming : Tactic
     IO.println s!"Constructed proof"
 | _ => throwUnsupportedSyntax
 
-end Lean.Elab.Tactic
+end Duper

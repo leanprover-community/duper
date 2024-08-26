@@ -7,6 +7,8 @@ open Duper
 open ProverM
 open Lean.Parser
 
+namespace Duper
+
 initialize
   registerTraceClass `duper.saturate.debug
   registerTraceClass `duper.portfolio.debug
@@ -1281,3 +1283,5 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool))
     throwError
       m!"Duper failed to solve the goal and determined that it will be unable to do so with the current " ++
       m!"configuration of options and selection of premises"
+
+end Duper
