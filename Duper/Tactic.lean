@@ -102,7 +102,14 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     let paramNames := abstres.paramNames
     return (← inferType e, e, paramNames)
 
-def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl) : TacticM (List (Expr × Expr × Array Name × Bool)) := do
+/-- Formulas in Duper are represented as a tuple containing the following:
+    - The fact that Duper can use
+    - A proof that said fact is true (if the fact is `p` then second argument of the tuple is a proof of `p = True`)
+    - An array of universe level parameter names
+    - A boolean indicating whether the fact came from the original target
+    - If the fact is a user-provided non-lctx fact, then the Term that was used to indicate said fact -/
+def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  : TacticM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
   let mut formulas := []
   if withAllLCtx then -- Load all local decls
     for fVarId in (← getLCtx).getFVarIds do
@@ -110,18 +117,18 @@ def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Ar
       unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
         let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
         let isFromGoal := goalDecls.any (fun goalDecl => goalDecl.index = ldecl.index)
-        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal) :: formulas
+        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal, none) :: formulas
   else -- Even if withAllLCtx is false, we still need to load the goal decls
     for ldecl in goalDecls do
       unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
         let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[], true) :: formulas
+        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[], true, none) :: formulas
   -- Load user-provided facts
   for factStx in facts do
     for (fact, proof, params) in ← elabFact factStx do
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
-        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false) :: formulas
+        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
       else
         throwError "Invalid fact {factStx} for duper. Proposition expected"
   return formulas
@@ -431,6 +438,8 @@ def evalDuperNoTiming : Tactic
   withMainContext do
     let (_, facts) := removeDuperStar facts
     let formulas ← collectAssumptions facts true  #[] -- I don't bother computing goalDecls here since I set withAllLCtx to true anyway
+    -- Remove syntax option from `formulas` since we are not converting to Auto.Lemmas
+    let formulas := formulas.map (fun f => (f.1, f.2.1, f.2.2.1, f.2.2.2.1))
     let proof ← runDuper formulas 0
     Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
     IO.println s!"Constructed proof"
