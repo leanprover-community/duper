@@ -67,3 +67,16 @@ example (f : Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat)
      = f (g 1 x x x x) (g x x x x x) (g x 1 x x x) (g x x x x x) (g x 1 x x x) (g x x x x x) (g x 1 x x x) :=
   by duper {portfolioInstance := 7}
 -/
+
+--------------------------------------------------------------------
+-- Issues relating to Bool support
+
+set_option trace.duper.saturate.debug true in
+theorem Bool.not_eq_true2 (b : Bool) : (¬(b = true)) = (b = false) := by
+  duper {portfolioInstance := 1}
+  -- Final Active Set: [∀ (a a_1 : Bool), a = a_1]
+
+set_option trace.duper.saturate.debug true in
+theorem Bool.not_eq_false2 (b : Bool) : (¬(b = false)) = (b = true) := by
+  duper {portfolioInstance := 1}
+  -- Final Active Set: [∀ (a a_1 : Bool), a = a_1]
