@@ -5,7 +5,6 @@ namespace Duper
 
 open Lean
 open RuleM
-open Std
 open List
 open Expr
 
