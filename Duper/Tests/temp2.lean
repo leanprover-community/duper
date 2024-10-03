@@ -80,3 +80,30 @@ set_option trace.duper.saturate.debug true in
 theorem Bool.not_eq_false2 (b : Bool) : (¬(b = false)) = (b = true) := by
   duper {portfolioInstance := 1}
   -- Final Active Set: [∀ (a a_1 : Bool), a = a_1]
+
+--------------------------------------------------------------------
+-- Issues relating to type inhabitation reasoning
+
+set_option trace.duper.timeout.debug true in
+theorem forall_comm2 {p : α → β → Prop} : (∀ a b, p a b) ↔ (∀ b a, p a b) :=
+  by sorry -- duper {inhabitationReasoning := true}
+
+set_option trace.duper.timeout.debug true in
+theorem exists_comm2 {p : α → β → Prop} : (∃ a b, p a b) ↔ (∃ b a, p a b) :=
+  by sorry -- duper {inhabitationReasoning := true}
+
+set_option trace.duper.timeout.debug true in
+theorem forall_apply_eq_imp_iff2 {f : α → β} {p : β → Prop} :
+  (∀ b a, f a = b → p b) ↔ ∀ a, p (f a) := by sorry -- duper {inhabitationReasoning := true}
+
+theorem exists_exists_and_eq_and {f : α → β} {p : α → Prop} {q : β → Prop} :
+  ∃ a, p a ∧ q (f a) → (∃ b, (∃ a, p a ∧ f a = b) ∧ q b) := by duper
+
+theorem exists_exists_eq_and {f : α → β} {p : β → Prop} :
+  ∃ a, p (f a) → (∃ b, (∃ a, f a = b) ∧ p b) := by duper
+
+--------------------------------------------------------------------
+theorem forall₂_true_iff1 {β : α → Sort} : (∀ a, β a → True) ↔ True := by duper [*]
+
+-- Look into why Duper can solve `forall₂_true_iff1` but not `forall₂_true_iff2`
+theorem forall₂_true_iff2 {β : α → Sort _} : (∀ a, β a → True) ↔ True := by duper [*]
