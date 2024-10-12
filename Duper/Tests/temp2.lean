@@ -107,3 +107,11 @@ theorem forall₂_true_iff1 {β : α → Sort} : (∀ a, β a → True) ↔ True
 
 -- Look into why Duper can solve `forall₂_true_iff1` but not `forall₂_true_iff2`
 theorem forall₂_true_iff2 {β : α → Sort _} : (∀ a, β a → True) ↔ True := by duper [*]
+
+--------------------------------------------------------------------
+set_option trace.duper.saturate.debug true in
+set_option duper.throwPortfolioErrors true in
+theorem exists₂_comm
+    {ι₁ ι₂ : Sort} {κ₁ : ι₁ → Sort} {κ₂ : ι₂ → Sort} {p : ∀ i₁, κ₁ i₁ → ∀ i₂, κ₂ i₂ → Prop} :
+    (∃ i₁ j₁ i₂ j₂, p i₁ j₁ i₂ j₂) ↔ ∃ i₂ j₂ i₁ j₁, p i₁ j₁ i₂ j₂ := by
+  duper [*] {preprocessing := no_preprocessing}
