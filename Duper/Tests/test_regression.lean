@@ -1,4 +1,4 @@
-import Duper.Tactic
+import Duper
 import Duper.TPTP
 
 -- set_option pp.all true
@@ -337,23 +337,23 @@ theorem COM002_2_test3 (state label statement : Type) (p3 : state) (goto : label
 -/
 
 --###############################################################################################################################
-tptp KRS003_1 "../TPTP-v8.0.0/Problems/KRS/KRS003_1.p"
+tptp KRS003_1 "../TPTP-v9.0.0/Problems/KRS/KRS003_1.p"
   by duper [*]
 
 #print axioms KRS003_1
 
-tptp PUZ012_1 "../TPTP-v8.0.0/Problems/PUZ/PUZ012_1.p"
+tptp PUZ012_1 "../TPTP-v9.0.0/Problems/PUZ/PUZ012_1.p"
   by duper [*]
 
 #print PUZ012_1
 --###############################################################################################################################
 -- Tests that (in the current commit at least) use positive simplify reflect
 set_option trace.duper.rule.simplifyReflect true in
-tptp NUN004_5 "../TPTP-v8.0.0/Problems/NUN/NUN004_5.p"
+tptp NUN004_5 "../TPTP-v9.0.0/Problems/NUN/NUN004_5.p"
   by duper [*]
 
 set_option trace.duper.rule.simplifyReflect true in
-tptp ITP209_2 "../TPTP-v8.0.0/Problems/ITP/ITP209_2.p"
+tptp ITP209_2 "../TPTP-v9.0.0/Problems/ITP/ITP209_2.p"
   by duper [*]
 
 --###############################################################################################################################
@@ -471,10 +471,10 @@ example (x : Type u) (f g : Type u → Type v) (H : f = g) : f x = g x :=
 example (x y z : Type u) (f g : Type u → Type u → Type u → Type v) (H : f = g) : f x y z = g x y z :=
   by duper [*]
 
-tptp PUZ137_8 "../TPTP-v8.0.0/Problems/PUZ/PUZ137_8.p"
+tptp PUZ137_8 "../TPTP-v9.0.0/Problems/PUZ/PUZ137_8.p"
   by duper [*]
 
-tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
+tptp PUZ031_1_modified "../TPTP-v9.0.0/Problems/PUZ/PUZ031_1.p" by
   have inhabited_plant : Inhabited plant := sorry
   have inhabited_snail : Inhabited snail := sorry
   have inhabited_grain : Inhabited grain := sorry
@@ -486,11 +486,11 @@ tptp PUZ031_1_modified "../TPTP-v8.0.0/Problems/PUZ/PUZ031_1.p" by
   duper [*]
   -- If these instances are not provided, duper will fail
 
-tptp SEU123 "../TPTP-v8.0.0/Problems/SEU/SEU123+1.p"
+tptp SEU123 "../TPTP-v9.0.0/Problems/SEU/SEU123+1.p"
   by duper [*]
 
 set_option trace.duper.rule.superposition true in
-tptp SEU139 "../TPTP-v8.0.0/Problems/SEU/SEU139+1.p"
+tptp SEU139 "../TPTP-v9.0.0/Problems/SEU/SEU139+1.p"
   by duper [*]
 
 --###############################################################################################################################
@@ -538,7 +538,7 @@ def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ =>
 end NegativeBoolSimpTests
 
 /- ClauseStreamHeap tests -/
-tptp MGT008 "../TPTP-v8.0.0/Problems/MGT/MGT008+1.p"
+tptp MGT008 "../TPTP-v9.0.0/Problems/MGT/MGT008+1.p"
   by duper [*]
 
 example (f : Nat → Nat → Nat → Nat → Nat → Nat → Nat → Nat)

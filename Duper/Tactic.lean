@@ -1,13 +1,9 @@
 import Lean
 import Duper.Interface
 
-open Lean
-open Lean.Meta
-open Duper
-open ProverM
-open Lean.Parser
+open Lean Meta Duper ProverM Parser Elab Tactic
 
-namespace Lean.Elab.Tactic
+namespace Duper
 
 register_option duper.printTimeInformation : Bool := {
   defValue := false
@@ -67,6 +63,7 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
         let facts ← addRecAsFact val
         let facts ← facts.mapM fun (fact, proof, paramNames) => do
           return (← instantiateMVars fact, ← instantiateMVars proof, paramNames)
+        trace[duper.elabFact.debug] "Adding recursor {expr} as the following facts: {facts.map (fun x => x.1)}"
         return facts.toArray
       | some (.defnInfo defval) =>
         let term := defval.value
@@ -79,6 +76,7 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
         -- Generate definitional equation for the fact
         if let some eqns ← getEqnsFor? exprConstName (nonRec := true) then
           ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
+        trace[duper.elabFact.debug] "Adding definition {expr} as the following facts: {ret.map (fun x => x.1)}"
         return ret
       | some (.axiomInfo _)  => return #[← elabFactAux stx]
       | some (.thmInfo _)    => return #[← elabFactAux stx]
@@ -104,7 +102,14 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     let paramNames := abstres.paramNames
     return (← inferType e, e, paramNames)
 
-def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl) : TacticM (List (Expr × Expr × Array Name × Bool)) := do
+/-- Formulas in Duper are represented as a tuple containing the following:
+    - The fact that Duper can use
+    - A proof that said fact is true (if the fact is `p` then second argument of the tuple is a proof of `p = True`)
+    - An array of universe level parameter names
+    - A boolean indicating whether the fact came from the original target
+    - If the fact is a user-provided non-lctx fact, then the Term that was used to indicate said fact -/
+def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+  : TacticM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
   let mut formulas := []
   if withAllLCtx then -- Load all local decls
     for fVarId in (← getLCtx).getFVarIds do
@@ -112,18 +117,18 @@ def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Ar
       unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
         let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
         let isFromGoal := goalDecls.any (fun goalDecl => goalDecl.index = ldecl.index)
-        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal) :: formulas
+        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal, none) :: formulas
   else -- Even if withAllLCtx is false, we still need to load the goal decls
     for ldecl in goalDecls do
       unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
         let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[], true) :: formulas
+        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[], true, none) :: formulas
   -- Load user-provided facts
   for factStx in facts do
     for (fact, proof, params) in ← elabFact factStx do
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
-        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false) :: formulas
+        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
       else
         throwError "Invalid fact {factStx} for duper. Proposition expected"
   return formulas
@@ -141,7 +146,7 @@ macro_rules
 /-- Given a Syntax.TSepArray of facts provided by the user (which may include `*` to indicate that duper should read in the
     full local context) `removeDuperStar` returns the Syntax.TSepArray with `*` removed and a boolean that indicates whether `*`
     was included in the original input. -/
-def removeDuperStar (facts : Syntax.TSepArray [`duperStar, `term] ",") : Bool × Syntax.TSepArray `term "," := Id.run do
+def removeDuperStar (facts : Syntax.TSepArray [`Duper.duperStar, `term] ",") : Bool × Syntax.TSepArray `term "," := Id.run do
   let factsArr := facts.elemsAndSeps -- factsArr contains both the elements of facts and separators, ordered like `#[e1, s1, e2, s2, e3]`
   let mut newFactsArr : Array Syntax := #[]
   let mut removedDuperStar := false
@@ -433,9 +438,11 @@ def evalDuperNoTiming : Tactic
   withMainContext do
     let (_, facts) := removeDuperStar facts
     let formulas ← collectAssumptions facts true  #[] -- I don't bother computing goalDecls here since I set withAllLCtx to true anyway
+    -- Remove syntax option from `formulas` since we are not converting to Auto.Lemmas
+    let formulas := formulas.map (fun f => (f.1, f.2.1, f.2.2.1, f.2.2.2.1))
     let proof ← runDuper formulas 0
     Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
     IO.println s!"Constructed proof"
 | _ => throwUnsupportedSyntax
 
-end Lean.Elab.Tactic
+end Duper
