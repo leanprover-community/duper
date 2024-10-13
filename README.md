@@ -7,7 +7,7 @@ Duper is an automatic proof-producing theorem prover broadly similar to Isabelle
 To use Duper in an existing Lean 4 project, first add this package as a dependency. In your lakefile.lean, add:
 
 ```lean
-require Duper from git "https://github.com/leanprover-community/duper.git" @ "v0.0.15"
+require Duper from git "https://github.com/leanprover-community/duper.git" @ "v0.0.16"
 ```
 
 Then, make sure that your `lean-toolchain` file contains the same version of Lean 4 as Duper and that if your project imports [batteries](https://github.com/leanprover-community/batteries), then it uses the same version of batteries as Duper. This step is necessary because Duper depends on batteries, so errors can arise if your project attempts to import a version of batteries different from the one imported by Duper.

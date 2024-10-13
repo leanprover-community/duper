@@ -9,7 +9,6 @@ namespace Duper
 namespace ProverM
 open Lean
 open Meta
-open Std
 open ProverM
 open RuleM
 open SimpResult

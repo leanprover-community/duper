@@ -14,7 +14,6 @@ namespace Duper
 namespace ProverM
 open Lean
 open Lean.Core
-open Std
 open RuleM
 open Expr
 
