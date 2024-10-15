@@ -67,7 +67,8 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
   match stx with
   | `($id:ident) =>
     let some expr ← Term.resolveId? id
-      | throwError "Unknown identifier {id}"
+      | if ← getIgnoreUsableFactsM then return #[]
+        else throwError "Unknown identifier {id}"
     match expr with
     | .const exprConstName _ =>
       match (← getEnv).find? exprConstName with
