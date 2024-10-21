@@ -454,8 +454,8 @@ def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × Array
   -- Calling Auto.unfoldConstAndPreprocessLemma is an essential step for the monomorphization procedure
   let lemmas ← lemmas.mapM (m:=MetaM) (Auto.unfoldConstAndPreprocessLemma #[])
   let inhFacts ← Auto.Inhabitation.getInhFactsFromLCtx
-  let prover : Array Auto.Lemma → MetaM Expr :=
-    fun lemmas => do
+  let prover : Array Auto.Lemma → Array Auto.Lemma → MetaM Expr :=
+    fun lemmas inhLemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
       trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => (f.1, f.2.2.2))}"
       trace[duper.monomorphization.debug] "Auto lemmas: {lemmas.map (fun l => (l.type, l.proof, l.deriv))}"
@@ -471,8 +471,8 @@ def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr × Arra
   -- Calling Auto.unfoldConstAndPreprocessLemma is an essential step for the monomorphization procedure
   let lemmas ← lemmas.mapM (m:=MetaM) (Auto.unfoldConstAndPreprocessLemma #[])
   let inhFacts ← Auto.Inhabitation.getInhFactsFromLCtx
-  let prover : Array Auto.Lemma → MetaM Expr :=
-    fun lemmas => do
+  let prover : Array Auto.Lemma → Array Auto.Lemma → MetaM Expr :=
+    fun lemmas inhLemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
       trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => (f.1, f.2.2.2))}"
       trace[duper.monomorphization.debug] "Auto lemmas: {lemmas.map (fun l => (l.type, l.proof, l.deriv))}"
