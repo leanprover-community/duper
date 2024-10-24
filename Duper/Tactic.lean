@@ -87,7 +87,7 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
         if sort.isProp then
           ret := ret.push (← elabFactAux stx)
         -- Generate definitional equation for the fact
-        if let some eqns ← getEqnsFor? exprConstName (nonRec := true) then
+        if let some eqns ← getEqnsFor? exprConstName then
           ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
         trace[duper.elabFact.debug] "Adding definition {expr} as the following facts: {ret.map (fun x => x.1)}"
         return ret
