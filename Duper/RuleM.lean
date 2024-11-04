@@ -103,7 +103,7 @@ structure LoadedClause where
 structure State where
   loadedClauses : Array LoadedClause := #[]
   inhabitationClauses : Array LoadedClause := #[]
-  skolemMap : HashMap Nat SkolemInfo
+  skolemMap : Std.HashMap Nat SkolemInfo
 deriving Inhabited
 
 abbrev RuleM := ReaderT Context $ StateRefT State MetaM
@@ -147,7 +147,7 @@ def getLoadedClauses : RuleM (Array LoadedClause) :=
 def getInhabitationClauses : RuleM (Array LoadedClause) :=
   return (← get).inhabitationClauses
 
-def getSkolemMap : RuleM (HashMap Nat SkolemInfo) :=
+def getSkolemMap : RuleM (Std.HashMap Nat SkolemInfo) :=
   return (← get).skolemMap
 
 def setLoadedClauses (loadedClauses : Array LoadedClause) : RuleM Unit :=
@@ -159,7 +159,7 @@ def setInhabitationClauses (inhabitationClauses : Array LoadedClause) : RuleM Un
 def setState (s : State) : RuleM Unit :=
   modify fun _ => s
 
-def setSkolemMap (skmap : HashMap Nat SkolemInfo) : RuleM Unit :=
+def setSkolemMap (skmap : Std.HashMap Nat SkolemInfo) : RuleM Unit :=
   modify fun s => {s with skolemMap := skmap}
 
 def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
@@ -305,7 +305,7 @@ def neutralizeMClause (c : MClause) (loadedClauses : Array LoadedClause) (transf
     let instantiatedparent := lst.lctx.mkForall lst.fvars finstantiatedparent
     -- Make sure that levels are abstracted
     let lmvars := lmvarIds.map Level.mvar
-    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.data)
+    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.toList)
     let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
     proofParents := proofParents.push ⟨instantiatedparent, loadedClause, paramSubst⟩
   -- Deal with universe variables differently from metavariables :
@@ -343,7 +343,7 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
     let finstantiatedparent ← Duper.AbstractMVars.abstractExprMVars minstantiatedparent
     -- Make sure that levels are abstracted
     let lmvars := lmvarIds.map Level.mvar
-    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.data)
+    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.toList)
     let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
     proofParentsPre := proofParentsPre.push ⟨finstantiatedparent, loadedClause, paramSubst⟩
   -- Process inhabitationClauses
@@ -353,7 +353,7 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
     let parentExpr ← Duper.AbstractMVars.abstractExprMVars inhabitationClause.toLambdaExpr
     -- Make sure that levels are abstracted
     let lmvars := lmvarIds.map Level.mvar
-    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.data)
+    let lvarSubstWithExpr ← Duper.AbstractMVars.abstractExprMVars (Expr.const `_ <| lmvars.toList)
     let paramSubst := Array.mk lvarSubstWithExpr.constLevels!
     proofParentsPre := proofParentsPre.push ⟨parentExpr, inhabitationClause, paramSubst⟩
   -- Process local context

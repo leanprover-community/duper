@@ -374,7 +374,7 @@ def unfoldDefinitions (formulas : List (Expr × Expr × Array Name × Bool)) : M
 
 def printSaturation (state : ProverM.State) : MetaM Unit := do
   trace[duper.prover.saturate] "Final Active Set: {state.activeSet.toArray}"
-  trace[duper.saturate.debug] "Final active set numbers: {state.activeSet.toArray.map (fun c => (state.allClauses.find! c).number)}"
+  trace[duper.saturate.debug] "Final active set numbers: {state.activeSet.toArray.map (fun c => (state.allClauses.get! c).number)}"
   trace[duper.saturate.debug] "Final Active Set: {state.activeSet.toArray}"
   trace[duper.saturate.debug] "Verified Inhabited Types: {state.verifiedInhabitedTypes.map (fun x => x.expr)}"
   trace[duper.saturate.debug] "Verified Nonempty Types: {state.verifiedNonemptyTypes.map (fun x => x.1.expr)}"
@@ -382,7 +382,7 @@ def printSaturation (state : ProverM.State) : MetaM Unit := do
   trace[duper.saturate.debug] "Potentially Vacuous Clauses: {state.potentiallyVacuousClauses.toArray}"
 
 def formulasToMessageData : Expr × Expr × Array Name × Bool → MessageData
-| (ty, term, names, isFromGoal) => .compose (.compose m!"{names} @ " m!"{term} : ") m!"{ty}"
+| (ty, term, names, _isFromGoal) => .compose (.compose m!"{names} @ " m!"{term} : ") m!"{ty}"
 
 /-- Entry point for calling a single instance of duper using the options determined by (← getOptions).
 
@@ -455,7 +455,7 @@ def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × Array
   let lemmas ← lemmas.mapM (m:=MetaM) (Auto.unfoldConstAndPreprocessLemma #[])
   let inhFacts ← Auto.Inhabitation.getInhFactsFromLCtx
   let prover : Array Auto.Lemma → Array Auto.Lemma → MetaM Expr :=
-    fun lemmas inhLemmas => do
+    fun lemmas _inhLemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
       trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => (f.1, f.2.2.2))}"
       trace[duper.monomorphization.debug] "Auto lemmas: {lemmas.map (fun l => (l.type, l.proof, l.deriv))}"
@@ -472,7 +472,7 @@ def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr × Arra
   let lemmas ← lemmas.mapM (m:=MetaM) (Auto.unfoldConstAndPreprocessLemma #[])
   let inhFacts ← Auto.Inhabitation.getInhFactsFromLCtx
   let prover : Array Auto.Lemma → Array Auto.Lemma → MetaM Expr :=
-    fun lemmas inhLemmas => do
+    fun lemmas _inhLemmas => do
       let monomorphizedFormulas ← autoLemmasToFormulas lemmas
       trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => (f.1, f.2.2.2))}"
       trace[duper.monomorphization.debug] "Auto lemmas: {lemmas.map (fun l => (l.type, l.proof, l.deriv))}"

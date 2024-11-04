@@ -12,8 +12,8 @@ initialize Lean.registerTraceClass `duper.subsumptionTrie.debug
 
 inductive SubsumptionTrieFeatureValue where
   | N : Nat → SubsumptionTrieFeatureValue -- Feature is a number
-  | S : HashSet Expr → SubsumptionTrieFeatureValue -- Feature is a set
-  | M : HashMap Expr Nat → SubsumptionTrieFeatureValue -- Feature is a map
+  | S : Std.HashSet Expr → SubsumptionTrieFeatureValue -- Feature is a set
+  | M : Std.HashMap Expr Nat → SubsumptionTrieFeatureValue -- Feature is a map
 deriving Inhabited
 
 open SubsumptionTrieFeatureValue
@@ -30,7 +30,7 @@ def SubsumptionTrieFeatureValueLe (f1 : SubsumptionTrieFeatureValue) (f2 : Subsu
   | M m1, M m2 => -- Return true iff for every (e, n1) pair in m1 there is an (e, n2) pair in m2 with n1 ≤ n2
     Id.run $ do
     for (e, n1) in m1.toArray do
-      match m2.find? e with
+      match m2.get? e with
       | none => return false
       | some n2 =>
         if n1 ≤ n2 then continue
@@ -53,7 +53,7 @@ abbrev FeatureVector := List SubsumptionTrieFeatureValue
 -/
 inductive SubsumptionTrie where
   | node (children : Array (SubsumptionTrieFeatureValue × SubsumptionTrie)) : SubsumptionTrie
-  | leaf (vals : HashSet Clause) : SubsumptionTrie
+  | leaf (vals : Std.HashSet Clause) : SubsumptionTrie
 deriving Inhabited
 
 namespace SubsumptionTrie
@@ -79,7 +79,7 @@ instance : ToMessageData SubsumptionTrie := ⟨format⟩
 
 /-- Inserts every variable and constant that appears in e into acc. Note that as with Expr.weight, this function may require
     revision to be more similar to Zipperposition's implementation once we actually start working on higher order things -/
-partial def collectSymbolsInExpr (acc : HashSet Expr) (e : Expr) : HashSet Expr :=
+partial def collectSymbolsInExpr (acc : Std.HashSet Expr) (e : Expr) : Std.HashSet Expr :=
   match e.consumeMData with
   | fvar _ => acc.insert e.consumeMData
   | const _ _ => acc.insert e.consumeMData
@@ -91,22 +91,22 @@ partial def collectSymbolsInExpr (acc : HashSet Expr) (e : Expr) : HashSet Expr 
   | _ => acc
 
 /-- Inserts every variable and constant that appears in l into acc. -/
-def collectSymbolsInLit (acc : HashSet Expr) (l : Lit) : HashSet Expr :=
+def collectSymbolsInLit (acc : Std.HashSet Expr) (l : Lit) : Std.HashSet Expr :=
   collectSymbolsInExpr (collectSymbolsInExpr acc l.lhs) l.rhs
 
 /-- Updates acc with maps each symbol to its maximal depth in a clause. Note that as with Expr.weight, this function may
     require revision to be more similar to Zipperposition's implementation once we actually start working on higher order things.
     See https://github.com/sneeuwballen/zipperposition/blob/master/src/core/FV_tree.ml#L182 -/
-partial def updateDepthMapWithExpr (acc : HashMap Expr Nat) (e : Expr) (curDepth := 0) : HashMap Expr Nat :=
+partial def updateDepthMapWithExpr (acc : Std.HashMap Expr Nat) (e : Expr) (curDepth := 0) : Std.HashMap Expr Nat :=
   match e.consumeMData with
   | fvar fVarId =>
-    match acc.find? (fvar fVarId) with
+    match acc.get? (fvar fVarId) with
     | none => acc.insert (fvar fVarId) curDepth
     | some maxDepth =>
       if curDepth > maxDepth then acc.insert (fvar fVarId) curDepth
       else acc
   | const declName us =>
-    match acc.find? (const declName us) with
+    match acc.get? (const declName us) with
     | none => acc.insert (const declName us) curDepth
     | some maxDepth =>
       if curDepth > maxDepth then acc.insert (const declName us) curDepth
@@ -123,19 +123,19 @@ partial def updateDepthMapWithExpr (acc : HashMap Expr Nat) (e : Expr) (curDepth
   | _ => acc
 
 /-- Updates acc which maps each symbol to its maximal depth in a clause. -/
-def updateDepthMapWithLit (acc : HashMap Expr Nat) (l : Lit) : HashMap Expr Nat :=
+def updateDepthMapWithLit (acc : Std.HashMap Expr Nat) (l : Lit) : Std.HashMap Expr Nat :=
   updateDepthMapWithExpr (updateDepthMapWithExpr acc l.lhs) l.rhs
 
 /-- Updates acc which maps each symbol to the number of times it occurs in a clause. Note that as with Expr.weight, this function may
     require revision to be more similar to Zipperposition's implementation once we actually start working on higher order things. -/
-partial def updateOccurrenceMapWithExpr (acc : HashMap Expr Nat) (e : Expr) : HashMap Expr Nat :=
+partial def updateOccurrenceMapWithExpr (acc : Std.HashMap Expr Nat) (e : Expr) : Std.HashMap Expr Nat :=
   match e.consumeMData with
   | fvar fVarId =>
-    match acc.find? (fvar fVarId) with
+    match acc.get? (fvar fVarId) with
     | none => acc.insert (fvar fVarId) 1
     | some numOccurrences => acc.insert (fvar fVarId) (numOccurrences + 1)
   | const declName us =>
-    match acc.find? (const declName us) with
+    match acc.get? (const declName us) with
     | none => acc.insert (const declName us) 1
     | some numOccurrences => acc.insert (const declName us) (numOccurrences + 1)
   | app e1 e2 => updateOccurrenceMapWithExpr (updateOccurrenceMapWithExpr acc e1) e2
@@ -146,7 +146,7 @@ partial def updateOccurrenceMapWithExpr (acc : HashMap Expr Nat) (e : Expr) : Ha
   | _ => acc
 
 /-- Updates acc which maps each symbol to the number of times it occurs in a clause. -/
-def updateOccurrenceMapWithLit (acc : HashMap Expr Nat) (l : Lit) : HashMap Expr Nat :=
+def updateOccurrenceMapWithLit (acc : Std.HashMap Expr Nat) (l : Lit) : Std.HashMap Expr Nat :=
   updateOccurrenceMapWithExpr (updateOccurrenceMapWithExpr acc l.lhs) l.rhs
 
 /-
@@ -228,7 +228,7 @@ def emptyNode : SubsumptionTrie := node #[]
 
 def singleton (c : Clause) (features : FeatureVector) : SubsumptionTrie :=
   match features with
-  | [] => leaf (HashSet.empty.insert c)
+  | [] => leaf (Std.HashSet.empty.insert c)
   | fstFeature :: restFeatures => node #[(fstFeature, singleton c restFeatures)]
 
 private def insertHelper (t : SubsumptionTrie) (c : Clause) (features : FeatureVector) : RuleM SubsumptionTrie :=

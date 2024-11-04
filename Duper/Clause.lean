@@ -68,7 +68,7 @@ def map (f : Expr → Expr) (l : Lit) :=
   {l with ty := f l.ty, lhs := f l.lhs, rhs := f l.rhs}
 
 def instantiateLevelParamsArray (l : Lit) (paramNames : Array Name) (levels : Array Level) :=
-  {l with lvl := l.lvl.instantiateParams paramNames.data levels.data
+  {l with lvl := l.lvl.instantiateParams paramNames.toList levels.toList
           ty := l.ty.instantiateLevelParamsArray paramNames levels
           lhs := l.lhs.instantiateLevelParamsArray paramNames levels
           rhs := l.rhs.instantiateLevelParamsArray paramNames levels}
@@ -294,7 +294,7 @@ def litsToExpr : List Lit → Expr
 | l :: ls => mkApp2 (mkConst ``Or) l.toExpr (litsToExpr ls)
 
 def toExpr (c : Clause) : Expr :=
-  litsToExpr c.lits.data
+  litsToExpr c.lits.toList
 
 def foldM {β : Type v} {m : Type v → Type w} [Monad m]
     (f : β → Expr → ClausePos → m β) (init : β) (c : Clause) : m β := do

@@ -41,7 +41,7 @@ structure ClauseInfo where
 (isOrphan : Bool)
 deriving Inhabited
 
-abbrev ClauseSet := HashSet Clause
+abbrev ClauseSet := Std.HashSet Clause
 abbrev FairAgeClauseHeap := StrategyHeap Clause (β:=Nat)
 abbrev abstractedMVarList := List Meta.AbstractMVarsResult
 abbrev abstractedMVarAndClauseList := List (Meta.AbstractMVarsResult × Clause)
@@ -58,11 +58,11 @@ deriving Inhabited
 structure State where
   instanceMaxHeartbeats : Nat := 0 -- Heartbeats allocated to current instance of duper (0 treated as unlimited)
   result : Result := unknown
-  allClauses : HashMap Clause ClauseInfo := {}
+  allClauses : Std.HashMap Clause ClauseInfo := {}
   activeSet : ClauseSet := {}
   passiveSet : FairAgeClauseHeap := FairAgeHeap.empty Clause 5
   qStreamSet : ClauseStreamHeap ClauseStream := ClauseStreamHeap.empty ClauseStream
-  symbolPrecMap : SymbolPrecMap := HashMap.empty
+  symbolPrecMap : SymbolPrecMap := Std.HashMap.empty
   highesetPrecSymbolHasArityZero : Bool := false
   supMainPremiseIdx : RootCFPTrie := {}
   fluidSupMainPremiseIdx : RootCFPTrie := {} -- Stores fluid subterms and variables that appear in green positions and are also deeply occurring
@@ -70,7 +70,7 @@ structure State where
   demodMainPremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
-  skolemMap : HashMap Nat SkolemInfo := HashMap.empty
+  skolemMap : Std.HashMap Nat SkolemInfo := Std.HashMap.empty
   skolemSorryName : Name := Name.anonymous
   verifiedInhabitedTypes : abstractedMVarList := [] -- List of (abstracted) types that we have determined are inhabited by typeclass inference
   verifiedNonemptyTypes : abstractedMVarAndClauseList := [] -- List of (abstracted) types that duper has derived are nonempty (along with the clause asserting that fact)
@@ -111,7 +111,7 @@ def getInstanceMaxHeartbeats : ProverM Nat :=
 def getResult : ProverM Result :=
   return (← get).result
 
-def getAllClauses : ProverM (HashMap Clause ClauseInfo) :=
+def getAllClauses : ProverM (Std.HashMap Clause ClauseInfo) :=
   return (← get).allClauses
 
 def getActiveSet : ProverM ClauseSet :=
@@ -145,7 +145,7 @@ def getSubsumptionTrie : ProverM SubsumptionTrie :=
   return (← get).subsumptionTrie
 
 def getClauseInfo! (c : Clause) : ProverM ClauseInfo := do
-  let some ci := (← getAllClauses).find? c
+  let some ci := (← getAllClauses).get? c
     | throwError "Clause not found: {c}"
   return ci
 
@@ -155,7 +155,7 @@ def getQStreamSet : ProverM (ClauseStreamHeap ClauseStream) :=
 def getSkolemSorryName : ProverM Name :=
   return (← get).skolemSorryName
 
-def getSkolemMap : ProverM (HashMap Nat SkolemInfo) :=
+def getSkolemMap : ProverM (Std.HashMap Nat SkolemInfo) :=
   return (← get).skolemMap
 
 def getVerifiedInhabitedTypes : ProverM abstractedMVarList :=
@@ -182,7 +182,7 @@ def setResult (result : Result) : ProverM Unit :=
 def setActiveSet (activeSet : ClauseSet) : ProverM Unit :=
   modify fun s => { s with activeSet := activeSet }
 
-def setAllClauses (allClauses : HashMap Clause ClauseInfo) : ProverM Unit :=
+def setAllClauses (allClauses : Std.HashMap Clause ClauseInfo) : ProverM Unit :=
   modify fun s => { s with allClauses := allClauses }
 
 def setPassiveSet (passiveSet : FairAgeClauseHeap) : ProverM Unit :=
@@ -215,7 +215,7 @@ def setSubsumptionTrie (subsumptionTrie : SubsumptionTrie) : ProverM Unit :=
 def setQStreamSet (Q : ClauseStreamHeap ClauseStream) : ProverM Unit :=
   modify fun s => { s with qStreamSet := Q }
 
-def setSkolemMap (skmap : HashMap Nat SkolemInfo) : ProverM Unit :=
+def setSkolemMap (skmap : Std.HashMap Nat SkolemInfo) : ProverM Unit :=
   modify fun s => {s with skolemMap := skmap}
 
 def setVerifiedInhabitedTypes (verifiedInhabitedTypes : abstractedMVarList) : ProverM Unit :=
@@ -256,7 +256,7 @@ partial def chooseGivenClause : ProverM (Option Clause) := do
 def markAsDescendantToGeneratingAncestors (c : Clause) (generatingAncestors : Array Clause) : ProverM Unit := do
   let mut allClauses ← getAllClauses
   for ancestor in generatingAncestors do
-    match allClauses.find? ancestor with
+    match allClauses.get? ancestor with
     | some ancestorInfo =>
       let descendantList := ancestorInfo.descendants
       let ancestorInfo := {ancestorInfo with descendants := c :: descendantList}
@@ -271,7 +271,7 @@ def addNewClause (c : Clause) (proof : Proof) (goalDistance : Nat) (generationNu
   trace[duper.clauseSelection.debug] "addNewClause: c: {c}, c.weight: {c.weight}, goalDistance: {goalDistance}, c.selectionPrecedence: {c.selectionPrecedence goalDistance}"
   let allClauses ← getAllClauses
   let ci ← (do
-    match allClauses.find? c with
+    match allClauses.get? c with
     | some ci =>
       if ci.isOrphan then
         -- Update c's generating ancestors and orphan status because it has been added to the passiveSet by new ancestors
@@ -302,11 +302,11 @@ def addNewClause (c : Clause) (proof : Proof) (goalDistance : Nat) (generationNu
           throwEmptyClauseException
         return ci)
   trace[duper.prover.saturate] (
-    let parentInfos := proof.parents.map (fun p => allClauses.find! p.clause)
+    let parentInfos := proof.parents.map (fun p => allClauses.get! p.clause)
     m!"New clause #{ci.number} by {proof.ruleName} on {parentInfos.map (fun i => i.number)}: {c}"
   )
   trace[duper.createdClauses] (
-    let parentInfos := proof.parents.map (fun p => allClauses.find! p.clause)
+    let parentInfos := proof.parents.map (fun p => allClauses.get! p.clause)
     m!"New clause #{ci.number} by {proof.ruleName} on {parentInfos.map (fun i => i.number)}: {c}"
   )
   return ci
@@ -315,7 +315,7 @@ def addNewClause (c : Clause) (proof : Proof) (goalDistance : Nat) (generationNu
     selection strategy's heuristics. The `generatingAncestors` argument contains the list of clauses that were used to generate `c` (or `c`'s
     ancestor which generated `c` by a modifying inference). See page 8 of "E – A Brainiac Theorem Prover" -/
 def addNewToPassive (c : Clause) (proof : Proof) (goalDistance : Nat) (generationNumber : Nat) (generatingAncestors : Array Clause) : ProverM Unit := do
-  match (← getAllClauses).find? c with
+  match (← getAllClauses).get? c with
   | some ci =>
     if (ci.wasSimplified) then pure () -- No need to add c to the passive set because it would just be simplified away later
     else if(ci.isOrphan) then -- We've seen c before, but we should readd it because it was only removed as an orphan (and wasn't simplified away)
@@ -332,7 +332,7 @@ def addNewToPassive (c : Clause) (proof : Proof) (goalDistance : Nat) (generatio
 
 /-- Takes a clause that was generated by preprocessing clausification and re-adds it to the passive set and its associated heaps -/
 def addClausifiedToPassive (c : Clause) : ProverM Unit := do
-  match (← getAllClauses).find? c with
+  match (← getAllClauses).get? c with
   | some ci =>
     setPassiveSet $ (← getPassiveSet).insert c (c.selectionPrecedence ci.goalDistance) ci.generationNumber ci.number
   | none => throwError "Unable to find information for clausified clause {c}"
@@ -496,7 +496,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
   for d in ci.descendants do
     if protectedClauses.contains d then continue
     trace[duper.simplification.debug] "Marking {d} as orphan because it is a descendant of {c} and does not appear in {protectedClauses}"
-    match allClauses.find? d with
+    match allClauses.get? d with
     | some dInfo =>
       -- Tag d as an orphan in allClauses
       let dInfo := {dInfo with generatingAncestors := #[], isOrphan := true}
@@ -524,13 +524,12 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
   let mut passiveSet ← getPassiveSet
   let mut potentiallyVacuousClauses ← getPotentiallyVacuousClauses
   let mut allClauses ← getAllClauses
-  match allClauses.find? c with
+  match allClauses.get? c with
   | none => throwError "Attempted to remove {c} but was not able to find it in allClauses"
   | some ci =>
     -- Tag c as "wasSimplified" in allClauses
     let ci := {ci with wasSimplified := true}
     setAllClauses $ allClauses.insert c ci
-    allClauses ← getAllClauses
     -- Remove c from active set
     if activeSet.contains c then
       setActiveSet $ activeSet.erase c

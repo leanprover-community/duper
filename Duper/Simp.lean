@@ -57,10 +57,10 @@ def MSimpRule.toSimpRule (rule : MSimpRule) : SimpRule := fun givenClause => do
   | some cs => do
     trace[duper.simplification.debug] "About to remove {givenClause} because it was simplified away to produce {cs.map (fun x => x.1)}"
     removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated clauses
-    match cs.data with
+    match cs.toList with
     | List.nil => return Removed
     | (c, proof) :: restCs =>
-      match (← getAllClauses).find? givenClause with
+      match (← getAllClauses).get? givenClause with
       | some givenClauseInfo =>
         -- For forward simplification rules, each result clause has the same set of generating ancestors as givenClause
         let generatingAncestors := givenClauseInfo.generatingAncestors
@@ -91,7 +91,7 @@ def BackwardMSimpRule.toBackwardSimpRule (rule : BackwardMSimpRule) : BackwardSi
   for (c, _) in backwardSimpRes do
     trace[duper.simplification.debug] "About to remove {c} because it was simplified away"
     removeClause c [givenClause] -- givenClause must be protected when we remove c and its descendants because givenClause was used to eliminate c
-    match (← getAllClauses).find? c with
+    match (← getAllClauses).get? c with
     | some ci =>
       /- To match the strategy used for forward simplification, we use `ci.goalDistance` to ensure that the new clause is given the same goal distance as
          its main parent `c`. But if, in the future, we adopt Zipperposition's approach of giving the new clause the minimum goal distance of all its parents
