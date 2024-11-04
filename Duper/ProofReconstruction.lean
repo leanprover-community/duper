@@ -11,7 +11,7 @@ initialize
   registerTraceClass `duper.proofReconstruction
 
 def getClauseInfo! (state : ProverM.State) (c : Clause) : CoreM ClauseInfo := do
-  let some ci := state.allClauses.find? c
+  let some ci := state.allClauses.get? c
     | throwError "clause info not found: {c}"
   return ci
 
@@ -49,25 +49,25 @@ partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Na
   return acc
 
 -- Map from clause `id` to Array of request of levels
-abbrev LevelRequests := HashMap Nat (HashMap (Array Level) Nat)
+abbrev LevelRequests := Std.HashMap Nat (Std.HashMap (Array Level) Nat)
 
 partial def collectLevelRequests (state : ProverM.State) (c : Clause)
   (lvls : Array Level) (acc : LevelRequests) : MetaM LevelRequests := do
   Core.checkMaxHeartbeats "collectLevelRequests"
   let info ← getClauseInfo! state c
-  if let some set := acc.find? info.number then
+  if let some set := acc.get? info.number then
     if set.contains lvls then
       return acc
   let mut acc := acc
   let lvlset :=
-    match acc.find? info.number with
+    match acc.get? info.number with
     | some set => set
-    | none     => HashMap.empty
+    | none     => Std.HashMap.empty
   trace[duper.proofReconstruction] "Request {c.paramNames} ↦ {lvls} for {c}"
   acc := acc.insert info.number (lvlset.insert lvls lvlset.size)
   for proofParent in info.proof.parents do
     let lvls' := proofParent.paramSubst.map
-      (fun lvl => lvl.instantiateParams c.paramNames.data lvls.data)
+      (fun lvl => lvl.instantiateParams c.paramNames.toList lvls.toList)
     acc ← collectLevelRequests state proofParent.clause lvls' acc
   return acc
 
@@ -79,9 +79,9 @@ structure PRState where
   -- `Nat` is the `id` of the clause
   -- `Array Level` is the requested levels for the clause
   -- `Expr` is the fvarId corresponding to the proof for the clause in the current `lctx`
-  constructedClauses : HashMap (Nat × Array Level) Expr
+  constructedClauses : Std.HashMap (Nat × Array Level) Expr
   -- Map from `id` of skolem constant to the constructed `fvar`
-  constructedSkolems : HashMap Nat FVarId
+  constructedSkolems : Std.HashMap Nat FVarId
   lctx : LocalContext
   mctx : MetavarContext
   localInstances : LocalInstances
@@ -128,10 +128,10 @@ partial def PRM.matchSkolem : Expr → PRM TransformStep
     let skTy := args[2]!
     let skmap := (← read).pmstate.skolemMap
     let consk := (← get).constructedSkolems
-    if let some isk := skmap.find? skid then
+    if let some isk := skmap.get? skid then
       let trailingArgs := args.extract 3 args.size
       let trailingArgs ← trailingArgs.mapM (fun e => Core.transform e PRM.matchSkolem)
-      if let some fvarId := consk.find? skid then
+      if let some fvarId := consk.get? skid then
         return .done (mkAppN (mkFVar fvarId) trailingArgs)
       let ⟨skProof, params⟩ := isk
       let skProof := skProof.instantiateLevelParamsArray params lvls
@@ -161,15 +161,15 @@ partial def mkClauseProof : List Clause → PRM Expr
   let reqs := (← read).reqs
   Core.checkMaxHeartbeats "mkClauseProof"
   let info ← getClauseInfo! state c
-  let lvlreqs := reqs.find! info.number
+  let lvlreqs := reqs.get! info.number
   for (req, reqid) in lvlreqs.toList do
     let mut parents : Array Expr := #[]
     let mut instantiatedProofParents := #[]
     for parent in info.proof.parents do
       let parentInfo ← getClauseInfo! state parent.clause
       let parentNumber := parentInfo.number
-      let instantiatedParentParamSubst := parent.paramSubst.map (fun lvl => lvl.instantiateParams c.paramNames.data req.data)
-      let parentPrfFvar := (← get).constructedClauses.find! (parentNumber, instantiatedParentParamSubst)
+      let instantiatedParentParamSubst := parent.paramSubst.map (fun lvl => lvl.instantiateParams c.paramNames.toList req.toList)
+      let parentPrfFvar := (← get).constructedClauses.get! (parentNumber, instantiatedParentParamSubst)
       parents := parents.push parentPrfFvar
       runMetaAsPRM <| do
         trace[duper.proofReconstruction] (
@@ -197,7 +197,7 @@ partial def mkClauseProof : List Clause → PRM Expr
     let instTr ← instTr.mapM (fun e => Core.transform e PRM.matchSkolem)
     let newProof ← (do
       let prf ← runMetaAsPRM <|
-        info.proof.mkProof parents.data instantiatedProofParents.data instTr instC
+        info.proof.mkProof parents.toList instantiatedProofParents.toList instTr instC
       if info.proof.ruleName != "assumption" then
         return prf
       else
@@ -224,10 +224,10 @@ partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr :
   let emptyClause := cs[cslen - 1]!
   -- Other clauses
   let zeroLvlsForEmptyClause := emptyClause.paramNames.map (fun _ => Level.zero)
-  let reqs ← collectLevelRequests state emptyClause zeroLvlsForEmptyClause HashMap.empty
-  let (e, prstate) ← (do mkClauseProof cs.data).run
+  let reqs ← collectLevelRequests state emptyClause zeroLvlsForEmptyClause Std.HashMap.empty
+  let (e, prstate) ← (do mkClauseProof cs.toList).run
       {pmstate := state, reqs := reqs}
-      {constructedClauses := HashMap.empty, constructedSkolems := HashMap.empty,
+      {constructedClauses := Std.HashMap.empty, constructedSkolems := Std.HashMap.empty,
        lctx := ← getLCtx, mctx := ← getMCtx, localInstances := ← getLocalInstances, fvars := #[]}
   setMCtx prstate.mctx
   let lctx := prstate.lctx

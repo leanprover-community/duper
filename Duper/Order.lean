@@ -29,7 +29,7 @@ def Symbol.toString : Symbol → String
 instance : ToMessageData Symbol := ⟨Symbol.format⟩
 instance : ToString Symbol := ⟨Symbol.toString⟩
 
-abbrev SymbolPrecMap := HashMap Symbol Nat -- Maps symbols to their precedence. Lower numbers indicate higher precedence
+abbrev SymbolPrecMap := Std.HashMap Symbol Nat -- Maps symbols to their precedence. Lower numbers indicate higher precedence
 
 namespace Comparison
 
@@ -67,13 +67,13 @@ def absWeight (w : Weight) : Weight := (Int.natAbs w.1, Int.natAbs w.2)
 
 local notation "ω" => ((1,0) : Weight)
 
-def VarBalance := HashMap (Expr × Bool) Weight
+def VarBalance := Std.HashMap (Expr × Bool) Weight
 
 def VarBalance.addPosVar (vb : VarBalance) (t : Expr × Bool) : VarBalance :=
-  vb.insert t $ vb.findD t 0 + 1
+  vb.insert t $ vb.getD t 0 + 1
 
 def VarBalance.addNegVar (vb : VarBalance) (t : Expr × Bool) : VarBalance :=
-  vb.insert t $ vb.findD t 0 - 1
+  vb.insert t $ vb.getD t 0 - 1
 
 -- The orderings treat lambda-expressions like a "LAM" symbol applied to the
 -- type and body of the lambda-expression
@@ -112,14 +112,14 @@ def headWeight (f : Expr) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHas
       if belowLam then 1 else ω
     else
       let fSymbol := Symbol.Const name
-      match symbolPrecMap.find? fSymbol with
+      match symbolPrecMap.get? fSymbol with
       | some 0 => -- The symbol with the highest precedence in symbolPrecMap is mapped to 0 (unless it has arity zero)
         if highesetPrecSymbolHasArityZero then 1
         else 0
       | _ => 1
   | Expr.fvar fVarId =>
     let fSymbol := Symbol.FVarId fVarId
-    match symbolPrecMap.find? fSymbol with
+    match symbolPrecMap.get? fSymbol with
     | some 0 => -- The symbol with the highest precedence in symbolPrecMap is mapped to 0 (unless it has arity zero)
       if highesetPrecSymbolHasArityZero then 1
       else 0
@@ -180,7 +180,7 @@ def symbolPrecCompare (e1 : Expr) (e2 : Expr) (s1 : Symbol) (s2 : Symbol) (symbo
     so that the firstmaximal0 weight generation scheme can determine if a symbol is maximal simply by checking whether it maps
     to 0 in symbolPrecMap
   -/
-  match symbolPrecMap.find? s1, symbolPrecMap.find? s2 with
+  match symbolPrecMap.get? s1, symbolPrecMap.get? s2 with
   | some n1, some n2 =>
     if n1 > n2 then return LessThan -- n1 is larger than n2 so s1 has a lower precedence
     else if n1 < n2 then return GreaterThan -- n1 is smaller than n2 so s1 has a higher precedence
@@ -407,13 +407,13 @@ mutual
   partial def kbo (t1 t2 : Expr) (alreadyReduced : Bool) (symbolPrecMap : SymbolPrecMap)
     (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
     if alreadyReduced then
-      let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
+      let (_, _, res) ← tckbo 0 Std.HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
       trace[duper.unaryFirst.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
       return res
     else
       let t1 ← betaEtaReduceInstMVars t1
       let t2 ← betaEtaReduceInstMVars t2
-      let (_, _, res) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
+      let (_, _, res) ← tckbo 0 Std.HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
       trace[duper.unaryFirst.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
       return res
 
@@ -555,12 +555,12 @@ end
     the two expressions' weights. -/
 def getNetWeight (t1 t2 : Expr) (alreadyReduced : Bool) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Weight := do
   if alreadyReduced then
-    let (netWeight, _, _) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
+    let (netWeight, _, _) ← tckbo 0 Std.HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
     return netWeight
   else
     let t1 ← betaEtaReduceInstMVars t1
     let t2 ← betaEtaReduceInstMVars t2
-    let (netWeight, _, _) ← tckbo 0 HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
+    let (netWeight, _, _) ← tckbo 0 Std.HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
     return netWeight
 
 end Order

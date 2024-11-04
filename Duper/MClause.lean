@@ -10,7 +10,7 @@ deriving Inhabited, BEq, Hashable
 namespace MClause
 
 def toExpr (c : MClause) : Expr :=
-  litsToExpr c.lits.data
+  litsToExpr c.lits.toList
 where litsToExpr : List Lit → Expr
 | [] => mkConst ``False
 | [l] => l.toExpr

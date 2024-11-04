@@ -180,11 +180,11 @@ private partial def replaceAtPosHelper [Monad m] [MonadLiftT MetaM m] (e : Expr)
 
 /-- Attempts to put replacement at pos in e. Returns some res if successful, and returns none otherwise -/
 partial def replaceAtPos? [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : ExprPos) (replacement : Expr) : m (Option Expr) :=
-  replaceAtPosHelper e pos.data replacement
+  replaceAtPosHelper e pos.toList replacement
 
 /-- Attempts to put replacement at pos in e. Returns the result if successful and throws and error otherwise -/
 partial def replaceAtPos! [Monad m] [MonadLiftT MetaM m] [MonadError m] (e : Expr) (pos : ExprPos) (replacement : Expr) : m Expr := do
-  match ← replaceAtPosHelper e pos.data replacement with
+  match ← replaceAtPosHelper e pos.toList replacement with
   | some res => return res
   | none => throwError "replaceAtPos error: Invalid position {pos} given for expression {e}"
 
@@ -270,7 +270,7 @@ private partial def abstractAtPosHelper! [Monad m] [MonadLiftT MetaM m] [MonadEr
     the given expression to consist only of applications up to the given ExprPos. Additionally, since the exact
     ExprPos is given, we don't need to pass in Meta.kabstract's second argument p -/
 partial def abstractAtPos! [Monad m] [MonadLiftT MetaM m] [MonadError m] (e : Expr) (pos : ExprPos) : m Expr := do
-  abstractAtPosHelper! e pos.data 0
+  abstractAtPosHelper! e pos.toList 0
 
 private partial def abstractAtPosesHelper! [Monad m] [MonadLiftT MetaM m] [MonadError m] (e : Expr)
   (poses : Array (List Nat)) (numBindersUnder : Nat) : m Expr := do
@@ -322,7 +322,7 @@ private partial def abstractAtPosesHelper! [Monad m] [MonadLiftT MetaM m] [Monad
     return e
 
 partial def abstractAtPoses! [Monad m] [MonadLiftT MetaM m] [MonadError m] (e : Expr) (poses : Array ExprPos) : m Expr :=
-  abstractAtPosesHelper! e (poses.map (fun x => x.data)) 0
+  abstractAtPosesHelper! e (poses.map (fun x => x.toList)) 0
 
 /-
   Note: this function may require revision to be more similar to Zipperposition's ho_weight function once we actually

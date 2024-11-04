@@ -15,4 +15,4 @@ def ListToMessageData (as : List α) (f : α → MessageData) : MessageData :=
     | .cons a as@(.cons _ _) => .compose (f a) (.compose ", " (go as))
 
 def ArrayToMessageData (as : Array α) (f : α → MessageData) : MessageData :=
-  ListToMessageData as.data f
+  ListToMessageData as.toList f

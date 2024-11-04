@@ -55,12 +55,12 @@ partial def preprocessingClausification : ProverM Unit := do
     times, then updates f's result in symbolFreqMap to be n greater than it was originally). Note that as with Expr.weight,
     this function may require revision to be more similar to Zipperposition's implementation once we actually start working
     on higher order things. -/
-partial def updateSymbolFreqArityMap (f : Expr) (symbolFreqArityMap : HashMap Symbol (Nat × Nat)) :
-  ProverM (HashMap Symbol (Nat × Nat)) := do
+partial def updateSymbolFreqArityMap (f : Expr) (symbolFreqArityMap : Std.HashMap Symbol (Nat × Nat)) :
+  ProverM (Std.HashMap Symbol (Nat × Nat)) := do
   match f with
   | Expr.fvar fVarId =>
     let fSymbol := Symbol.FVarId fVarId
-    match symbolFreqArityMap.find? fSymbol with
+    match symbolFreqArityMap.get? fSymbol with
     | some (fFreq, fArity) => return symbolFreqArityMap.insert fSymbol (fFreq + 1, fArity)
     | none =>
       match (← getLCtx).fvarIdToDecl.find? fVarId with
@@ -70,7 +70,7 @@ partial def updateSymbolFreqArityMap (f : Expr) (symbolFreqArityMap : HashMap Sy
       | none => throwError s!"Unable to find {fVarId.name} in local context"
   | Expr.const name _ =>
     let fSymbol := Symbol.Const name
-    match symbolFreqArityMap.find? fSymbol with
+    match symbolFreqArityMap.get? fSymbol with
     | some (fFreq, fArity) => return symbolFreqArityMap.insert fSymbol (fFreq + 1, fArity)
     | none =>
       let fType ← inferType f
@@ -107,13 +107,13 @@ def isInductiveAndNonPropAndNotTypeClass (t : Expr) : ProverM Bool := do
     on higher order things. Additionally, updates datatypeList to make sure that all inductive datatypes that appear
     in the problem are contained in the datatypeList. The format in which inductive datatypes are recorded as elements of
     type `Expr × Array Name` is described in the comment above `buildSymbolFreqArityMapAndDatatypeList` -/
-partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityMap : HashMap Symbol (Nat × Nat))
+partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityMap : Std.HashMap Symbol (Nat × Nat))
   (datatypeList : List (Expr × Array Name)) (paramNames : Array Name) :
-  ProverM (HashMap Symbol (Nat × Nat) × List (Expr × Array Name)) := do
+  ProverM (Std.HashMap Symbol (Nat × Nat) × List (Expr × Array Name)) := do
   match f with
   | Expr.fvar fVarId =>
     let fSymbol := Symbol.FVarId fVarId
-    match symbolFreqArityMap.find? fSymbol with
+    match symbolFreqArityMap.get? fSymbol with
     | some (fFreq, fArity) => return (symbolFreqArityMap.insert fSymbol (fFreq + 1, fArity), datatypeList)
     | none =>
       match (← getLCtx).fvarIdToDecl.find? fVarId with
@@ -127,7 +127,7 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
       | none => throwError s!"Unable to find {fVarId.name} in local context"
   | Expr.const name _ =>
     let fSymbol := Symbol.Const name
-    match symbolFreqArityMap.find? fSymbol with
+    match symbolFreqArityMap.get? fSymbol with
     | some (fFreq, fArity) => -- fSymbol has already been seen so datatypeList does not need to be updated
       return (symbolFreqArityMap.insert fSymbol (fFreq + 1, fArity), datatypeList)
     | none =>
@@ -216,8 +216,8 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
 /-- Builds a HashMap that maps each symbol to a tuple containing:
     - The number of times they appear in formulas
     - Its arity -/
-partial def buildSymbolFreqArityMap (clauses : List Clause) : ProverM (HashMap Symbol (Nat × Nat)) := do
-  let mut symbolFreqArityMap := HashMap.empty
+partial def buildSymbolFreqArityMap (clauses : List Clause) : ProverM (Std.HashMap Symbol (Nat × Nat)) := do
+  let mut symbolFreqArityMap := Std.HashMap.empty
   for c in clauses do
     for l in c.lits do
       symbolFreqArityMap ← updateSymbolFreqArityMap l.lhs symbolFreqArityMap
@@ -232,8 +232,8 @@ partial def buildSymbolFreqArityMap (clauses : List Clause) : ProverM (HashMap S
     - A list containing every inductive datatype that appears in any clause. Polymorphic inductive datatypes are represented as universally
     quantified types paired with an array of parameters that can appear in the inductive datatype. For example, the polymorphic list datatype
     `List α` of where `α : Type u` is represented via `((∀ (α : Type u), List α), #[u])` -/
-partial def buildSymbolFreqArityMapAndDatatypeList (clauses : List Clause) : ProverM (HashMap Symbol (Nat × Nat) × List (Expr × Array Name)) := do
-  let mut symbolFreqArityMap := HashMap.empty
+partial def buildSymbolFreqArityMapAndDatatypeList (clauses : List Clause) : ProverM (Std.HashMap Symbol (Nat × Nat) × List (Expr × Array Name)) := do
+  let mut symbolFreqArityMap := Std.HashMap.empty
   let mut datatypeList := []
   for c in clauses do
     trace[duper.collectDatatypes.debug] "Loaded clause c: {c.lits}"
@@ -289,7 +289,7 @@ def buildSymbolPrecMap (clauses : List Clause) : ProverM (SymbolPrecMap × Bool)
     -- We use unaryFirstGt as the lt argument for binInsert so that symbols with higher precedence come first in symbolPrecArray
     symbolPrecArr := symbolPrecArr.binInsert unaryFirstGt (s, sFreq, sArity)
   trace[duper.unaryFirst.debug] "symbolPrecArr: {symbolPrecArr}"
-  let mut symbolPrecMap := HashMap.empty
+  let mut symbolPrecMap := Std.HashMap.empty
   let mut counter := 0
   let mut highesetPrecSymbolHasArityZero := false
   for (s, _, sArity) in symbolPrecArr do
@@ -343,7 +343,7 @@ def buildSymbolPrecMapAndDatatypeList (clauses : List Clause) : ProverM (SymbolP
     -- We use unaryFirstGt as the lt argument for binInsert so that symbols with higher precedence come first in symbolPrecArray
     symbolPrecArr := symbolPrecArr.binInsert unaryFirstGt (s, sFreq, sArity)
   trace[duper.unaryFirst.debug] "symbolPrecArr: {symbolPrecArr}"
-  let mut symbolPrecMap := HashMap.empty
+  let mut symbolPrecMap := Std.HashMap.empty
   let mut counter := 0
   let mut highesetPrecSymbolHasArityZero := false
   for (s, _, sArity) in symbolPrecArr do
