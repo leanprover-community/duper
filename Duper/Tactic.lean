@@ -10,12 +10,24 @@ register_option duper.printTimeInformation : Bool := {
   descr := "Whether to print the total time it took for Duper to construct a proof"
 }
 
+register_option duper.ignoreUnusableFacts : Bool := {
+  defValue := false
+  descr := "If true, suppresses the error that Duper would throw if given a fact it would not ordinarily accept (e.g. a constructor or opaque constant)"
+}
+
 def getPrintTimeInformation (opts : Options) : Bool :=
   duper.printTimeInformation.get opts
 
 def getPrintTimeInformationM : CoreM Bool := do
   let opts ← getOptions
   return getPrintTimeInformation opts
+
+def getIgnoreUsableFacts (opts : Options) : Bool :=
+  duper.ignoreUnusableFacts.get opts
+
+def getIgnoreUsableFactsM : CoreM Bool := do
+  let opts ← getOptions
+  return getIgnoreUsableFacts opts
 
 /-- Produces definional equations for a recursor `recVal` such as
 
@@ -55,7 +67,8 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
   match stx with
   | `($id:ident) =>
     let some expr ← Term.resolveId? id
-      | throwError "Unknown identifier {id}"
+      | if ← getIgnoreUsableFactsM then return #[]
+        else throwError "Unknown identifier {id}"
     match expr with
     | .const exprConstName _ =>
       match (← getEnv).find? exprConstName with
@@ -74,17 +87,27 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
         if sort.isProp then
           ret := ret.push (← elabFactAux stx)
         -- Generate definitional equation for the fact
-        if let some eqns ← getEqnsFor? exprConstName (nonRec := true) then
+        if let some eqns ← getEqnsFor? exprConstName then
           ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
         trace[duper.elabFact.debug] "Adding definition {expr} as the following facts: {ret.map (fun x => x.1)}"
         return ret
       | some (.axiomInfo _)  => return #[← elabFactAux stx]
       | some (.thmInfo _)    => return #[← elabFactAux stx]
-      | some (.opaqueInfo _) => throwError "Opaque constants cannot be provided as facts"
-      | some (.quotInfo _)   => throwError "Quotient constants cannot be provided as facts"
-      | some (.inductInfo _) => throwError "Inductive types cannot be provided as facts"
-      | some (.ctorInfo _)   => throwError "Constructors cannot be provided as facts"
-      | none                 => throwError "Unknown constant {id}"
+      | some (.opaqueInfo _) =>
+        if ← getIgnoreUsableFactsM then return #[]
+        else throwError "Opaque constants cannot be provided as facts"
+      | some (.quotInfo _)   =>
+        if ← getIgnoreUsableFactsM then return #[]
+        else throwError "Quotient constants cannot be provided as facts"
+      | some (.inductInfo _) =>
+        if ← getIgnoreUsableFactsM then return #[]
+        else throwError "Inductive types cannot be provided as facts"
+      | some (.ctorInfo _)   =>
+        if ← getIgnoreUsableFactsM then return #[]
+        else throwError "Constructors cannot be provided as facts"
+      | none                 =>
+        if ← getIgnoreUsableFactsM then return #[]
+        else throwError "Unknown constant {id}"
     | .fvar exprFVarId =>
       match (← getLCtx).find? exprFVarId with
       | some _ => return #[← elabFactAux stx]
@@ -129,6 +152,8 @@ def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Ar
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
         formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
+      else if ← getIgnoreUsableFactsM then
+        continue
       else
         throwError "Invalid fact {factStx} for duper. Proposition expected"
   return formulas

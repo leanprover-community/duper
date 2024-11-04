@@ -113,7 +113,7 @@ def emptyCFP : ClauseFingerprintTrie := mkEmptyWithDepth numFingerprintFeatures
    I could be quite off-base on that. -/
 structure RootCFPTrie where
   root : ClauseFingerprintTrie := emptyCFP
-  filterSet : HashSet Clause := {} -- Keeps track of the set of clauses that should be filtered out (i.e. "removed" clauses)
+  filterSet : Std.HashSet Clause := {} -- Keeps track of the set of clauses that should be filtered out (i.e. "removed" clauses)
 deriving Inhabited
 
 namespace RootCFPTrie
