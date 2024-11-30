@@ -100,31 +100,31 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
       | some (.thmInfo _)    => return #[← elabFactAux stx]
       | some (.opaqueInfo _) =>
         if ← getIgnoreUnusableFactsM then
-          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is an opaque constant"
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is an opaque constant"
           return #[]
         else
           throwError "Opaque constants cannot be provided as facts"
       | some (.quotInfo _)   =>
         if ← getIgnoreUnusableFactsM then
-          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is a quotient constant"
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is a quotient constant"
           return #[]
         else
           throwError "Quotient constants cannot be provided as facts"
       | some (.inductInfo _) =>
         if ← getIgnoreUnusableFactsM then
-          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is an inductive type"
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is an inductive type"
           return #[]
         else
           throwError "Inductive types cannot be provided as facts"
       | some (.ctorInfo _)   =>
         if ← getIgnoreUnusableFactsM then
-          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is a constructor"
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is a constructor"
           return #[]
         else
           throwError "Constructors cannot be provided as facts"
       | none                 =>
         if ← getIgnoreUnusableFactsM then
-          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is an unknown constant"
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is an unknown constant"
           return #[]
         else
           throwError "Unknown constant {id}"
@@ -173,7 +173,7 @@ def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Ar
         let fact ← preprocessFact (← instantiateMVars fact)
         formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
       else if ← getIgnoreUnusableFactsM then
-        trace[duper.ignoredUnusableFacts] "Ignored {fact} because it is not a Prop"
+        trace[duper.ignoredUnusableFacts] "Ignored {fact} ({factStx}) because it is not a Prop"
         continue
       else
         throwError "Invalid fact {factStx} for duper. Proposition expected"
