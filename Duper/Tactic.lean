@@ -172,6 +172,13 @@ def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Ar
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
         formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
+      else if ← isDefEq (← inferType fact) (.sort 0) then
+        /- This check can succeed where the previous failed in instances where `fact`'s type is
+           a sort with an undetermined universe level. We try the previous check first to avoid
+           unnecessarily assigning metavariables in `fact`'s type (which the above `isDefEq` check
+           can do)-/
+        let fact ← preprocessFact (← instantiateMVars fact)
+        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
       else if ← getIgnoreUnusableFactsM then
         trace[duper.ignoredUnusableFacts] "Ignored {fact} ({factStx}) because it is not a Prop"
         continue
