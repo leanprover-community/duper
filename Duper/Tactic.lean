@@ -96,8 +96,14 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
           ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
         trace[duper.elabFact.debug] "Adding definition {expr} as the following facts: {ret.map (fun x => x.1)}"
         return ret
-      | some (.axiomInfo _)  => return #[← elabFactAux stx]
-      | some (.thmInfo _)    => return #[← elabFactAux stx]
+      | some (.axiomInfo _)  =>
+        let ret ← elabFactAux stx
+        trace[duper.elabFact.debug] "Adding axiom {stx} as the following fact: {ret.1}"
+        return #[ret]
+      | some (.thmInfo _)    =>
+        let ret ← elabFactAux stx
+        trace[duper.elabFact.debug] "Adding theorem {stx} as the following fact: {ret.1}"
+        return #[ret]
       | some (.opaqueInfo _) =>
         if ← getIgnoreUnusableFactsM then
           trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is an opaque constant"
@@ -130,10 +136,16 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
           throwError "Unknown constant {id}"
     | .fvar exprFVarId =>
       match (← getLCtx).find? exprFVarId with
-      | some _ => return #[← elabFactAux stx]
+      | some _ =>
+        let ret ← elabFactAux stx
+        trace[duper.elabFact.debug] "Adding fvar {stx} as the following fact: {ret.1}"
+        return #[ret]
       | none => throwError "Unknown fvar {id}"
     | _ => throwError "Unknown identifier {id}"
-  | _ => return #[← elabFactAux stx]
+  | _ =>
+    let ret ← elabFactAux stx
+    trace[duper.elabFact.debug] "Adding {stx} as the following fact: {ret.1}"
+    return #[ret]
 where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
   -- elaborate term as much as possible and abstract any remaining mvars:
   Term.withoutModifyingElabMetaStateWithInfo <| withRef stx <| Term.withoutErrToSorry do
