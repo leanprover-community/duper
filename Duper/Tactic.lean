@@ -3,6 +3,8 @@ import Duper.Interface
 
 open Lean Meta Duper ProverM Parser Elab Tactic
 
+initialize Lean.registerTraceClass `duper.ignoredUnusableFacts
+
 namespace Duper
 
 register_option duper.printTimeInformation : Bool := {
@@ -22,12 +24,12 @@ def getPrintTimeInformationM : CoreM Bool := do
   let opts ← getOptions
   return getPrintTimeInformation opts
 
-def getIgnoreUsableFacts (opts : Options) : Bool :=
+def getIgnoreUnusableFacts (opts : Options) : Bool :=
   duper.ignoreUnusableFacts.get opts
 
-def getIgnoreUsableFactsM : CoreM Bool := do
+def getIgnoreUnusableFactsM : CoreM Bool := do
   let opts ← getOptions
-  return getIgnoreUsableFacts opts
+  return getIgnoreUnusableFacts opts
 
 /-- Produces definional equations for a recursor `recVal` such as
 
@@ -67,8 +69,11 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
   match stx with
   | `($id:ident) =>
     let some expr ← Term.resolveId? id
-      | if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Unknown identifier {id}"
+      | if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {id} because it was unknown"
+          return #[]
+        else
+          throwError "Unknown identifier {id}"
     match expr with
     | .const exprConstName _ =>
       match (← getEnv).find? exprConstName with
@@ -94,20 +99,35 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
       | some (.axiomInfo _)  => return #[← elabFactAux stx]
       | some (.thmInfo _)    => return #[← elabFactAux stx]
       | some (.opaqueInfo _) =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Opaque constants cannot be provided as facts"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is an opaque constant"
+          return #[]
+        else
+          throwError "Opaque constants cannot be provided as facts"
       | some (.quotInfo _)   =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Quotient constants cannot be provided as facts"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is a quotient constant"
+          return #[]
+        else
+          throwError "Quotient constants cannot be provided as facts"
       | some (.inductInfo _) =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Inductive types cannot be provided as facts"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is an inductive type"
+          return #[]
+        else
+          throwError "Inductive types cannot be provided as facts"
       | some (.ctorInfo _)   =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Constructors cannot be provided as facts"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is a constructor"
+          return #[]
+        else
+          throwError "Constructors cannot be provided as facts"
       | none                 =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Unknown constant {id}"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} because it is an unknown constant"
+          return #[]
+        else
+          throwError "Unknown constant {id}"
     | .fvar exprFVarId =>
       match (← getLCtx).find? exprFVarId with
       | some _ => return #[← elabFactAux stx]
@@ -152,7 +172,8 @@ def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Ar
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
         formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
-      else if ← getIgnoreUsableFactsM then
+      else if ← getIgnoreUnusableFactsM then
+        trace[duper.ignoredUnusableFacts] "Ignored {fact} because it is not a Prop"
         continue
       else
         throwError "Invalid fact {factStx} for duper. Proposition expected"
