@@ -149,7 +149,7 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
 where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
   -- elaborate term as much as possible and abstract any remaining mvars:
   Term.withoutModifyingElabMetaStateWithInfo <| withRef stx <| Term.withoutErrToSorry do
-    let e ← Term.elabTerm stx none
+    let e ← Term.elabTerm stx none (implicitLambda := false)
     Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
     let e ← instantiateMVars e
     let abstres ← Duper.abstractMVars e
