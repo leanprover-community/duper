@@ -39,8 +39,8 @@ def getIgnoreUnusableFactsM : CoreM Bool := do
   for each constructor, a proof of the equation, and the contained level
   parameters. -/
 def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Name)) := do
-  let some (.inductInfo indVal) := (← getEnv).find? recVal.getInduct
-    | throwError "Expected inductive datatype: {recVal.getInduct}"
+  let some (.inductInfo indVal) := (← getEnv).find? recVal.getMajorInduct
+    | throwError "Expected inductive datatype: {recVal.getMajorInduct}"
   let expr := mkConst recVal.name (recVal.levelParams.map Level.param)
   let res ← forallBoundedTelescope (← inferType expr) recVal.getMajorIdx fun xs _ => do
     let expr := mkAppN expr xs

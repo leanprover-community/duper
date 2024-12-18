@@ -138,9 +138,9 @@ def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
   let allClauses ← getAllClauses
   let parentClauseInfoOpts ← proof.parents.mapM
     (fun p =>
-      match allClauses.find? p.clause with
+      match allClauses.get? p.clause with
       | some pi => pure pi
-      | none => throwError "ProverM.postProcessInferenceResult: Unable to find parent clause {p.clause}")
+      | none => throwError "ProverM.postProcessInferenceResult: Unable to find parent clause {p.clause.toForallExpr}")
   -- c's generation number is one greater than the sum of its parents generation numbers
   let generationNumber := parentClauseInfoOpts.foldl (fun acc parentInfo => acc + parentInfo.generationNumber) 1
   -- c's goalDistance is at most maxGoalDistance and is otherwise one greater than the distance of the parent closest to the goal
