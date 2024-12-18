@@ -3,6 +3,8 @@ import Duper.Interface
 
 open Lean Meta Duper ProverM Parser Elab Tactic
 
+initialize Lean.registerTraceClass `duper.ignoredUnusableFacts
+
 namespace Duper
 
 register_option duper.printTimeInformation : Bool := {
@@ -22,12 +24,12 @@ def getPrintTimeInformationM : CoreM Bool := do
   let opts ← getOptions
   return getPrintTimeInformation opts
 
-def getIgnoreUsableFacts (opts : Options) : Bool :=
+def getIgnoreUnusableFacts (opts : Options) : Bool :=
   duper.ignoreUnusableFacts.get opts
 
-def getIgnoreUsableFactsM : CoreM Bool := do
+def getIgnoreUnusableFactsM : CoreM Bool := do
   let opts ← getOptions
-  return getIgnoreUsableFacts opts
+  return getIgnoreUnusableFacts opts
 
 /-- Produces definional equations for a recursor `recVal` such as
 
@@ -37,8 +39,8 @@ def getIgnoreUsableFactsM : CoreM Bool := do
   for each constructor, a proof of the equation, and the contained level
   parameters. -/
 def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Name)) := do
-  let some (.inductInfo indVal) := (← getEnv).find? recVal.getInduct
-    | throwError "Expected inductive datatype: {recVal.getInduct}"
+  let some (.inductInfo indVal) := (← getEnv).find? recVal.getMajorInduct
+    | throwError "Expected inductive datatype: {recVal.getMajorInduct}"
   let expr := mkConst recVal.name (recVal.levelParams.map Level.param)
   let res ← forallBoundedTelescope (← inferType expr) recVal.getMajorIdx fun xs _ => do
     let expr := mkAppN expr xs
@@ -67,8 +69,11 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
   match stx with
   | `($id:ident) =>
     let some expr ← Term.resolveId? id
-      | if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Unknown identifier {id}"
+      | if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {id} because it was unknown"
+          return #[]
+        else
+          throwError "Unknown identifier {id}"
     match expr with
     | .const exprConstName _ =>
       match (← getEnv).find? exprConstName with
@@ -91,33 +96,61 @@ def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
           ret := ret.append (← eqns.mapM fun eq => do elabFactAux (← `($(mkIdent eq))))
         trace[duper.elabFact.debug] "Adding definition {expr} as the following facts: {ret.map (fun x => x.1)}"
         return ret
-      | some (.axiomInfo _)  => return #[← elabFactAux stx]
-      | some (.thmInfo _)    => return #[← elabFactAux stx]
+      | some (.axiomInfo _)  =>
+        let ret ← elabFactAux stx
+        trace[duper.elabFact.debug] "Adding axiom {stx} as the following fact: {ret.1}"
+        return #[ret]
+      | some (.thmInfo _)    =>
+        let ret ← elabFactAux stx
+        trace[duper.elabFact.debug] "Adding theorem {stx} as the following fact: {ret.1}"
+        return #[ret]
       | some (.opaqueInfo _) =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Opaque constants cannot be provided as facts"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is an opaque constant"
+          return #[]
+        else
+          throwError "Opaque constants cannot be provided as facts"
       | some (.quotInfo _)   =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Quotient constants cannot be provided as facts"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is a quotient constant"
+          return #[]
+        else
+          throwError "Quotient constants cannot be provided as facts"
       | some (.inductInfo _) =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Inductive types cannot be provided as facts"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is an inductive type"
+          return #[]
+        else
+          throwError "Inductive types cannot be provided as facts"
       | some (.ctorInfo _)   =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Constructors cannot be provided as facts"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is a constructor"
+          return #[]
+        else
+          throwError "Constructors cannot be provided as facts"
       | none                 =>
-        if ← getIgnoreUsableFactsM then return #[]
-        else throwError "Unknown constant {id}"
+        if ← getIgnoreUnusableFactsM then
+          trace[duper.ignoredUnusableFacts] "Ignored {expr} ({id}) because it is an unknown constant"
+          return #[]
+        else
+          throwError "Unknown constant {id}"
     | .fvar exprFVarId =>
       match (← getLCtx).find? exprFVarId with
-      | some _ => return #[← elabFactAux stx]
+      | some _ =>
+        let ret ← elabFactAux stx
+        trace[duper.elabFact.debug] "Adding fvar {stx} as the following fact: {ret.1}"
+        return #[ret]
       | none => throwError "Unknown fvar {id}"
     | _ => throwError "Unknown identifier {id}"
-  | _ => return #[← elabFactAux stx]
+  | _ =>
+    let ret ← elabFactAux stx
+    trace[duper.elabFact.debug] "Adding {stx} as the following fact: {ret.1}"
+    return #[ret]
 where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
   -- elaborate term as much as possible and abstract any remaining mvars:
   Term.withoutModifyingElabMetaStateWithInfo <| withRef stx <| Term.withoutErrToSorry do
-    let e ← Term.elabTerm stx none
+    let stxWithAt ← `(term| @$stx)
+    let e ← Term.elabTerm stxWithAt none (implicitLambda := false)
     Term.synthesizeSyntheticMVars (postpone := .no) (ignoreStuckTC := true)
     let e ← instantiateMVars e
     let abstres ← Duper.abstractMVars e
@@ -152,7 +185,15 @@ def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Ar
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
         formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
-      else if ← getIgnoreUsableFactsM then
+      else if ← isDefEq (← inferType fact) (.sort 0) then
+        /- This check can succeed where the previous failed in instances where `fact`'s type is
+           a sort with an undetermined universe level. We try the previous check first to avoid
+           unnecessarily assigning metavariables in `fact`'s type (which the above `isDefEq` check
+           can do)-/
+        let fact ← preprocessFact (← instantiateMVars fact)
+        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
+      else if ← getIgnoreUnusableFactsM then
+        trace[duper.ignoredUnusableFacts] "Ignored {fact} ({factStx}) because it is not a Prop"
         continue
       else
         throwError "Invalid fact {factStx} for duper. Proposition expected"

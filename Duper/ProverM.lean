@@ -98,9 +98,6 @@ instance : AddMessageContext ProverM where
 @[inline] def ProverM.run' (x : ProverM α) (ctx : Context := {}) (s : State := {}) : MetaM α :=
   Prod.fst <$> x.run ctx s
 
-instance [MetaEval α] : MetaEval (ProverM α) :=
-  ⟨fun env opts x _ => MetaEval.eval env opts x.run' true⟩
-
 initialize
   registerTraceClass `duper.prover.saturate
   registerTraceClass `duper.createdClauses

@@ -131,7 +131,7 @@ def selectMaxLitComplex (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat)
     selectMaxLitComplex but uses the number of positive literals with a shared predicate symbol as a tiebreaker (preferring
     to select literals that share a predicate symbol with as few positive literals as possible). For this, specification, I
     am defining a predicate symbol as the top symbol for the lhs of a literal of the form `e = True` or `e = False`.
-    
+
     Note: According to "Extending a Brainiac Prover to Lambda-Free Higher-Order Logic", SelectMaxLComplexAvoidPosPred
     (aka SelectMLCAPP) should be have very similarly to E's SelectMLCAPPPreferAppVar and SelectMLCAPPAvoidAppVar. So
     it should be unnecessary to separately implement those two selection functions. -/
@@ -204,7 +204,7 @@ def selectMaxLitComplexAvoidPosPred (c : MClause) (alreadyReduced : Bool) : Rule
     literal of the form `e = True` or `e = False`). If there are multiple negative literals with the same largest predicate, then
     the size difference between the lit's lhs and rhs will be the tiebreaker (with larger size differences being preferred). -/
 def selectCQIPrecWNTNp (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) := do
-  let idxLitPairs := c.lits.mapIdx (fun idx l => (idx.1, l))
+  let idxLitPairs := c.lits.mapIdx (fun idx l => (idx, l))
   let idxPredPairs := idxLitPairs.filterMap
     (fun (idx, l) =>
       -- Since we only select negative literals, and since we need a predicate, the only form we allow `l` to have is `e = False`
@@ -217,10 +217,10 @@ def selectCQIPrecWNTNp (c : MClause) (alreadyReduced : Bool) : RuleM (List Nat) 
     )
   let symbolPrecMap ← getSymbolPrecMap -- Recall that low values in symbolPrecMap correspond to high precedence
   let idxPredPairsSorted := idxPredPairs.qsort -- Sorting so that highest precedence symbols will be first in idxPredPairsSorted
-    (fun (idx1, pred1Opt) (idx2, pred2Opt) =>
+    (fun (_idx1, pred1Opt) (_idx2, pred2Opt) =>
       match pred1Opt, pred2Opt with
       | some pred1, some pred2 =>
-        match symbolPrecMap.find? pred1, symbolPrecMap.find? pred2 with
+        match symbolPrecMap.get? pred1, symbolPrecMap.get? pred2 with
         | none, _ => false -- Never sort symbol not found in symbolPrecMap before anything else
         | some _, none => true -- Symbols found in symbolPrecMap are sorted before symbols found in symbolPrecMap
         | some prec1, some prec2 => prec1 < prec2 -- Low values in symbolPrecMap correspond to higher precedence
@@ -287,12 +287,12 @@ def litSelected (c : MClause) (i : Nat) (alreadyReduced : Bool) : RuleM Bool := 
   return sel.contains i
 
 /-- Data type to capture whether a literal in a clause is eligible.
-If it is not eligible, we distinguish the cases where there might 
+If it is not eligible, we distinguish the cases where there might
 be substitutions that make the literal eligble (`potentiallyEligible`)
 or not (`notEligible`).-/
-inductive Eligibility 
-  | eligible 
-  | potentiallyEligible 
+inductive Eligibility
+  | eligible
+  | potentiallyEligible
   | notEligible
 deriving Inhabited, BEq, Repr, Hashable
 
