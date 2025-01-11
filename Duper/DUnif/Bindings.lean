@@ -55,14 +55,14 @@ def iteration (F : Expr) (p : UnifProblem) (eq : UnifEq) (funcArgOnly : Bool) : 
         let mut lctx ← getLCtx
         for j in List.range i do
           let yty_ty ← Meta.mkFreshLevelMVar
-          let yty ← withReader (fun ctx : Meta.Context => { ctx with lctx := lctx }) do
+          let yty ← Meta.withLCtx' lctx do
             Meta.mkFreshExprMVar (mkSort yty_ty)
           let fvarId ← mkFreshFVarId
           lctx := lctx.mkLocalDecl fvarId s!"iter{i}.{j}".toName yty .default
           let fvar := mkFVar fvarId
           ys := ys.push fvar
         -- Make Gᵢs
-        let lastExpr ← withReader (fun ctx : Meta.Context => { ctx with lctx := lctx }) do
+        let lastExpr ← Meta.withLCtx' lctx do
           let (xys, _, _) ← Meta.forallMetaTelescopeReducing αi
           let body := mkAppN xi xys
           Meta.mkLambdaFVars ys body
