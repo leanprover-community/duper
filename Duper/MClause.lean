@@ -27,7 +27,7 @@ def appendLits (c : MClause) (lits : Array Lit) : MClause :=
   ⟨c.lits.append lits⟩
 
 def eraseLit (c : MClause) (idx : Nat) : MClause :=
-  ⟨c.lits.eraseIdx idx⟩
+  ⟨c.lits.eraseIdxIfInBounds idx⟩
 
 def replaceLit? (c : MClause) (idx : Nat) (l : Lit) : Option MClause :=
   if idx >= c.lits.size then
@@ -45,7 +45,7 @@ def mapWithPos (f : Expr → Expr × Array ExprPos) (c : MClause) : MClause × A
   let mapres := c.lits.map (fun l => l.mapWithPos f)
   let c' := ⟨mapres.map (fun x => x.fst)⟩
   let cps := mapres.mapIdx (fun i x => x.snd.map (fun pos => {pos with lit := i}))
-  (c', cps.concatMap id)
+  (c', cps.flatMap id)
 
 def mapMWithPos [Monad m] [MonadLiftT MetaM m] (f : Expr → m (Expr × Array ExprPos)) (c : MClause) : m (MClause × Array ClausePos) := do
   let mapres ← c.lits.mapM (fun l => l.mapMWithPos f)
@@ -112,7 +112,7 @@ def abstractAtPos! (c : MClause) (pos : ClausePos) : MetaM MClause := do
 
 def append (c : MClause) (d : MClause) : MClause := ⟨c.lits.append d.lits⟩
 
-def eraseIdx (i : Nat) (c : MClause) : MClause := ⟨c.lits.eraseIdx i⟩
+def eraseIdx (i : Nat) (c : MClause) : MClause := ⟨c.lits.eraseIdxIfInBounds i⟩
 
 def isTrivial (c : MClause) : Bool := Id.run do
   -- TODO: Also check if it contains the same literal positively and negatively?

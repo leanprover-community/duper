@@ -11,7 +11,7 @@ def List.subsequences (xs : List α) :=
 -- replace `whnf e` with `e`.
 private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) : MetaM Expr := do
   if h : i < ps.size then
-    let p := ps.get ⟨i, h⟩
+    let p := ps.get i h
     match e with
     | Expr.forallE _ _ b _ => instantiateForallAux ps (i+1) (b.instantiate1 p)
     | _                => throwError "invalid instantiateForallNoReducing, too many parameters"
@@ -20,7 +20,7 @@ private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) 
 
 private partial def instantiateForallAuxNoError (ps : Array Expr) (i : Nat) (e : Expr) : Expr :=
   if h : i < ps.size then
-    let p := ps.get ⟨i, h⟩
+    let p := ps.get i h
     match e with
     | Expr.forallE _ _ b _ => instantiateForallAuxNoError ps (i+1) (b.instantiate1 p)
     | _ => panic! "Called instantiateForallAuxNoError with too many parameters"
@@ -185,7 +185,7 @@ partial def getArity (e : Expr) : Nat :=
     `Meta.kabstract` invokes definitional equality, there were some instances in which `Meta.kabstract` performed
     an abstraction at a position where `RuleM.replace` would not perform a replacement. This was an issue because it
     created inconsistencies between the clauses produced by superposition's main code and proof reconstruction.
-    
+
     `abstractAtExpr` is written to follow the implementation of `Meta.kabstract` without invoking definitional equality
     (instead testing for equality after instantiating metavariables).  -/
 def Lean.Meta.abstractAtExpr (e : Expr) (p : Expr) (occs : Occurrences := .all) : MetaM Expr := do
