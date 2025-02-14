@@ -38,6 +38,11 @@ import Duper.Rules.FluidBoolHoist
 -- Type inhabitation reasoning rules
 import Duper.Util.TypeInhabitationReasoning
 
+register_option duper.maxSaturationTime : Nat := {
+  defValue := 500
+  descr := "Time limit for saturation procedure, in s"
+}
+
 namespace Duper
 
 namespace ProverM
@@ -53,11 +58,6 @@ initialize
   registerTraceClass `duper.timeout.debug.fullActiveSet
   registerTraceClass `duper.timeout.debug.fullPassiveSet
   registerTraceClass `duper.misc.debug
-
-register_option duper.maxSaturationTime : Nat := {
-  defValue := 500
-  descr := "Time limit for saturation procedure, in s"
-}
 
 def getMaxSaturationTime (opts : Options) : Nat :=
   duper.maxSaturationTime.get opts * 1000
