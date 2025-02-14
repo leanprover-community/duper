@@ -22,7 +22,7 @@ initialize
   registerTraceClass `duper.immediateSimplification.debug
   registerTraceClass `duper.typeInhabitationReasoning.debug
 
-inductive Result :=
+inductive Result where
 | unknown
 | saturated
 | contradiction
@@ -53,10 +53,13 @@ instance : ToMessageData Result :=
 | contradiction => "contradiction"⟩
 
 structure Context where
+  initHeartbeats : Nat
+  startTime : Nat
 deriving Inhabited
 
 structure State where
   instanceMaxHeartbeats : Nat := 0 -- Heartbeats allocated to current instance of duper (0 treated as unlimited)
+  iter : Nat := 0
   result : Result := unknown
   allClauses : Std.HashMap Clause ClauseInfo := {}
   activeSet : ClauseSet := {}
@@ -92,10 +95,10 @@ instance : AddMessageContext ProverM where
     let opts ← getOptions
     pure $ MessageData.withContext { env := env, mctx := {}, lctx := lctx, opts := opts } msgData
 
-@[inline] def ProverM.run (x : ProverM α) (ctx : Context := {}) (s : State := {}) : MetaM (α × State) :=
+@[inline] def ProverM.run (x : ProverM α) (ctx : Context) (s : State := {}) : MetaM (α × State) :=
   x ctx |>.run s
 
-@[inline] def ProverM.run' (x : ProverM α) (ctx : Context := {}) (s : State := {}) : MetaM α :=
+@[inline] def ProverM.run' (x : ProverM α) (ctx : Context) (s : State := {}) : MetaM α :=
   Prod.fst <$> x.run ctx s
 
 initialize
@@ -104,6 +107,9 @@ initialize
 
 def getInstanceMaxHeartbeats : ProverM Nat :=
   return (← get).instanceMaxHeartbeats
+
+def getIter : ProverM Nat :=
+  return (← get).iter
 
 def getResult : ProverM Result :=
   return (← get).result
@@ -172,6 +178,12 @@ def getEmptyClause : ProverM (Option Clause) :=
 
 def setInstanceMaxHeartbeats (instanceMaxHeartbeats : Nat) : ProverM Unit :=
   modify fun s => { s with instanceMaxHeartbeats := instanceMaxHeartbeats }
+
+def setIter (iter : Nat) : ProverM Unit :=
+  modify fun s => { s with iter := iter }
+
+def incrementIter : ProverM Unit :=
+  modify fun s => { s with iter := s.iter + 1 }
 
 def setResult (result : Result) : ProverM Unit :=
   modify fun s => { s with result := result }

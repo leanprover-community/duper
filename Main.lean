@@ -25,7 +25,8 @@ def runDuperOnTPTP (fileName : String) (formulas : List (Expr × Expr × Array N
         -- Add the constant `skolemSorry` to the environment
         let skSorryName ← addSkolemSorry
         let (_, state) ←
-          ProverM.runWithExprs (ctx := {}) (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
+          ProverM.runWithExprs (ctx := {startTime := ← IO.monoMsNow, initHeartbeats := ← getInitHeartbeats})
+            (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
             (ProverM.saturateNoPreprocessingClausification generateDatatypeExhaustivenessFacts)
             formulas
         pure state
