@@ -402,7 +402,7 @@ def runDuper (formulas : List (Expr × Expr × Array Name × Bool)) (instanceMax
         -- Add the constant `skolemSorry` to the environment
         let skSorryName ← addSkolemSorry
         let (_, state) ←
-          ProverM.runWithExprs (ctx := {startTime := ← IO.monoMsNow, initHeartbeats := ← getInitHeartbeats})
+          ProverM.runWithExprs (ctx := {startTime := ← IO.monoMsNow, initHeartbeats := ← IO.getNumHeartbeats})
             (s := {instanceMaxHeartbeats := instanceMaxHeartbeats, skolemSorryName := skSorryName})
             (ProverM.saturateNoPreprocessingClausification generateDatatypeExhaustivenessFacts)
             formulas
