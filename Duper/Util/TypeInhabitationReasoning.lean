@@ -4,6 +4,8 @@ import Duper.BackwardSimplification
 import Duper.Util.ProofReconstruction
 import Duper.Expr
 
+set_option linter.unusedVariables false
+
 namespace Duper
 
 namespace ProverM
@@ -335,7 +337,7 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)
   | NoChangeNotVacuous => return some (givenClause, true)
   | PotentiallyVacuous (c, cProof) =>
     removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated c
-    match (← getAllClauses).find? givenClause with
+    match (← getAllClauses)[givenClause]? with
     | some givenClauseInfo =>
       let generatingAncestors := givenClauseInfo.generatingAncestors
       let generationNumber := givenClauseInfo.generationNumber
@@ -346,7 +348,7 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)
     | none => throwError "givenClause {givenClause} was not found"
   | NotVacuous (c, cProof) =>
     removeClause givenClause -- It is important that we remove givenClause and its descendants before readding the newly generated c
-    match (← getAllClauses).find? givenClause with
+    match (← getAllClauses)[givenClause]? with
     | some givenClauseInfo =>
       let generatingAncestors := givenClauseInfo.generatingAncestors
       let generationNumber := givenClauseInfo.generationNumber
@@ -398,9 +400,9 @@ def deriveNewNonemptyTypesHelper (abstractedT : AbstractMVarsResult) (givenClaus
               let _ ← loadInhabitationClause c
               let _ ← loadInhabitationClause givenClause
               yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof2
-            match (← getAllClauses).find? givenClause with
+            match (← getAllClauses)[givenClause]? with
             | some givenClauseInfo =>
-              match (← getAllClauses).find? c with
+              match (← getAllClauses)[c]? with
               | some cInfo =>
                 let generatingAncestors := cInfo.generatingAncestors ++ givenClauseInfo.generatingAncestors
                 let generationNumber := givenClauseInfo.generationNumber
@@ -441,7 +443,7 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
         let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
           let _ ← loadInhabitationClause givenClause
           yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof1
-        match (← getAllClauses).find? givenClause with
+        match (← getAllClauses)[givenClause]? with
         | some givenClauseInfo =>
           let generatingAncestors := givenClauseInfo.generatingAncestors
           let generationNumber := givenClauseInfo.generationNumber
@@ -460,7 +462,7 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
             let _ ← loadInhabitationClause givenClause
             let _ ← loadInhabitationClause c
             yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof2
-          match (← getAllClauses).find? givenClause with
+          match (← getAllClauses)[givenClause]? with
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
             let generationNumber := givenClauseInfo.generationNumber
@@ -481,7 +483,7 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
               let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
                 let _ ← loadInhabitationClause givenClause
                 yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof1
-              match (← getAllClauses).find? givenClause with
+              match (← getAllClauses)[givenClause]? with
               | some givenClauseInfo =>
                 let generatingAncestors := givenClauseInfo.generatingAncestors
                 let generationNumber := givenClauseInfo.generationNumber
@@ -499,7 +501,7 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       let (t1NonemptyClause, t1NonemptyProof) ← runRuleM $ do
         let _ ← loadInhabitationClause givenClause
         yieldClause t1NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof3
-      match (← getAllClauses).find? givenClause with
+      match (← getAllClauses)[givenClause]? with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
@@ -513,7 +515,7 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
         let _ ← loadInhabitationClause givenClause
         yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof4
-      match (← getAllClauses).find? givenClause with
+      match (← getAllClauses)[givenClause]? with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
@@ -529,7 +531,7 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       let (t1NonemptyClause, t1NonemptyProof) ← runRuleM $ do
         let _ ← loadInhabitationClause givenClause
         yieldClause t1NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof5
-      match (← getAllClauses).find? givenClause with
+      match (← getAllClauses)[givenClause]? with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
@@ -543,7 +545,7 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       let (t2NonemptyClause, t2NonemptyProof) ← runRuleM $ do
         let _ ← loadInhabitationClause givenClause
         yieldClause t2NonemptyMClause "deriveNewNonemptyType" mkDeriveNewNonemptyTypeProof6
-      match (← getAllClauses).find? givenClause with
+      match (← getAllClauses)[givenClause]? with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
@@ -558,7 +560,7 @@ def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Cl
       let (originalTEqTrueClause, originalTEqTrueProof) ← runRuleM $ do
         let _ ← loadInhabitationClause givenClause
         yieldClause originalTEqTrueMClause "deriveFactFromNonempty" mkDeriveNewNonemptyTypeProof7
-      match (← getAllClauses).find? givenClause with
+      match (← getAllClauses)[givenClause]? with
       | some givenClauseInfo =>
         let generatingAncestors := givenClauseInfo.generatingAncestors
         let generationNumber := givenClauseInfo.generationNumber
@@ -599,7 +601,7 @@ def registerNewNonemptyTypes (givenClause : Clause) : ProverM Unit := do
           addToSimplifyingIndices c
         | PotentiallyVacuous (newC, newCProof) => -- Running removeVanishedVarsHelper generated a new clause that can directly be added to the passive set
           removeClause c -- We remove c and its descendants before readding newC to the passiveSet because newC makes c redundant
-          match (← getAllClauses).find? c with
+          match (← getAllClauses)[c]? with
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
             let generationNumber := givenClauseInfo.generationNumber
@@ -608,7 +610,7 @@ def registerNewNonemptyTypes (givenClause : Clause) : ProverM Unit := do
           | none => throwError "givenClause {givenClause} was not found"
         | NotVacuous (newC, newCProof) => -- Running removeVanishedVarsHelper generated a new clause that can directly be added to the passive set
           removeClause c -- We remove c and its descendants before readding newC to the passiveSet because newC makes c redundant
-          match (← getAllClauses).find? c with
+          match (← getAllClauses)[c]? with
           | some givenClauseInfo =>
             let generatingAncestors := givenClauseInfo.generatingAncestors
             let generationNumber := givenClauseInfo.generationNumber

@@ -33,16 +33,16 @@ where metaEtaAux (e : Expr) : MetaM (Option (MVarId × Expr × Array Nat)) :=
     if args.size != xs.size then
       return none
     -- hmap : Map from position in `xs` to argIdx of `head`
-    let xsMap := @HashMap.ofList Expr Nat inferInstance inferInstance
+    let xsMap := @Std.HashMap.ofList Expr Nat inferInstance inferInstance
       xs.zipWithIndex.toList
     let mut hmap : Array Nat := ⟨List.range xs.size⟩
-    let mut hset : HashSet Nat := {}
+    let mut hset : Std.HashSet Nat := {}
     for (arg, argIdx) in args.zipWithIndex do
-      let .some xsIdx := xsMap.find? arg
+      let .some xsIdx := xsMap[arg]?
         | return .none
       if hset.contains xsIdx then return .none
       hset := hset.insert xsIdx
-      hmap := hmap.setD xsIdx argIdx
+      hmap := hmap.setIfInBounds xsIdx argIdx
     let F ← Meta.mkFreshExprMVar (← Meta.inferType head)
     let F ← Meta.mkLambdaFVars xs F
     return .some (headId, F, hmap)

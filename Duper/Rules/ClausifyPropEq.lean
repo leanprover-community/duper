@@ -2,6 +2,8 @@ import Duper.RuleM
 import Duper.Selection
 import Duper.Util.ProofReconstruction
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open RuleM
 open Lean

@@ -4,6 +4,8 @@ import Duper.Util.Misc
 import Duper.Util.ProofReconstruction
 import Duper.Rules.FluidSup
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open RuleM
 open Lean

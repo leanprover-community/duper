@@ -3,6 +3,8 @@ import Duper.RuleM
 import Duper.MClause
 import Duper.Util.Misc
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open RuleM
 open Lean

@@ -6,6 +6,8 @@ import Duper.DUnif.UnifRules
 import Duper.Util.IdStrategyHeap
 import Duper.Util.AbstractMVars
 
+set_option linter.unusedVariables false
+
 namespace Duper
 
 namespace RuleM
@@ -162,13 +164,6 @@ def setState (s : State) : RuleM Unit :=
 def setSkolemMap (skmap : Std.HashMap Nat SkolemInfo) : RuleM Unit :=
   modify fun s => {s with skolemMap := skmap}
 
-def withoutModifyingMCtx (x : RuleM α) : RuleM α := do
-  let s ← getMCtx
-  try
-    x
-  finally
-    setMCtx s
-
 /-- Runs x and only modifes the MCtx if the first argument returned by x is true (on failure, does not modify MCtx) -/
 def conditionallyModifyingMCtx (x : RuleM (Bool × α)) : RuleM α := do
   let s ← getMCtx
@@ -177,6 +172,7 @@ def conditionallyModifyingMCtx (x : RuleM (Bool × α)) : RuleM α := do
     if shouldModifyMCtx then
       return res
     else
+      Meta.resetCache
       setMCtx s
       return res
   catch e =>
@@ -187,7 +183,7 @@ def conditionallyModifyingMCtx (x : RuleM (Bool × α)) : RuleM α := do
 def withoutModifyingLoadedClauses (x : RuleM α) : RuleM α := do
   let s ← getLoadedClauses
   try
-    withoutModifyingMCtx x
+    Meta.withoutModifyingMCtx x
   finally
     setLoadedClauses s
 
@@ -363,7 +359,7 @@ def neutralizeMClauseInhabitedReasoningOn (c : MClause) (loadedClauses : Array L
   let mut fvars := cst.fvars
   let mut erasedFVars := #[]
   for mvarId in mvarIdsToRemove do
-    let fvar := cst.emap.find! mvarId
+    let fvar := cst.emap[mvarId]!
     fvars := fvars.erase fvar
     erasedFVars := erasedFVars.push fvar
   -- `abstec = ∀ [fvars], concl[fvars] = ∀ [umvars], concl[umvars]`

@@ -1,5 +1,7 @@
 import Lean
 
+set_option linter.unusedVariables false
+
 axiom Iota : Type
 
 namespace TPTP
@@ -7,14 +9,14 @@ namespace TPTP
 namespace Tokenizer
 open Lean
 
-inductive Status :=
+inductive Status where
 | default
 | ident
 | string
 | comment
 deriving Repr, BEq
 
-inductive Token :=
+inductive Token where
 | op (op : String)
 | ident (ident : String)
 deriving Repr, Inhabited, BEq
@@ -34,11 +36,11 @@ def tokens := [
   "~", ",", "(", ")", "*", "!", "?", "^", ":", "[", "]", "!>", ".", "*"
 ] -- TODO: Add ?? and !!
 
-def tokenHashMap : HashSet String :=
-  HashSet.empty.insertMany tokens
+def tokenHashMap : Std.HashSet String :=
+  Std.HashSet.empty.insertMany tokens
 
-def tokenPrefixes : HashSet String :=
-  HashSet.empty.insertMany $ tokens.bind (fun t => Id.run do
+def tokenPrefixes : Std.HashSet String :=
+  Std.HashSet.empty.insertMany $ tokens.flatMap (fun t => Id.run do
     let mut res := []
     let mut pref := ""
     for c in t.data do
@@ -487,7 +489,7 @@ def compileCmds (cmds : List Parser.Command) (acc : Formulas) (k : Formulas → 
   | [] => k acc
 
 /-- Collect all constants (lower case variables) since these are not explicitly declared in FOF and CNF format. -/
-partial def collectConstantsOfCmd (topLevel : Bool) (acc : HashMap String Expr) (t : Parser.Term): MetaM (HashMap String Expr) := do
+partial def collectConstantsOfCmd (topLevel : Bool) (acc : Std.HashMap String Expr) (t : Parser.Term): MetaM (Std.HashMap String Expr) := do
   match t with
   | ⟨.ident n, as⟩ => do
     let acc ← as.foldlM (collectConstantsOfCmd false) acc
@@ -516,15 +518,14 @@ partial def collectConstantsOfCmd (topLevel : Bool) (acc : HashMap String Expr) 
     as.foldlM (collectConstantsOfCmd false) acc
   | _ => throwError "Failed to collect constants: {repr t}"
 
-def collectCnfFofConstants (cmds : List Parser.Command) : MetaM (HashMap String Expr) := do
-  let mut acc := HashMap.empty
+def collectCnfFofConstants (cmds : List Parser.Command) : MetaM (Std.HashMap String Expr) := do
+  let mut acc := Std.HashMap.empty
   for cmd in cmds do
     match cmd with
     | ⟨"cnf", [_, _, val]⟩ | ⟨"fof", [_, _, val]⟩ =>
       acc ← collectConstantsOfCmd true acc val
     | _ => pure ()
   return acc
-
 
 def compile [Inhabited α] (code : String) (dir : System.FilePath) (k : Formulas → MetaM α) : MetaM α := do
   let cmds ← Parser.parse code

@@ -35,7 +35,7 @@ def runDuperOnTPTP (fileName : String) (formulas : List (Expr × Expr × Array N
   | Result.saturated => IO.println s!"SZS status GaveUp for {fileName}"
   | Result.unknown => IO.println s!"SZS status Timeout for {fileName}"
 
-def run (path : String) (github : Bool) : MetaM Unit := do
+def run (path : String) (_github : Bool) : MetaM Unit := do
   let env ← getEnv
   let opts ← getOptions
   let prop := mkSort levelZero

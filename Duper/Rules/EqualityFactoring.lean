@@ -4,6 +4,8 @@ import Duper.Clause
 import Duper.Util.ProofReconstruction
 import Duper.Selection
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open Lean
 open Meta

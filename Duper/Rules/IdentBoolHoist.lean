@@ -3,6 +3,8 @@ import Duper.RuleM
 import Duper.Simp
 import Duper.Util.ProofReconstruction
 
+set_option linter.unusedVariables false
+
 -- LoobHoist          BoolHoist
 --             C<u>
 -- -----------------------------

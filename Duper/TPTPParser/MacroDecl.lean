@@ -1,6 +1,8 @@
 import Lean
 import Duper.TPTPParser.SyntaxDecl
 
+set_option linter.unusedVariables false
+
 open Lean
 open Lean.Parser
 open TSyntax.Compat
@@ -33,7 +35,7 @@ def processThfDefinedTerm (term : Syntax) : MacroM Syntax := do
     | `i => `(TPTP.iota)
     | `o => `(Prop)
     | _ => Macro.throwError s!"Unsupported thf_defined_term: {term}"
-  | _ => Macro.throwError s!"{term} is not a defined term" 
+  | _ => Macro.throwError s!"{term} is not a defined term"
 
 partial def processThfAtomicType (stx : Syntax) : MacroM Syntax := do
   match stx with
@@ -232,8 +234,8 @@ partial def processCnfTerm (stx : Syntax) : MacroM Syntax := do
     of the symbol in the overall formula.
 
     The topType argument is used to keep track of what the overall type of stx is supposed to be. -/
-partial def getNonVarSymbols (acc : HashMap String (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `thf_type)
-  (stx : Syntax) : MacroM (HashMap String (TSyntax `TPTP.explicitBinder)) := do
+partial def getNonVarSymbols (acc : Std.HashMap String (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `thf_type)
+  (stx : Syntax) : MacroM (Std.HashMap String (TSyntax `TPTP.explicitBinder)) := do
   match stx with
   | `(thf_term|🍉$id:ident) => return acc
   | `(thf_term| ( $t:thf_term )) => getNonVarSymbols acc topType t
@@ -286,7 +288,7 @@ partial def getNonVarSymbols (acc : HashMap String (TSyntax `TPTP.explicitBinder
   | _ => Macro.throwError s!"Unsupported cnf/fof term: {stx}"
 
 macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
-  let mut symtab : HashMap String (TSyntax `TPTP.explicitBinder) := HashMap.empty
+  let mut symtab : Std.HashMap String (TSyntax `TPTP.explicitBinder) := Std.HashMap.empty
   let sargs := s.raw[0].getArgs
   for input in sargs do
     match input with

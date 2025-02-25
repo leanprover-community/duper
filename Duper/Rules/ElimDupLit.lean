@@ -1,6 +1,8 @@
 import Duper.Simp
 import Duper.Util.ProofReconstruction
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open RuleM
 open SimpResult
@@ -40,12 +42,12 @@ def elimDupLit : MSimpRule := fun c => do
   let mut newLits : Array Lit := Array.mkEmpty c.lits.size
   let mut refs : Array (Nat × Bool) := Array.mkEmpty c.lits.size
   for i in [:c.lits.size] do
-    match newLits.getIdx? c.lits[i]! with
+    match newLits.indexOf? c.lits[i]! with
     | some j => do
       trace[duper.rule.elimDupLit] "Accessed nonsymmetry case"
       refs := refs.push (j, false) -- j is index of duplicate lit, false indicates the literal is not flipped
     | none => do
-      match newLits.getIdx? (c.lits[i]!.symm) with
+      match newLits.indexOf? (c.lits[i]!.symm) with
       | some j => do
         trace[duper.rule.elimDupLit] "Accessed symmetry case"
         refs := refs.push (j, true) -- j is index of duplicate lit, false indicates the literal is flipped

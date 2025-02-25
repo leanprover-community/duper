@@ -2,6 +2,8 @@ import Lean
 import Duper.RuleM
 import Duper.Selection
 
+set_option linter.unusedVariables false
+
 namespace Duper
 
 open Lean

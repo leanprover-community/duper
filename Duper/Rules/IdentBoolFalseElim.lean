@@ -1,6 +1,8 @@
 import Duper.Simp
 import Duper.Util.ProofReconstruction
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open RuleM
 open SimpResult
@@ -53,8 +55,8 @@ def mkIdentBoolFalseElimProof (refs : List (Option Nat)) (premises : List Expr) 
     let proof ← orCases (parentLits.map Lit.toExpr) proofCases
     Meta.mkLambdaFVars xs $ mkApp proof appliedPremise
 
-/-- Eliminate literals that are exactly of the form `false = true` or `true = false`. 
-    This is a special case of the boolFalseElim inference rule in which σ is the identity. 
+/-- Eliminate literals that are exactly of the form `false = true` or `true = false`.
+    This is a special case of the boolFalseElim inference rule in which σ is the identity.
     This rule is included as a means of giving Bools special attention. -/
 def identBoolFalseElim : MSimpRule := fun c => do
   let c ← loadClause c

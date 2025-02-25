@@ -6,6 +6,8 @@ import Duper.Util.Misc
 import Duper.Expr
 open Lean
 
+set_option linter.unusedVariables false
+
 -- TODO
 -- 1: How to deal with `mdata`?
 -- 2: Find out whether we need to consider metavariables of
@@ -141,7 +143,7 @@ def derefNormProblem (p : UnifProblem) : MetaM UnifProblem := do
   setMCtx p.mctx
   let mut p := p
   if ¬ p.prioritized.isEmpty then
-    let top := p.prioritized.back
+    let top := p.prioritized.back!
     let pr' := p.prioritized.pop
     let checked ← derefNormEq top
     return {p with prioritized := pr'.push checked, mctx := ← getMCtx, checked := false}
@@ -384,7 +386,7 @@ def UnifierGenerator.fromExprPairs (l : Array (Expr × Expr)) (cfg : Config := �
   let q := Std.Queue.empty
   let unifPrb ← UnifProblem.fromExprPairs l
   if let some prb := unifPrb then
-    let prb ← (← prb.pushParentClauseIfDbgOn 0).pushTrackedExprIfDbgOn (l.concatMap (fun (e1, e2) => #[e1, e2]))
+    let prb ← (← prb.pushParentClauseIfDbgOn 0).pushTrackedExprIfDbgOn (l.flatMap (fun (e1, e2) => #[e1, e2]))
     return ⟨q.enqueue (.Problem prb), 1, cfg⟩
   else
     return ⟨q, 0, cfg⟩
@@ -395,7 +397,7 @@ def UnifierGenerator.fromExprPairs (l : Array (Expr × Expr)) (cfg : Config := �
 def UnifierGenerator.acceptExprPairs (l : Array (Expr × Expr)) (ug : UnifierGenerator) : MetaM UnifierGenerator := do
   let unifPrb ← UnifProblem.fromExprPairs l
   if let some prb := unifPrb then
-    let prb ← (← prb.pushParentClauseIfDbgOn 0).pushTrackedExprIfDbgOn (l.concatMap (fun (e1, e2) => #[e1, e2]))
+    let prb ← (← prb.pushParentClauseIfDbgOn 0).pushTrackedExprIfDbgOn (l.flatMap (fun (e1, e2) => #[e1, e2]))
     return {ug with q := ug.q.enqueue (.Problem prb)}
   else
     return ug

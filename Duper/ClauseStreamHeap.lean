@@ -5,15 +5,12 @@ import Duper.DUnif.UnifRules
 import Duper.ProverM
 import Lean
 
--- The reason we need `ProverM` here is because we need to calculate
--- the penalty of each clause.
-
-open Lean
-open Std
+set_option linter.unusedVariables false
 
 namespace Duper
-open ProverM
-open RuleM
+open Lean Std ProverM RuleM
+-- The reason we need `ProverM` here is because we need to calculate
+-- the penalty of each clause.
 
 def kFair := 70
 def kBest := 3

@@ -2,6 +2,8 @@ import Duper.Simp
 import Duper.Util.ProofReconstruction
 import Lean.Meta.Basic
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open RuleM
 open SimpResult

@@ -3,10 +3,7 @@ import Duper.Util.ClauseSubsumptionCheck
 
 namespace Duper
 
-open Lean
-open RuleM
-open Meta
-open SimpResult
+open Lean Meta RuleM SimpResult
 
 initialize Lean.registerTraceClass `duper.rule.clauseSubsumption
 
