@@ -4,6 +4,8 @@ import Duper.Order
 import Duper.MClause
 import Duper.Expr
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open Lean
 

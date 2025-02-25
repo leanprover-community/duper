@@ -95,6 +95,7 @@ private def Lean.withoutModifyingMCtx (x : MetaM α) : MetaM α := do
     setMCtx s
 
 partial def Lean.Meta.findInstance (ty : Expr) : MetaM (Option Expr) := do
+  Core.checkSystem "Lean.Meta.findInstance"
   let ty ← instantiateMVars ty
   forallTelescope ty fun xs ty' => do
     let u ← (do
@@ -163,13 +164,13 @@ where
       return optExpr
   findInstanceForUninstantiatedMVars (prf : Expr) (fvars : Array Expr) : MetaM Bool := do
     let mvars ← Meta.getMVars prf
-    let mut fvarMap : HashMap Expr Expr := HashMap.empty
+    let mut fvarMap : Std.HashMap Expr Expr := Std.HashMap.empty
     for fvar in fvars do
       fvarMap := fvarMap.insert (← Meta.inferType fvar) fvar
     for mvarId in mvars do
       if ! (← mvarId.isReadOnly) then
         let mvarTy ← Lean.instantiateMVars (← Meta.inferType (mkMVar mvarId))
-        if let some e := fvarMap.find? mvarTy then
+        if let some e := fvarMap[mvarTy]? then
           mvarId.assign e
         else
           return false

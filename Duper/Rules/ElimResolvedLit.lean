@@ -1,6 +1,8 @@
 import Duper.Simp
 import Duper.Util.ProofReconstruction
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open Std
 open RuleM

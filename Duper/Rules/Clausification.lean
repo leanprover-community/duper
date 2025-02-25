@@ -5,6 +5,8 @@ import Duper.Util.ProofReconstruction
 import Duper.Util.Misc
 import Duper.Util.AbstractMVars
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open Lean
 open RuleM

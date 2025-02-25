@@ -1,6 +1,8 @@
 import Lean
 import Duper.Saturate
 
+set_option linter.unusedVariables false
+
 open Lean
 open Lean.Meta
 open Duper

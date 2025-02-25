@@ -266,7 +266,7 @@ end Lit
 -- associated with a proof `p`.
 -- !!!!!!!!!!!!!!!!! We keep an invariant !!!!!!!!!!!!!!!!
 --               `p : c.toForallExpr`
-structure Clause :=
+structure Clause where
 (paramNames : Array Name)
 (bVarTypes : Array Expr)
 (lits : Array Lit)

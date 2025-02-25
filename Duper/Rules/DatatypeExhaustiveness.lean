@@ -1,6 +1,8 @@
 import Duper.RuleM
 import Duper.Util.ProofReconstruction
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open ProverM RuleM Lean Meta
 

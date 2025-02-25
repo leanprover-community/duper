@@ -1,5 +1,7 @@
 import Lean
 
+set_option linter.unusedVariables false
+
 namespace Duper
 
 /-- Positions in an expression: Counting argument numbers from the right
@@ -203,7 +205,7 @@ private partial def replaceGreenWithPosHelper [Monad m] [MonadLiftT MetaM m] (tâ
         let len := rets.size
         let args := rets.map (fun x => x.fst)
         let poses := rets.mapIdx (fun i poses => poses.snd.map (fun pos => pos.push (len - 1 - i)))
-        return (mkAppN f args, poses.concatMap id)
+        return (mkAppN f args, poses.flatMap id)
       else
         return (e, #[])
     | .forallE name t b bi =>

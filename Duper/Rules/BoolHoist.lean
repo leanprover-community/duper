@@ -4,6 +4,8 @@ import Duper.Simp
 import Duper.Util.ProofReconstruction
 import Duper.Rules.IdentBoolHoist
 
+set_option linter.unusedVariables false
+
 namespace Duper
 open Lean
 open RuleM

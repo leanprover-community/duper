@@ -20,7 +20,7 @@ abbrev OptionMStream m [Monad m] stream value := MStream m stream (Option value)
 --   each stream a `id`.
 structure IdStrategyHeap (σ : Type w) {β : Type v} where
   -- Map of `id` to clause heap
-  map            : HashMap Nat (Array Nat × σ) := HashMap.empty
+  map            : Std.HashMap Nat (Array Nat × σ) := Std.HashMap.empty
   -- The first `Nat` is the precedence, and the second `Nat` is the `id`
   heaps          : Array (BinomialHeap (Nat × Nat) fun c d => c.1 ≤ d.1) := #[]
   nextId         : Nat
@@ -48,7 +48,7 @@ private partial def IdStrategyHeap.deleteMinFrom
     | some (σ', heap') =>
       let Q' := {oh with heaps := oh.heaps.set! n heap'}
       let id := σ'.2
-      if let some res := oh.map.find? id then
+      if let some res := oh.map[id]? then
         some (res, Q'.erase id)
       else
         Q'.deleteMinFrom n
@@ -74,7 +74,7 @@ private def IdStrategyHeap.insert
 -- This is put here because `ProverM` needs it
 
 structure ClauseStreamHeapStatus where
-  nProbed : HashMap Nat Nat := HashMap.empty
+  nProbed : Std.HashMap Nat Nat := Std.HashMap.empty
   fairnessCounter : Nat     := 0
 
 def ClauseStreamHeapStatus.insertNProbed (cshs : ClauseStreamHeapStatus)
@@ -96,8 +96,8 @@ abbrev ClauseStreamHeap σ := IdStrategyHeap σ (β:=ClauseStreamHeapStatus)
   { Q with status := {Q.status with fairnessCounter := Q.status.fairnessCounter + 1}}
 
 abbrev ClauseStreamHeap.empty σ : ClauseStreamHeap σ :=
-  { map := HashMap.empty, heaps := #[BinomialHeap.empty, BinomialHeap.empty],
-    nextId := 0, status := ⟨HashMap.empty, 0⟩ }
+  { map := Std.HashMap.empty, heaps := #[BinomialHeap.empty, BinomialHeap.empty],
+    nextId := 0, status := ⟨Std.HashMap.empty, 0⟩ }
 
 @[inline] def ClauseStreamHeap.insertWithNProbed
   (csh : ClauseStreamHeap σ) (x : σ) (ns : Array Nat) (nProbed : Nat) : ClauseStreamHeap σ :=
@@ -126,8 +126,8 @@ abbrev ClauseStreamHeap.empty σ : ClauseStreamHeap σ :=
       if let some (σ', heap') := heap.deleteMin then
         heap := heap'
         let id := σ'.2
-        if let some res := oh.map.find? id then
-          let nProbed := oh.status.nProbed.find! id
+        if let some res := oh.map[id]? then
+          let nProbed := oh.status.nProbed[id]!
           let Q' := {oh with heaps := oh.heaps.set! n heap'}
           return some ((nProbed, res), ClauseStreamHeap.eraseWithNProbed Q' id)
         else

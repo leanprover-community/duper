@@ -3,6 +3,8 @@ import Duper.Selection
 import Duper.Util.ProofReconstruction
 import Duper.Util.Misc
 
+set_option linter.unusedVariables false
+
 namespace Duper
 
 open Lean

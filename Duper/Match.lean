@@ -1,6 +1,8 @@
 import Lean
 import Duper.Util.Reduction
 
+set_option linter.unusedVariables false
+
 open Lean Lean.Meta Duper
 
 initialize Lean.registerTraceClass `duper.match.debug

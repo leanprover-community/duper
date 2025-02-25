@@ -1,5 +1,7 @@
 import Lean
 
+set_option linter.unusedVariables false
+
 open Lean
 open Lean.Meta
 

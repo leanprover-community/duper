@@ -3,8 +3,7 @@ import Duper.RuleM
 import Duper.MClause
 
 namespace Duper
-open RuleM
-open ProverM
+open Lean Meta RuleM ProverM
 
 inductive SimpResult (α : Type)
 | Applied (c : α) : SimpResult α

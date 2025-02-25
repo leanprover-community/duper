@@ -38,6 +38,11 @@ import Duper.Rules.FluidBoolHoist
 -- Type inhabitation reasoning rules
 import Duper.Util.TypeInhabitationReasoning
 
+register_option duper.maxSaturationTime : Nat := {
+  defValue := 500
+  descr := "Time limit for saturation procedure, in s"
+}
+
 namespace Duper
 
 namespace ProverM
@@ -53,6 +58,81 @@ initialize
   registerTraceClass `duper.timeout.debug.fullActiveSet
   registerTraceClass `duper.timeout.debug.fullPassiveSet
   registerTraceClass `duper.misc.debug
+
+def getMaxSaturationTime (opts : Options) : Nat :=
+  duper.maxSaturationTime.get opts * 1000
+
+def logSaturationTimeout (max : Nat) : CoreM Unit := do
+  let msg := s!"Saturation procedure timed out, maximum time {max / 1000}s has been reached"
+  logInfo msg
+
+def checkSaturationTimeout (startTime : Nat) : CoreM Bool := do
+  let currentTime ← IO.monoMsNow
+  let opts ← getOptions
+  let max := getMaxSaturationTime opts
+  if currentTime - startTime > max then
+    logSaturationTimeout max
+    return true
+  else
+    return false
+
+register_option maxSaturationIteration : Nat := {
+  defValue := 500000
+  descr := "Limit for number of iterations in the saturation loop"
+}
+
+def getMaxSaturationIteration (opts : Options) : Nat :=
+  maxSaturationIteration.get opts
+
+/-- Used to check that the current instance of duper does not exceed the number of iterations allocated to it. -/
+def checkSaturationIterout (iter : Nat) : CoreM Bool := do
+  let opts ← getOptions
+  let maxiter := getMaxSaturationIteration opts
+  return iter > maxiter
+
+/-- Used to check that the current instance of duper does not exceed the number of heartbeats allocated to it (which
+    may be less than the overall tactic's max heartbeats if duper is running in portfolio mode). Returns true if this
+    duper instance has exceeded its instance heartbeat allocation. -/
+def checkInstanceMaxHeartbeats (initHeartbeats : Nat) (instanceMaxHeartBeats : Nat) : ProverM Bool := do
+  if instanceMaxHeartBeats != 0 then -- Treat instanceMaxHeartBeats = 0 as all remaining heartbeats allocated to the current instance
+    let numHeartbeats ← IO.getNumHeartbeats
+    return numHeartbeats - initHeartbeats ≥ instanceMaxHeartBeats
+  else
+    return false
+
+/-- Throws an error if duper has exceeded the total allowed max heartbeats, and returns true if duper has exeeded the max heartbeats
+    or max iterations for this instance of duper. Returns false if neither of these are the case and duper may proceed-/
+def checkSaturationTerminationCriterion : ProverM Bool := do
+  let iter := (← get).iter
+  let initHeartbeats := (← read).initHeartbeats
+  let startTime := (← read).startTime
+  -- Check whether duper's overall maxheartbeat has been reached
+  Core.checkSystem "saturate"
+  -- Check whether the hearbeats allocated to this instance of duper (in portfolio mode) has been reached
+  let check1 ← checkInstanceMaxHeartbeats initHeartbeats (← getInstanceMaxHeartbeats)
+  -- Check whether maxiteration has been reached
+  let check2 ← checkSaturationIterout iter
+  -- Check whether the timeout has been reached
+  let check3 ← checkSaturationTimeout startTime
+  return check1 || check2 || check3
+
+def printTimeoutDebugStatements : ProverM Unit := do
+  trace[duper.timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
+  trace[duper.timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
+  trace[duper.timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
+  trace[duper.timeout.debug] m!"Active set unit clause numbers: " ++
+    m!"{← ((← getActiveSet).toArray.filter (fun x => x.lits.size = 1)).mapM (fun c => return (← getClauseInfo! c).number)}"
+  trace[duper.timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
+  trace[duper.timeout.debug] "Verified Inhabited Types: {(← getVerifiedInhabitedTypes).map (fun x => x.expr)}"
+  trace[duper.timeout.debug] "Verified Nonempty Types: {(← getVerifiedNonemptyTypes).map (fun x => x.1.expr)}"
+  trace[duper.timeout.debug] "Potentially Uninhabited Types: {(← getPotentiallyUninhabitedTypes).map (fun x => x.expr)}"
+  trace[duper.timeout.debug] "Potentially Vacuous Clauses: {(← getPotentiallyVacuousClauses).toArray}"
+  trace[duper.timeout.debug.fullActiveSet] m!"Active set numbers: " ++
+    m!"{← ((← getActiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
+  trace[duper.timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
+  trace[duper.timeout.debug.fullPassiveSet] m!"Passive set numbers: " ++
+    m!"{← ((← getPassiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
+  trace[duper.timeout.debug.fullPassiveSet] "Active set: {(← getPassiveSet).toArray}"
 
 open SimpResult
 
@@ -157,7 +237,7 @@ def applyForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) :
     clause can safely be used to simplify away other clauses. -/
 partial def forwardSimplify (givenClause : Clause) : ProverM (Option (Clause × Bool)) := do
   trace[duper.prover.saturate] "forward simplifying {givenClause}"
-  Core.checkMaxHeartbeats "forwardSimpLoop"
+  Core.checkSystem "forwardSimpLoop"
   let activeSet ← getActiveSet
   if activeSet.contains givenClause then return none
   if ← getInhabitationReasoningM then
@@ -174,89 +254,13 @@ partial def forwardSimplify (givenClause : Clause) : ProverM (Option (Clause × 
     | Unapplicable => return some (givenClause, true) -- When inhabitation reasoning is disabled, assume all types are nonempty
     | Removed => return none
 
-register_option maxSaturationTime : Nat := {
-  defValue := 500
-  descr := "Time limit for saturation procedure, in s"
-}
-
-def getMaxSaturationTime (opts : Options) : Nat :=
-  maxSaturationTime.get opts * 1000
-
-def logSaturationTimeout (max : Nat) : CoreM Unit := do
-  let msg := s!"Saturation procedure timed out, maximum time {max / 1000}s has been reached"
-  logInfo msg
-
-def checkSaturationTimeout (startTime : Nat) : CoreM Unit := do
-  let currentTime ← IO.monoMsNow
-  let opts ← getOptions
-  let max := getMaxSaturationTime opts
-  if currentTime - startTime > max then
-    logSaturationTimeout max
-
-register_option maxSaturationIteration : Nat := {
-  defValue := 500000
-  descr := "Limit for number of iterations in the saturation loop"
-}
-
-def getMaxSaturationIteration (opts : Options) : Nat :=
-  maxSaturationIteration.get opts
-
-/-- Used to check that the current instance of duper does not exceed the number of iterations allocated to it. -/
-def checkSaturationIterout (iter : Nat) : CoreM Bool := do
-  let opts ← getOptions
-  let maxiter := getMaxSaturationIteration opts
-  return iter > maxiter
-
-/-- Used to check that the current instance of duper does not exceed the number of heartbeats allocated to it (which
-    may be less than the overall tactic's max heartbeats if duper is running in portfolio mode). Returns true if this
-    duper instance has exceeded its instance heartbeat allocation. -/
-def checkInstanceMaxHeartbeats (initHeartbeats : Nat) (instanceMaxHeartBeats : Nat) : ProverM Bool := do
-  if instanceMaxHeartBeats != 0 then -- Treat instanceMaxHeartBeats = 0 as all remaining heartbeats allocated to the current instance
-    let numHeartbeats ← IO.getNumHeartbeats
-    return numHeartbeats - initHeartbeats ≥ instanceMaxHeartBeats
-  else
-    return false
-
-/-- Throws an error if duper has exceeded the total allowed max heartbeats, and returns true if duper has exeeded the max heartbeats
-    or max iterations for this instance of duper. Returns false if neither of these are the case and duper may proceed-/
-def checkSaturationTerminationCriterion (iter : Nat) (initHeartbeats : Nat) : ProverM Bool := do
-  -- Check whether duper's overall maxheartbeat has been reached
-  Core.checkMaxHeartbeats "saturate"
-  -- Check whether the hearbeats allocated to this instance of duper (in portfolio mode) has been reached
-  let check1 ← checkInstanceMaxHeartbeats initHeartbeats (← getInstanceMaxHeartbeats)
-  -- Check whether maxiteration has been reached
-  let check2 ← checkSaturationIterout iter
-  return check1 || check2
-
-def printTimeoutDebugStatements (startTime : Nat) : ProverM Unit := do
-  checkSaturationTimeout startTime
-  trace[duper.timeout.debug] "Size of active set: {(← getActiveSet).toArray.size}"
-  trace[duper.timeout.debug] "Size of passive set: {(← getPassiveSet).toArray.size}"
-  trace[duper.timeout.debug] "Number of total clauses: {(← getAllClauses).toArray.size}"
-  trace[duper.timeout.debug] m!"Active set unit clause numbers: " ++
-    m!"{← ((← getActiveSet).toArray.filter (fun x => x.lits.size = 1)).mapM (fun c => return (← getClauseInfo! c).number)}"
-  trace[duper.timeout.debug] "Active set unit clauses: {(← getActiveSet).toArray.filter (fun x => x.lits.size = 1)}"
-  trace[duper.timeout.debug] "Verified Inhabited Types: {(← getVerifiedInhabitedTypes).map (fun x => x.expr)}"
-  trace[duper.timeout.debug] "Verified Nonempty Types: {(← getVerifiedNonemptyTypes).map (fun x => x.1.expr)}"
-  trace[duper.timeout.debug] "Potentially Uninhabited Types: {(← getPotentiallyUninhabitedTypes).map (fun x => x.expr)}"
-  trace[duper.timeout.debug] "Potentially Vacuous Clauses: {(← getPotentiallyVacuousClauses).toArray}"
-  trace[duper.timeout.debug.fullActiveSet] m!"Active set numbers: " ++
-    m!"{← ((← getActiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
-  trace[duper.timeout.debug.fullActiveSet] "Active set: {(← getActiveSet).toArray}"
-  trace[duper.timeout.debug.fullPassiveSet] m!"Passive set numbers: " ++
-    m!"{← ((← getPassiveSet).toArray.mapM (fun c => return (← getClauseInfo! c).number))}"
-  trace[duper.timeout.debug.fullPassiveSet] "Active set: {(← getPassiveSet).toArray}"
-
 partial def saturate : ProverM Unit := do
-  let startTime ← IO.monoMsNow
-  let initHeartbeats ← IO.getNumHeartbeats
   Core.withCurrHeartbeats $ try
-    let mut iter := 0
     while true do
-      iter := iter + 1
+      incrementIter
       -- Check whether this duper instance has exceeded its allocated heartbeat or iteration limit (and return if so)
-      if ← checkSaturationTerminationCriterion iter initHeartbeats then
-        printTimeoutDebugStatements startTime
+      if ← checkSaturationTerminationCriterion then
+        printTimeoutDebugStatements
         setResult ProverM.Result.unknown -- Instance forced to terminate prior to reaching saturation or proving the goal
         return
       -- If the passive set is empty
@@ -296,7 +300,7 @@ partial def saturate : ProverM Unit := do
       setResult ProverM.Result.contradiction
       return
     | e =>
-      printTimeoutDebugStatements startTime
+      printTimeoutDebugStatements
       throw e
 
 /-- Note: This definition is outdated (does not support datatype exhaustiveness reasoning). See `saturateNoPreprocessingClausification`

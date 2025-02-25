@@ -1,5 +1,7 @@
 import Duper.RuleM
 
+set_option linter.unusedVariables false
+
 namespace Duper
 
 open Lean
@@ -33,7 +35,7 @@ def litsMatch (l1 : Lit) (l2 : Lit) (protectedMVarIds : Array MVarId) : RuleM (O
 
     Additionally, litInClause is not allowed to return any Nat that is part of the exclude set. This is to prevent instances in which multiple
     literals in the subsumingClause all map onto the same literal in the subsumedClause. -/
-def litInClause (l : Lit) (c : MClause) (cMVarIds : Array MVarId) (exclude : HashSet Nat) (startIdx : Nat) : RuleM (Option (Nat × Bool)) := do
+def litInClause (l : Lit) (c : MClause) (cMVarIds : Array MVarId) (exclude : Std.HashSet Nat) (startIdx : Nat) : RuleM (Option (Nat × Bool)) := do
   for i in [startIdx:c.lits.size] do
     if exclude.contains i then
       continue
@@ -60,11 +62,11 @@ def litInClause (l : Lit) (c : MClause) (cMVarIds : Array MVarId) (exclude : Has
     The argument exclude contains a set of Nats that cannot be mapped to (so that injectivity is preserved). The argument fstStart is provided
     to facilitate backtracking. The argument assignment is used to build the final result described above, and the argument assignmentIsFlipped
     is used to indicate whether the match indicated by assignment needed to be flipped or not.
-    
+
     subsumptionCheckHelper is defined as a partialDef, but should always terminate because every recursive call either makes subsumingClauseLits
     smaller or makes fstStart bigger (and once fstStart exceeds the size of subsumedClauseLits.lits, litInClause is certain to fail) -/
 partial def subsumptionCheckHelper (subsumingClauseLits : List Lit) (subsumedClauseLits : MClause) (subsumedClauseMVarIds : Array MVarId)
-  (exclude : HashSet Nat) (assignment : List (Nat × Bool)) (fstStart := 0) : RuleM (Option (List (Nat × Bool))) := do
+  (exclude : Std.HashSet Nat) (assignment : List (Nat × Bool)) (fstStart := 0) : RuleM (Option (List (Nat × Bool))) := do
   match subsumingClauseLits with
   | List.nil => return some assignment
   | l :: restSubsumingClauseLits =>

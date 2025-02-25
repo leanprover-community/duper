@@ -3,6 +3,8 @@ import Duper.Util.MessageData
 import Duper.Util.LazyList
 open Lean
 
+set_option linter.unusedVariables false
+
 namespace DUnif
 
 initialize Lean.registerTraceClass `duper.dUnif.debug
@@ -153,9 +155,9 @@ structure UnifProblem where
   checked    : Bool         := false
   mctx       : MetavarContext
   -- Identification variables
-  identVar   : HashSet Expr := HashSet.empty
+  identVar   : Std.HashSet Expr := Std.HashSet.empty
   -- Elimivarion variables
-  elimVar    : HashSet Expr := HashSet.empty
+  elimVar    : Std.HashSet Expr := Std.HashSet.empty
   -- PersistentArray of parent rules, for debugging
   parentRules: PersistentArray ParentRule
   -- PersistentArray of parent clauses (including itself), for debugging
@@ -273,21 +275,21 @@ def UnifProblem.fromExprPairs (l : Array (Expr × Expr)) : MetaM (Option UnifPro
 -- The selection function                         -- prioritized : Bool
 def UnifProblem.pop? (p : UnifProblem) : Option (UnifEq × UnifProblem) := Id.run <| do
   if p.prioritized.size != 0 then
-    let e := p.prioritized.back
+    let e := p.prioritized.back!
     let pr' := p.prioritized.pop
     return (e, {p with prioritized := pr'})
   if p.rigidrigid.size != 0 then
-    let e := p.rigidrigid.back
+    let e := p.rigidrigid.back!
     let rr' := p.rigidrigid.pop
     return (e, {p with rigidrigid := rr'})
   if ¬ p.checked then
     dbg_trace s!"UnifProblem.Pop :: Equations are not normalized"
   if p.flexrigid.size != 0 then
-    let e := p.flexrigid.back
+    let e := p.flexrigid.back!
     let rf' := p.flexrigid.pop
     return (e, {p with flexrigid := rf'})
   if p.flexflex.size != 0 then
-    let e := p.flexflex.back
+    let e := p.flexflex.back!
     let rf' := p.flexflex.pop
     return (e, {p with flexflex := rf'})
   return none

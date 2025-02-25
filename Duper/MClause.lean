@@ -3,7 +3,7 @@ import Duper.Clause
 namespace Duper
 open Lean
 
-structure MClause :=
+structure MClause where
 (lits : Array Lit)
 deriving Inhabited, BEq, Hashable
 
@@ -51,7 +51,7 @@ def mapMWithPos [Monad m] [MonadLiftT MetaM m] (f : Expr → m (Expr × Array Ex
   let mapres ← c.lits.mapM (fun l => l.mapMWithPos f)
   let c' := ⟨mapres.map (fun x => x.fst)⟩
   let cps := mapres.mapIdx (fun i x => x.snd.map (fun pos => {pos with lit := i}))
-  return (c', cps.concatMap id)
+  return (c', cps.flatMap id)
 
 def mapM {m : Type → Type w} [Monad m] (f : Expr → m Expr) (c : MClause) : m MClause := do
   return ⟨← c.lits.mapM (fun l => l.mapM f)⟩
