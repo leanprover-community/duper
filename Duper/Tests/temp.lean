@@ -12,9 +12,10 @@ open Lean Auto
 
 @[rebind Auto.Native.solverFunc]
 def Auto.duperPort (lemmas inhLemmas : Array Lemma) : MetaM Expr := do
-  let formulas ← Duper.autoLemmasToFormulas lemmas
+  let (formulas, extraFormulas) ← Duper.autoLemmasToFormulas lemmas
   let formulas := formulas.map (fun f => (f.1, f.2.1, f.2.2.1, f.2.2.2, none))
-  Duper.runDuperPortfolioMode formulas .none
+  let extraFormulas := extraFormulas.map (fun f => (f.1, f.2.1, f.2.2.1, f.2.2.2, none))
+  Duper.runDuperPortfolioMode formulas extraFormulas .none
     { portfolioMode := true,
       portfolioInstance := none,
       inhabitationReasoning := none,
