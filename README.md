@@ -16,7 +16,7 @@ After these steps are taken, add the following code to a Lean file that your pro
 ```lean
 import Duper
 
-example : True := by duper
+example : True := by duper [*]
 ```
 
 Once the above snippet has been added, you can either restart the Lean server in VS Code (using Ctrl-Shift-P or Command-Shift-P to access the command palette and then choosing the command "Lean 4: Server: Restart Server") or run `lake build` in your project's directory. On Mac and Linux, either option should work equally well, but unfortunately, some versions of Windows may have `lake build` fail with a 'too many exported symbols' error. If that happens, Windows users should still be able to build Duper using VS Code.
@@ -40,7 +40,7 @@ The `facts` supplied to Duper are separated by commas and can include:
 - Recursors (which will prompt Duper to produce definitional equations for each provided recursor)
 - The symbol `*` to indicate that Duper should consider all proofs in the current local context
 
-If the `[facts]` argument are omitted from the Duper call, then Duper will only reason about the goal, meaning `by duper` is equivalent to `by duper []`. Duper performs best when it is given a minimal set of facts that can be used to prove the goal, and it also performs better when more specific lemmas are used (e.g. Duper will generally perform better if given `Nat.mul_one` rather than `mul_one`, though it is capable of working with either). We do not yet have Duper connected to a relevance filter so for now it is necessary to manually provide Duper all of the lemmas it needs, though we hope to improve this state of affairs in the future.
+If the `[facts]` argument is omitted from the Duper call, then Duper will only reason about the target, meaning `by duper` is equivalent to `by duper []`. To have Duper reason about the entire goal, including all assumptions in the local context, we recommend using `by duper [*]`. Duper performs best when it is given a minimal set of facts that can be used to prove the goal, and it also performs better when more specific lemmas are used (e.g. Duper will generally perform better if given `Nat.mul_one` rather than `mul_one`, though it is capable of working with either). We do not yet have Duper connected to a relevance filter so for now it is necessary to manually provide Duper all of the lemmas it needs, though we hope to improve this state of affairs in the future.
 
 ### Options
 
