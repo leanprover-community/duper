@@ -331,9 +331,9 @@ def addSkolemSorry : CoreM Name := do
   let opaqueVal : OpaqueVal := {name := name, levelParams := [vlvlName, ulvlName],
                                 type := type, value := term, isUnsafe := true, all := [name]}
   let decl : Declaration := (.opaqueDecl opaqueVal)
-  match (← getEnv).addDecl (← getOptions) decl with
-  | Except.ok    env => setEnv env
-  | Except.error ex  => throwKernelException ex
+  match Kernel.Environment.addDecl (Environment.toKernelEnv (← getEnv)) (← getOptions) decl with
+    | Except.ok    env => setEnv $ Environment.ofKernelEnv env
+    | Except.error ex  => throwKernelException ex
   return name
 
 def unfoldDefinitions (formulas : List (Expr × Expr × Array Name × Bool)) : MetaM (List (Expr × Expr × Array Name × Bool)) := do
