@@ -36,30 +36,28 @@ def runDuperOnTPTP (fileName : String) (formulas : List (Expr × Expr × Array N
   | Result.unknown => IO.println s!"SZS status Timeout for {fileName}"
 
 def run (path : String) (_github : Bool) : MetaM Unit := do
-  let env ← getEnv
-  let opts ← getOptions
   let prop := mkSort levelZero
   let type := mkSort levelOne
   let sortu := mkSort (.param `u)
   let sortu1 := mkSort (.param `u1)
   let sortu2 := mkSort (.param `u2)
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Nat, levelParams := [], type := type, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Iota, levelParams := [], type := type, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Bool, levelParams := [], type := type, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Bool.false, levelParams := [], type := mkConst `Bool, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `sorryAx, levelParams := [`u], type := mkForall `α .default sortu $ mkForall `synthetic .default (mkConst `Bool) $ mkBVar 1, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Eq, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ prop, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Ne, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ prop, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `True, levelParams := [], type := prop, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `False, levelParams := [], type := prop, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Or, levelParams := [], type := ← mkArrow prop (← mkArrow prop prop), isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `And, levelParams := [], type := ← mkArrow prop (← mkArrow prop prop), isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Iff, levelParams := [], type := ← mkArrow prop (← mkArrow prop prop), isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Not, levelParams := [], type := ← mkArrow prop prop, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Exists, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) prop, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Duper.Skolem.some, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) $ ← mkArrow (mkBVar 1) (mkBVar 2), isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl {name := `Nonempty, levelParams := [`u], type := mkForall `α .default sortu prop, isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl
+  addDecl (.axiomDecl {name := `Nat, levelParams := [], type := type, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Iota, levelParams := [], type := type, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Bool, levelParams := [], type := type, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Bool.false, levelParams := [], type := mkConst `Bool, isUnsafe := false})
+  addDecl (.axiomDecl {name := `sorryAx, levelParams := [`u], type := mkForall `α .default sortu $ mkForall `synthetic .default (mkConst `Bool) $ mkBVar 1, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Eq, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ prop, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Ne, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ prop, isUnsafe := false})
+  addDecl (.axiomDecl {name := `True, levelParams := [], type := prop, isUnsafe := false})
+  addDecl (.axiomDecl {name := `False, levelParams := [], type := prop, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Or, levelParams := [], type := ← mkArrow prop (← mkArrow prop prop), isUnsafe := false})
+  addDecl (.axiomDecl {name := `And, levelParams := [], type := ← mkArrow prop (← mkArrow prop prop), isUnsafe := false})
+  addDecl (.axiomDecl {name := `Iff, levelParams := [], type := ← mkArrow prop (← mkArrow prop prop), isUnsafe := false})
+  addDecl (.axiomDecl {name := `Not, levelParams := [], type := ← mkArrow prop prop, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Exists, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) prop, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Duper.Skolem.some, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (← mkArrow (mkBVar 0) prop) $ ← mkArrow (mkBVar 1) (mkBVar 2), isUnsafe := false})
+  addDecl (.axiomDecl {name := `Nonempty, levelParams := [`u], type := mkForall `α .default sortu prop, isUnsafe := false})
+  addDecl (.axiomDecl
     { name := `Eq.ndrec, levelParams := [`u1, `u2],
       type :=
         mkForall `α .implicit sortu2 $
@@ -70,22 +68,20 @@ def run (path : String) (_github : Bool) : MetaM Unit := do
         mkForall `h .default (mkApp3 (mkConst ``Eq [.param `u2]) (.bvar 4) (.bvar 3) (.bvar 0)) $
         (mkApp (.bvar 3) (.bvar 1)),
       isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl
+  addDecl (.axiomDecl
     { name := `eq_true, levelParams := [],
       type :=
         mkForall `p .implicit prop $
         mkForall `h .default (.bvar 0) $
         (mkApp3 (mkConst ``Eq [levelOne]) prop (.bvar 1) (mkConst ``True [])),
       isUnsafe := false})
-  let env ← ofExceptKernelException $ env.addDecl opts (.axiomDecl
+  addDecl (.axiomDecl
     { name := `of_eq_true, levelParams := [],
       type :=
         mkForall `p .implicit prop $
         mkForall `h .default (mkApp3 (mkConst ``Eq [levelOne]) prop (.bvar 0) (mkConst ``True [])) $
         (.bvar 1),
       isUnsafe := false})
-
-  setEnv env
 
   TPTP.compileFile path fun formulas => do
     let formulas := Array.toList formulas
