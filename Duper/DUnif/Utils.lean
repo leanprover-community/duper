@@ -34,10 +34,10 @@ where metaEtaAux (e : Expr) : MetaM (Option (MVarId × Expr × Array Nat)) :=
       return none
     -- hmap : Map from position in `xs` to argIdx of `head`
     let xsMap := @Std.HashMap.ofList Expr Nat inferInstance inferInstance
-      xs.zipWithIndex.toList
+      xs.zipIdx.toList
     let mut hmap : Array Nat := ⟨List.range xs.size⟩
     let mut hset : Std.HashSet Nat := {}
-    for (arg, argIdx) in args.zipWithIndex do
+    for (arg, argIdx) in args.zipIdx do
       let .some xsIdx := xsMap[arg]?
         | return .none
       if hset.contains xsIdx then return .none
@@ -65,7 +65,7 @@ def mkGeneralFnTy (n : Nat) (resTy : Option Expr := .none) : MetaM Expr :=
 def mkImplication (n : Nat) (resTy : Option Expr := .none) : MetaM Expr := do
   let argTys_ty ← (Array.mk (List.range n)).mapM (fun _ => Meta.mkFreshLevelMVar)
   let argTys ← argTys_ty.mapM (fun e => Meta.mkFreshExprMVar (Expr.sort e))
-  let declInfos := argTys.zipWithIndex.map (fun (argTy, nat) => (Name.mkStr1 s!"imp{nat}", fun _ => pure argTy))
+  let declInfos := argTys.zipIdx.map (fun (argTy, nat) => (Name.mkStr1 s!"imp{nat}", fun _ => pure argTy))
   let resTy ← (do
     match resTy with
     | .some resTy => return resTy
