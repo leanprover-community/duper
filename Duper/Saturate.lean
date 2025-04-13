@@ -58,6 +58,7 @@ initialize
   registerTraceClass `duper.timeout.debug.fullActiveSet
   registerTraceClass `duper.timeout.debug.fullPassiveSet
   registerTraceClass `duper.misc.debug
+  registerTraceClass `duper.setOfSupport.debug
 
 def getMaxSaturationTime (opts : Options) : Nat :=
   duper.maxSaturationTime.get opts * 1000
@@ -306,25 +307,32 @@ partial def saturate : ProverM Unit := do
 /-- Note: This definition is outdated (does not support datatype exhaustiveness reasoning). See `saturateNoPreprocessingClausification`
     for additions that need to be made to make this usable. -/
 def clausifyThenSaturate : ProverM Unit := do
-  Core.withCurrHeartbeats $
-    preprocessingClausification;
-    let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getPassiveSet).toList;
-    setSymbolPrecMap symbolPrecMap;
-    setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero;
+  Core.withCurrHeartbeats $ do
+    preprocessingClausification
+    let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getAllClauses).keys
+    setSymbolPrecMap symbolPrecMap
+    setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero
+    preprocessUnsupportedFacts
     saturate
 
 def saturateNoPreprocessingClausification (withDatatypeExhaustivenessFacts : Bool) : ProverM Unit := do
   Core.withCurrHeartbeats $ do
     if withDatatypeExhaustivenessFacts then
-      let (symbolPrecMap, highesetPrecSymbolHasArityZero, datatypeList) ← buildSymbolPrecMapAndDatatypeList (← getPassiveSet).toList
+      let (symbolPrecMap, highesetPrecSymbolHasArityZero, datatypeList) ← buildSymbolPrecMapAndDatatypeList (← getAllClauses).keys
       generateDatatypeExhaustivenessFacts datatypeList
       setSymbolPrecMap symbolPrecMap
       setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero
+      trace[duper.setOfSupport.debug] "Unsupported facts before preprocessing: {(← getUnsupportedFacts).toArray}"
+      preprocessUnsupportedFacts
+      trace[duper.setOfSupport.debug] "Active set before beginning the saturation loop: {(← getActiveSet).toArray}"
       saturate
     else
-      let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getPassiveSet).toList
+      let (symbolPrecMap, highesetPrecSymbolHasArityZero) ← buildSymbolPrecMap (← getAllClauses).keys
       setSymbolPrecMap symbolPrecMap
       setHighesetPrecSymbolHasArityZero highesetPrecSymbolHasArityZero
+      trace[duper.setOfSupport.debug] "Unsupported facts before preprocessing: {(← getUnsupportedFacts).toArray}"
+      preprocessUnsupportedFacts
+      trace[duper.setOfSupport.debug] "Active set before beginning the saturation loop: {(← getActiveSet).toArray}"
       saturate
 
 end ProverM

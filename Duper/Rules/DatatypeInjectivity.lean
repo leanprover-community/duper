@@ -106,7 +106,8 @@ def mkDatatypeInjectivityNegProof (removedLitNum : Nat) (premises : List Expr) (
         proofCases := proofCases.push proofCase
       else -- `lit` is not the constructor inequality that is currently being modified
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
-          Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i h
+          let idx := if i ≥ removedLitNum then i - 1 else i
+          Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) idx h
         proofCases := proofCases.push proofCase
     let proof ← orCases (parentLits.map Lit.toExpr) proofCases
     Meta.mkLambdaFVars xs $ mkApp proof appliedPremise

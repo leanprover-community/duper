@@ -18,7 +18,7 @@ def runDuperOnTPTP (fileName : String) (formulas : List (Expr × Expr × Array N
   let generateDatatypeExhaustivenessFacts ← getCollectDataTypesM
   let state ←
     withNewMCtxDepth do
-      let formulas ← unfoldDefinitions formulas
+      let formulas ← unfoldDefinitions (formulas.map (fun (e, proof, paramNames, isFromGoal) => (e, proof, paramNames, isFromGoal, true)))
       /- `collectAssumptions` should not be wrapped by `withoutModifyingCoreEnv` because new definitional equations might be
           generated during `collectAssumptions` -/
       withoutModifyingCoreEnv <| do

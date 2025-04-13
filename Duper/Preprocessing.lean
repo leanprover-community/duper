@@ -3,7 +3,15 @@ import Duper.ProverM
 import Duper.RuleM
 import Duper.MClause
 import Duper.Simp
+import Duper.Rules.BetaEtaReduction
+import Duper.Rules.BoolSimp
 import Duper.Rules.Clausification
+import Duper.Rules.ElimDupLit
+import Duper.Rules.ElimResolvedLit
+import Duper.Rules.SyntacticTautologyDeletion1
+import Duper.Rules.SyntacticTautologyDeletion2
+import Duper.Rules.SyntacticTautologyDeletion3
+import Duper.Util.TypeInhabitationReasoning
 
 namespace Duper
 namespace ProverM
@@ -17,12 +25,69 @@ initialize
   registerTraceClass `duper.unaryFirst.debug
   registerTraceClass `duper.collectDatatypes.debug
 
+/-- A restricted set of forward simplification rules that should be applied to unsupoorted facts that go directly into the active
+    set (because they are not intended to be part of the set of support). -/
+def preprocessingForwardSimpRules : Array SimpRule :=
+  #[
+    betaEtaReduction.toPreprocessingSimpRule,
+    clausificationStep.toPreprocessingSimpRule,
+    syntacticTautologyDeletion1.toPreprocessingSimpRule,
+    syntacticTautologyDeletion2.toPreprocessingSimpRule,
+    boolSimp.toPreprocessingSimpRule,
+    syntacticTautologyDeletion3.toPreprocessingSimpRule,
+    elimDupLit.toPreprocessingSimpRule,
+    elimResolvedLit.toPreprocessingSimpRule
+  ]
+
+def applyPreprocessingForwardSimpRules (givenClause : Clause) : ProverM (SimpResult Clause) := do
+  for simpRule in preprocessingForwardSimpRules do
+    match ← simpRule givenClause with
+    | Removed => return Removed
+    | Applied c => return Applied c
+    | Unapplicable => continue
+  return Unapplicable
+
+/-- Simplifies `c` using `preprocessingForwardSimpRules`. Returns `some c'` if preprocessUnsupportedFact is able to use simplification rules
+    to transform `c` to `c'`. Returns none if preprocessUnsupportedFact is able to use simplification rules to show that `c` is unneeded.
+
+    In addition to returning `c'`, preprocessUnsupportedFact also returns a Bool which indicates whether the
+    clause can safely be used to simplify away other clauses.  -/
+partial def preprocessUnsupportedFact (c : Clause) : ProverM (Option (Clause × Bool)) := do
+  Core.checkSystem "preprocessUnsupportedFact"
+  if ← getInhabitationReasoningM then
+    match ← removeVanishedVars c with
+    | some (c, b) =>
+      match ← applyPreprocessingForwardSimpRules c with
+      | Applied c => preprocessUnsupportedFact c
+      | Unapplicable => return (c, b)
+      | Removed => return none
+    | none => return none -- After removeVanishedVars, `c` was transformed into a clause that has already been simplified away
+  else
+    match ← applyPreprocessingForwardSimpRules c with
+    | Applied c => preprocessUnsupportedFact c
+    | Unapplicable => return (c, true) -- When inhabitation reasoning is disabled, assume it is safe to use `c` to simplify other clauses
+    | Removed => return none
+
+/-- Iterates through all facts in `unsupportedFacts` and clausifies them (as well as performs other cheap forward simplification rules),
+    adding the resulting clauses directly to the active set (because they clauses are not intended to be part of the set of support). -/
+def preprocessUnsupportedFacts : ProverM Unit := do
+  Core.checkSystem "preprocessUnsupportedFacts"
+  while !(← getUnsupportedFacts).isEmpty do
+    let unsupportedFacts ← getUnsupportedFacts
+    setUnsupportedFacts {} -- Clear the unsupported facts so that at the end of the loop, we can check if any new unsupported facts were added
+    for fact in unsupportedFacts do
+      match ← preprocessUnsupportedFact fact with
+      | some (c, b) => addToActive c b
+      | none => continue
+
 /-- Naively applies clausificationStep.toSimpRule to everything in the passive set (and everything produced by
     clausifying clauses in the passive set) without removing anything from the passive set. This preprocessing
     clausification is not necessary (and might be removed later if it turns out to use more time than it saves),
     but it may be useful to make the KBO precedence and weight generation heuristics more accurate (e.g. preprocessing
     clausification will ensure that ¬ is not selected as the unary symbol with highest precedence) -/
 partial def preprocessingClausification : ProverM Unit := do
+  -- **TODO** `preprocessingClausification` could probably be improved by at least adding beta/eta reduction to the list of
+  -- forward simplification rules that are applied.
   Core.withCurrHeartbeats do
     let mut clausified : Array Clause := #[] -- An array for storing the clauses that have been fully clausified
     try

@@ -27,7 +27,7 @@ def mkContextualLiteralCuttingProof (negatedLitMainIdx : Nat) (assignment : List
     let mut caseProofsSide := Array.mkEmpty sideParentLits.size
     for curSideLitIdx in [:sideParentLits.size] do
       let curSideLit := sideParentLits[curSideLitIdx]!
-      let (curSideLitAssignment, curSideLitIsFlipped) := assignment.get! curSideLitIdx
+      let (curSideLitAssignment, curSideLitIsFlipped) := assignment[curSideLitIdx]!
       let curSideLitAssignmentWithOffset :=
         if curSideLitAssignment ≤ negatedLitMainIdx then curSideLitAssignment
         else curSideLitAssignment - 1

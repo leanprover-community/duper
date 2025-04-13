@@ -42,6 +42,8 @@ The `facts` supplied to Duper are separated by commas and can include:
 
 If the `[facts]` argument is omitted from the Duper call, then Duper will only reason about the target, meaning `by duper` is equivalent to `by duper []`. To have Duper reason about the entire goal, including all assumptions in the local context, we recommend using `by duper [*]`. Duper performs best when it is given a minimal set of facts that can be used to prove the goal, and it also performs better when more specific lemmas are used (e.g. Duper will generally perform better if given `Nat.mul_one` rather than `mul_one`, though it is capable of working with either). We do not yet have Duper connected to a relevance filter so for now it is necessary to manually provide Duper all of the lemmas it needs, though we hope to improve this state of affairs in the future.
 
+*Note: In addition to the syntax described above, Duper also supports a syntax of the form `duper [factsInSetOfSupport] [factsNotInSetOfSupport] {options}`, which allows the user to specify which facts are included in Duper's [set of support](https://easychair.org/publications/paper/4Sd/open). This syntax is currently experimental, not intended for most use cases, and may be subject to more breaking changes than other aspects of Duper.*
+
 ### Options
 
 Each of the `options` supplied to Duper have the form `option := value` and are separated by commas. Options that can be used to customize a Duper call include:

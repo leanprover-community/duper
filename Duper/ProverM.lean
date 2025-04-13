@@ -63,6 +63,7 @@ structure State where
   result : Result := unknown
   allClauses : Std.HashMap Clause ClauseInfo := {}
   activeSet : ClauseSet := {}
+  unsupportedFacts : ClauseSet := {} -- Set of facts that do not belong to the set of support and should go directly into the active set
   passiveSet : FairAgeClauseHeap := FairAgeHeap.empty Clause 5
   qStreamSet : ClauseStreamHeap ClauseStream := ClauseStreamHeap.empty ClauseStream
   symbolPrecMap : SymbolPrecMap := Std.HashMap.empty
@@ -119,6 +120,9 @@ def getAllClauses : ProverM (Std.HashMap Clause ClauseInfo) :=
 
 def getActiveSet : ProverM ClauseSet :=
   return (← get).activeSet
+
+def getUnsupportedFacts : ProverM ClauseSet :=
+  return (← get).unsupportedFacts
 
 def getPassiveSet : ProverM FairAgeClauseHeap :=
   return (← get).passiveSet
@@ -193,6 +197,9 @@ def setActiveSet (activeSet : ClauseSet) : ProverM Unit :=
 
 def setAllClauses (allClauses : Std.HashMap Clause ClauseInfo) : ProverM Unit :=
   modify fun s => { s with allClauses := allClauses }
+
+def setUnsupportedFacts (unsupportedFacts : ClauseSet) : ProverM Unit :=
+  modify fun s => { s with unsupportedFacts := unsupportedFacts }
 
 def setPassiveSet (passiveSet : FairAgeClauseHeap) : ProverM Unit :=
   modify fun s => { s with passiveSet := passiveSet }
@@ -320,6 +327,14 @@ def addNewClause (c : Clause) (proof : Proof) (goalDistance : Nat) (generationNu
   )
   return ci
 
+/-- Registers a new clause and adds it to the unsupported facts set. -/
+def addNewToUnsupportedFacts (c : Clause) (proof : Proof) (goalDistance : Nat) (generationNumber : Nat) (generatingAncestors : Array Clause) : ProverM Unit := do
+  match (← getAllClauses).get? c with
+  | some _ => setUnsupportedFacts ((← getUnsupportedFacts).insert c)
+  | none => -- c is not in allClauses, so we need to add it
+    let _ ← addNewClause c proof goalDistance generationNumber generatingAncestors
+    setUnsupportedFacts ((← getUnsupportedFacts).insert c)
+
 /-- Registers a new clause and adds it to the passive set. The `goalDistance` and `generationNumber` arguments are used to by the clause
     selection strategy's heuristics. The `generatingAncestors` argument contains the list of clauses that were used to generate `c` (or `c`'s
     ancestor which generated `c` by a modifying inference). See page 8 of "E – A Brainiac Theorem Prover" -/
@@ -350,16 +365,20 @@ def addClausifiedToPassive (c : Clause) : ProverM Unit := do
     - The `Prop` to be reasoned about
     - The proof of the above Prop
     - Any needed paramNames
-    - A bool which indicates whether the fact was part of the original goal (this impacts the clause selection strategy) -/
-def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name × Bool)) (ctx : Context) (s : State) : MetaM (α × State) := do
+    - A bool which indicates whether the fact was part of the original goal (this impacts the clause selection strategy)
+    - A bool which indicates whether the fact should be part of the set of support (extra facts are not added to the set of support) -/
+def ProverM.runWithExprs (x : ProverM α) (es : List (Expr × Expr × Array Name × Bool × Bool)) (ctx : Context) (s : State) : MetaM (α × State) := do
   ProverM.run (s := s) (ctx := ctx) do
-    for (e, proof, paramNames, isFromGoal) in es do
+    for (e, proof, paramNames, isFromGoal, includeInSetOfSupport) in es do
       let c := Clause.fromSingleExpr paramNames e
       let mkProof := fun _ _ _ _ => pure proof
       let goalDistance :=
         if isFromGoal then 0
         else maxGoalDistance
-      addNewToPassive c {parents := #[], ruleName := "assumption", mkProof := mkProof} goalDistance 0 #[]
+      if includeInSetOfSupport then
+        addNewToPassive c {parents := #[], ruleName := "assumption", mkProof := mkProof} goalDistance 0 #[]
+      else
+        addNewToUnsupportedFacts c {parents := #[], ruleName := "assumption", mkProof := mkProof} goalDistance 0 #[]
     x
 
 @[inline] def runRuleM (x : RuleM α) : ProverM.ProverM α := do
@@ -516,7 +535,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
     | none => throwError "Unable to find descendant"
 
 /-- removeClause does the following:
-    - Removes c from the active set, passive set, potentiallyVacuousClauses set, and all discrimination trees
+    - Removes c from the active set, passive set, unsupported facts set, potentiallyVacuousClauses set, and all discrimination trees
     - Tags c as "wasSimplified" in allClauses
     - Removes each direct descendant of c from the passive set
     - Tags each direct descendant of c as "isOrphan" in allClauses
@@ -531,6 +550,7 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
   trace[duper.simplification.debug] "Calling removeClause with c: {c} and protectedClauses: {protectedClauses}"
   let mut activeSet ← getActiveSet
   let mut passiveSet ← getPassiveSet
+  let mut unsupportedFacts ← getUnsupportedFacts
   let mut potentiallyVacuousClauses ← getPotentiallyVacuousClauses
   let mut allClauses ← getAllClauses
   match allClauses.get? c with
@@ -546,6 +566,8 @@ partial def removeClause (c : Clause) (protectedClauses := ([] : List Clause)) :
       activeSet ← getActiveSet
     -- Remove c from passive set
     setPassiveSet $ passiveSet.erase c
+    -- Remove c from unsupported facts
+    setUnsupportedFacts $ unsupportedFacts.erase c
     -- Remove c from potentiallyVacuousClauses
     setPotentiallyVacuousClauses $ potentiallyVacuousClauses.erase c
     -- Remove the descendants of c and mark them as orphans
