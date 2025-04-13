@@ -67,23 +67,23 @@ instance : Append (LazyList α) :=
 | nil          , _            => nil
 | _            , nil          => nil
 | (cons a as)  , (cons b bs)  =>
-  have : size as + size bs < size (cons a as) + size (cons b bs) := by simp_arith [size]
+  have : size as + size bs < size (cons a as) + size (cons b bs) := by simp +arith [size]
   cons (f a b) (delayed (map₂ f as bs))
 | (delayed as) , bs           =>
-  have : size (Thunk.get as) + size bs < size (delayed as) + size bs := by simp_arith [size]
+  have : size (Thunk.get as) + size bs < size (delayed as) + size bs := by simp +arith [size]
   map₂ f as.get bs
 | as           , (delayed bs) =>
-  have : size as + size (Thunk.get bs) < size as + size (delayed bs) := by simp_arith [size]
+  have : size as + size (Thunk.get bs) < size as + size (delayed bs) := by simp +arith [size]
   map₂ f as bs.get
 
 -- interleave between 2 lists
 def interleave : LazyList α → LazyList α → LazyList α
 | nil          , bs  => bs
 | (cons a as)  , bs  =>
-  have : size bs + size as < size (cons a as) + size bs := by simp_arith [size]
+  have : size bs + size as < size (cons a as) + size bs := by simp +arith [size]
   cons a (delayed (interleave bs as))
 | (delayed as) , bs  =>
-  have : size (Thunk.get as) + size bs < size (delayed as) + size bs := by simp_arith [size]
+  have : size (Thunk.get as) + size bs < size (delayed as) + size bs := by simp +arith [size]
   delayed (interleave as.get bs)
 termination_by as bs => size as + size bs
 

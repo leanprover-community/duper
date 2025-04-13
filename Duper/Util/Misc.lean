@@ -11,7 +11,7 @@ def List.subsequences (xs : List α) :=
 -- replace `whnf e` with `e`.
 private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) : MetaM Expr := do
   if h : i < ps.size then
-    let p := ps.get i h
+    let p := ps[i]
     match e with
     | Expr.forallE _ _ b _ => instantiateForallAux ps (i+1) (b.instantiate1 p)
     | _                => throwError "invalid instantiateForallNoReducing, too many parameters"
@@ -20,7 +20,7 @@ private partial def instantiateForallAux (ps : Array Expr) (i : Nat) (e : Expr) 
 
 private partial def instantiateForallAuxNoError (ps : Array Expr) (i : Nat) (e : Expr) : Expr :=
   if h : i < ps.size then
-    let p := ps.get i h
+    let p := ps[i]
     match e with
     | Expr.forallE _ _ b _ => instantiateForallAuxNoError ps (i+1) (b.instantiate1 p)
     | _ => panic! "Called instantiateForallAuxNoError with too many parameters"
