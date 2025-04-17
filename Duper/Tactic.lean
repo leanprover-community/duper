@@ -158,6 +158,17 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     let paramNames := abstres.paramNames
     return (← inferType e, e, paramNames)
 
+/-- Helper function for `collectAssumptions` that collects all local decls in the local context that are propositions. -/
+def collectLCtxAssumptions (goalDecls : Array LocalDecl) : MetaM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
+  let mut formulas := []
+  for fVarId in (← getLCtx).getFVarIds do
+    let ldecl ← Lean.FVarId.getDecl fVarId
+    unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
+      let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
+      let isFromGoal := goalDecls.any (fun goalDecl => goalDecl.index = ldecl.index)
+      formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal, none) :: formulas
+  return formulas
+
 /-- Formulas in Duper are represented as a tuple containing the following:
     - The fact that Duper can use
     - A proof that said fact is true (if the fact is `p` then second argument of the tuple is a proof of `p = True`)
@@ -168,12 +179,7 @@ def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Ar
   : TacticM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
   let mut formulas := []
   if withAllLCtx then -- Load all local decls
-    for fVarId in (← getLCtx).getFVarIds do
-      let ldecl ← Lean.FVarId.getDecl fVarId
-      unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
-        let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-        let isFromGoal := goalDecls.any (fun goalDecl => goalDecl.index = ldecl.index)
-        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal, none) :: formulas
+    formulas ← collectLCtxAssumptions goalDecls
   else -- Even if withAllLCtx is false, we still need to load the goal decls
     for ldecl in goalDecls do
       unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
