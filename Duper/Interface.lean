@@ -462,21 +462,30 @@ def formulasToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool ×
       | none => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}")}
       | some stx => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}, {stx}")})
 
+/-- Determines whether `lem`'s deriv info indicates that `lem` is part of the goal and should be included in the set of support. Note that `derivInfo`
+    only works on lemmas generated from `formulasToAutoLemmas`. In cases where the lemma was not generated from `formulasToAutoLemmas`, `derivInfo` defaults
+    to indicating that both `isFromGoal` and `includeInSetOfSupport` are `true`. -/
+def derivInfo (lem : Auto.Lemma) : Bool × Bool :=
+  let derivLeaves := getLeavesFromDTr lem.deriv
+  let matchesFormat := derivLeaves.all (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l || "true, false".isPrefixOf l || "false, false".isPrefixOf l)
+  if !matchesFormat then
+    (true, true)
+  else
+    let isFromGoal := derivLeaves.any (fun l => "true".isPrefixOf l)
+    let includeInSetOfSupport := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l)
+    (isFromGoal, includeInSetOfSupport)
+
 /-- Converts formulas/lemmas from the format used by Auto to the format used by Duper. -/
 def autoLemmasToFormulas (lemmas : Array Auto.Lemma) : MetaM (List (Expr × Expr × Array Name × Bool) × List (Expr × Expr × Array Name × Bool)) := do
   let monomorphizedFormulas ← lemmas.toList.filterMapM
     (fun lem => do
       trace[duper.setOfSupport.debug] "Auto lemma: {lem}, deriv: {lem.deriv}, leaves: {getLeavesFromDTr lem.deriv}"
-      let derivLeaves := getLeavesFromDTr lem.deriv
-      let isFromGoal := derivLeaves.any (fun l => "true".isPrefixOf l)
-      let includeInSetOfSupport := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l)
+      let (isFromGoal, includeInSetOfSupport) := derivInfo lem
       if includeInSetOfSupport then return (lem.type, ← Meta.mkAppM ``eq_true #[lem.proof], lem.params, isFromGoal)
       else return none)
   let monomorphizedExtraFormulas ← lemmas.toList.filterMapM
     (fun lem => do
-      let derivLeaves := getLeavesFromDTr lem.deriv
-      let isFromGoal := derivLeaves.any (fun l => "true".isPrefixOf l)
-      let includeInSetOfSupport := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l)
+      let (isFromGoal, includeInSetOfSupport) := derivInfo lem
       if includeInSetOfSupport then return none
       else return (lem.type, ← Meta.mkAppM ``eq_true #[lem.proof], lem.params, isFromGoal))
   return (monomorphizedFormulas, monomorphizedExtraFormulas)
