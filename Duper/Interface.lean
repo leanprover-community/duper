@@ -467,7 +467,7 @@ def formulasToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool ×
     to indicating that both `isFromGoal` and `includeInSetOfSupport` are `true`. -/
 def derivInfo (lem : Auto.Lemma) : Bool × Bool :=
   let derivLeaves := getLeavesFromDTr lem.deriv
-  let matchesFormat := derivLeaves.all (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l || "true, false".isPrefixOf l || "false, false".isPrefixOf l)
+  let matchesFormat := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l || "true, false".isPrefixOf l || "false, false".isPrefixOf l)
   if !matchesFormat then
     (true, true)
   else
