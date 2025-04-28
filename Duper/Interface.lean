@@ -462,9 +462,17 @@ def formulasToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool ×
       | none => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}")}
       | some stx => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}, {stx}")})
 
+/-- Like `formulasToAutoLemmas`, but the `stxOption` is a string instead of a term. -/
+def formulasWithStringsToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool × Option String)) (includeInSetOfSupport : Bool) : MetaM (Array Auto.Lemma) := do
+  formulas.toArray.mapM
+    (fun (fact, proof, params, isFromGoal, stxOption) =>
+      match stxOption with
+      | none => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}")}
+      | some stx => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}, {stx}")})
+
 /-- Determines whether `lem`'s deriv info indicates that `lem` is part of the goal and should be included in the set of support. Note that `derivInfo`
-    only works on lemmas generated from `formulasToAutoLemmas`. In cases where the lemma was not generated from `formulasToAutoLemmas`, `derivInfo` defaults
-    to indicating that both `isFromGoal` and `includeInSetOfSupport` are `true`. -/
+    only works on lemmas generated from `formulasToAutoLemmas` or `formulasWithStringsToAutoLemmas`. In cases where the lemma was not generated from
+    `formulasToAutoLemmas`, `derivInfo` defaults to indicating that both `isFromGoal` and `includeInSetOfSupport` are `true`. -/
 def derivInfo (lem : Auto.Lemma) : Bool × Bool :=
   let derivLeaves := getLeavesFromDTr lem.deriv
   let matchesFormat := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l || "true, false".isPrefixOf l || "false, false".isPrefixOf l)
