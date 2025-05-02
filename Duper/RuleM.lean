@@ -33,6 +33,11 @@ register_option includeExpensiveRules : Bool := {
   descr := "Whether to include boolHoist, eqHoist, neHoist, existsHoist, forallHoist, fluidBoolHoist, and fluidSup"
 }
 
+register_option includeDatatypeRules : Bool := {
+  defValue := true
+  descr := "Whether to include datatype rules (distinctness, injectivity, and acyclicity)"
+}
+
 def getInhabitationReasoning (opts : Options) : Bool :=
   inhabitationReasoning.get opts
 
@@ -44,6 +49,9 @@ def getSelFunction (opts : Options) : Nat :=
 
 def getIncludeExpensiveRules (opts : Options) : Bool :=
   includeExpensiveRules.get opts
+
+def getIncludeDatatypeRules (opts : Options) : Bool :=
+  includeDatatypeRules.get opts
 
 def getInhabitationReasoningM : CoreM Bool := do
   let opts ← getOptions
@@ -60,6 +68,10 @@ def getSelFunctionM : CoreM Nat := do
 def getIncludeExpensiveRulesM : CoreM Bool := do
   let opts ← getOptions
   return getIncludeExpensiveRules opts
+
+def getIncludeDatatypeRulesM : CoreM Bool := do
+  let opts ← getOptions
+  return getIncludeDatatypeRules opts
 
 structure Context where
   order : Expr → Expr → Bool → MetaM Comparison

@@ -139,7 +139,7 @@ open SimpResult
 
 def forwardSimpRules : ProverM (Array SimpRule) := do
   let subsumptionTrie ← getSubsumptionTrie
-  if ← getIncludeExpensiveRulesM then
+  if (← getIncludeExpensiveRulesM) && (← getIncludeDatatypeRulesM) then
     return #[
       betaEtaReduction.toSimpRule,
       clausificationStep.toSimpRule,
@@ -164,7 +164,29 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
       identBoolHoist.toSimpRule -- Higher order rule
     ]
-  else
+  else if (← getIncludeExpensiveRulesM) && !(← getIncludeDatatypeRulesM) then
+    return #[
+      betaEtaReduction.toSimpRule,
+      clausificationStep.toSimpRule,
+      syntacticTautologyDeletion1.toSimpRule,
+      syntacticTautologyDeletion2.toSimpRule,
+      boolSimp.toSimpRule,
+      syntacticTautologyDeletion3.toSimpRule,
+      elimDupLit.toSimpRule,
+      elimResolvedLit.toSimpRule,
+      destructiveEqualityResolution.toSimpRule,
+      identPropFalseElim.toSimpRule,
+      identBoolFalseElim.toSimpRule,
+      decElim.toSimpRule,
+      (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
+      (forwardClauseSubsumption subsumptionTrie).toSimpRule,
+      (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
+      (forwardContextualLiteralCutting subsumptionTrie).toSimpRule,
+      (forwardPositiveSimplifyReflect subsumptionTrie).toSimpRule,
+      (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
+      identBoolHoist.toSimpRule -- Higher order rule
+    ]
+  else if !(← getIncludeExpensiveRulesM) && (← getIncludeDatatypeRulesM) then
     return #[
       betaEtaReduction.toSimpRule,
       clausificationStep.toSimpRule,
@@ -180,6 +202,27 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       datatypeDistinctness.toSimpRule, -- Inductive datatype rule
       datatypeInjectivity.toSimpRule, -- Inductive datatype rule
       -- datatypeAcyclicity.toSimpRule, -- Inductive datatype rule
+      (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
+      (forwardClauseSubsumption subsumptionTrie).toSimpRule,
+      (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
+      (forwardContextualLiteralCutting subsumptionTrie).toSimpRule,
+      (forwardPositiveSimplifyReflect subsumptionTrie).toSimpRule,
+      (forwardNegativeSimplifyReflect subsumptionTrie).toSimpRule,
+      identBoolHoist.toSimpRule -- Higher order rule
+    ]
+  else -- !(← getIncludeExpensiveRulesM) && !(← getIncludeDatatypeRulesM)
+    return #[
+      betaEtaReduction.toSimpRule,
+      clausificationStep.toSimpRule,
+      syntacticTautologyDeletion1.toSimpRule,
+      syntacticTautologyDeletion2.toSimpRule,
+      boolSimp.toSimpRule,
+      syntacticTautologyDeletion3.toSimpRule,
+      elimDupLit.toSimpRule,
+      elimResolvedLit.toSimpRule,
+      destructiveEqualityResolution.toSimpRule,
+      identPropFalseElim.toSimpRule,
+      identBoolFalseElim.toSimpRule,
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
       (forwardClauseSubsumption subsumptionTrie).toSimpRule,
       (forwardEqualitySubsumption subsumptionTrie).toSimpRule,
