@@ -38,6 +38,11 @@ register_option includeDatatypeRules : Bool := {
   descr := "Whether to include datatype rules (distinctness, injectivity, and acyclicity)"
 }
 
+register_option includeUnsafeAcyclicity : Bool := {
+  defValue := false
+  descr := "Whether to include the unsafe datatype acyclicity rule"
+}
+
 def getInhabitationReasoning (opts : Options) : Bool :=
   inhabitationReasoning.get opts
 
@@ -52,6 +57,9 @@ def getIncludeExpensiveRules (opts : Options) : Bool :=
 
 def getIncludeDatatypeRules (opts : Options) : Bool :=
   includeDatatypeRules.get opts
+
+def getIncludeUnsafeAcyclicity (opts : Options) : Bool :=
+  includeUnsafeAcyclicity.get opts
 
 def getInhabitationReasoningM : CoreM Bool := do
   let opts ← getOptions
@@ -72,6 +80,10 @@ def getIncludeExpensiveRulesM : CoreM Bool := do
 def getIncludeDatatypeRulesM : CoreM Bool := do
   let opts ← getOptions
   return getIncludeDatatypeRules opts
+
+def getIncludeUnsafeAcyclicityM : CoreM Bool := do
+  let opts ← getOptions
+  return getIncludeUnsafeAcyclicity opts
 
 structure Context where
   order : Expr → Expr → Bool → MetaM Comparison
