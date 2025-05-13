@@ -66,7 +66,7 @@ structure State where
   unsupportedFacts : ClauseSet := {} -- Set of facts that do not belong to the set of support and should go directly into the active set
   passiveSet : FairAgeClauseHeap := FairAgeHeap.empty Clause 5
   qStreamSet : ClauseStreamHeap ClauseStream := ClauseStreamHeap.empty ClauseStream
-  symbolPrecMap : SymbolPrecMap := Std.HashMap.empty
+  symbolPrecMap : SymbolPrecMap := Std.HashMap.emptyWithCapacity
   highesetPrecSymbolHasArityZero : Bool := false
   supMainPremiseIdx : RootCFPTrie := {}
   fluidSupMainPremiseIdx : RootCFPTrie := {} -- Stores fluid subterms and variables that appear in green positions and are also deeply occurring
@@ -74,7 +74,7 @@ structure State where
   demodMainPremiseIdx : RootCFPTrie := {}
   demodSidePremiseIdx : RootCFPTrie := {}
   subsumptionTrie : SubsumptionTrie := SubsumptionTrie.emptyNode
-  skolemMap : Std.HashMap Nat SkolemInfo := Std.HashMap.empty
+  skolemMap : Std.HashMap Nat SkolemInfo := Std.HashMap.emptyWithCapacity
   skolemSorryName : Name := Name.anonymous
   verifiedInhabitedTypes : abstractedMVarList := [] -- List of (abstracted) types that we have determined are inhabited by typeclass inference
   verifiedNonemptyTypes : abstractedMVarAndClauseList := [] -- List of (abstracted) types that duper has derived are nonempty (along with the clause asserting that fact)

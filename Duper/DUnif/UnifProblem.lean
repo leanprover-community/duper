@@ -155,9 +155,9 @@ structure UnifProblem where
   checked    : Bool         := false
   mctx       : MetavarContext
   -- Identification variables
-  identVar   : Std.HashSet Expr := Std.HashSet.empty
+  identVar   : Std.HashSet Expr := Std.HashSet.emptyWithCapacity
   -- Elimivarion variables
-  elimVar    : Std.HashSet Expr := Std.HashSet.empty
+  elimVar    : Std.HashSet Expr := Std.HashSet.emptyWithCapacity
   -- PersistentArray of parent rules, for debugging
   parentRules: PersistentArray ParentRule
   -- PersistentArray of parent clauses (including itself), for debugging

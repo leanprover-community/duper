@@ -37,10 +37,10 @@ def tokens := [
 ] -- TODO: Add ?? and !!
 
 def tokenHashMap : Std.HashSet String :=
-  Std.HashSet.empty.insertMany tokens
+  Std.HashSet.emptyWithCapacity.insertMany tokens
 
 def tokenPrefixes : Std.HashSet String :=
-  Std.HashSet.empty.insertMany $ tokens.flatMap (fun t => Id.run do
+  Std.HashSet.emptyWithCapacity.insertMany $ tokens.flatMap (fun t => Id.run do
     let mut res := []
     let mut pref := ""
     for c in t.data do
@@ -519,7 +519,7 @@ partial def collectConstantsOfCmd (topLevel : Bool) (acc : Std.HashMap String Ex
   | _ => throwError "Failed to collect constants: {repr t}"
 
 def collectCnfFofConstants (cmds : List Parser.Command) : MetaM (Std.HashMap String Expr) := do
-  let mut acc := Std.HashMap.empty
+  let mut acc := Std.HashMap.emptyWithCapacity
   for cmd in cmds do
     match cmd with
     | ⟨"cnf", [_, _, val]⟩ | ⟨"fof", [_, _, val]⟩ =>

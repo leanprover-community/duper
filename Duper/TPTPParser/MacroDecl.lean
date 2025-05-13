@@ -288,7 +288,7 @@ partial def getNonVarSymbols (acc : Std.HashMap String (TSyntax `TPTP.explicitBi
   | _ => Macro.throwError s!"Unsupported cnf/fof term: {stx}"
 
 macro "BEGIN_TPTP" name:ident s:TPTP_file "END_TPTP" proof:term : command => do
-  let mut symtab : Std.HashMap String (TSyntax `TPTP.explicitBinder) := Std.HashMap.empty
+  let mut symtab : Std.HashMap String (TSyntax `TPTP.explicitBinder) := Std.HashMap.emptyWithCapacity
   let sargs := s.raw[0].getArgs
   for input in sargs do
     match input with

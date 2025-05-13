@@ -31,7 +31,7 @@ initialize
     be clausified all at once (for instance, if a clause has a lit `p ↔ q`, then two clauses will be generated via
     clausification and if `p` and `q` are large, it can take a very long time for the second one to be selected). -/
 structure StrategyHeap (α : Type u) {β : Type} [BEq α] [Hashable α] where
-  set             : Std.HashSet α := Std.HashSet.empty -- Set of elements of `α`
+  set             : Std.HashSet α := Std.HashSet.emptyWithCapacity -- Set of elements of `α`
   weightheap      : BinomialHeap (Nat × α) fun c d => c.1 ≤ d.1 := BinomialHeap.empty
   generationheap  : BinomialHeap ((Nat × Nat) × α) fun c d => c.1.1 < d.1.1 || (c.1.1 = d.1.1 && c.1.2 ≤ d.1.2) := BinomialHeap.empty
   ageheap         : BinomialHeap (Nat × α) fun c d => c.1 ≤ d.1 := BinomialHeap.empty

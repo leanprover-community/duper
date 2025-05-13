@@ -64,7 +64,7 @@ partial def collectLevelRequests (state : ProverM.State) (c : Clause)
   let lvlset :=
     match acc.get? info.number with
     | some set => set
-    | none     => Std.HashMap.empty
+    | none     => Std.HashMap.emptyWithCapacity
   trace[duper.proofReconstruction] "Request {c.paramNames} ↦ {lvls} for {c}"
   acc := acc.insert info.number (lvlset.insert lvls lvlset.size)
   for proofParent in info.proof.parents do
@@ -226,10 +226,10 @@ partial def mkAllProof (state : ProverM.State) (cs : List Clause) : MetaM Expr :
   let emptyClause := cs[cslen - 1]!
   -- Other clauses
   let zeroLvlsForEmptyClause := emptyClause.paramNames.map (fun _ => Level.zero)
-  let reqs ← collectLevelRequests state emptyClause zeroLvlsForEmptyClause Std.HashMap.empty
+  let reqs ← collectLevelRequests state emptyClause zeroLvlsForEmptyClause Std.HashMap.emptyWithCapacity
   let (e, prstate) ← (do mkClauseProof cs.toList).run
       {pmstate := state, reqs := reqs}
-      {constructedClauses := Std.HashMap.empty, constructedSkolems := Std.HashMap.empty,
+      {constructedClauses := Std.HashMap.emptyWithCapacity, constructedSkolems := Std.HashMap.emptyWithCapacity,
        lctx := ← getLCtx, mctx := ← getMCtx, localInstances := ← getLocalInstances, fvars := #[]}
   setMCtx prstate.mctx
   let lctx := prstate.lctx
