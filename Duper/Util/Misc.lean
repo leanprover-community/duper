@@ -164,7 +164,7 @@ where
       return optExpr
   findInstanceForUninstantiatedMVars (prf : Expr) (fvars : Array Expr) : MetaM Bool := do
     let mvars ← Meta.getMVars prf
-    let mut fvarMap : Std.HashMap Expr Expr := Std.HashMap.empty
+    let mut fvarMap : Std.HashMap Expr Expr := Std.HashMap.emptyWithCapacity
     for fvar in fvars do
       fvarMap := fvarMap.insert (← Meta.inferType fvar) fvar
     for mvarId in mvars do

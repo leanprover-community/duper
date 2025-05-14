@@ -228,7 +228,7 @@ def emptyNode : SubsumptionTrie := node #[]
 
 def singleton (c : Clause) (features : FeatureVector) : SubsumptionTrie :=
   match features with
-  | [] => leaf (Std.HashSet.empty.insert c)
+  | [] => leaf (Std.HashSet.emptyWithCapacity.insert c)
   | fstFeature :: restFeatures => node #[(fstFeature, singleton c restFeatures)]
 
 private def insertHelper (t : SubsumptionTrie) (c : Clause) (features : FeatureVector) : RuleM SubsumptionTrie :=

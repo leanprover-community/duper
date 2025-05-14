@@ -242,7 +242,7 @@ def elimination (F : Expr) (p : UnifProblem) (eq : UnifEq) : MetaM (Duper.LazyLi
   Meta.forallTelescopeReducing Fty fun xs β => do
     let ctx₁ ← read
     let indsubseqs := (List.lazySubsequences (List.range xs.size)).map List.toArray
-    let mut xsset := Std.HashSet.empty
+    let mut xsset := Std.HashSet.emptyWithCapacity
     for x in xs do
       xsset := xsset.insert x
     let nats2binding : Array Nat → MetaM (Array UnifProblem) :=

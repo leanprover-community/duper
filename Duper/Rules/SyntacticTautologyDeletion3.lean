@@ -10,8 +10,8 @@ open SimpResult
     duper often gets cluttered with clauses of the form "x = True ∨ x = False". Neither syntacticTautologyDeletion1 nor
     syntacticTautologyDeletion2 remove clauses of this form, so that is what syntacticTautologyDeletion3 targets. -/
 def syntacticTautologyDeletion3 : MSimpRule := fun c => do
-  let mut eqTrueSet : Std.HashSet Lean.Expr := Std.HashSet.empty -- Stores Lean expressions equated to True in c
-  let mut eqFalseSet : Std.HashSet Lean.Expr := Std.HashSet.empty -- Stores Lean expressions equated to False in c
+  let mut eqTrueSet : Std.HashSet Lean.Expr := Std.HashSet.emptyWithCapacity -- Stores Lean expressions equated to True in c
+  let mut eqFalseSet : Std.HashSet Lean.Expr := Std.HashSet.emptyWithCapacity -- Stores Lean expressions equated to False in c
   for lit in c.lits do
     if lit.sign then
       if lit.rhs == mkConst ``True then

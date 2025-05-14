@@ -298,6 +298,11 @@ def withoutModifyingCoreEnv (m : MetaM α) : MetaM α :=
   catch e =>
     throwError e.toMessageData
 
+/-- `skSorryAx` has essentially the same type as `sorryAx`, but does not trigger a `sorry` warning in `Lean.addAndCompile`. We want
+    to deliberately bypass the warning in `Lean.addAndCompile` because the `skolemSorry` constant that Duper adds to the environment
+    is only temporary and will be removed from the actual proof that should be checked by the kernel. -/
+axiom skSorryAx : ∀ {α : Sort u}, α
+
 /-- Add the constant `skolemSorry` to the environment and add suitable postfix to avoid name conflict. -/
 def addSkolemSorry : CoreM Name := do
   let nameS := "skS"
@@ -305,12 +310,18 @@ def addSkolemSorry : CoreM Name := do
   let mut cnt := 0
   let currNameSpace := (← read).currNamespace
   while true do
-    let name := Name.num (Name.str currNameSpace nameS) cnt
+    let name :=
+      match env.asyncPrefix? with
+      | some p => Name.num (Name.str p nameS) cnt
+      | none => Name.num (Name.str currNameSpace nameS) cnt
     if env.constants.contains name then
       cnt := cnt + 1
     else
       break
-  let name := Name.num (Name.str currNameSpace nameS) cnt
+  let name :=
+    match env.asyncPrefix? with
+    | some p => Name.num (Name.str p nameS) cnt
+    | none => Name.num (Name.str currNameSpace nameS) cnt
   trace[Meta.debug] "Created Skolem Sorry, name = {name}"
   let vlvlName := `v
   let vlvl := Level.param vlvlName
@@ -336,18 +347,16 @@ def addSkolemSorry : CoreM Name := do
   let type := Expr.forallE `p (Expr.sort vlvl) (Expr.forallE `n (Expr.const ``Nat []) (
     Expr.forallE `α (Expr.sort ulvl) (.bvar 0) .implicit
   ) .default) .implicit
-  -- Term = fun (p : Nat) (n : Nat) (α : Sort u) => sorryAx.{u} α false
+  -- Term = fun (p : Nat) (n : Nat) (α : Sort u) => skSorryAx.{u} α
   let term := Expr.lam `p (Expr.sort vlvl) (Expr.lam `n (Expr.const ``Nat []) (
     Expr.lam `α (Expr.sort ulvl) (
-      Expr.app (Expr.app (Expr.const ``sorryAx [ulvl]) (.bvar 0)) (Expr.const ``false [])
+      Expr.app (Expr.const ``skSorryAx [ulvl]) (.bvar 0)
     ) .implicit
   ) .default) .implicit
   let opaqueVal : OpaqueVal := {name := name, levelParams := [vlvlName, ulvlName],
                                 type := type, value := term, isUnsafe := true, all := [name]}
   let decl : Declaration := (.opaqueDecl opaqueVal)
-  match Kernel.Environment.addDecl (Environment.toKernelEnv (← getEnv)) (← getOptions) decl with
-  | Except.ok    env => setEnv $ Environment.ofKernelEnv env
-  | Except.error ex  => throwKernelException ex
+  addDecl decl
   return name
 
 def unfoldDefinitions (formulas : List (Expr × Expr × Array Name × Bool × Bool)) : MetaM (List (Expr × Expr × Array Name × Bool × Bool)) := do
