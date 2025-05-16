@@ -120,7 +120,7 @@ def getConjunctiveHypotheses (e : Expr) : List Expr := (getConjunctiveHypotheses
 
 theorem not_and_or (p q : Prop) : ¬(p ∧ q) ↔ ¬p ∨ ¬q := by
   have : Decidable p := Classical.propDecidable p
-  exact Decidable.not_and_iff_or_not_not
+  exact Decidable.not_and_iff_not_or_not
 
 /-- Given a proof `prf` of type `e` which has the form `¬(p1 ∧ p2 ∧ ... pn)`, constructs a proof of `¬p1 ∨ ¬p2 ∨ ... ¬pn` -/
 partial def notAndDistribute (e prf : Expr) : MetaM Expr := do

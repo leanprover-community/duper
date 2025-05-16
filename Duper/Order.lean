@@ -409,13 +409,13 @@ mutual
   partial def kbo (t1 t2 : Expr) (alreadyReduced : Bool) (symbolPrecMap : SymbolPrecMap)
     (highesetPrecSymbolHasArityZero : Bool) : MetaM Comparison := do
     if alreadyReduced then
-      let (_, _, res) ← tckbo 0 Std.HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
+      let (_, _, res) ← tckbo 0 Std.HashMap.emptyWithCapacity t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
       trace[duper.unaryFirst.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
       return res
     else
       let t1 ← betaEtaReduceInstMVars t1
       let t2 ← betaEtaReduceInstMVars t2
-      let (_, _, res) ← tckbo 0 Std.HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
+      let (_, _, res) ← tckbo 0 Std.HashMap.emptyWithCapacity t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
       trace[duper.unaryFirst.debug] "Result of comparing {t1} with {t2} (alreadyReduced: {alreadyReduced}) is {res}"
       return res
 
@@ -557,12 +557,12 @@ end
     the two expressions' weights. -/
 def getNetWeight (t1 t2 : Expr) (alreadyReduced : Bool) (symbolPrecMap : SymbolPrecMap) (highesetPrecSymbolHasArityZero : Bool) : MetaM Weight := do
   if alreadyReduced then
-    let (netWeight, _, _) ← tckbo 0 Std.HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
+    let (netWeight, _, _) ← tckbo 0 Std.HashMap.emptyWithCapacity t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
     return netWeight
   else
     let t1 ← betaEtaReduceInstMVars t1
     let t2 ← betaEtaReduceInstMVars t2
-    let (netWeight, _, _) ← tckbo 0 Std.HashMap.empty t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
+    let (netWeight, _, _) ← tckbo 0 Std.HashMap.emptyWithCapacity t1 t2 (belowLam := false) symbolPrecMap highesetPrecSymbolHasArityZero
     return netWeight
 
 end Order

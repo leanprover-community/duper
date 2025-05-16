@@ -298,6 +298,11 @@ def withoutModifyingCoreEnv (m : MetaM α) : MetaM α :=
   catch e =>
     throwError e.toMessageData
 
+/-- `skSorryAx` has essentially the same type as `sorryAx`, but does not trigger a `sorry` warning in `Lean.addAndCompile`. We want
+    to deliberately bypass the warning in `Lean.addAndCompile` because the `skolemSorry` constant that Duper adds to the environment
+    is only temporary and will be removed from the actual proof that should be checked by the kernel. -/
+axiom skSorryAx : ∀ {α : Sort u}, α
+
 /-- Add the constant `skolemSorry` to the environment and add suitable postfix to avoid name conflict. -/
 def addSkolemSorry : CoreM Name := do
   let nameS := "skS"
@@ -305,12 +310,18 @@ def addSkolemSorry : CoreM Name := do
   let mut cnt := 0
   let currNameSpace := (← read).currNamespace
   while true do
-    let name := Name.num (Name.str currNameSpace nameS) cnt
+    let name :=
+      match env.asyncPrefix? with
+      | some p => Name.num (Name.str p nameS) cnt
+      | none => Name.num (Name.str currNameSpace nameS) cnt
     if env.constants.contains name then
       cnt := cnt + 1
     else
       break
-  let name := Name.num (Name.str currNameSpace nameS) cnt
+  let name :=
+    match env.asyncPrefix? with
+    | some p => Name.num (Name.str p nameS) cnt
+    | none => Name.num (Name.str currNameSpace nameS) cnt
   trace[Meta.debug] "Created Skolem Sorry, name = {name}"
   let vlvlName := `v
   let vlvl := Level.param vlvlName
@@ -336,18 +347,16 @@ def addSkolemSorry : CoreM Name := do
   let type := Expr.forallE `p (Expr.sort vlvl) (Expr.forallE `n (Expr.const ``Nat []) (
     Expr.forallE `α (Expr.sort ulvl) (.bvar 0) .implicit
   ) .default) .implicit
-  -- Term = fun (p : Nat) (n : Nat) (α : Sort u) => sorryAx.{u} α false
+  -- Term = fun (p : Nat) (n : Nat) (α : Sort u) => skSorryAx.{u} α
   let term := Expr.lam `p (Expr.sort vlvl) (Expr.lam `n (Expr.const ``Nat []) (
     Expr.lam `α (Expr.sort ulvl) (
-      Expr.app (Expr.app (Expr.const ``sorryAx [ulvl]) (.bvar 0)) (Expr.const ``false [])
+      Expr.app (Expr.const ``skSorryAx [ulvl]) (.bvar 0)
     ) .implicit
   ) .default) .implicit
   let opaqueVal : OpaqueVal := {name := name, levelParams := [vlvlName, ulvlName],
                                 type := type, value := term, isUnsafe := true, all := [name]}
   let decl : Declaration := (.opaqueDecl opaqueVal)
-  match Kernel.Environment.addDecl (Environment.toKernelEnv (← getEnv)) (← getOptions) decl with
-  | Except.ok    env => setEnv $ Environment.ofKernelEnv env
-  | Except.error ex  => throwKernelException ex
+  addDecl decl
   return name
 
 def unfoldDefinitions (formulas : List (Expr × Expr × Array Name × Bool × Bool)) : MetaM (List (Expr × Expr × Array Name × Bool × Bool)) := do
@@ -462,21 +471,38 @@ def formulasToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool ×
       | none => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}")}
       | some stx => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}, {stx}")})
 
+/-- Like `formulasToAutoLemmas`, but the `stxOption` is a string instead of a term. -/
+def formulasWithStringsToAutoLemmas (formulas : List (Expr × Expr × Array Name × Bool × Option String)) (includeInSetOfSupport : Bool) : MetaM (Array Auto.Lemma) := do
+  formulas.toArray.mapM
+    (fun (fact, proof, params, isFromGoal, stxOption) =>
+      match stxOption with
+      | none => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}")}
+      | some stx => return {proof := ← Meta.mkAppM ``of_eq_true #[proof], type := fact, params := params, deriv := (.leaf s!"{isFromGoal}, {includeInSetOfSupport}, {stx}")})
+
+/-- Determines whether `lem`'s deriv info indicates that `lem` is part of the goal and should be included in the set of support. Note that `derivInfo`
+    only works on lemmas generated from `formulasToAutoLemmas` or `formulasWithStringsToAutoLemmas`. In cases where the lemma was not generated from
+    `formulasToAutoLemmas`, `derivInfo` defaults to indicating that both `isFromGoal` and `includeInSetOfSupport` are `true`. -/
+def derivInfo (lem : Auto.Lemma) : Bool × Bool :=
+  let derivLeaves := getLeavesFromDTr lem.deriv
+  let matchesFormat := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l || "true, false".isPrefixOf l || "false, false".isPrefixOf l)
+  if !matchesFormat then
+    (true, true)
+  else
+    let isFromGoal := derivLeaves.any (fun l => "true".isPrefixOf l)
+    let includeInSetOfSupport := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l)
+    (isFromGoal, includeInSetOfSupport)
+
 /-- Converts formulas/lemmas from the format used by Auto to the format used by Duper. -/
 def autoLemmasToFormulas (lemmas : Array Auto.Lemma) : MetaM (List (Expr × Expr × Array Name × Bool) × List (Expr × Expr × Array Name × Bool)) := do
   let monomorphizedFormulas ← lemmas.toList.filterMapM
     (fun lem => do
       trace[duper.setOfSupport.debug] "Auto lemma: {lem}, deriv: {lem.deriv}, leaves: {getLeavesFromDTr lem.deriv}"
-      let derivLeaves := getLeavesFromDTr lem.deriv
-      let isFromGoal := derivLeaves.any (fun l => "true".isPrefixOf l)
-      let includeInSetOfSupport := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l)
+      let (isFromGoal, includeInSetOfSupport) := derivInfo lem
       if includeInSetOfSupport then return (lem.type, ← Meta.mkAppM ``eq_true #[lem.proof], lem.params, isFromGoal)
       else return none)
   let monomorphizedExtraFormulas ← lemmas.toList.filterMapM
     (fun lem => do
-      let derivLeaves := getLeavesFromDTr lem.deriv
-      let isFromGoal := derivLeaves.any (fun l => "true".isPrefixOf l)
-      let includeInSetOfSupport := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l)
+      let (isFromGoal, includeInSetOfSupport) := derivInfo lem
       if includeInSetOfSupport then return none
       else return (lem.type, ← Meta.mkAppM ``eq_true #[lem.proof], lem.params, isFromGoal))
   return (monomorphizedFormulas, monomorphizedExtraFormulas)

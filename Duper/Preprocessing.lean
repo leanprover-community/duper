@@ -282,7 +282,7 @@ partial def updateSymbolFreqArityMapAndDatatypeList (f : Expr) (symbolFreqArityM
     - The number of times they appear in formulas
     - Its arity -/
 partial def buildSymbolFreqArityMap (clauses : List Clause) : ProverM (Std.HashMap Symbol (Nat × Nat)) := do
-  let mut symbolFreqArityMap := Std.HashMap.empty
+  let mut symbolFreqArityMap := Std.HashMap.emptyWithCapacity
   for c in clauses do
     for l in c.lits do
       symbolFreqArityMap ← updateSymbolFreqArityMap l.lhs symbolFreqArityMap
@@ -298,7 +298,7 @@ partial def buildSymbolFreqArityMap (clauses : List Clause) : ProverM (Std.HashM
     quantified types paired with an array of parameters that can appear in the inductive datatype. For example, the polymorphic list datatype
     `List α` of where `α : Type u` is represented via `((∀ (α : Type u), List α), #[u])` -/
 partial def buildSymbolFreqArityMapAndDatatypeList (clauses : List Clause) : ProverM (Std.HashMap Symbol (Nat × Nat) × List (Expr × Array Name)) := do
-  let mut symbolFreqArityMap := Std.HashMap.empty
+  let mut symbolFreqArityMap := Std.HashMap.emptyWithCapacity
   let mut datatypeList := []
   for c in clauses do
     trace[duper.collectDatatypes.debug] "Loaded clause c: {c.lits}"
@@ -354,7 +354,7 @@ def buildSymbolPrecMap (clauses : List Clause) : ProverM (SymbolPrecMap × Bool)
     -- We use unaryFirstGt as the lt argument for binInsert so that symbols with higher precedence come first in symbolPrecArray
     symbolPrecArr := symbolPrecArr.binInsert unaryFirstGt (s, sFreq, sArity)
   trace[duper.unaryFirst.debug] "symbolPrecArr: {symbolPrecArr}"
-  let mut symbolPrecMap := Std.HashMap.empty
+  let mut symbolPrecMap := Std.HashMap.emptyWithCapacity
   let mut counter := 0
   let mut highesetPrecSymbolHasArityZero := false
   for (s, _, sArity) in symbolPrecArr do
@@ -408,7 +408,7 @@ def buildSymbolPrecMapAndDatatypeList (clauses : List Clause) : ProverM (SymbolP
     -- We use unaryFirstGt as the lt argument for binInsert so that symbols with higher precedence come first in symbolPrecArray
     symbolPrecArr := symbolPrecArr.binInsert unaryFirstGt (s, sFreq, sArity)
   trace[duper.unaryFirst.debug] "symbolPrecArr: {symbolPrecArr}"
-  let mut symbolPrecMap := Std.HashMap.empty
+  let mut symbolPrecMap := Std.HashMap.emptyWithCapacity
   let mut counter := 0
   let mut highesetPrecSymbolHasArityZero := false
   for (s, _, sArity) in symbolPrecArr do

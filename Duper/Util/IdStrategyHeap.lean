@@ -20,7 +20,7 @@ abbrev OptionMStream m [Monad m] stream value := MStream m stream (Option value)
 --   each stream a `id`.
 structure IdStrategyHeap (σ : Type w) {β : Type v} where
   -- Map of `id` to clause heap
-  map            : Std.HashMap Nat (Array Nat × σ) := Std.HashMap.empty
+  map            : Std.HashMap Nat (Array Nat × σ) := Std.HashMap.emptyWithCapacity
   -- The first `Nat` is the precedence, and the second `Nat` is the `id`
   heaps          : Array (BinomialHeap (Nat × Nat) fun c d => c.1 ≤ d.1) := #[]
   nextId         : Nat
@@ -74,7 +74,7 @@ private def IdStrategyHeap.insert
 -- This is put here because `ProverM` needs it
 
 structure ClauseStreamHeapStatus where
-  nProbed : Std.HashMap Nat Nat := Std.HashMap.empty
+  nProbed : Std.HashMap Nat Nat := Std.HashMap.emptyWithCapacity
   fairnessCounter : Nat     := 0
 
 def ClauseStreamHeapStatus.insertNProbed (cshs : ClauseStreamHeapStatus)
@@ -96,8 +96,8 @@ abbrev ClauseStreamHeap σ := IdStrategyHeap σ (β:=ClauseStreamHeapStatus)
   { Q with status := {Q.status with fairnessCounter := Q.status.fairnessCounter + 1}}
 
 abbrev ClauseStreamHeap.empty σ : ClauseStreamHeap σ :=
-  { map := Std.HashMap.empty, heaps := #[BinomialHeap.empty, BinomialHeap.empty],
-    nextId := 0, status := ⟨Std.HashMap.empty, 0⟩ }
+  { map := Std.HashMap.emptyWithCapacity, heaps := #[BinomialHeap.empty, BinomialHeap.empty],
+    nextId := 0, status := ⟨Std.HashMap.emptyWithCapacity, 0⟩ }
 
 @[inline] def ClauseStreamHeap.insertWithNProbed
   (csh : ClauseStreamHeap σ) (x : σ) (ns : Array Nat) (nProbed : Nat) : ClauseStreamHeap σ :=
