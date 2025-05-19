@@ -2,7 +2,7 @@ import Lake
 
 open Lake DSL
 
-require auto from git "https://github.com/leanprover-community/lean-auto.git"@"1a4c55b6759a7084edea5aaa039254b0d52152b0"
+require auto from git "https://github.com/leanprover-community/lean-auto.git"@"cd38a184972438d191f1be853e60caadebfc12ec"
 require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.20.0-rc2"
 
 package Duper {
