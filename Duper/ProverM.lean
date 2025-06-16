@@ -43,8 +43,8 @@ deriving Inhabited
 
 abbrev ClauseSet := Std.HashSet Clause
 abbrev FairAgeClauseHeap := StrategyHeap Clause (β:=Nat)
-abbrev abstractedMVarList := List Meta.AbstractMVarsResult
-abbrev abstractedMVarAndClauseList := List (Meta.AbstractMVarsResult × Clause)
+abbrev abstractedMVarList := List AbstractMVars.AbstractMVarsResult
+abbrev abstractedMVarAndClauseList := List (AbstractMVars.AbstractMVarsResult × Clause)
 
 instance : ToMessageData Result :=
 ⟨fun r => match r with

@@ -129,7 +129,7 @@ end AbstractMVars
   with new fresh metavariables.
 
   Application: we use this method to cache the results of type class resolution. -/
-def abstractMVars (e : Expr) : MetaM AbstractMVarsResult := do
+def abstractMVars (e : Expr) : MetaM AbstractMVars.AbstractMVarsResult := do
   let e ← instantiateMVars e
   let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   let e ← betaEtaReduce e -- Need this to prevent abstracted types like `(a : α) → (fun a => β) a` (when it should just be `α → β`)
@@ -138,12 +138,12 @@ def abstractMVars (e : Expr) : MetaM AbstractMVarsResult := do
   let e := s.lctx.mkLambda s.fvars e
   pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
 
-def openAbstractMVarsResult (a : AbstractMVarsResult) : MetaM (Array Expr × Array BinderInfo × Expr) := do
+def openAbstractMVarsResult (a : AbstractMVars.AbstractMVarsResult) : MetaM (Array Expr × Array BinderInfo × Expr) := do
   let us ← a.paramNames.mapM fun _ => mkFreshLevelMVar
   let e := a.expr.instantiateLevelParamsArray a.paramNames us
   lambdaMetaTelescope e (some a.numMVars)
 
-def abstractMVarsForall (e : Expr) : MetaM AbstractMVarsResult := do
+def abstractMVarsForall (e : Expr) : MetaM AbstractMVars.AbstractMVarsResult := do
   let e ← instantiateMVars e
   let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   setNGen s.ngen
@@ -175,7 +175,7 @@ def abstractMVarsLambdaWithIds (e : Expr) : MetaM (Expr × Array Expr × Array N
     lmvars := lmvars.set! (parampos[(Lean.getParamLevelName! paramname)]!) (mkLevelMVar lmid)
   pure (e, mvars, sparams, lmvars)
 
-def abstractMVarsLambda (e : Expr) : MetaM AbstractMVarsResult := do
+def abstractMVarsLambda (e : Expr) : MetaM AbstractMVars.AbstractMVarsResult := do
   let e ← instantiateMVars e
   let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
   setNGen s.ngen

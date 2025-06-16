@@ -527,10 +527,10 @@ def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × Array
       inst monomorphizedFormulas monomorphizedExtraFormulas instanceMaxHeartbeats
   Auto.monoInterface allLemmas inhFacts prover
 
-/-- Given `formulas`, `instanceMaxHeartbeats`, `declName?` and an instance of Duper `inst`, runs `inst` with all of Auto's preprocessing
+/-- Given `formulas`, `instanceMaxHeartbeats`, ` and an instance of Duper `inst`, runs `inst` with all of Auto's preprocessing
     (monomorphization, skolemization, definition unfolding, exhaustive function extensionality rewrites, and BitVec simplicfication). -/
 def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term)) (declName? : Option Name) (instanceMaxHeartbeats : Nat)
+  (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term)) (instanceMaxHeartbeats : Nat)
   (inst : List (Expr × Expr × Array Name × Bool) → List (Expr × Expr × Array Name × Bool) → Nat → MetaM Expr) : MetaM Expr := do
   let lemmas ← formulasToAutoLemmas formulas true
   let extraLemmas ← formulasToAutoLemmas extraFormulas false
@@ -546,13 +546,13 @@ def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr × Arra
       trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => (f.1, f.2.2.2))}"
       trace[duper.monomorphization.debug] "Monomorphized extra formulas: {monomorphizedExtraFormulas.map (fun f => (f.1, f.2.2.2))}"
       inst monomorphizedFormulas monomorphizedExtraFormulas instanceMaxHeartbeats
-  Auto.runNativeProverWithAuto declName? prover allLemmas inhFacts
+  Auto.runNativeProverWithAuto prover allLemmas inhFacts
 
 /-- `mkDuperInstance` is called by each `runDuperInstanceN` function to construct the desired Duper instance. Additionally,
     if a user invokes portfolio instance 0 (which is the special instance reserved for allowing the user to manually construct
     an instance with their own configuration options), then this function will be called directly. -/
 def mkDuperInstance (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) (inhabitationReasoning : Option Bool) (preprocessing : Option PreprocessingOption)
+  (instanceMaxHeartbeats : Nat) (inhabitationReasoning : Option Bool) (preprocessing : Option PreprocessingOption)
   (includeExpensiveRules : Option Bool) (selFunction : Option Nat) : MetaM Expr :=
   let addInhabitationReasoningOption : MetaM Expr → MetaM Expr :=
     match inhabitationReasoning with
@@ -569,7 +569,7 @@ def mkDuperInstance (formulas : List (Expr × Expr × Array Name × Bool × Opti
   match preprocessing with
   | some FullPreprocessing =>
     addInhabitationReasoningOption ∘ addIncludeExpensiveRulesOption ∘ addSelFunctionOption $
-      runDuperInstanceWithFullPreprocessing formulas extraFormulas declName? instanceMaxHeartbeats runDuper
+      runDuperInstanceWithFullPreprocessing formulas extraFormulas instanceMaxHeartbeats runDuper
   | some Monomorphization =>
     addInhabitationReasoningOption ∘ addIncludeExpensiveRulesOption ∘ addSelFunctionOption $
       runDuperInstanceWithMonomorphization formulas extraFormulas instanceMaxHeartbeats runDuper
@@ -581,7 +581,7 @@ def mkDuperInstance (formulas : List (Expr × Expr × Array Name × Bool × Opti
       runDuper formulas extraFormulas instanceMaxHeartbeats
   | none => -- Use full preprocessing by default
     addInhabitationReasoningOption ∘ addIncludeExpensiveRulesOption ∘ addSelFunctionOption $
-      runDuperInstanceWithFullPreprocessing formulas extraFormulas declName? instanceMaxHeartbeats runDuper
+      runDuperInstanceWithFullPreprocessing formulas extraFormulas instanceMaxHeartbeats runDuper
 
 /-- First instance called by portfolio mode. Has the following options:
     - preprocessing = full
@@ -589,8 +589,8 @@ def mkDuperInstance (formulas : List (Expr × Expr × Array Name × Bool × Opti
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
 def runDuperInstance1 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 4)
 
 /-- Same as duper instance 1 except inhabitation reasoning is enabled. Has the following options:
@@ -599,8 +599,8 @@ def runDuperInstance1 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
 def runDuperInstance2 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 4)
 
 /-- Second instance called by portfolio mode. Has the following options:
@@ -609,8 +609,8 @@ def runDuperInstance2 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
 def runDuperInstance3 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 11)
 
 /-- Same as duper instance 3 except inhabitation reasoning is enabled. Has the following options:
@@ -619,8 +619,8 @@ def runDuperInstance3 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
 def runDuperInstance4 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 11)
 
 /-- Third instance called by portfolio mode. Has the following options:
@@ -629,8 +629,8 @@ def runDuperInstance4 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
 def runDuperInstance5 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 13)
 
 /-- Same as duper instance 5 except inhabitation reasoning is enabled. Has the following options:
@@ -639,8 +639,8 @@ def runDuperInstance5 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
 def runDuperInstance6 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 13)
 
 /-- Fourth instance called by portfolio mode. Has the following options:
@@ -649,8 +649,8 @@ def runDuperInstance6 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
 def runDuperInstance7 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 2)
 
 /-- Same as duper instance 7 except inhabitation reasoning is disabled. Has the following options:
@@ -659,8 +659,8 @@ def runDuperInstance7 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
 def runDuperInstance8 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 2)
 
 /-- Same as duper instance 1 except preprocessing is disabled. Has the following options:
@@ -669,8 +669,8 @@ def runDuperInstance8 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
 def runDuperInstance9 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 4)
 
 /-- Same as duper instance 2 except preprocessing is disabled. Has the following options:
@@ -679,8 +679,8 @@ def runDuperInstance9 (formulas : List (Expr × Expr × Array Name × Bool × Op
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
 def runDuperInstance10 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 4)
 
 /-- Same as duper instance 3 except preprocessing is disabled. Has the following options:
@@ -689,8 +689,8 @@ def runDuperInstance10 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
 def runDuperInstance11 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 11)
 
 /-- Same as duper instance 4 except preprocessing is disabled. Has the following options:
@@ -699,8 +699,8 @@ def runDuperInstance11 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
 def runDuperInstance12 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 11)
 
 /-- Same as duper instance 5 except preprocessing is disabled. Has the following options:
@@ -709,8 +709,8 @@ def runDuperInstance12 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
 def runDuperInstance13 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 13)
 
 /-- Same as duper instance 6 except preprocessing is disabled. Has the following options:
@@ -719,8 +719,8 @@ def runDuperInstance13 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
 def runDuperInstance14 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 13)
 
 /-- Same as duper instance 7 except preprocessing is enabled. Has the following options:
@@ -729,8 +729,8 @@ def runDuperInstance14 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
 def runDuperInstance15 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 2)
 
 /-- Same as duper instance 8 except preprocessing is enabled. Has the following options:
@@ -739,8 +739,8 @@ def runDuperInstance15 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
 def runDuperInstance16 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 2)
 
 /-- Same as duper instance 1 except preprocessing is set to monomorphization only. Has the following options:
@@ -749,8 +749,8 @@ def runDuperInstance16 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
 def runDuperInstance17 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
     (includeExpensiveRules := false) (selFunction := some 4)
 
 /-- Same as duper instance 2 except preprocessing is set to monomorphization only. Has the following options:
@@ -759,8 +759,8 @@ def runDuperInstance17 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = false -/
 def runDuperInstance18 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
     (includeExpensiveRules := false) (selFunction := some 4)
 
 /-- Same as duper instance 3 except preprocessing is set to monomorphization only. Has the following options:
@@ -769,8 +769,8 @@ def runDuperInstance18 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
 def runDuperInstance19 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
     (includeExpensiveRules := true) (selFunction := some 11)
 
 /-- Same as duper instance 4 except preprocessing is set to monomorphization only. Has the following options:
@@ -779,8 +779,8 @@ def runDuperInstance19 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = true -/
 def runDuperInstance20 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
     (includeExpensiveRules := true) (selFunction := some 11)
 
 /-- Same as duper instance 5 except preprocessing is set to monomorphization only. Has the following options:
@@ -789,8 +789,8 @@ def runDuperInstance20 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
 def runDuperInstance21 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
     (includeExpensiveRules := false) (selFunction := some 13)
 
 /-- Same as duper instance 6 except preprocessing is set to monomorphization only. Has the following options:
@@ -799,8 +799,8 @@ def runDuperInstance21 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = false -/
 def runDuperInstance22 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
     (includeExpensiveRules := false) (selFunction := some 13)
 
 /-- Same as duper instance 7 except preprocessing is set to monomorphization only. Has the following options:
@@ -809,8 +809,8 @@ def runDuperInstance22 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
 def runDuperInstance23 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
     (includeExpensiveRules := true) (selFunction := some 2)
 
 /-- Same as duper instance 8 except preprocessing is set to monomorphization only. Has the following options:
@@ -819,8 +819,8 @@ def runDuperInstance23 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = true -/
 def runDuperInstance24 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
     (includeExpensiveRules := true) (selFunction := some 2)
 
 /-- Same as duper instance 1 except includeExpensiveRules is set to true. Has the following options:
@@ -829,8 +829,8 @@ def runDuperInstance24 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = true -/
 def runDuperInstance25 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 4)
 
 /-- Same as duper instance 2 except includeExpensiveRules is set to true. Has the following options:
@@ -839,8 +839,8 @@ def runDuperInstance25 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = true -/
 def runDuperInstance26 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 4)
 
 /-- Same as duper instance 3 except includeExpensiveRules is set to false. Has the following options:
@@ -849,8 +849,8 @@ def runDuperInstance26 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = false -/
 def runDuperInstance27 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 11)
 
 /-- Same as duper instance 4 except includeExpensiveRules is set to false. Has the following options:
@@ -859,8 +859,8 @@ def runDuperInstance27 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = false -/
 def runDuperInstance28 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 11)
 
 /-- Same as duper instance 5 except includeExpensiveRules is set to true. Has the following options:
@@ -869,8 +869,8 @@ def runDuperInstance28 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = true -/
 def runDuperInstance29 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 13)
 
 /-- Same as duper instance 6 except includeExpensiveRules is set to true. Has the following options:
@@ -879,8 +879,8 @@ def runDuperInstance29 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = true -/
 def runDuperInstance30 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 13)
 
 /-- Same as duper instance 7 except includeExpensiveRules is set to false. Has the following options:
@@ -889,8 +889,8 @@ def runDuperInstance30 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = false -/
 def runDuperInstance31 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 2)
 
 /-- Same as duper instance 8 except includeExpensiveRules is set to false. Has the following options:
@@ -899,8 +899,8 @@ def runDuperInstance31 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = false -/
 def runDuperInstance32 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 2)
 
 /-- Same as duper instance 9 except includeExpensiveRules is set to true. Has the following options:
@@ -909,8 +909,8 @@ def runDuperInstance32 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = true -/
 def runDuperInstance33 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 4)
 
 /-- Same as duper instance 10 except includeExpensiveRules is set to true. Has the following options:
@@ -919,8 +919,8 @@ def runDuperInstance33 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = true -/
 def runDuperInstance34 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 4)
 
 /-- Same as duper instance 11 except includeExpensiveRules is set to false. Has the following options:
@@ -929,8 +929,8 @@ def runDuperInstance34 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = false -/
 def runDuperInstance35 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 11)
 
 /-- Same as duper instance 12 except includeExpensiveRules is set to false. Has the following options:
@@ -939,8 +939,8 @@ def runDuperInstance35 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = false -/
 def runDuperInstance36 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 11)
 
 /-- Same as duper instance 13 except includeExpensiveRules is set to true. Has the following options:
@@ -949,8 +949,8 @@ def runDuperInstance36 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = true -/
 def runDuperInstance37 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 13)
 
 /-- Same as duper instance 14 except includeExpensiveRules is set to true. Has the following options:
@@ -959,8 +959,8 @@ def runDuperInstance37 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = true -/
 def runDuperInstance38 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 13)
 
 /-- Same as duper instance 15 except includeExpensiveRules is set to false. Has the following options:
@@ -969,8 +969,8 @@ def runDuperInstance38 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = false -/
 def runDuperInstance39 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 2)
 
 /-- Same as duper instance 16 except includeExpensiveRules is set to false. Has the following options:
@@ -979,8 +979,8 @@ def runDuperInstance39 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = false -/
 def runDuperInstance40 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := FullPreprocessing)
     (includeExpensiveRules := false) (selFunction := some 2)
 
 /-- Same as duper instance 17 except includeExpensiveRules is set to true. Has the following options:
@@ -989,8 +989,8 @@ def runDuperInstance40 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = true -/
 def runDuperInstance41 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
     (includeExpensiveRules := true) (selFunction := some 4)
 
 /-- Same as duper instance 18 except includeExpensiveRules is set to true. Has the following options:
@@ -999,8 +999,8 @@ def runDuperInstance41 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 4 (which corresponds to Zipperposition's default selection function)
     - includeExpensiveRules = true -/
 def runDuperInstance42 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
     (includeExpensiveRules := true) (selFunction := some 4)
 
 /-- Same as duper instance 19 except includeExpensiveRules is set to false. Has the following options:
@@ -1009,8 +1009,8 @@ def runDuperInstance42 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = false -/
 def runDuperInstance43 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
     (includeExpensiveRules := false) (selFunction := some 11)
 
 /-- Same as duper instance 20 except includeExpensiveRules is set to false. Has the following options:
@@ -1019,8 +1019,8 @@ def runDuperInstance43 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 11 (which corresponds to E's SelectMaxLComplexAvoidPosPred and Zipperposition's e_sel)
     - includeExpensiveRules = false -/
 def runDuperInstance44 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
     (includeExpensiveRules := false) (selFunction := some 11)
 
 /-- Same as duper instance 21 except includeExpensiveRules is set to true. Has the following options:
@@ -1029,8 +1029,8 @@ def runDuperInstance44 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = true -/
 def runDuperInstance45 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := NoPreprocessing)
     (includeExpensiveRules := true) (selFunction := some 13)
 
 /-- Same as duper instance 22 except includeExpensiveRules is set to true. Has the following options:
@@ -1039,8 +1039,8 @@ def runDuperInstance45 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 13 (which corresponds to E's SelectComplexG and Zipperposition's e_sel3)
     - includeExpensiveRules = true -/
 def runDuperInstance46 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
     (includeExpensiveRules := true) (selFunction := some 13)
 
 /-- Same as duper instance 23 except includeExpensiveRules is set to false. Has the following options:
@@ -1049,8 +1049,8 @@ def runDuperInstance46 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = false -/
 def runDuperInstance47 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := true) (preprocessing := Monomorphization)
     (includeExpensiveRules := false) (selFunction := some 2)
 
 /-- Same as duper instance 24 except includeExpensiveRules is set to false. Has the following options:
@@ -1059,8 +1059,8 @@ def runDuperInstance47 (formulas : List (Expr × Expr × Array Name × Bool × O
     - selFunction = 2 (NoSelection)
     - includeExpensiveRules = false -/
 def runDuperInstance48 (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (instanceMaxHeartbeats : Nat) : MetaM Expr :=
-  mkDuperInstance formulas extraFormulas declName? instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
+  (instanceMaxHeartbeats : Nat) : MetaM Expr :=
+  mkDuperInstance formulas extraFormulas instanceMaxHeartbeats (inhabitationReasoning := false) (preprocessing := Monomorphization)
     (includeExpensiveRules := false) (selFunction := some 2)
 
 /-- Returns true iff the given duper instance `n` has inhabitation reasoning enabled. Returns false iff the given duper instance
@@ -1122,7 +1122,7 @@ def instanceHasInhabitationReasoning [Monad m] [MonadError m] (n : Nat) : m Bool
     except that it has inhabitation reasoning enabled, then `getInstanceWithInhabitationReasoning` returns `some m`. Otherwise,
     `getInstanceWithInhabitationReasoning` returns `none`. -/
 def getInstanceWithInhabitationReasoning (n : Nat)
-  : Option (Nat × (List (Expr × Expr × Array Name × Bool × Option Term) → List (Expr × Expr × Array Name × Bool × Option Term) → Option Name → Nat → MetaM Expr)) := do
+  : Option (Nat × (List (Expr × Expr × Array Name × Bool × Option Term) → List (Expr × Expr × Array Name × Bool × Option Term) → Nat → MetaM Expr)) := do
   match n with
   | 1 => some (2, runDuperInstance2)
   | 3 => some (4, runDuperInstance4)
@@ -1154,7 +1154,7 @@ def getInstanceWithInhabitationReasoning (n : Nat)
     except that it has inhabitation reasoning disabled, then `getInstanceWithoutInhabitationReasoning` returns `some m`. Otherwise,
     `getInstanceWithoutInhabitationReasoning` returns `none`. -/
 def getInstanceWithoutInhabitationReasoning (n : Nat)
-  : Option (Nat × (List (Expr × Expr × Array Name × Bool × Option Term) → List (Expr × Expr × Array Name × Bool × Option Term) → Option Name → Nat → MetaM Expr)) := do
+  : Option (Nat × (List (Expr × Expr × Array Name × Bool × Option Term) → List (Expr × Expr × Array Name × Bool × Option Term) → Nat → MetaM Expr)) := do
   match n with
   | 2 => some (1, runDuperInstance1)
   | 4 => some (3, runDuperInstance3)
@@ -1186,7 +1186,7 @@ def getInstanceWithoutInhabitationReasoning (n : Nat)
     except that it has includeExpensiveRules set to true, then `getInstanceWithExpensiveRules` returns `some m`. Otherwise,
     `getInstanceWithExpensiveRules` returns `none`. -/
 def getInstanceWithExpensiveRules (n : Nat)
-  : Option (Nat × (List (Expr × Expr × Array Name × Bool × Option Term) → List (Expr × Expr × Array Name × Bool × Option Term) → Option Name → Nat → MetaM Expr)) := do
+  : Option (Nat × (List (Expr × Expr × Array Name × Bool × Option Term) → List (Expr × Expr × Array Name × Bool × Option Term) → Nat → MetaM Expr)) := do
   match n with
   | 1 => some (25, runDuperInstance25)
   | 2 => some (26, runDuperInstance26)
@@ -1218,7 +1218,7 @@ def getInstanceWithExpensiveRules (n : Nat)
     except that it has includeExpensiveRules set to false, then `getInstanceWithoutExpensiveRules` returns `some m`. Otherwise,
     `getInstanceWithoutExpensiveRules` returns `none`. -/
 def getInstanceWithoutExpensiveRules (n : Nat)
-  : Option (Nat × (List (Expr × Expr × Array Name × Bool × Option Term) → List (Expr × Expr × Array Name × Bool × Option Term) → Option Name → Nat → MetaM Expr)) := do
+  : Option (Nat × (List (Expr × Expr × Array Name × Bool × Option Term) → List (Expr × Expr × Array Name × Bool × Option Term) → Nat → MetaM Expr)) := do
   match n with
   | 25 => some (1, runDuperInstance1)
   | 26 => some (2, runDuperInstance2)
@@ -1251,7 +1251,7 @@ def getInstanceWithoutExpensiveRules (n : Nat)
     reproduce the proof (without having to run duper in portfolio mode). As with the other `runDuper` functions, `runDuperPortfolioMode`
     ultimately returns a proof if successful and throws an error if unsuccessful. -/
 def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool × Option Term)) (extraFormulas : List (Expr × Expr × Array Name × Bool × Option Term))
-  (declName? : Option Name) (configOptions : ConfigurationOptions)
+  (configOptions : ConfigurationOptions)
   (duperStxInfo : Option (Syntax × Syntax × Syntax.TSepArray `term "," × Option (Syntax.TSepArray `term ",") × Bool)) : MetaM Expr := do
   let initHeartbeats ← IO.getNumHeartbeats
   let maxHeartbeats ← getMaxHeartbeats
@@ -1259,21 +1259,21 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool �
   let instances :=
     match configOptions.preprocessing with
     | none =>
-      #[(1, runDuperInstance1 formulas extraFormulas declName?),
-        (3, runDuperInstance3 formulas extraFormulas declName?),
-        (7, runDuperInstance7 formulas extraFormulas declName?)]
+      #[(1, runDuperInstance1 formulas extraFormulas),
+        (3, runDuperInstance3 formulas extraFormulas),
+        (7, runDuperInstance7 formulas extraFormulas)]
     | some FullPreprocessing => -- Replace instance 7 which has preprocessing disabled
-      #[(1, runDuperInstance1 formulas extraFormulas declName?),
-        (3, runDuperInstance3 formulas extraFormulas declName?),
-        (15, runDuperInstance15 formulas extraFormulas declName?)]
+      #[(1, runDuperInstance1 formulas extraFormulas),
+        (3, runDuperInstance3 formulas extraFormulas),
+        (15, runDuperInstance15 formulas extraFormulas)]
     | some NoPreprocessing => -- Replaces instances 1 and 3 which have full preprocessing enabled
-      #[(9, runDuperInstance9 formulas extraFormulas declName?),
-        (11, runDuperInstance11 formulas extraFormulas declName?),
-        (7, runDuperInstance7 formulas extraFormulas declName?)]
+      #[(9, runDuperInstance9 formulas extraFormulas),
+        (11, runDuperInstance11 formulas extraFormulas),
+        (7, runDuperInstance7 formulas extraFormulas)]
     | some Monomorphization => -- Replace all instances with corresponding instances that have only monomorphization enabled
-      #[(17, runDuperInstance17 formulas extraFormulas declName?),
-        (19, runDuperInstance19 formulas extraFormulas declName?),
-        (23, runDuperInstance23 formulas extraFormulas declName?)]
+      #[(17, runDuperInstance17 formulas extraFormulas),
+        (19, runDuperInstance19 formulas extraFormulas),
+        (23, runDuperInstance23 formulas extraFormulas)]
   let numInstances := instances.size
   let mut maxInstanceHeartbeats := maxHeartbeats / numInstances -- Allocate total heartbeats among all instances
   let mut numInstancesTried := 0
@@ -1289,13 +1289,13 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool �
            current duper instance with the corresponding instance that has inhabitation reasoning enabled -/
         match getInstanceWithInhabitationReasoning duperInstanceNum with
         | none => (duperInstanceNum, duperInstanceFn)
-        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas declName?)
+        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas)
       | some false =>
         /- If inhabitationReasoning is explicitly disabled and duperInstanceNum has inhabitation reasoning enabled, then replace the
            current duper instance with the corresponding instance that has inhabitation reasoning disabled -/
         match getInstanceWithoutInhabitationReasoning duperInstanceNum with
         | none => (duperInstanceNum, duperInstanceFn)
-        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas declName?)
+        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas)
     -- If includeExpensiveRules is explicitly specified, modify the current instance to ensure that includeExpensiveRules is set appropriately
     let (duperInstanceNum, duperInstanceFn) :=
       match configOptions.includeExpensiveRules with
@@ -1305,13 +1305,13 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool �
            current duper instance with the corresponding instance that has includeExpensiveRules enabled -/
         match getInstanceWithExpensiveRules duperInstanceNum with
         | none => (duperInstanceNum, duperInstanceFn)
-        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas declName?)
+        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas)
       | some false =>
         /- If includeExpensiveRules is explicitly disabled and duperInstanceNum has includeExpensiveRules enabled, then replace the
            current duper instance with the corresponding instance that has includeExpensiveRules disabled -/
         match getInstanceWithoutExpensiveRules duperInstanceNum with
         | none => (duperInstanceNum, duperInstanceFn)
-        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas declName?)
+        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas)
     /- If Duper finds a contradiction and successfully performs proof reconstruction, `proofOption` will be `some proof` and
        `retryWithInhabitationReasoning` will be false.
 
@@ -1373,7 +1373,7 @@ def runDuperPortfolioMode (formulas : List (Expr × Expr × Array Name × Bool �
       IO.println "Duper determined that this problem requires inhabitation reasoning, continuing portfolio mode with it enabled"
       let (duperInstanceNum, duperInstanceFn) :=
         match getInstanceWithInhabitationReasoning duperInstanceNum with
-        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas declName?)
+        | some (newDuperInstanceNum, newDuperInstanceFn) => (newDuperInstanceNum, newDuperInstanceFn formulas extraFormulas)
         | none => (duperInstanceNum, duperInstanceFn) -- This case should never occur
       /- If Duper finds a contradiction and successfully performs proof reconstruction `proofOption` will be `some proof`.
          If Duper times out, then `proofOption` will be `none`.

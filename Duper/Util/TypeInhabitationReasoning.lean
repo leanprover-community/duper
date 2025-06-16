@@ -209,7 +209,7 @@ def mkDeriveNewNonemptyTypeProof7 (premises : List Expr) (parents : List ProofPa
     | _ => throwError "mkDeriveNewNonemptyTypeProof7 received invalid parent: {parents[0]!.clause.toExpr}"
 
 /-- Determines if `Nonempty abstractedType` can be derived specifically from `Nonempty t` -/
-partial def deriveNonemptyFrom (abstractedType : AbstractMVarsResult) (t : AbstractMVarsResult) : MetaM Bool := do
+partial def deriveNonemptyFrom (abstractedType : AbstractMVars.AbstractMVarsResult) (t : AbstractMVars.AbstractMVarsResult) : MetaM Bool := do
   if t == abstractedType then return true
   else
     match abstractedType.expr with
@@ -223,7 +223,7 @@ partial def deriveNonemptyFrom (abstractedType : AbstractMVarsResult) (t : Abstr
     | _ => return false
 
 /-- Determines if `Nonempty abstractedType` can be derived from any type in `verifiedNonemptyTypes` -/
-def deriveNonempty (abstractedType : AbstractMVarsResult) (verifiedNonemptyTypes : abstractedMVarAndClauseList) : MetaM (Option Clause) := do
+def deriveNonempty (abstractedType : AbstractMVars.AbstractMVarsResult) (verifiedNonemptyTypes : abstractedMVarAndClauseList) : MetaM (Option Clause) := do
   match ← verifiedNonemptyTypes.findM? (fun (t, c) => deriveNonemptyFrom abstractedType t) with
   | some (_, c) => return some c
   | none => return none
@@ -360,7 +360,7 @@ def removeVanishedVars (givenClause : Clause) : ProverM (Option (Clause × Bool)
 
 /-- If givenClause is of the form `Nonempty t = True` or `True = Nonempty t`, then returns `(← abstractMVars t)`. If givenClause has the form
     `∀ x1 : t1, ∀ x2 : t2, ... Nonempty t = True`, then registerNewInhabitedTypesHelper returns `(← abstractMVars (t1 → t2 → ... → t))` -/
-def registerNewInhabitedTypesHelper (givenClause : Clause) : RuleM (Option AbstractMVarsResult) := do
+def registerNewInhabitedTypesHelper (givenClause : Clause) : RuleM (Option AbstractMVars.AbstractMVarsResult) := do
   let givenMClause ← loadClause givenClause
   let some t := getNonemptyType givenMClause
     | return none
@@ -368,7 +368,7 @@ def registerNewInhabitedTypesHelper (givenClause : Clause) : RuleM (Option Abstr
 
 /-- Returns true if any of `c`'s bVarTypes match `abstractedT` or have the form `α1 → α2 → ... abstractedT`. If this is the case, then said clause
     should be returned to the passive set (and removed from the set of potentially vacuous clauses) so that it can be re-evaluated. -/
-def clauseHasAbstractedT (c : Clause) (abstractedT : AbstractMVarsResult) : RuleM Bool := do
+def clauseHasAbstractedT (c : Clause) (abstractedT : AbstractMVars.AbstractMVarsResult) : RuleM Bool := do
   let (mvars, _) ← loadClauseCore c
   mvars.anyM
     (fun mvar => do
@@ -380,7 +380,7 @@ def clauseHasAbstractedT (c : Clause) (abstractedT : AbstractMVarsResult) : Rule
 /-- Derives new Nonempty types from the combination of the new Nonempty type `abstractedT` and current
     verifiedInhabitedTypes and verifiedNonemptyTypes. Specifically, deriveNewNonemptyTypes exhaustively applies the rule:
     - If any type in verifiedNonemptyTypes has the form `t1 → t2` and `abstractedT` matches `t1`, then derive `Nonempty t2` -/
-def deriveNewNonemptyTypesHelper (abstractedT : AbstractMVarsResult) (givenClause : Clause) : ProverM Unit := do
+def deriveNewNonemptyTypesHelper (abstractedT : AbstractMVars.AbstractMVarsResult) (givenClause : Clause) : ProverM Unit := do
   let verifiedNonemptyTypes ← getVerifiedNonemptyTypes
   for (t, c) in verifiedNonemptyTypes do
     match t.expr with
@@ -425,7 +425,7 @@ def deriveNewNonemptyTypesHelper (abstractedT : AbstractMVarsResult) (givenClaus
     `deriveNewNonemptyTypes`. Since `deriveNewNonemptyTypes` adds clauses it generates to the passive set (using `addNewToPassive`
     rather than `addNewClause`), these clauses that it generates will quickly be selected and sent to `registerNewNonemptyTypes`
     which will cause `Nonempty β` to be generated. -/
-def deriveNewNonemptyTypes (abstractedT : AbstractMVarsResult) (givenClause : Clause) : ProverM Unit := do
+def deriveNewNonemptyTypes (abstractedT : AbstractMVars.AbstractMVarsResult) (givenClause : Clause) : ProverM Unit := do
   let verifiedInhabitedTypes ← getVerifiedInhabitedTypes
   let verifiedNonemptyTypes ← getVerifiedNonemptyTypes
   let potentinallyUninhabitedTypes ← getPotentiallyUninhabitedTypes

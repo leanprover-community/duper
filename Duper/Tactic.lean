@@ -353,9 +353,8 @@ def evalDuper : Tactic
     trace[duper.setOfSupport.debug] "Extra formulas before filtering: {extraFormulas.map (fun f => f.1)}"
     let formulas := formulas.filter (fun f => extraFormulas.all (fun (f', _) => f' != f.1)) -- If `f` appears in `formulas` and `extraFormulas`, remove `f` from `formulas`
     trace[duper.setOfSupport.debug] "Formulas after filtering: {formulas.map (fun f => f.1)}"
-    let declName? ← Elab.Term.getDeclName? -- Needed for `Auto.monoPrepInterface`
     if configOptions.portfolioMode then
-      let proof ← runDuperPortfolioMode formulas extraFormulas declName? configOptions none
+      let proof ← runDuperPortfolioMode formulas extraFormulas configOptions none
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       if ← getPrintTimeInformationM then
         IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
@@ -367,56 +366,56 @@ def evalDuper : Tactic
       let proof ←
         match portfolioInstance with
         | 0 =>
-          mkDuperInstance formulas extraFormulas declName? 0 configOptions.inhabitationReasoning configOptions.preprocessing
+          mkDuperInstance formulas extraFormulas 0 configOptions.inhabitationReasoning configOptions.preprocessing
             configOptions.includeExpensiveRules configOptions.selFunction
-        | 1 => runDuperInstance1 formulas extraFormulas declName? 0
-        | 2 => runDuperInstance2 formulas extraFormulas declName? 0
-        | 3 => runDuperInstance3 formulas extraFormulas declName? 0
-        | 4 => runDuperInstance4 formulas extraFormulas declName? 0
-        | 5 => runDuperInstance5 formulas extraFormulas declName? 0
-        | 6 => runDuperInstance6 formulas extraFormulas declName? 0
-        | 7 => runDuperInstance7 formulas extraFormulas declName? 0
-        | 8 => runDuperInstance8 formulas extraFormulas declName? 0
-        | 9 => runDuperInstance9 formulas extraFormulas declName? 0
-        | 10 => runDuperInstance10 formulas extraFormulas declName? 0
-        | 11 => runDuperInstance11 formulas extraFormulas declName? 0
-        | 12 => runDuperInstance12 formulas extraFormulas declName? 0
-        | 13 => runDuperInstance13 formulas extraFormulas declName? 0
-        | 14 => runDuperInstance14 formulas extraFormulas declName? 0
-        | 15 => runDuperInstance15 formulas extraFormulas declName? 0
-        | 16 => runDuperInstance16 formulas extraFormulas declName? 0
-        | 17 => runDuperInstance17 formulas extraFormulas declName? 0
-        | 18 => runDuperInstance18 formulas extraFormulas declName? 0
-        | 19 => runDuperInstance19 formulas extraFormulas declName? 0
-        | 20 => runDuperInstance20 formulas extraFormulas declName? 0
-        | 21 => runDuperInstance21 formulas extraFormulas declName? 0
-        | 22 => runDuperInstance22 formulas extraFormulas declName? 0
-        | 23 => runDuperInstance23 formulas extraFormulas declName? 0
-        | 24 => runDuperInstance24 formulas extraFormulas declName? 0
-        | 25 => runDuperInstance25 formulas extraFormulas declName? 0
-        | 26 => runDuperInstance26 formulas extraFormulas declName? 0
-        | 27 => runDuperInstance27 formulas extraFormulas declName? 0
-        | 28 => runDuperInstance28 formulas extraFormulas declName? 0
-        | 29 => runDuperInstance29 formulas extraFormulas declName? 0
-        | 30 => runDuperInstance30 formulas extraFormulas declName? 0
-        | 31 => runDuperInstance31 formulas extraFormulas declName? 0
-        | 32 => runDuperInstance32 formulas extraFormulas declName? 0
-        | 33 => runDuperInstance33 formulas extraFormulas declName? 0
-        | 34 => runDuperInstance34 formulas extraFormulas declName? 0
-        | 35 => runDuperInstance35 formulas extraFormulas declName? 0
-        | 36 => runDuperInstance36 formulas extraFormulas declName? 0
-        | 37 => runDuperInstance37 formulas extraFormulas declName? 0
-        | 38 => runDuperInstance38 formulas extraFormulas declName? 0
-        | 39 => runDuperInstance39 formulas extraFormulas declName? 0
-        | 40 => runDuperInstance40 formulas extraFormulas declName? 0
-        | 41 => runDuperInstance41 formulas extraFormulas declName? 0
-        | 42 => runDuperInstance42 formulas extraFormulas declName? 0
-        | 43 => runDuperInstance43 formulas extraFormulas declName? 0
-        | 44 => runDuperInstance44 formulas extraFormulas declName? 0
-        | 45 => runDuperInstance45 formulas extraFormulas declName? 0
-        | 46 => runDuperInstance46 formulas extraFormulas declName? 0
-        | 47 => runDuperInstance47 formulas extraFormulas declName? 0
-        | 48 => runDuperInstance48 formulas extraFormulas declName? 0
+        | 1 => runDuperInstance1 formulas extraFormulas 0
+        | 2 => runDuperInstance2 formulas extraFormulas 0
+        | 3 => runDuperInstance3 formulas extraFormulas 0
+        | 4 => runDuperInstance4 formulas extraFormulas 0
+        | 5 => runDuperInstance5 formulas extraFormulas 0
+        | 6 => runDuperInstance6 formulas extraFormulas 0
+        | 7 => runDuperInstance7 formulas extraFormulas 0
+        | 8 => runDuperInstance8 formulas extraFormulas 0
+        | 9 => runDuperInstance9 formulas extraFormulas 0
+        | 10 => runDuperInstance10 formulas extraFormulas 0
+        | 11 => runDuperInstance11 formulas extraFormulas 0
+        | 12 => runDuperInstance12 formulas extraFormulas 0
+        | 13 => runDuperInstance13 formulas extraFormulas 0
+        | 14 => runDuperInstance14 formulas extraFormulas 0
+        | 15 => runDuperInstance15 formulas extraFormulas 0
+        | 16 => runDuperInstance16 formulas extraFormulas 0
+        | 17 => runDuperInstance17 formulas extraFormulas 0
+        | 18 => runDuperInstance18 formulas extraFormulas 0
+        | 19 => runDuperInstance19 formulas extraFormulas 0
+        | 20 => runDuperInstance20 formulas extraFormulas 0
+        | 21 => runDuperInstance21 formulas extraFormulas 0
+        | 22 => runDuperInstance22 formulas extraFormulas 0
+        | 23 => runDuperInstance23 formulas extraFormulas 0
+        | 24 => runDuperInstance24 formulas extraFormulas 0
+        | 25 => runDuperInstance25 formulas extraFormulas 0
+        | 26 => runDuperInstance26 formulas extraFormulas 0
+        | 27 => runDuperInstance27 formulas extraFormulas 0
+        | 28 => runDuperInstance28 formulas extraFormulas 0
+        | 29 => runDuperInstance29 formulas extraFormulas 0
+        | 30 => runDuperInstance30 formulas extraFormulas 0
+        | 31 => runDuperInstance31 formulas extraFormulas 0
+        | 32 => runDuperInstance32 formulas extraFormulas 0
+        | 33 => runDuperInstance33 formulas extraFormulas 0
+        | 34 => runDuperInstance34 formulas extraFormulas 0
+        | 35 => runDuperInstance35 formulas extraFormulas 0
+        | 36 => runDuperInstance36 formulas extraFormulas 0
+        | 37 => runDuperInstance37 formulas extraFormulas 0
+        | 38 => runDuperInstance38 formulas extraFormulas 0
+        | 39 => runDuperInstance39 formulas extraFormulas 0
+        | 40 => runDuperInstance40 formulas extraFormulas 0
+        | 41 => runDuperInstance41 formulas extraFormulas 0
+        | 42 => runDuperInstance42 formulas extraFormulas 0
+        | 43 => runDuperInstance43 formulas extraFormulas 0
+        | 44 => runDuperInstance44 formulas extraFormulas 0
+        | 45 => runDuperInstance45 formulas extraFormulas 0
+        | 46 => runDuperInstance46 formulas extraFormulas 0
+        | 47 => runDuperInstance47 formulas extraFormulas 0
+        | 48 => runDuperInstance48 formulas extraFormulas 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       if ← getPrintTimeInformationM then
@@ -438,9 +437,8 @@ def evalDuperTrace : Tactic
     let extraFormulas ← collectAssumptions extraFacts false #[] -- Only collect extra facts, not goal decls
     let formulas := formulas.filter (fun f => extraFormulas.all (fun (f', _) => f' != f.1)) -- If `f` appears in `formulas` and `extraFormulas`, remove `f` from `formulas`
     let extraFactsOpt := if extraFormulas.isEmpty then none else some extraFacts
-    let declName? ← Elab.Term.getDeclName? -- Needed for `Auto.monoPrepInterface`
     if configOptions.portfolioMode then
-      let proof ← runDuperPortfolioMode formulas extraFormulas declName? configOptions (some (duperStxRef, ← getRef, facts, extraFactsOpt, factsContainsDuperStar))
+      let proof ← runDuperPortfolioMode formulas extraFormulas configOptions (some (duperStxRef, ← getRef, facts, extraFactsOpt, factsContainsDuperStar))
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       if ← getPrintTimeInformationM then
         IO.println s!"Constructed proof. Time: {(← IO.monoMsNow) - startTime}ms"
@@ -452,56 +450,56 @@ def evalDuperTrace : Tactic
       let proof ←
         match portfolioInstance with
         | 0 =>
-          mkDuperInstance formulas extraFormulas declName? 0 configOptions.inhabitationReasoning configOptions.preprocessing
+          mkDuperInstance formulas extraFormulas 0 configOptions.inhabitationReasoning configOptions.preprocessing
             configOptions.includeExpensiveRules configOptions.selFunction
-        | 1 => runDuperInstance1 formulas extraFormulas declName? 0
-        | 2 => runDuperInstance2 formulas extraFormulas declName? 0
-        | 3 => runDuperInstance3 formulas extraFormulas declName? 0
-        | 4 => runDuperInstance4 formulas extraFormulas declName? 0
-        | 5 => runDuperInstance5 formulas extraFormulas declName? 0
-        | 6 => runDuperInstance6 formulas extraFormulas declName? 0
-        | 7 => runDuperInstance7 formulas extraFormulas declName? 0
-        | 8 => runDuperInstance8 formulas extraFormulas declName? 0
-        | 9 => runDuperInstance9 formulas extraFormulas declName? 0
-        | 10 => runDuperInstance10 formulas extraFormulas declName? 0
-        | 11 => runDuperInstance11 formulas extraFormulas declName? 0
-        | 12 => runDuperInstance12 formulas extraFormulas declName? 0
-        | 13 => runDuperInstance13 formulas extraFormulas declName? 0
-        | 14 => runDuperInstance14 formulas extraFormulas declName? 0
-        | 15 => runDuperInstance15 formulas extraFormulas declName? 0
-        | 16 => runDuperInstance16 formulas extraFormulas declName? 0
-        | 17 => runDuperInstance17 formulas extraFormulas declName? 0
-        | 18 => runDuperInstance18 formulas extraFormulas declName? 0
-        | 19 => runDuperInstance19 formulas extraFormulas declName? 0
-        | 20 => runDuperInstance20 formulas extraFormulas declName? 0
-        | 21 => runDuperInstance21 formulas extraFormulas declName? 0
-        | 22 => runDuperInstance22 formulas extraFormulas declName? 0
-        | 23 => runDuperInstance23 formulas extraFormulas declName? 0
-        | 24 => runDuperInstance24 formulas extraFormulas declName? 0
-        | 25 => runDuperInstance25 formulas extraFormulas declName? 0
-        | 26 => runDuperInstance26 formulas extraFormulas declName? 0
-        | 27 => runDuperInstance27 formulas extraFormulas declName? 0
-        | 28 => runDuperInstance28 formulas extraFormulas declName? 0
-        | 29 => runDuperInstance29 formulas extraFormulas declName? 0
-        | 30 => runDuperInstance30 formulas extraFormulas declName? 0
-        | 31 => runDuperInstance31 formulas extraFormulas declName? 0
-        | 32 => runDuperInstance32 formulas extraFormulas declName? 0
-        | 33 => runDuperInstance33 formulas extraFormulas declName? 0
-        | 34 => runDuperInstance34 formulas extraFormulas declName? 0
-        | 35 => runDuperInstance35 formulas extraFormulas declName? 0
-        | 36 => runDuperInstance36 formulas extraFormulas declName? 0
-        | 37 => runDuperInstance37 formulas extraFormulas declName? 0
-        | 38 => runDuperInstance38 formulas extraFormulas declName? 0
-        | 39 => runDuperInstance39 formulas extraFormulas declName? 0
-        | 40 => runDuperInstance40 formulas extraFormulas declName? 0
-        | 41 => runDuperInstance41 formulas extraFormulas declName? 0
-        | 42 => runDuperInstance42 formulas extraFormulas declName? 0
-        | 43 => runDuperInstance43 formulas extraFormulas declName? 0
-        | 44 => runDuperInstance44 formulas extraFormulas declName? 0
-        | 45 => runDuperInstance45 formulas extraFormulas declName? 0
-        | 46 => runDuperInstance46 formulas extraFormulas declName? 0
-        | 47 => runDuperInstance47 formulas extraFormulas declName? 0
-        | 48 => runDuperInstance48 formulas extraFormulas declName? 0
+        | 1 => runDuperInstance1 formulas extraFormulas 0
+        | 2 => runDuperInstance2 formulas extraFormulas 0
+        | 3 => runDuperInstance3 formulas extraFormulas 0
+        | 4 => runDuperInstance4 formulas extraFormulas 0
+        | 5 => runDuperInstance5 formulas extraFormulas 0
+        | 6 => runDuperInstance6 formulas extraFormulas 0
+        | 7 => runDuperInstance7 formulas extraFormulas 0
+        | 8 => runDuperInstance8 formulas extraFormulas 0
+        | 9 => runDuperInstance9 formulas extraFormulas 0
+        | 10 => runDuperInstance10 formulas extraFormulas 0
+        | 11 => runDuperInstance11 formulas extraFormulas 0
+        | 12 => runDuperInstance12 formulas extraFormulas 0
+        | 13 => runDuperInstance13 formulas extraFormulas 0
+        | 14 => runDuperInstance14 formulas extraFormulas 0
+        | 15 => runDuperInstance15 formulas extraFormulas 0
+        | 16 => runDuperInstance16 formulas extraFormulas 0
+        | 17 => runDuperInstance17 formulas extraFormulas 0
+        | 18 => runDuperInstance18 formulas extraFormulas 0
+        | 19 => runDuperInstance19 formulas extraFormulas 0
+        | 20 => runDuperInstance20 formulas extraFormulas 0
+        | 21 => runDuperInstance21 formulas extraFormulas 0
+        | 22 => runDuperInstance22 formulas extraFormulas 0
+        | 23 => runDuperInstance23 formulas extraFormulas 0
+        | 24 => runDuperInstance24 formulas extraFormulas 0
+        | 25 => runDuperInstance25 formulas extraFormulas 0
+        | 26 => runDuperInstance26 formulas extraFormulas 0
+        | 27 => runDuperInstance27 formulas extraFormulas 0
+        | 28 => runDuperInstance28 formulas extraFormulas 0
+        | 29 => runDuperInstance29 formulas extraFormulas 0
+        | 30 => runDuperInstance30 formulas extraFormulas 0
+        | 31 => runDuperInstance31 formulas extraFormulas 0
+        | 32 => runDuperInstance32 formulas extraFormulas 0
+        | 33 => runDuperInstance33 formulas extraFormulas 0
+        | 34 => runDuperInstance34 formulas extraFormulas 0
+        | 35 => runDuperInstance35 formulas extraFormulas 0
+        | 36 => runDuperInstance36 formulas extraFormulas 0
+        | 37 => runDuperInstance37 formulas extraFormulas 0
+        | 38 => runDuperInstance38 formulas extraFormulas 0
+        | 39 => runDuperInstance39 formulas extraFormulas 0
+        | 40 => runDuperInstance40 formulas extraFormulas 0
+        | 41 => runDuperInstance41 formulas extraFormulas 0
+        | 42 => runDuperInstance42 formulas extraFormulas 0
+        | 43 => runDuperInstance43 formulas extraFormulas 0
+        | 44 => runDuperInstance44 formulas extraFormulas 0
+        | 45 => runDuperInstance45 formulas extraFormulas 0
+        | 46 => runDuperInstance46 formulas extraFormulas 0
+        | 47 => runDuperInstance47 formulas extraFormulas 0
+        | 48 => runDuperInstance48 formulas extraFormulas 0
         | _ => throwError "Portfolio instance {portfolioInstance} not currently defined"
       Lean.MVarId.assign (← getMainGoal) proof -- Apply the discovered proof to the main goal
       mkDuperCallSuggestion duperStxRef (← getRef) facts extraFactsOpt factsContainsDuperStar portfolioInstance configOptions.inhabitationReasoning
