@@ -407,9 +407,9 @@ def yieldClause (mc : MClause) (ruleName : String) (mkProof : Option ProofRecons
   let ((c, proofParents, transferExprs), st) :=
     if ← getInhabitationReasoningM then
       neutralizeMClauseInhabitedReasoningOn mc loadedClauses inhabitationClauses transferExprs mvarIdsToRemove
-        { mctx := mctx, lctx := lctx, ngen := ngen }
+        { mctx := mctx, lctx := lctx, ngen := ngen, abstractLevels := true }
     else
-      neutralizeMClause mc loadedClauses transferExprs { mctx := mctx, lctx := lctx, ngen := ngen }
+      neutralizeMClause mc loadedClauses transferExprs { mctx := mctx, lctx := lctx, ngen := ngen, abstractLevels := true }
   setNGen st.ngen
   -- This is redundant because the `mctx` won't change
   -- We should not reset `lctx` because fvars introduced by
