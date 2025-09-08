@@ -9,19 +9,21 @@ namespace AbstractMVars
 
 structure AbstractMVarsResult where
   paramNames : Array Name
-  numMVars   : Nat
+  mvars      : Array Expr
   expr       : Expr
   deriving Inhabited, BEq
 
 structure State where
-  ngen         : NameGenerator
-  lctx         : LocalContext
-  mctx         : MetavarContext
-  nextParamIdx : Nat := 0
-  paramNames   : Array Name := #[]
-  fvars        : Array Expr  := #[]
-  lmap         : Std.HashMap LMVarId Level := {}
-  emap         : Std.HashMap MVarId Expr  := {}
+  ngen           : NameGenerator
+  lctx           : LocalContext
+  mctx           : MetavarContext
+  nextParamIdx   : Nat := 0
+  paramNames     : Array Name := #[]
+  fvars          : Array Expr := #[]
+  mvars          : Array Expr := #[]
+  lmap           : Std.HashMap LMVarId Level := {}
+  emap           : Std.HashMap MVarId Expr  := {}
+  abstractLevels : Bool -- whether to abstract level mvars
 
 abbrev M := StateM State
 
@@ -41,6 +43,8 @@ def mkFreshFVarId : M FVarId :=
 
 -- Bug fix for ``abstractLevelMVars`` in Lean
 private partial def abstractLevelMVars (u : Level) : M Level := do
+  if !(← get).abstractLevels then
+    return u
   if !u.hasMVar then
     return u
   else
@@ -73,18 +77,18 @@ partial def abstractExprMVars (e : Expr) : M Expr := do
     return e
   else
     match e with
-    | e@(Expr.lit _)           => return e
-    | e@(Expr.bvar _)          => return e
-    | e@(Expr.fvar _)          => return e
-    | e@(Expr.sort u)          => return e.updateSort! (← abstractLevelMVars u)
-    | e@(Expr.const _ us)      => return e.updateConst! (← us.mapM abstractLevelMVars)
-    | e@(Expr.proj _ _ s)      => return e.updateProj! (← abstractExprMVars s)
-    | e@(Expr.app f a)         => return e.updateApp! (← abstractExprMVars f) (← abstractExprMVars a)
-    | e@(Expr.mdata _ b)       => return e.updateMData! (← abstractExprMVars b)
-    | e@(Expr.lam _ d b _)     => return e.updateLambdaE! (← abstractExprMVars d) (← abstractExprMVars b)
-    | e@(Expr.forallE _ d b _) => return e.updateForallE! (← abstractExprMVars d) (← abstractExprMVars b)
-    | e@(Expr.letE _ t v b _)  => return e.updateLet! (← abstractExprMVars t) (← abstractExprMVars v) (← abstractExprMVars b)
-    | e@(Expr.mvar mvarId)     =>
+    | e@(Expr.lit _)                => return e
+    | e@(Expr.bvar _)               => return e
+    | e@(Expr.fvar _)               => return e
+    | e@(Expr.sort u)               => return e.updateSort! (← abstractLevelMVars u)
+    | e@(Expr.const _ us)           => return e.updateConst! (← us.mapM abstractLevelMVars)
+    | e@(Expr.proj _ _ s)           => return e.updateProj! (← abstractExprMVars s)
+    | e@(Expr.app f a)              => return e.updateApp! (← abstractExprMVars f) (← abstractExprMVars a)
+    | e@(Expr.mdata _ b)            => return e.updateMData! (← abstractExprMVars b)
+    | e@(Expr.lam _ d b _)          => return e.updateLambdaE! (← abstractExprMVars d) (← abstractExprMVars b)
+    | e@(Expr.forallE _ d b _)      => return e.updateForallE! (← abstractExprMVars d) (← abstractExprMVars b)
+    | e@(Expr.letE _ t v b nondep)  => return e.updateLet! (← abstractExprMVars t) (← abstractExprMVars v) (← abstractExprMVars b) nondep
+    | e@(Expr.mvar mvarId)          =>
       let decl := (← getMCtx).getDecl mvarId
       if decl.depth != (← getMCtx).depth then
         return e
@@ -129,31 +133,31 @@ end AbstractMVars
   with new fresh metavariables.
 
   Application: we use this method to cache the results of type class resolution. -/
-def abstractMVars (e : Expr) : MetaM AbstractMVarsResult := do
+def abstractMVars (e : Expr) (levels : Bool := true) : MetaM AbstractMVarsResult := do
   let e ← instantiateMVars e
-  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen), abstractLevels := levels }
   let e ← betaEtaReduce e -- Need this to prevent abstracted types like `(a : α) → (fun a => β) a` (when it should just be `α → β`)
   setNGen s.ngen
   setMCtx s.mctx
   let e := s.lctx.mkLambda s.fvars e
-  pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
+  pure { paramNames := s.paramNames, mvars := s.mvars, expr := e }
 
 def openAbstractMVarsResult (a : AbstractMVarsResult) : MetaM (Array Expr × Array BinderInfo × Expr) := do
   let us ← a.paramNames.mapM fun _ => mkFreshLevelMVar
   let e := a.expr.instantiateLevelParamsArray a.paramNames us
   lambdaMetaTelescope e (some a.numMVars)
 
-def abstractMVarsForall (e : Expr) : MetaM AbstractMVarsResult := do
+def abstractMVarsForall (e : Expr) (levels : Bool := true) : MetaM AbstractMVarsResult := do
   let e ← instantiateMVars e
-  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen), abstractLevels := levels }
   setNGen s.ngen
   setMCtx s.mctx
   let e := s.lctx.mkForall s.fvars e
-  pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
+  pure { paramNames := s.paramNames, mvars := s.mvars, expr := e }
 
-def abstractMVarsLambdaWithIds (e : Expr) : MetaM (Expr × Array Expr × Array Name × Array Level) := do
+def abstractMVarsLambdaWithIds (e : Expr) (levels : Bool := true) : MetaM (Expr × Array Expr × Array Name × Array Level) := do
   let e ← instantiateMVars e
-  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen), abstractLevels := levels }
   setNGen s.ngen
   setMCtx s.mctx
   let e := s.lctx.mkLambda s.fvars e
@@ -175,10 +179,10 @@ def abstractMVarsLambdaWithIds (e : Expr) : MetaM (Expr × Array Expr × Array N
     lmvars := lmvars.set! (parampos[(Lean.getParamLevelName! paramname)]!) (mkLevelMVar lmid)
   pure (e, mvars, sparams, lmvars)
 
-def abstractMVarsLambda (e : Expr) : MetaM AbstractMVarsResult := do
+def abstractMVarsLambda (e : Expr) (levels : Bool := true) : MetaM AbstractMVarsResult := do
   let e ← instantiateMVars e
-  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  let (e, s) := AbstractMVars.abstractExprMVars e { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen), abstractLevels := levels }
   setNGen s.ngen
   setMCtx s.mctx
   let e := s.lctx.mkLambda s.fvars e
-  pure { paramNames := s.paramNames, numMVars := s.fvars.size, expr := e }
+  pure { paramNames := s.paramNames, mvars := s.mvars, expr := e }

@@ -231,13 +231,13 @@ partial def replaceWithPos (t₁ t₂ e : Expr) : Expr :=
     t₂
   else
     match e with
-    | .forallE _ d b _ => let d := replaceWithPos t₁ t₂ d; let b := replaceWithPos t₁ t₂ b; e.updateForallE! d b
-    | .lam _ d b _     => let d := replaceWithPos t₁ t₂ d; let b := replaceWithPos t₁ t₂ b; e.updateLambdaE! d b
-    | .mdata _ b       => let b := replaceWithPos t₁ t₂ b; e.updateMData! b
-    | .letE _ t v b _  => let t := replaceWithPos t₁ t₂ t; let v := replaceWithPos t₁ t₂ v; let b := replaceWithPos t₁ t₂ b; e.updateLet! t v b
-    | .app f a         => let f := replaceWithPos t₁ t₂ f; let a := replaceWithPos t₁ t₂ a; e.updateApp! f a
-    | .proj _ _ b      => let b := replaceWithPos t₁ t₂ b; e.updateProj! b
-    | e                => e
+    | .forallE _ d b _      => let d := replaceWithPos t₁ t₂ d; let b := replaceWithPos t₁ t₂ b; e.updateForallE! d b
+    | .lam _ d b _          => let d := replaceWithPos t₁ t₂ d; let b := replaceWithPos t₁ t₂ b; e.updateLambdaE! d b
+    | .mdata _ b            => let b := replaceWithPos t₁ t₂ b; e.updateMData! b
+    | .letE _ t v b nondep  => let t := replaceWithPos t₁ t₂ t; let v := replaceWithPos t₁ t₂ v; let b := replaceWithPos t₁ t₂ b; e.updateLet! t v b nondep
+    | .app f a              => let f := replaceWithPos t₁ t₂ f; let a := replaceWithPos t₁ t₂ a; e.updateApp! f a
+    | .proj _ _ b           => let b := replaceWithPos t₁ t₂ b; e.updateProj! b
+    | e                     => e
 
 /-- An incomplete implementation of Meta.kabstract that uses and ExprPos list to indicate position rather than
     Occurrences. abstractAtPosHelper! assumes that e consists only of applications up to the given ExprPos.
