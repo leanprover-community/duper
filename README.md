@@ -1,13 +1,13 @@
 # Duper
 
-Duper is an automatic proof-producing theorem prover broadly similar to Isabelle's `Metis`. Duper has primarily been developed by Joshua Clune (Github: JOSHCLUNE), Yicheng Qian (Github: PratherConid), and Alex Bentkamp (Github: abentkamp). It is currently in active development and pull requests are welcome. For additional questions or bug reports, feel free to reach out to Joshua Clune on [Lean Zulip](https://leanprover.zulipchat.com).
+Duper is an automatic proof-producing theorem prover broadly similar to Isabelle's `Metis`. Duper has primarily been developed by Joshua Clune (Github: JOSHCLUNE), Yicheng Qian (Github: PratherConid), and Alex Bentkamp (Github: abentkamp). Issues and pull requests are welcome. For additional questions or bug reports, feel free to reach out to Joshua Clune on [Lean Zulip](https://leanprover.zulipchat.com).
 
 ## Adding Duper to an existing project
 
 To use Duper in an existing Lean 4 project, first add this package as a dependency. In your lakefile.lean, add:
 
 ```lean
-require Duper from git "https://github.com/leanprover-community/duper.git" @ "v0.0.26"
+require Duper from git "https://github.com/leanprover-community/duper.git" @ "v4.22.0"
 ```
 
 Then, make sure that your `lean-toolchain` file contains the same version of Lean 4 as Duper and that if your project imports [batteries](https://github.com/leanprover-community/batteries), then it uses the same version of batteries as Duper. This step is necessary because Duper depends on batteries, so errors can arise if your project attempts to import a version of batteries different from the one imported by Duper.
@@ -22,10 +22,6 @@ example : True := by duper [*]
 Once the above snippet has been added, you can either restart the Lean server in VS Code (using Ctrl-Shift-P or Command-Shift-P to access the command palette and then choosing the command "Lean 4: Server: Restart Server") or run `lake build` in your project's directory. On Mac and Linux, either option should work equally well, but unfortunately, some versions of Windows may have `lake build` fail with a 'too many exported symbols' error. If that happens, Windows users should still be able to build Duper using VS Code.
 
 Once that is complete, you can check that Duper has been successfully imported by confirming that the goal of `True` was proven by Duper.
-
-## Experimenting with Duper in a new project
-
-To use Duper in a new Lean 4 project, one option is to simply create a new project and then follow the steps described in the above section. But for users that just want to experiment with Duper, we have made [DuperDemo](https://github.com/JOSHCLUNE/DuperDemo), a repository that imports both Duper and Mathlib and can be used to easily experiment with Duper's capabilities.
 
 ## Using Duper
 
