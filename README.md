@@ -23,10 +23,6 @@ Once the above snippet has been added, you can either restart the Lean server in
 
 Once that is complete, you can check that Duper has been successfully imported by confirming that the goal of `True` was proven by Duper.
 
-## Experimenting with Duper in a new project
-
-To use Duper in a new Lean 4 project, one option is to simply create a new project and then follow the steps described in the above section. But for users that just want to experiment with Duper, we have made [DuperDemo](https://github.com/JOSHCLUNE/DuperDemo), a repository that imports both Duper and Mathlib and can be used to easily experiment with Duper's capabilities.
-
 ## Using Duper
 
 Duper is a terminal tactic that will look at the current main goal and either solve it or throw an error. The syntax for invoking Duper in tactic mode is `duper [facts] {options}`. The `facts` argument is used to indicate which lemmas or propositions Duper should attempt to use to prove the goal, and the `options` argument is used to specify how Duper should be called.
