@@ -1,13 +1,13 @@
 # Duper
 
-Duper is an automatic proof-producing theorem prover broadly similar to Isabelle's `Metis`. Duper has primarily been developed by Joshua Clune (Github: JOSHCLUNE), Yicheng Qian (Github: PratherConid), and Alex Bentkamp (Github: abentkamp). It is currently in active development and pull requests are welcome. For additional questions or bug reports, feel free to reach out to Joshua Clune on [Lean Zulip](https://leanprover.zulipchat.com).
+Duper is an automatic proof-producing theorem prover broadly similar to Isabelle's `Metis`. Duper has primarily been developed by Joshua Clune (Github: JOSHCLUNE), Yicheng Qian (Github: PratherConid), and Alex Bentkamp (Github: abentkamp). Issues and pull requests are welcome. For additional questions or bug reports, feel free to reach out to Joshua Clune on [Lean Zulip](https://leanprover.zulipchat.com).
 
 ## Adding Duper to an existing project
 
 To use Duper in an existing Lean 4 project, first add this package as a dependency. In your lakefile.lean, add:
 
 ```lean
-require Duper from git "https://github.com/leanprover-community/duper.git" @ "v0.0.26"
+require Duper from git "https://github.com/leanprover-community/duper.git" @ "v4.22.0"
 ```
 
 Then, make sure that your `lean-toolchain` file contains the same version of Lean 4 as Duper and that if your project imports [batteries](https://github.com/leanprover-community/batteries), then it uses the same version of batteries as Duper. This step is necessary because Duper depends on batteries, so errors can arise if your project attempts to import a version of batteries different from the one imported by Duper.
