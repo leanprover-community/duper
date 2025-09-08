@@ -188,6 +188,8 @@ def List.lazySubsequences {α : Type u} : List α → Duper.LazyList (List α)
 
 
 -- Testing
+/-
+
 def fib : Duper.LazyList Nat :=
   Duper.LazyList.iterate₂ (·+·) 0 1
 
@@ -226,3 +228,5 @@ def maintest : IO Unit := do
   pure ()
 
 partial def natuple := Duper.LazyList.bindω (Duper.LazyList.nats 0) (fun i => (Duper.LazyList.nats 0).zip (repeats i))
+
+-/

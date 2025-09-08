@@ -236,7 +236,7 @@ def removeVanishedVarsHelper (c : Clause) (verifiedInhabitedTypes : abstractedMV
   let (mvars, mclause) ← loadClauseCore c
   let mut verifiedInhabitedTypes := verifiedInhabitedTypes
   let mut potentiallyUninhabitedTypes := potentiallyUninhabitedTypes
-  let (_, s) := AbstractMVars.abstractExprMVars mclause.toExpr { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen) }
+  let (_, s) := AbstractMVars.abstractExprMVars mclause.toExpr { mctx := (← getMCtx), lctx := (← getLCtx), ngen := (← getNGen), abstractLevels := true }
   let mut mvarIdsToRemove := []
   let mut resPotentiallyVacuous := false
   let mut preservedMVarTypes : Array Expr := #[] -- The mvarTypes that are to be preserved in the clause. We can't remove any mvars that any of these types depend on
