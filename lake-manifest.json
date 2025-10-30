@@ -18,7 +18,7 @@
    "rev": "ee09749a0bb1516d10a80687e94adb12a0bcde25",
    "name": "auto",
    "manifestFile": "lake-manifest.json",
-   "inputRev": "ee09749a0bb1516d10a80687e94adb12a0bcde25",
+   "inputRev": "v4.24.0-hammer",
    "inherited": false,
    "configFile": "lakefile.lean"}],
  "name": "Duper",
