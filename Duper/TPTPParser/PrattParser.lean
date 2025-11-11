@@ -105,7 +105,7 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
         setStatus .comment
       else if tokenPrefixes.contains ((← getCurrToken).push char) then
         addToCurrToken char
-      else if tokenPrefixes.contains (⟨[char]⟩) then
+      else if tokenPrefixes.contains ([char].asString) then
         finalizeToken
         addToCurrToken char
       else throw $ IO.userError s!"Invalid token: {char}"

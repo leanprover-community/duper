@@ -2,12 +2,12 @@ import Lake
 
 open Lake DSL
 
-require auto from git "https://github.com/leanprover-community/lean-auto.git"@"v4.24.0-hammer"
-require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.24.0"
+require auto from git "https://github.com/leanprover-community/lean-auto.git"@"v4.25.0-rc2-hammer"
+require batteries from git "https://github.com/leanprover-community/batteries" @ "v4.25.0-rc2"
 
 package Duper {
   precompileModules := true
-  preferReleaseBuild := false
+  preferReleaseBuild := true 
 }
 
 lean_lib Duper

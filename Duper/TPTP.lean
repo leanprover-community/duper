@@ -30,10 +30,10 @@ partial def parseTPTPInput (s : String) : CommandElabM Syntax := do
 
 def sqstrToIdent (s : String) : String := Id.run <| do
   let mut ret := ""
-  let mut curr : String.Pos := ⟨0⟩
+  let mut curr : String.Pos.Raw := ⟨0⟩
   let mut sqcnt := 0
   while true do
-    match s.get? curr with
+    match String.Pos.Raw.get? s curr with
     | some ch =>
       if ch == '\'' then
         if sqcnt == 0 then
@@ -49,11 +49,11 @@ def sqstrToIdent (s : String) : String := Id.run <| do
 
 def splitOnOutermostPeriod (s : String) : Array String := Id.run <| do
   let mut ret := #[]
-  let mut last : String.Pos := ⟨0⟩
-  let mut curr : String.Pos := ⟨0⟩
+  let mut last : String.Pos.Raw := ⟨0⟩
+  let mut curr : String.Pos.Raw := ⟨0⟩
   let mut depth := 0
   while true do
-    match s.get? curr with
+    match String.Pos.Raw.get? s curr with
     | some ch =>
       curr := curr + ch
       if ch == '(' then
@@ -61,7 +61,7 @@ def splitOnOutermostPeriod (s : String) : Array String := Id.run <| do
       if ch == ')' then
         depth := depth - 1
       if ch == '.' && depth == 0 then
-        ret := ret.push (s.extract last curr)
+        ret := ret.push (String.Pos.Raw.extract s last curr)
         last := curr
     | none => break
   return ret
