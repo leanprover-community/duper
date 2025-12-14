@@ -43,7 +43,7 @@ def tokenPrefixes : Std.HashSet String :=
   Std.HashSet.emptyWithCapacity.insertMany $ tokens.flatMap (fun t => Id.run do
     let mut res := []
     let mut pref := ""
-    for c in t.data do
+    for c in t.toList do
       pref := pref.push c
       res := pref :: res
     return res
@@ -88,7 +88,7 @@ def finalizeToken : TokenizerM Unit := do
     setStatus .default
 
 def tokenizeAux (str : String) : TokenizerM Unit := do
-  for char in str.data do
+  for char in str.toList do
     match ← getStatus with
     | .default =>
       if char.isWhitespace then
@@ -105,7 +105,7 @@ def tokenizeAux (str : String) : TokenizerM Unit := do
         setStatus .comment
       else if tokenPrefixes.contains ((← getCurrToken).push char) then
         addToCurrToken char
-      else if tokenPrefixes.contains ([char].asString) then
+      else if tokenPrefixes.contains (String.ofList [char]) then
         finalizeToken
         addToCurrToken char
       else throw $ IO.userError s!"Invalid token: {char}"
@@ -493,7 +493,7 @@ partial def collectConstantsOfCmd (topLevel : Bool) (acc : Std.HashMap String Ex
   match t with
   | ⟨.ident n, as⟩ => do
     let acc ← as.foldlM (collectConstantsOfCmd false) acc
-    if n.data[0]!.isLower && n.data[0]! != '$' && !acc.contains n
+    if n.toList[0]!.isLower && n.toList[0]! != '$' && !acc.contains n
     then
       let ty ← as.foldlM
         (fun acc _ => mkArrow (mkConst `Iota) acc)
