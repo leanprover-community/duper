@@ -12,6 +12,10 @@ open Meta
 
 initialize Lean.registerTraceClass `duper.rule.datatypeDistinctness
 
+-- **TODO** As of `v4.27.0`, proof reconstruction for this inference broke. This is due to a change in how Lean
+-- generates `noConfusion` theorems for inductive datatypes. Once `mkDatatypeDistinctnessProof` is corrected to
+-- match the new format, this inference can be re-enabled.
+
 /-- Returns `none` if `lit` does not compare distinct constructors, returns `some false` if `lit` says two distinct
     constructors are equal, and returns `some true` if `lit` says two distinct constructors are not equal. -/
 def litComparesDistinctConstructors (lit : Lit) : MetaM (Option Bool) := do
@@ -51,9 +55,22 @@ def mkDatatypeDistinctnessProof (refs : List (Option Nat)) (premises : List Expr
         let some (tyName, numParams, lvls) ← matchConstInduct lit.ty.getAppFn' (fun _ => pure none) matchConstInductK
           | throwError "mkDistPosProof :: Failed to find the inductive datatype corresponding to {lit.ty}"
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
-          let noConfusionArgs := #[some (mkConst ``False), none, none, some h]
-          -- noConfusion first takes `numParams` arguments for parameters, so we need to add that many `none`s to the front of `noConfusionArgs`
-          let noConfusionArgs := (Array.range numParams).map (fun _ => none) ++ noConfusionArgs
+          /- The strucure of `noConfusion`'s arguments is as follows (as of `v4.27.0`):
+              - `noConfusion` first takes in `P : Sort u` which serves as the motive of the `noConfusionType`. The datatype distinctness inference
+                always instantiates `P` with `False`
+              - `noConfusion` then takes in `numParams` arguments of the form `param : Type universe_param`. Call this list of parameters `(*)`
+              - `noConfusion` then takes in one element of the datatype instantiated with the previous `numParams` parameters.
+              - `noConfusion` then takes in another `numParams` arguments of the form `param : Type universe_param`. Call this list of parameters `(**)`
+              - `noConfusion` then takes in another element of the datatype instantiated with the previous `numParams` parameters.
+              - `noConfusion` then takes in `numParams` proofs that the `i`-th parameter from the first list `(*)` is equal to the `i`-th parameter
+                from the second list `(**)`. The datatype distinctness inference instantiates all of these with `rfl`.
+              - `noConfusion` finally takes in a proof that the first element of the datatype is equal to the second element of the datatype (this is expressed
+                in terms of a heterogeneous equality). The datatype distinctness inference always instantiates this last argument with `heq_of_eq h`. -/
+          -- **TODO** Structure is different when the inductive datatype has no parameters to equate
+          -- **TODO** `rfl`'s type needs to be instantiated
+          let noConfusionArgs :=
+            #[some (mkConst ``False)] ++ (Array.range (2 * numParams + 2)).map (fun _ => none) ++
+            (← (Array.range (2 * numParams + 2)).mapM (fun _ => do pure $ some (← mkAppM ``rfl #[]))) ++ #[some (← mkAppM ``heq_of_eq #[h])]
           let proofCase ← mkAppOptM' (mkConst (.str tyName "noConfusion") (0 :: lvls)) noConfusionArgs
           let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
           Meta.mkLambdaFVars #[h] proofCase
