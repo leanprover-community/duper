@@ -152,7 +152,8 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       destructiveEqualityResolution.toSimpRule,
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
-      datatypeDistinctness.toSimpRule, -- Inductive datatype rule
+      -- **TODO** `datatypeDistinctness` can be re-added once the inference is updated to be compatible with `v4.27.0`
+      -- datatypeDistinctness.toSimpRule, -- Inductive datatype rule
       datatypeInjectivity.toSimpRule, -- Inductive datatype rule
       datatypeAcyclicity.toSimpRule, -- Inductive datatype rule
       decElim.toSimpRule,
@@ -177,7 +178,8 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       destructiveEqualityResolution.toSimpRule,
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
-      datatypeDistinctness.toSimpRule, -- Inductive datatype rule
+      -- **TODO** `datatypeDistinctness` can be re-added once the inference is updated to be compatible with `v4.27.0`
+      -- datatypeDistinctness.toSimpRule, -- Inductive datatype rule
       datatypeInjectivity.toSimpRule, -- Inductive datatype rule
       -- datatypeAcyclicity.toSimpRule, -- Inductive datatype rule
       decElim.toSimpRule,
@@ -224,7 +226,8 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       destructiveEqualityResolution.toSimpRule,
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
-      datatypeDistinctness.toSimpRule, -- Inductive datatype rule
+      -- **TODO** `datatypeDistinctness` can be re-added once the inference is updated to be compatible with `v4.27.0`
+      -- datatypeDistinctness.toSimpRule, -- Inductive datatype rule
       datatypeInjectivity.toSimpRule, -- Inductive datatype rule
       datatypeAcyclicity.toSimpRule, -- Inductive datatype rule
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
@@ -248,7 +251,8 @@ def forwardSimpRules : ProverM (Array SimpRule) := do
       destructiveEqualityResolution.toSimpRule,
       identPropFalseElim.toSimpRule,
       identBoolFalseElim.toSimpRule,
-      datatypeDistinctness.toSimpRule, -- Inductive datatype rule
+      -- **TODO** `datatypeDistinctness` can be re-added once the inference is updated to be compatible with `v4.27.0`
+      -- datatypeDistinctness.toSimpRule, -- Inductive datatype rule
       datatypeInjectivity.toSimpRule, -- Inductive datatype rule
       -- datatypeAcyclicity.toSimpRule, -- Inductive datatype rule
       (forwardDemodulation (← getDemodSidePremiseIdx)).toSimpRule,
