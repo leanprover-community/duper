@@ -713,9 +713,6 @@ inductive myEmpty (t1 : Type _) (t2 : Type _)
 
 open myType myType2 myType3 myType4
 
-/- **TODO** These tests require the datatypeDistinctness inference which is currently disabled
-   as of `v4.27.0` due to a change in how datatypes' `noConfusion` theorem is generated.
-   See Duper/Rules/DatatypeDistinctness.lean for more details.
 example : const1 ≠ const2 := by
   duper
 
@@ -724,7 +721,6 @@ example : const3 (Type 8) ≠ const4 (Type 8) := by
 
 example : const5 ≠ const6 const5 := by
   duper
--/
 
 example : [] ≠ [2] := by
   duper
