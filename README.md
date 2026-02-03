@@ -4,7 +4,20 @@ Duper is an automatic proof-producing theorem prover broadly similar to Isabelle
 
 ## Adding Duper to an existing project
 
-To use Duper in an existing Lean 4 project, first add this package as a dependency. In your lakefile.lean, add:
+To add Duper for `v4.27.0` to an existing project with a `lakefile.toml` file, add the following dependency:
+
+```toml
+[[require]]
+name = "Duper"
+git = "https://github.com/leanprover-community/duper.git"
+rev = "v4.27.0"
+```
+The file `lean-toolchain` should contain the following:
+```
+leanprover/lean4:v4.27.0
+```
+
+If you have a project with a `lakefile.lean` instead of `lakefile.toml`, you can use this instead:
 
 ```lean
 require Duper from git "https://github.com/leanprover-community/duper.git" @ "v4.27.0"
