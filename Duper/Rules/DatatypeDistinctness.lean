@@ -56,6 +56,11 @@ def mkDatatypeDistinctnessProof (refs : List (Option Nat)) (premises : List Expr
           | throwError "mkDistPosProof :: Failed to find the inductive datatype corresponding to {lit.ty}"
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           /- The strucure of `noConfusion`'s arguments is as follows (as of `v4.27.0`):
+              If `lit.ty` has zero parameters then `noConfusion` takes exactly four arguments:
+              - `P : Sort u` which serves as the motive of the `noConfusionType`
+              - Two arguments with type `lit.ty`
+              - A final argument equating the two previous arguments
+              If `lit.ty` has one or more parameters then:
               - `noConfusion` first takes in `P : Sort u` which serves as the motive of the `noConfusionType`. The datatype distinctness inference
                 always instantiates `P` with `False`
               - `noConfusion` then takes in `numParams` arguments of the form `param : Type universe_param`. Call this list of parameters `(*)`
@@ -66,11 +71,12 @@ def mkDatatypeDistinctnessProof (refs : List (Option Nat)) (premises : List Expr
                 from the second list `(**)`. The datatype distinctness inference instantiates all of these with `rfl`.
               - `noConfusion` finally takes in a proof that the first element of the datatype is equal to the second element of the datatype (this is expressed
                 in terms of a heterogeneous equality). The datatype distinctness inference always instantiates this last argument with `heq_of_eq h`. -/
-          -- **TODO** Structure is different when the inductive datatype has no parameters to equate
-          -- **TODO** `rfl`'s type needs to be instantiated
-          let noConfusionArgs :=
-            #[some (mkConst ``False)] ++ (Array.range (2 * numParams + 2)).map (fun _ => none) ++
-            (← (Array.range (2 * numParams + 2)).mapM (fun _ => do pure $ some (← mkAppM ``rfl #[]))) ++ #[some (← mkAppM ``heq_of_eq #[h])]
+          let noConfusionArgs ←
+            if numParams = 0 then
+              pure $ #[some (mkConst ``False), none, none, some h]
+            else
+              pure $ #[some (mkConst ``False)] ++ (Array.range (2 * numParams + 2)).map (fun _ => none) ++
+                (← (Array.range numParams).mapM (fun x => do pure $ some (← mkAppOptM ``rfl #[none, some (lit.ty.getAppArgs[x]!)]))) ++ #[some (← mkAppM ``heq_of_eq #[h])]
           let proofCase ← mkAppOptM' (mkConst (.str tyName "noConfusion") (0 :: lvls)) noConfusionArgs
           let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
           Meta.mkLambdaFVars #[h] proofCase

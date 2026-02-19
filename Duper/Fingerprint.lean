@@ -138,7 +138,7 @@ def gfpf [Monad m] [MonadLiftT MetaM m] (e : Expr) (pos : ExprPos) : m Fingerpri
     we can add a step to the beginning to this function that converts e to η-long β-reduced normal form.
 
     Note: The output of this function is not guaranteed (or expected) to be well-formed. -/
-def transformToUntypedFirstOrderTerm [Monad m] [MonadLiftT MetaM m] (e : Expr) : m Expr := do
+partial def transformToUntypedFirstOrderTerm [Monad m] [MonadLiftT MetaM m] (e : Expr) : m Expr := do
   match e with
   | Expr.forallE _ _ b _ => transformToUntypedFirstOrderTerm b
   | Expr.lam _ _ b _ => transformToUntypedFirstOrderTerm b
@@ -159,7 +159,7 @@ def transformToUntypedFirstOrderTerm [Monad m] [MonadLiftT MetaM m] (e : Expr) :
      -/
     return .bvar bvarNum
   | Expr.mdata _ e => transformToUntypedFirstOrderTerm e
-  | Expr.letE _ _ _ _ _ => panic! s!"The letE expression {e} should have been removed by zeta reduction"
+  | Expr.letE _ _ v b _ => transformToUntypedFirstOrderTerm (b.instantiate1 v)
   -- Strip away levels
   | Expr.const name _ => return Expr.const name []
   | _ => return e -- Expr.fvar, Expr.mvar, Expr.lit, Expr.const, and Expr.sort cases
