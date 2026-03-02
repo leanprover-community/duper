@@ -12,10 +12,6 @@ open Meta
 
 initialize Lean.registerTraceClass `duper.rule.datatypeDistinctness
 
--- **TODO** As of `v4.27.0`, proof reconstruction for this inference broke. This is due to a change in how Lean
--- generates `noConfusion` theorems for inductive datatypes. Once `mkDatatypeDistinctnessProof` is corrected to
--- match the new format, this inference can be re-enabled.
-
 /-- Returns `none` if `lit` does not compare distinct constructors, returns `some false` if `lit` says two distinct
     constructors are equal, and returns `some true` if `lit` says two distinct constructors are not equal. -/
 def litComparesDistinctConstructors (lit : Lit) : MetaM (Option Bool) := do
