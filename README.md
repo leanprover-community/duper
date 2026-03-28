@@ -4,23 +4,23 @@ Duper is an automatic proof-producing theorem prover broadly similar to Isabelle
 
 ## Adding Duper to an existing project
 
-To add Duper for `v4.28.0` to an existing project with a `lakefile.toml` file, add the following dependency:
+To add Duper for `v4.29.0` to an existing project with a `lakefile.toml` file, add the following dependency:
 
 ```toml
 [[require]]
 name = "Duper"
 git = "https://github.com/leanprover-community/duper.git"
-rev = "v4.28.0"
+rev = "v4.29.0"
 ```
 The file `lean-toolchain` should contain the following:
 ```
-leanprover/lean4:v4.28.0
+leanprover/lean4:v4.29.0
 ```
 
 If you have a project with a `lakefile.lean` instead of `lakefile.toml`, you can use this instead:
 
 ```lean
-require Duper from git "https://github.com/leanprover-community/duper.git" @ "v4.28.0"
+require Duper from git "https://github.com/leanprover-community/duper.git" @ "v4.29.0"
 ```
 
 Then, make sure that your `lean-toolchain` file contains the same version of Lean 4 as Duper and that if your project imports [batteries](https://github.com/leanprover-community/batteries), then it uses the same version of batteries as Duper. This step is necessary because Duper depends on batteries, so errors can arise if your project attempts to import a version of batteries different from the one imported by Duper.
