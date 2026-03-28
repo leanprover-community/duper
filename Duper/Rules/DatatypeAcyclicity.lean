@@ -57,7 +57,7 @@ def mkDatatypeAcyclicityProof (removedLitNum : Nat) (litSide : LitSide) (premise
       let lit := parentLits[i]!
       if i == removedLitNum then -- `lit` is the equality asserting an acyclic constructor
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
-          let sizeOfInst ← mkAppOptM ``inferInstanceAs #[← mkAppOptM ``SizeOf #[lit.ty], none]
+          let sizeOfInst ← mkAppOptM ``inferInstance #[← mkAppOptM ``SizeOf #[lit.ty], none]
           let litTyMVar ← mkFreshExprMVar lit.ty
           let abstrLam ← mkLambdaFVars #[litTyMVar] $ ← mkAppOptM ``sizeOf #[some lit.ty, some sizeOfInst, some litTyMVar]
           let sizeOfEq ← mkAppM ``congrArg #[abstrLam, h] -- Has the type `sizeOf lit.lhs = sizeOf lit.rhs`
