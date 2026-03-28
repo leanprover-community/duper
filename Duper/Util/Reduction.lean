@@ -28,11 +28,12 @@ def getReduceInstancesM : CoreM Bool := do
 
 /-- This function is expensive and should only be used in preprocessing -/
 partial def preprocessFact (fact : Expr) : MetaM Expr := do
+  let red (e : Expr) : MetaM TransformStep := do
+    trace[duper.preprocessing.debug] "e before calling red: {e}"
+    let e := e.consumeMData
+    let e ← whnf e
+    return .continue e
   if (← getReduceInstancesM) then
-    let red (e : Expr) : MetaM TransformStep := do
-      let e := e.consumeMData
-      let e ← whnf e
-      return .continue e
     -- Reduce
     trace[duper.preprocessing.debug] "fact before preprocessing: {fact}"
     let fact ← withTransparency .instances <| Meta.transform fact (pre := red) (usedLetOnly := false)
@@ -48,8 +49,12 @@ partial def preprocessFact (fact : Expr) : MetaM Expr := do
     trace[duper.preprocessing.debug] "fact after preprocessing: {fact}"
     return fact
   else
-    trace[duper.preprocessing.debug] "reduceInstances option is set to false, only applying zeta reduction"
-    zetaReduce fact
+    trace[duper.preprocessing.debug] "reduceInstances option is set to false, only applying zeta reduction and reducing let expressions"
+    trace[duper.preprocessing.debug] "fact before preprocessing: {fact}"
+    let fact ← withTransparency .reducible <| Meta.transform fact (pre := red) (usedLetOnly := false)
+    let fact ← zetaReduce fact
+    trace[duper.preprocessing.debug] "fact after preprocessing: {fact}"
+    return fact
 
 /-- Eta-expand a beta-reduced expression. This function is currently unused -/
 partial def etaLong (e : Expr) : MetaM Expr := do

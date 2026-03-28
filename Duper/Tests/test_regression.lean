@@ -604,7 +604,7 @@ end UniverseTest
 
 namespace RecursorTests
 
-inductive Color1 :=
+inductive Color1 where
 | red : Color1
 
 example : @Color1.rec (fun _ => Nat) a .red = a := by duper [Color1.rec]

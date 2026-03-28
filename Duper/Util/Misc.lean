@@ -104,7 +104,7 @@ partial def Lean.Meta.findInstance (ty : Expr) : MetaM (Option Expr) := do
       else if let .sort (.succ l) := ty then
         pure <| some (mkSort l)
       else try
-        let inst ← Meta.mkAppOptM ``inferInstanceAs #[ty', none]
+        let inst ← Meta.mkAppOptM ``inferInstance #[ty', none]
         return some inst
       catch _ => do
         -- Find assumption in Local Context

@@ -10,6 +10,7 @@ set_option auto.native true
 
 open Lean Auto
 
+/-
 @[rebind Auto.Native.solverFunc]
 def Auto.duperPort (lemmas inhLemmas : Array Lemma) : MetaM Expr := do
   let formulas ← Duper.autoLemmasToFormulas lemmas
@@ -23,6 +24,7 @@ def Auto.duperPort (lemmas inhLemmas : Array Lemma) : MetaM Expr := do
       selFunction := none
     }
     .none
+-/
 
 inductive myType
 | const1 : myType
@@ -115,3 +117,21 @@ theorem exists₂_comm
     {ι₁ ι₂ : Sort} {κ₁ : ι₁ → Sort} {κ₂ : ι₂ → Sort} {p : ∀ i₁, κ₁ i₁ → ∀ i₂, κ₂ i₂ → Prop} :
     (∃ i₁ j₁ i₂ j₂, p i₁ j₁ i₂ j₂) ↔ ∃ i₂ j₂ i₁ j₁, p i₁ j₁ i₂ j₂ := by
   duper [*] {preprocessing := no_preprocessing}
+
+--------------------------------------------------------------------
+
+set_option trace.duper.printProof true in
+set_option trace.duper.proofReconstruction true in
+set_option trace.duper.saturate.debug true in
+set_option trace.duper.rule.superposition true in
+-- set_option trace.duper.prover.saturate true in
+set_option enableSuperpositionWatchClauses true in
+set_option superpositionWatchClause1 4 in
+set_option superpositionWatchClause2 5 in
+example (f : Nat → Prop) (h1 : ∀ x : Nat, f (x + x)) (h2 : ¬ f (1 + 1)) : False := by
+  duper [*] {portfolioInstance := 1} -- {preprocessing := no_preprocessing} works
+
+-- In the above example, Duper fails to perform an inference that it ought to be able to perform
+-- First reason: superposition inference is not performed due to condition 7
+-- Second reason: After disabling the above check, Duper never reaches "Inside yC for..." line. This seems like a bug to me, but will
+-- require more investigation.

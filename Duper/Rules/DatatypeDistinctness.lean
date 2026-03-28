@@ -51,9 +51,28 @@ def mkDatatypeDistinctnessProof (refs : List (Option Nat)) (premises : List Expr
         let some (tyName, numParams, lvls) ← matchConstInduct lit.ty.getAppFn' (fun _ => pure none) matchConstInductK
           | throwError "mkDistPosProof :: Failed to find the inductive datatype corresponding to {lit.ty}"
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
-          let noConfusionArgs := #[some (mkConst ``False), none, none, some h]
-          -- noConfusion first takes `numParams` arguments for parameters, so we need to add that many `none`s to the front of `noConfusionArgs`
-          let noConfusionArgs := (Array.range numParams).map (fun _ => none) ++ noConfusionArgs
+          /- The strucure of `noConfusion`'s arguments is as follows (as of `v4.27.0`):
+              If `lit.ty` has zero parameters then `noConfusion` takes exactly four arguments:
+              - `P : Sort u` which serves as the motive of the `noConfusionType`
+              - Two arguments with type `lit.ty`
+              - A final argument equating the two previous arguments
+              If `lit.ty` has one or more parameters then:
+              - `noConfusion` first takes in `P : Sort u` which serves as the motive of the `noConfusionType`. The datatype distinctness inference
+                always instantiates `P` with `False`
+              - `noConfusion` then takes in `numParams` arguments of the form `param : Type universe_param`. Call this list of parameters `(*)`
+              - `noConfusion` then takes in one element of the datatype instantiated with the previous `numParams` parameters.
+              - `noConfusion` then takes in another `numParams` arguments of the form `param : Type universe_param`. Call this list of parameters `(**)`
+              - `noConfusion` then takes in another element of the datatype instantiated with the previous `numParams` parameters.
+              - `noConfusion` then takes in `numParams` proofs that the `i`-th parameter from the first list `(*)` is equal to the `i`-th parameter
+                from the second list `(**)`. The datatype distinctness inference instantiates all of these with `rfl`.
+              - `noConfusion` finally takes in a proof that the first element of the datatype is equal to the second element of the datatype (this is expressed
+                in terms of a heterogeneous equality). The datatype distinctness inference always instantiates this last argument with `heq_of_eq h`. -/
+          let noConfusionArgs ←
+            if numParams = 0 then
+              pure $ #[some (mkConst ``False), none, none, some h]
+            else
+              pure $ #[some (mkConst ``False)] ++ (Array.range (2 * numParams + 2)).map (fun _ => none) ++
+                (← (Array.range numParams).mapM (fun x => do pure $ some (← mkAppOptM ``rfl #[none, some (lit.ty.getAppArgs[x]!)]))) ++ #[some (← mkAppM ``heq_of_eq #[h])]
           let proofCase ← mkAppOptM' (mkConst (.str tyName "noConfusion") (0 :: lvls)) noConfusionArgs
           let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
           Meta.mkLambdaFVars #[h] proofCase
