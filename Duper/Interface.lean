@@ -481,12 +481,16 @@ def formulasWithStringsToAutoLemmas (formulas : List (Expr × Expr × Array Name
 
 /-- Determines whether `lem`'s deriv info indicates that `lem` is part of the goal and should be included in the set of support. Note that `derivInfo`
     only works on lemmas generated from `formulasToAutoLemmas` or `formulasWithStringsToAutoLemmas`. In cases where the lemma was not generated from
-    `formulasToAutoLemmas`, `derivInfo` defaults to indicating that both `isFromGoal` and `includeInSetOfSupport` are `true`. -/
+    `formulasToAutoLemmas`, `derivInfo` defaults to indicating that both `isFromGoal` and `includeInSetOfSupport` are `true`. The only exception to this
+    is if all leaves have exactly the form "termLikeDefEq", in which case `derivInfo` indicates that `isFromGoal` is `false`. -/
 def derivInfo (lem : Auto.Lemma) : Bool × Bool :=
   let derivLeaves := getLeavesFromDTr lem.deriv
   let matchesFormat := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l || "true, false".isPrefixOf l || "false, false".isPrefixOf l)
   if !matchesFormat then
-    (true, true)
+    if derivLeaves.all (fun l => l == "termLikeDefEq") then
+      (false, true)
+    else
+      (true, true)
   else
     let isFromGoal := derivLeaves.any (fun l => "true".isPrefixOf l)
     let includeInSetOfSupport := derivLeaves.any (fun l => "true, true".isPrefixOf l || "false, true".isPrefixOf l)
