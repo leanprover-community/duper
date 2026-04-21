@@ -32,7 +32,7 @@ def mkDestructiveEqualtiyResolutionProof (i : Nat) (premises : List Expr) (paren
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let pr := mkApp2 (mkConst ``rfl [lit.lvl]) lit.ty lit.lhs
           let pr := mkApp h pr
-          let pr := mkApp2 (mkConst ``False.elim [levelZero]) body pr
+          let pr := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body pr
           Meta.mkLambdaFVars #[h] pr
         caseProofs := caseProofs.push pr
       else

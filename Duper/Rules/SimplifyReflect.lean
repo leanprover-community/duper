@@ -38,13 +38,13 @@ def mkPositiveSimplifyReflectProof (mainPremisePos : ClausePos) (isForward : Boo
                 mkLambda .anonymous BinderInfo.default motiveTy $
                   mkAppN (mkConst ``Ne [lit.lvl]) #[lit.ty, ← lit.lhs.replaceAtPos! mainPremisePos.pos (Expr.bvar 0), lit.rhs]
               let hAfterRw ← Meta.mkAppOptM ``Eq.ndrec #[none, none, motive, h, none, appliedSidePremise]
-              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ ← Meta.mkAppM' hAfterRw #[← Meta.mkAppM ``Eq.refl #[lit.rhs]]
+              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body $ ← Meta.mkAppM' hAfterRw #[← Meta.mkAppM ``Eq.refl #[lit.rhs]]
             else -- the lhs of the side clause can be matched onto mainPremisePos.pos of lit.rhs
               let motive :=
                 mkLambda .anonymous BinderInfo.default motiveTy $
                   mkAppN (mkConst ``Ne [lit.lvl]) #[lit.ty, lit.lhs, ← lit.rhs.replaceAtPos! mainPremisePos.pos (Expr.bvar 0)]
               let hAfterRw ← Meta.mkAppOptM ``Eq.ndrec #[none, none, motive, h, none, appliedSidePremise]
-              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ ← Meta.mkAppM' hAfterRw #[← Meta.mkAppM ``Eq.refl #[lit.lhs]]
+              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body $ ← Meta.mkAppM' hAfterRw #[← Meta.mkAppM ``Eq.refl #[lit.lhs]]
           else if (i < mainPremisePos.lit) then
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i h
           else -- i > mainPremisePos.lit, so we have to adjust for the off-by-one error by giving orIntro `i - 1` rather than `i`
@@ -75,9 +75,9 @@ def mkNegativeSimplifyReflectProof (mainPremiseLitIdx : Nat) (mainPremiseLhs : L
         let pr : Expr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           if(i == mainPremiseLitIdx) then
             if mainPremiseLhs == LitSide.lhs then
-              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ mkApp appliedSidePremise h
+              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body $ mkApp appliedSidePremise h
             else
-              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [levelZero]) body $ mkApp (← Meta.mkAppM ``Ne.symm #[appliedSidePremise]) h
+              Meta.mkLambdaFVars #[h] $ mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body $ mkApp (← Meta.mkAppM ``Ne.symm #[appliedSidePremise]) h
           else if (i < mainPremiseLitIdx) then
             Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i h
           else -- i > mainPremisePos.lit, so we have to adjust for the off-by-one error by giving orIntro `i - 1` rather than `i`

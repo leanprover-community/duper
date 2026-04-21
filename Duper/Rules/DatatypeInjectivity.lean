@@ -97,7 +97,7 @@ def mkDatatypeInjectivityNegProof (removedLitNum : Nat) (premises : List Expr) (
             match ← inferType injEq with
             | Expr.app (Expr.app (Expr.app (Expr.const ``Eq [_]) _) _) e2 => pure e2
             | _ => throwError "mkDatatypeInjectivityNegProof :: Type of {injEq} is not an equality as expected"
-          let propMVar ← mkFreshExprMVar (mkSort levelZero)
+          let propMVar ← mkFreshExprMVar (mkSort Lean.Level.zero)
           let abstrLam ← mkLambdaFVars #[propMVar] $ ← mkAppM ``Eq #[← mkAppM ``Not #[propMVar], ← mkAppM ``Not #[argEqualities]]
           let proofCase ← mkAppM ``Eq.mpr #[← mkAppM ``congrArg #[abstrLam, injEq], ← mkAppM ``Eq.refl #[← mkAppM ``Not #[argEqualities]]]
           let proofCase ← mkAppM ``Eq.mp #[proofCase, h]

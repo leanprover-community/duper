@@ -28,7 +28,7 @@ def mkElimResolvedLitProof (refs : List (Option Nat)) (premises : List Expr) (pa
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let proofCase := mkApp2 (mkConst ``rfl [lit.lvl]) lit.ty lit.lhs
           let proofCase := mkApp h proofCase
-          let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+          let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
           Meta.mkLambdaFVars #[h] proofCase
         proofCases := proofCases.push proofCase
       else

@@ -77,8 +77,8 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
     if litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then return #[]
 
     let freshFunctionOutputType ← inferType e
-    let freshFunction ← mkFreshFunction (mkSort levelZero) freshFunctionOutputType -- mkFreshFunction defined in FluidSup.lean
-    let freshPropVar ← mkFreshExprMVar (mkSort levelZero)
+    let freshFunction ← mkFreshFunction (mkSort Lean.Level.zero) freshFunctionOutputType -- mkFreshFunction defined in FluidSup.lean
+    let freshPropVar ← mkFreshExprMVar (mkSort Lean.Level.zero)
     let freshFunctionApp ← Meta.whnf (.app freshFunction freshPropVar)
 
     let loaded ← getLoadedClauses

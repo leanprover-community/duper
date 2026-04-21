@@ -39,7 +39,7 @@ def mkEqHoistProof (pos : ClausePos) (premises : List Expr)
           let substLitPos : LitPos := ⟨pos.side, pos.pos⟩
           let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr
-          let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
+          let abstrLam := mkLambda `x BinderInfo.default (mkSort Lean.Level.zero) abstrExp
           let lastTwoClausesProof ← Meta.mkAppM ``eq_hoist_proof #[freshVar1, freshVar2, abstrLam, h]
           Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoClausesProof
         else

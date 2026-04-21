@@ -51,8 +51,8 @@ def toExpr (lit : Lit) : Expr :=
 def fromSingleExpr (e : Expr) (sign := true) : Lit :=
   Lit.mk
     (sign := true)
-    (lvl := levelOne)
-    (ty := mkSort levelZero)
+    (lvl := Lean.Level.one)
+    (ty := mkSort Lean.Level.zero)
     (lhs := Expr.consumeMData e)
     (rhs := if sign then mkConst ``True else mkConst ``False)
 

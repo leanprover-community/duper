@@ -38,13 +38,13 @@ def mkFalseElimProof (i : Nat) (premises : List Expr) (parents : List ProofParen
         if lit.lhs == mkConst ``True then -- lit unified with `True = False`
           let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
             let proofCase := mkApp (mkConst ``true_ne_false) h
-            let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+            let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
             Meta.mkLambdaFVars #[h] proofCase
           caseProofs := caseProofs.push pr
         else -- lit unified with `False = True`
           let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
             let proofCase := mkApp (mkConst ``false_ne_true) h
-            let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+            let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
             Meta.mkLambdaFVars #[h] proofCase
           caseProofs := caseProofs.push pr
       else

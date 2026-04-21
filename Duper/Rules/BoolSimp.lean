@@ -320,7 +320,7 @@ partial def mkRule25Theorem (e : Expr) (counter : Nat) (i : Nat) (j : Nat) : Met
   | _ =>
     let iIdx := (counter - 1) - i
     let jIdx := (counter - 1) - j
-    return mkApp2 (mkConst ``False.elim [levelZero]) e (mkApp (Expr.bvar iIdx) (Expr.bvar jIdx))
+    return mkApp2 (mkConst ``False.elim [Lean.Level.zero]) e (mkApp (Expr.bvar iIdx) (Expr.bvar jIdx))
 
 /-- Assuming e has the form e1 ∨ e2 ∨ ... ∨ en, returns an array #[e1, e2, ... en].
     Note: If e has the form (e1a ∨ e1b) ∨ e2 ∨ ... en, then the disjunction (e1a ∨ e1b) will
@@ -870,7 +870,7 @@ partial def applyRule27 (e : Expr) : RuleM (Option (Nat × Nat)) := do
 /-- s1 ↔ s2 ↦ s1 = s2 -/
 def applyRule28 (e : Expr) : Option Expr :=
   match e with
-  | Expr.app (Expr.app (Expr.const ``Iff _) e1) e2 => some $ mkApp3 (mkConst ``Eq [levelOne]) (mkSort levelZero) e1 e2
+  | Expr.app (Expr.app (Expr.const ``Iff _) e1) e2 => some $ mkApp3 (mkConst ``Eq [Lean.Level.one]) (mkSort Lean.Level.zero) e1 e2
   | _ => none
 
 /-- Returns the rule theorem corresponding to boolSimpRule with the first argument applied.
@@ -1095,7 +1095,7 @@ def getBoolSimpRuleTheorem (boolSimpRule : BoolSimpRule) (originalExp : Expr) (i
   | rule23 => -- ∀ p : Prop, f(p) ↦ f(True) ∧ f(False)
     match originalExp.consumeMData with
     | Expr.forallE n _ b _ => do
-      let bFunction := Expr.lam n (mkSort levelZero) b BinderInfo.default
+      let bFunction := Expr.lam n (mkSort Lean.Level.zero) b BinderInfo.default
       return mkApp (mkConst ``rule23Theorem) bFunction
     | _ => throwError "Invalid originalExp {originalExp} for rule23"
   | rule23b => -- ∀ b : Bool, f(b) ↦ f true ∧ f false (assuming `f : Bool → Prop`)
@@ -1157,7 +1157,7 @@ def mkBoolSimpProof (substPos : ClausePos) (boolSimpRule : BoolSimpRule) (ijOpt 
           let abstrExp := abstrLit.toExpr
           let abstrLam :=
             if boolSimpRuleOperatesOnBool boolSimpRule then mkLambda `x BinderInfo.default (mkConst ``Bool) abstrExp
-            else mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
+            else mkLambda `x BinderInfo.default (mkSort Lean.Level.zero) abstrExp
           let rwproof ← Meta.mkAppM ``Eq.mp #[← Meta.mkAppM ``congrArg #[abstrLam, boolSimpRuleThm], h]
           Meta.mkLambdaFVars #[h] $ ← orIntro (cLits.map Lit.toExpr) i $ rwproof
         else

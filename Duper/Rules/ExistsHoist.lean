@@ -38,7 +38,7 @@ def mkExistsHoistProof (pos : ClausePos) (premises : List Expr) (parents : List 
           let substLitPos : LitPos := ⟨pos.side, pos.pos⟩
           let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr
-          let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
+          let abstrLam := mkLambda `x BinderInfo.default (mkSort Lean.Level.zero) abstrExp
           let lastTwoLitsProof ← Meta.mkAppM ``exists_hoist_proof #[freshVar1, abstrLam, h]
           Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoLitsProof
         else
@@ -70,7 +70,7 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
     -- Make freshVars, freshVarExistsExpr and newLitLhs
     let freshVar1 ← mkFreshExprMVar none
     let freshVar1Ty ← inferType freshVar1
-    let freshVar2Ty := Expr.forallE .anonymous freshVar1Ty (mkSort levelZero) BinderInfo.default -- freshVar1Ty → Prop
+    let freshVar2Ty := Expr.forallE .anonymous freshVar1Ty (mkSort Lean.Level.zero) BinderInfo.default -- freshVar1Ty → Prop
     let freshVar2 ← mkFreshExprMVar freshVar2Ty
     let freshVarExistsExpr ← mkAppM ``Exists #[freshVar2]
     let newLitLhs := .app freshVar2 freshVar1
