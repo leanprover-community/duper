@@ -36,8 +36,8 @@ def runDuperOnTPTP (fileName : String) (formulas : List (Expr × Expr × Array N
   | Result.unknown => IO.println s!"SZS status Timeout for {fileName}"
 
 def run (path : String) (_github : Bool) : MetaM Unit := do
-  let prop := mkSort levelZero
-  let type := mkSort levelOne
+  let prop := mkSort Lean.Level.zero
+  let type := mkSort Lean.Level.one
   let sortu := mkSort (.param `u)
   let sortu1 := mkSort (.param `u1)
   let sortu2 := mkSort (.param `u2)
@@ -73,13 +73,13 @@ def run (path : String) (_github : Bool) : MetaM Unit := do
       type :=
         mkForall `p .implicit prop $
         mkForall `h .default (.bvar 0) $
-        (mkApp3 (mkConst ``Eq [levelOne]) prop (.bvar 1) (mkConst ``True [])),
+        (mkApp3 (mkConst ``Eq [Lean.Level.one]) prop (.bvar 1) (mkConst ``True [])),
       isUnsafe := false})
   addDecl (.axiomDecl
     { name := `of_eq_true, levelParams := [],
       type :=
         mkForall `p .implicit prop $
-        mkForall `h .default (mkApp3 (mkConst ``Eq [levelOne]) prop (.bvar 0) (mkConst ``True [])) $
+        mkForall `h .default (mkApp3 (mkConst ``Eq [Lean.Level.one]) prop (.bvar 0) (mkConst ``True [])) $
         (.bvar 1),
       isUnsafe := false})
 

@@ -74,7 +74,7 @@ def mkDatatypeDistinctnessProof (refs : List (Option Nat)) (premises : List Expr
               pure $ #[some (mkConst ``False)] ++ (Array.range (2 * numParams + 2)).map (fun _ => none) ++
                 (← (Array.range numParams).mapM (fun x => do pure $ some (← mkAppOptM ``rfl #[none, some (lit.ty.getAppArgs[x]!)]))) ++ #[some (← mkAppM ``heq_of_eq #[h])]
           let proofCase ← mkAppOptM' (mkConst (.str tyName "noConfusion") (0 :: lvls)) noConfusionArgs
-          let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+          let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
           Meta.mkLambdaFVars #[h] proofCase
         proofCases := proofCases.push proofCase
       | none => -- refs[i] should have the value (some j) where parentLits[i] == c[j]

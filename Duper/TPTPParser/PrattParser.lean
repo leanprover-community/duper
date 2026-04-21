@@ -345,8 +345,8 @@ open Meta
 partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   match t with
   | ⟨.ident "$i", []⟩ => return mkConst `Iota
-  | ⟨.ident "$tType", []⟩ => return mkSort levelOne
-  | ⟨.ident "$o", []⟩ => return mkSort levelZero
+  | ⟨.ident "$tType", []⟩ => return mkSort Lean.Level.one
+  | ⟨.ident "$o", []⟩ => return mkSort Lean.Level.zero
   | ⟨.ident "$true", []⟩ => return mkConst `True
   | ⟨.ident "$false", []⟩ => return mkConst `False
   | ⟨.ident n, as⟩ => do
@@ -386,20 +386,20 @@ partial def toLeanExpr (t : Parser.Term) : MetaM Expr := do
   | ⟨.op "<=>", []⟩ => pure $ mkConst `Iff
   | ⟨.op "!=", []⟩  => pure $ mkConst `Ne
   | ⟨.op "=", []⟩   => pure $ mkConst `Eq
-  | ⟨.op "~|", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $
+  | ⟨.op "~|", []⟩  => pure $ mkLambda `x .default (mkSort Lean.Level.zero) $
+                         mkLambda `y .default (mkSort Lean.Level.zero) $
                            mkAppN (mkConst ``Not) #[mkAppN (mkConst ``Or) #[.bvar 1, .bvar 0]]
-  | ⟨.op "~&", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $
+  | ⟨.op "~&", []⟩  => pure $ mkLambda `x .default (mkSort Lean.Level.zero) $
+                         mkLambda `y .default (mkSort Lean.Level.zero) $
                            mkAppN (mkConst ``Not) #[mkAppN (mkConst ``And) #[.bvar 1, .bvar 0]]
-  | ⟨.op "<~>", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $
+  | ⟨.op "<~>", []⟩  => pure $ mkLambda `x .default (mkSort Lean.Level.zero) $
+                         mkLambda `y .default (mkSort Lean.Level.zero) $
                            mkAppN (mkConst ``Not) #[mkAppN (mkConst ``Iff) #[.bvar 1, .bvar 0]]
-  | ⟨.op "=>", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $
+  | ⟨.op "=>", []⟩  => pure $ mkLambda `x .default (mkSort Lean.Level.zero) $
+                         mkLambda `y .default (mkSort Lean.Level.zero) $
                            Lean.mkForall `i BinderInfo.default (.bvar 1) (.bvar 1)
-  | ⟨.op "<=", []⟩  => pure $ mkLambda `x .default (mkSort levelZero) $
-                         mkLambda `y .default (mkSort levelZero) $
+  | ⟨.op "<=", []⟩  => pure $ mkLambda `x .default (mkSort Lean.Level.zero) $
+                         mkLambda `y .default (mkSort Lean.Level.zero) $
                            Lean.mkForall `i BinderInfo.default (.bvar 0) (.bvar 2)
 
   | ⟨.op ">", [⟨.op "*", [a, b]⟩, c]⟩   => toLeanExpr ⟨.op ">", [a, ⟨.op ">", [b, c]⟩]⟩
@@ -497,7 +497,7 @@ partial def collectConstantsOfCmd (topLevel : Bool) (acc : Std.HashMap String Ex
     then
       let ty ← as.foldlM
         (fun acc _ => mkArrow (mkConst `Iota) acc)
-        (if topLevel then mkSort levelZero else mkConst `Iota)
+        (if topLevel then mkSort Lean.Level.zero else mkConst `Iota)
       let acc := acc.insert n ty
       return acc
     else

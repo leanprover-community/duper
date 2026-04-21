@@ -49,7 +49,7 @@ def mkContextualLiteralCuttingProof (negatedLitMainIdx : Nat) (assignment : List
                       let hSideFlipped ← Meta.mkAppM ``Eq.symm #[hSide]
                       Meta.mkAppM' hMain #[hSideFlipped]
                     else Meta.mkAppM' hMain #[hSide]
-                Meta.mkLambdaFVars #[hMain] $ mkApp2 (mkConst ``False.elim [levelZero]) body contraProof
+                Meta.mkLambdaFVars #[hMain] $ mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body contraProof
               caseProofsMain := caseProofsMain.push pr
             else
               let pr ← Meta.withLocalDeclD `hMain curMainLit.toExpr fun hMain => do

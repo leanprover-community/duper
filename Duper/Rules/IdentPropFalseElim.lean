@@ -16,7 +16,7 @@ initialize Lean.registerTraceClass `duper.rule.identPropFalseElim
 def isFalsePropLiteral (lit : Lit) : MetaM Bool := do
   match lit.ty with
   | Expr.sort lvl =>
-    if Level.isEquiv (← Lean.instantiateLevelMVars lvl) levelZero then
+    if Level.isEquiv (← Lean.instantiateLevelMVars lvl) Lean.Level.zero then
       return lit.sign &&
         ((lit.lhs == mkConst ``True && lit.rhs == mkConst ``False) ||
         (lit.lhs == mkConst ``False && lit.rhs == mkConst ``True))
@@ -42,11 +42,11 @@ def mkIdentPropFalseElimProof (refs : List (Option Nat)) (premises : List Expr) 
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           if (lit.lhs == mkConst ``False) then
             let proofCase := mkApp (mkConst ``prop_false_ne_true) h
-            let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+            let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
             Meta.mkLambdaFVars #[h] proofCase
           else if(lit.lhs == mkConst ``True) then
             let proofCase := mkApp (mkConst ``prop_true_ne_false) h
-            let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+            let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
             Meta.mkLambdaFVars #[h] proofCase
           else
             throwError "mkIdentPropFalseElimProof failed to match {lit.lhs} to an expected expression"

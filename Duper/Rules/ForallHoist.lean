@@ -38,7 +38,7 @@ def mkForallHoistProof (pos : ClausePos) (premises : List Expr)
           let substLitPos : LitPos := ⟨pos.side, pos.pos⟩
           let abstrLit ← (lit.abstractAtPos! substLitPos)
           let abstrExp := abstrLit.toExpr
-          let abstrLam := mkLambda `x BinderInfo.default (mkSort levelZero) abstrExp
+          let abstrLam := mkLambda `x BinderInfo.default (mkSort Lean.Level.zero) abstrExp
           let lastTwoLitsProof ← Meta.mkAppM ``forall_hoist_proof #[freshVar1, abstrLam, h]
           Meta.mkLambdaFVars #[h] $ ← orSubclause (cLits.map Lit.toExpr) 2 lastTwoLitsProof
         else
@@ -51,7 +51,7 @@ def mkForallHoistProof (pos : ClausePos) (premises : List Expr)
 /-- Returns the dependent forall and lambda expressions -/
 def mkForallAndLambda (freshVar1Ty : Expr) : MetaM (Expr × Expr) :=
   Meta.withLocalDeclD `_ freshVar1Ty fun fvar => do
-    let newMVar ← Meta.mkFreshExprMVar (mkSort levelZero)
+    let newMVar ← Meta.mkFreshExprMVar (mkSort Lean.Level.zero)
     let forallExpr ← Meta.mkForallFVars #[fvar] newMVar
     let lambdaExpr ← Meta.mkLambdaFVars #[fvar] newMVar
     return (forallExpr, lambdaExpr)

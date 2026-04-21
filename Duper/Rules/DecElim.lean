@@ -52,7 +52,7 @@ def mkDecElimProof (refs : List (Option Nat)) (premises : List Expr) (parents : 
         trace[duper.rule.decElim] "Built {proofCase} proving {d} is false"
         let pr ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           let proofCase := mkApp proofCase h
-          let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+          let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
           Meta.mkLambdaFVars #[h] proofCase
         caseProofs := caseProofs.push pr
       | some j =>

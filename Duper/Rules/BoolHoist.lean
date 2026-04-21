@@ -28,7 +28,7 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
       return #[]
     let eType ← inferType e
     let loaded ← getLoadedClauses
-    let ug ← unifierGenerator #[(eType, .sort levelZero)]
+    let ug ← unifierGenerator #[(eType, .sort Lean.Level.zero)]
     let yC := do
       setLoadedClauses loaded
       let lit := c.lits[pos.lit]!

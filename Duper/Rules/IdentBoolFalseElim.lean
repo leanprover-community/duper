@@ -36,11 +36,11 @@ def mkIdentBoolFalseElimProof (refs : List (Option Nat)) (premises : List Expr) 
         let proofCase ← Meta.withLocalDeclD `h lit.toExpr fun h => do
           if (lit.lhs == mkConst ``false) then
             let proofCase := mkApp (mkConst ``bool_false_ne_true) h
-            let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+            let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
             Meta.mkLambdaFVars #[h] proofCase
           else if(lit.lhs == mkConst ``true) then
             let proofCase := mkApp (mkConst ``bool_true_ne_false) h
-            let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body proofCase
+            let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body proofCase
             Meta.mkLambdaFVars #[h] proofCase
           else
             throwError "mkIdentBoolFalseElimProof failed to match {lit.lhs} to an expected expression"

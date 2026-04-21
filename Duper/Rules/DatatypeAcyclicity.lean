@@ -65,7 +65,7 @@ def mkDatatypeAcyclicityProof (removedLitNum : Nat) (litSide : LitSide) (premise
           let sizeOfEqFalseMVar ← mkFreshExprMVar $ ← mkAppM ``Not #[← inferType sizeOfEq] -- Has the type `¬(sizeOf lit.lhs = sizeOf lit.rhs)`
           let sizeOfEqFalseMVarId := sizeOfEqFalseMVar.mvarId!
           -- **TODO**: Figure out how to assign `sizeOfEqFalseMVar` an actual term
-          let proofCase := mkApp2 (mkConst ``False.elim [levelZero]) body $ mkApp sizeOfEqFalseMVar sizeOfEq -- Has the type `body`
+          let proofCase := mkApp2 (mkConst ``False.elim [Lean.Level.zero]) body $ mkApp sizeOfEqFalseMVar sizeOfEq -- Has the type `body`
           trace[duper.rule.datatypeAcyclicity] "lit: {lit}, lit.ty: {lit.ty}, sizeOfInst: {sizeOfInst}, abstrLam: {abstrLam}, sizeOfEq: {sizeOfEq}"
           trace[duper.rule.datatypeAcyclicity] "sizeOfEqFalseMVar: {sizeOfEqFalseMVar}, proofCase: {proofCase}"
           Meta.mkLambdaFVars #[h] proofCase
