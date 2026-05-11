@@ -784,3 +784,19 @@ example (t1 : Type 1) (t2 : Type 2) (x : myType4 t1 t2) :
 set_option duper.collectDatatypes true in
 example (P : α × β → Prop) (h : ∀ x : α, ∀ y : β, P (x, y)) : ∀ z : α × β, P z := by
   duper [*] {portfolioInstance := 7}
+
+example (x : List Nat) : x ≠ 0 :: x := by
+  duper [*] {portfolioInstance := 7}
+
+example (x : myType3) : const6 x ≠ x := by
+  duper
+
+inductive TriTree (t : Type _) where
+| node : TriTree t → TriTree t → TriTree t → TriTree t
+| leaf : t → TriTree t
+
+example (x y z : TriTree Nat) : x ≠ TriTree.node x y z := by
+  duper [*] {portfolioInstance := 7}
+
+example (x y z : TriTree Nat) : TriTree.node x y z ≠ z := by
+  duper [*]

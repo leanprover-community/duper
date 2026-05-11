@@ -13,11 +13,7 @@ open LitSide
 
 initialize Lean.registerTraceClass `duper.rule.datatypeAcyclicity
 
-theorem one_add_ge (n : Nat) : 1 + n > n := by
-  let h1 := Nat.le_refl n
-  let h2 := Nat.lt_succ_of_le h1
-  rw [Nat.succ_eq_one_add] at h2
-  exact h2
+theorem one_add_ge (n : Nat) : 1 + n > n := by grind
 
 def addAllRight (head : Expr) (xs : Array Expr) : MetaM Expr := do
   xs.foldlM (init := head) fun acc lit => do mkAppM ``Nat.lt_add_right #[← mkAppM ``sizeOf #[lit], acc]
@@ -66,7 +62,7 @@ partial def collectConstructorSubterms (e : Expr) : MetaM (Array Expr) := do
 
 /-- Builds a proof of `sizeOf lhs > sizeOf rhs` with `rhs` guaranteed to be a subterm of `lhs` -/
 partial def buildGtProof (lhs : Expr) (rhs : Expr) : MetaM Expr := do
-  let ctor := lhs.getAppFn
+  let ctor := lhs.getAppFn'
   let some ctorName := ctor.constName?
     | throwError "datatypeAcyclicity: lhs head is not a constant"
   let ctorType ← inferType ctor
@@ -158,11 +154,14 @@ def mkDatatypeAcyclicityProof (removedLitNum : Nat) (litSide : LitSide) (premise
           let litTyMVar ← mkFreshExprMVar lit.ty
           let abstrLam ← mkLambdaFVars #[litTyMVar] $ ← mkAppOptM ``sizeOf #[some lit.ty, some sizeOfInst, some litTyMVar]
           let sizeOfEq ← mkAppM ``congrArg #[abstrLam, h] -- Has the type `sizeOf lit.lhs = sizeOf lit.rhs`
-          let sizeOfEq ← if lit.lhs.weight > lit.rhs.weight then
-                          pure sizeOfEq
-                        else
-                          mkAppM ``Eq.symm #[sizeOfEq]
-          let lit := if lit.lhs.weight > lit.rhs.weight then lit else lit.symm
+          let sizeOfEq ←
+            match litSide with
+            | lhs => mkAppM ``Eq.symm #[sizeOfEq]
+            | rhs => pure sizeOfEq
+          let lit : Lit :=
+            match litSide with
+            | lhs => lit.symm
+            | rhs => lit
           let sizeOfEqFalseMVar ← mkFreshExprMVar $ ← mkAppM ``Not #[← inferType sizeOfEq] -- Has the type `¬(sizeOf lit.lhs = sizeOf lit.rhs)`
           let sizeOfEqFalseMVarId := sizeOfEqFalseMVar.mvarId!
           let gtProof ← buildGtProof lit.lhs lit.rhs
