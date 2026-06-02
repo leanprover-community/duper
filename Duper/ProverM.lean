@@ -532,6 +532,7 @@ partial def removeDescendants (c : Clause) (ci : ClauseInfo) (protectedClauses :
       allClauses ← getAllClauses
       -- Remove c from passive set
       setPassiveSet $ passiveSet.erase d
+      passiveSet ← getPassiveSet
     | none => throwError "Unable to find descendant"
 
 /-- removeClause does the following:
