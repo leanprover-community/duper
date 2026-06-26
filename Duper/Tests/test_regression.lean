@@ -800,3 +800,11 @@ example (x y z : TriTree Nat) : x ≠ TriTree.node x y z := by
 
 example (x y z : TriTree Nat) : TriTree.node x y z ≠ z := by
   duper [*]
+
+--###############################################################################################################################
+
+inductive TestType where
+  | constr : TestType
+
+example : True := by
+  duper [TestType.recOn]
