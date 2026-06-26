@@ -46,6 +46,7 @@ def run (path : String) (_github : Bool) : MetaM Unit := do
   addDecl (.axiomDecl {name := `Bool, levelParams := [], type := type, isUnsafe := false})
   addDecl (.axiomDecl {name := `Bool.false, levelParams := [], type := mkConst `Bool, isUnsafe := false})
   addDecl (.axiomDecl {name := `sorryAx, levelParams := [`u], type := mkForall `α .default sortu $ mkForall `synthetic .default (mkConst `Bool) $ mkBVar 1, isUnsafe := false})
+  addDecl (.axiomDecl {name := `Duper.skSorryAx, levelParams := [`u], type := mkForall `α .implicit sortu $ mkBVar 0, isUnsafe := false})
   addDecl (.axiomDecl {name := `Eq, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ prop, isUnsafe := false})
   addDecl (.axiomDecl {name := `Ne, levelParams := [`u], type := mkForall `α .implicit sortu $ ← mkArrow (mkBVar 0) $ ← mkArrow (mkBVar 1) $ prop, isUnsafe := false})
   addDecl (.axiomDecl {name := `True, levelParams := [], type := prop, isUnsafe := false})
