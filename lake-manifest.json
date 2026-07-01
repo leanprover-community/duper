@@ -15,7 +15,7 @@
    "type": "git",
    "subDir": null,
    "scope": "",
-   "rev": "9317dcc6db1f731891ea6e3efa8ddb721f020397",
+   "rev": "dcc3ecf8fff5baac87b6e42a4d841ba80e903b0f",
    "name": "auto",
    "manifestFile": "lake-manifest.json",
    "inputRev": "main",
