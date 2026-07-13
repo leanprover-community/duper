@@ -522,17 +522,17 @@ namespace NegativeBoolSimpTests
 
 axiom f.{u} : Sort u → Nat
 
-def neg₁ : (f (Nat → Nat) = f (Nat → Nat)) := by duper
+theorem neg₁ : (f (Nat → Nat) = f (Nat → Nat)) := by duper
 
 -- A positive example
-def pos₁ : (f (Nat → False) = f False) := by duper
+theorem pos₁ : (f (Nat → False) = f False) := by duper
 
 axiom g.{u} : ∀ (α : Sort u), α → Nat
 
-def neg₂ : g (Nat → True) (fun _ => True.intro) = g (Nat → True) (fun _ => True.intro) :=
+theorem neg₂ : g (Nat → True) (fun _ => True.intro) = g (Nat → True) (fun _ => True.intro) :=
   by duper
 
-def neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ => True.intro) :=
+theorem neg3 : g (True → True) (fun _ => True.intro) = g (True → True) (fun _ => True.intro) :=
   by duper
 
 end NegativeBoolSimpTests
@@ -582,19 +582,19 @@ axiom f.{u} : Type u → Prop
 axiom ftrue.{u} : f.{u} (Sort u)
 
 set_option trace.duper.printProof true in
-def unitst₁ : f.{max u v} (Sort (max u v)) ∧ f.{v} (Sort v) := by
+theorem unitst₁ : f.{max u v} (Sort (max u v)) ∧ f.{v} (Sort v) := by
   duper [ftrue]
 
 axiom fmoretrue.{u} : ∀ (x : Type u), f x
 
 set_option trace.duper.printProof true in
-def unitst₂ : ∀ (x : Type v), f x := by
+theorem unitst₂ : ∀ (x : Type v), f x := by
   duper [fmoretrue]
 
 axiom exftrue.{u} : ∃ (x : Type u), f x
 
 set_option trace.duper.proofReconstruction true in
-def skuniverse.{u} : ∃ (x : Type u), f x := by
+theorem skuniverse.{u} : ∃ (x : Type u), f x := by
   duper [exftrue]
 
 end UniverseTest
@@ -679,7 +679,7 @@ example (h : Nonempty (α × β)) : Nonempty β := by duper [*]
 theorem proj_test (h1 : ∀ x : Nat, x > 0 → ∃ y : Fin x, y.1 = 0) (h2 : 3 > 0) : ∃ z : Fin 3, z.1 = 0 := by
   duper [h1, h2]
 
-def sk (a b : Nat) (c : Nat × Nat) (h1 : c = (a, b)) : c.1 = a := by
+theorem sk (a b : Nat) (c : Nat × Nat) (h1 : c = (a, b)) : c.1 = a := by
   duper [h1]
 
 #print sk
