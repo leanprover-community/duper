@@ -1,4 +1,8 @@
-import Lean
+module
+
+public import Lean
+
+public section
 
 set_option linter.unusedVariables false
 

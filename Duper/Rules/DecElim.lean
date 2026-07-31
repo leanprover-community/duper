@@ -1,6 +1,10 @@
-import Duper.Simp
-import Duper.Util.ProofReconstruction
-import Lean.Meta.Basic
+module
+
+public import Duper.Simp
+public import Duper.Util.ProofReconstruction
+public import Lean.Meta.Basic
+
+public section
 
 set_option linter.unusedVariables false
 

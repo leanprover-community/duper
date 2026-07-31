@@ -1,17 +1,21 @@
-import Lean
-import Duper.ProverM
-import Duper.RuleM
-import Duper.MClause
-import Duper.Simp
-import Duper.Rules.BetaEtaReduction
-import Duper.Rules.BoolSimp
-import Duper.Rules.Clausification
-import Duper.Rules.ElimDupLit
-import Duper.Rules.ElimResolvedLit
-import Duper.Rules.SyntacticTautologyDeletion1
-import Duper.Rules.SyntacticTautologyDeletion2
-import Duper.Rules.SyntacticTautologyDeletion3
-import Duper.Util.TypeInhabitationReasoning
+module
+
+public import Lean
+public import Duper.ProverM
+public import Duper.RuleM
+public import Duper.MClause
+public import Duper.Simp
+public import Duper.Rules.BetaEtaReduction
+public import Duper.Rules.BoolSimp
+public import Duper.Rules.Clausification
+public import Duper.Rules.ElimDupLit
+public import Duper.Rules.ElimResolvedLit
+public import Duper.Rules.SyntacticTautologyDeletion1
+public import Duper.Rules.SyntacticTautologyDeletion2
+public import Duper.Rules.SyntacticTautologyDeletion3
+public import Duper.Util.TypeInhabitationReasoning
+
+public section
 
 namespace Duper
 namespace ProverM

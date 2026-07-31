@@ -1,5 +1,9 @@
-import Lean
-import Duper.TPTPParser.MacroDecl
+module
+
+public import Lean
+public import Duper.TPTPParser.MacroDecl
+
+public section
 
 open Lean
 open Lean.Parser
@@ -8,27 +12,28 @@ open Lean.Elab.Command
 
 namespace TPTP
 
-register_option maxTPTPProblemLines : Nat := {
+-- The `tptp` command is elaborated at compile time, so this option is `meta`.
+meta register_option maxTPTPProblemLines : Nat := {
   defValue := 10000
   descr := "Line number limit (with comments stripped) for TPTP problems"
 }
 
-def getMaxTPTPProblemLines (opts : Options) : Nat :=
+meta def getMaxTPTPProblemLines (opts : Options) : Nat :=
   maxTPTPProblemLines.get opts
 
-def checkMaxTPTPProblemLines (lines : Nat) : CommandElabM Unit := do
+meta def checkMaxTPTPProblemLines (lines : Nat) : CommandElabM Unit := do
   let opts ← getOptions
   let max := getMaxTPTPProblemLines opts
   if max < lines then
     let msg := s!"Number of lines {lines} in TPTP problem exceeded line number limit {max}"
     throw <| Exception.error (← getRef) (MessageData.ofFormat (Std.Format.text msg))
 
-partial def parseTPTPInput (s : String) : CommandElabM Syntax := do
+meta partial def parseTPTPInput (s : String) : CommandElabM Syntax := do
   match runParserCategory (← getEnv) `TPTP_input s with
   | Except.error e => throwError e
   | Except.ok r => return r
 
-def sqstrToIdent (s : String) : String := Id.run <| do
+meta def sqstrToIdent (s : String) : String := Id.run <| do
   let mut ret := ""
   let mut curr : String.Pos.Raw := ⟨0⟩
   let mut sqcnt := 0
@@ -47,7 +52,7 @@ def sqstrToIdent (s : String) : String := Id.run <| do
     | none => break
   return ret
 
-def splitOnOutermostPeriod (s : String) : Array String := Id.run <| do
+meta def splitOnOutermostPeriod (s : String) : Array String := Id.run <| do
   let mut ret := #[]
   let mut last : String.Pos.Raw := ⟨0⟩
   let mut curr : String.Pos.Raw := ⟨0⟩
@@ -66,7 +71,7 @@ def splitOnOutermostPeriod (s : String) : Array String := Id.run <| do
     | none => break
   return ret
 
-def loadTptp (path : System.FilePath) : CommandElabM (Syntax × Nat) := do
+meta def loadTptp (path : System.FilePath) : CommandElabM (Syntax × Nat) := do
   let lines ← IO.FS.lines path
   let lines := lines.filter fun l => ¬ l.startsWith "%"
   let s := String.join lines.toList
@@ -79,7 +84,7 @@ def loadTptp (path : System.FilePath) : CommandElabM (Syntax × Nat) := do
     stxarr := stxarr.push ⟨← parseTPTPInput s⟩
   return (← `(TPTP_file| $[$stxarr]*), lines.size)
 
-partial def resolveInclude (leadingPath : System.FilePath) : Syntax → CommandElabM (Syntax × Nat)
+meta partial def resolveInclude (leadingPath : System.FilePath) : Syntax → CommandElabM (Syntax × Nat)
 |`(TPTP_file| $[$f]*) => do
   let mut result := #[]
   let mut lines := 0
@@ -99,7 +104,7 @@ partial def resolveInclude (leadingPath : System.FilePath) : Syntax → CommandE
 
 syntax (name := tptpKind) "tptp " ident strLit term : command
 
-@[command_elab tptpKind] def elabResolve : CommandElab := fun stx => do
+@[command_elab tptpKind] meta def elabResolve : CommandElab := fun stx => do
   match stx with
   | `(tptp $name $file $proof) =>
     match Syntax.isStrLit? file with

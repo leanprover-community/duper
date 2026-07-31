@@ -1,5 +1,9 @@
-import Duper.Simp
-import Duper.Util.ClauseSubsumptionCheck
+module
+
+public import Duper.Simp
+public import Duper.Util.ClauseSubsumptionCheck
+
+public section
 
 namespace Duper
 

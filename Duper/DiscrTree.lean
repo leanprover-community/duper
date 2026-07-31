@@ -1,5 +1,9 @@
-import Lean
-import Duper.RuleM
+module
+
+public import Lean
+public import Duper.RuleM
+
+public section
 
 /- This code is copied from Lean's Discrimination Trees, but the support for
 definitional equality has been removed. -/

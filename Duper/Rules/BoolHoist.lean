@@ -1,8 +1,12 @@
-import Duper.MClause
-import Duper.RuleM
-import Duper.Simp
-import Duper.Util.ProofReconstruction
-import Duper.Rules.IdentBoolHoist
+module
+
+public import Duper.MClause
+public import Duper.RuleM
+public import Duper.Simp
+public import Duper.Util.ProofReconstruction
+public import Duper.Rules.IdentBoolHoist
+
+public section
 
 set_option linter.unusedVariables false
 

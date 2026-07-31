@@ -1,7 +1,11 @@
-import Lean
-import Duper.DUnif.Utils
-import Duper.DUnif.UnifProblem
-import Duper.Util.OccursCheck
+module
+
+public import Lean
+public import Duper.DUnif.Utils
+public import Duper.DUnif.UnifProblem
+public import Duper.Util.OccursCheck
+
+public section
 
 open Lean
 

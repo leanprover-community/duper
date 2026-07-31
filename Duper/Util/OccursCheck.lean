@@ -2,8 +2,12 @@
 Copyright (c) 2023 Duper development team. All rights reserved.
 Author: Duper development team
 -/
-import Lean.MetavarContext
-import Lean
+module
+
+public import Lean.MetavarContext
+public import Lean
+
+public section
 
 namespace Lean
 

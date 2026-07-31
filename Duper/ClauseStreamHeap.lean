@@ -1,9 +1,13 @@
-import Batteries.Data.BinomialHeap
-import Duper.Util.IdStrategyHeap
-import Duper.Clause
-import Duper.DUnif.UnifRules
-import Duper.ProverM
-import Lean
+module
+
+public import Batteries.Data.BinomialHeap
+public import Duper.Util.IdStrategyHeap
+public import Duper.Clause
+public import Duper.DUnif.UnifRules
+public import Duper.ProverM
+public import Lean
+
+public section
 
 set_option linter.unusedVariables false
 

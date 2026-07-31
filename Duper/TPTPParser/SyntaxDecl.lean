@@ -1,4 +1,8 @@
-import Lean
+module
+
+public import Lean
+
+public section
 
 open Lean
 open Lean.Parser
@@ -47,7 +51,7 @@ syntax rawIdent : thf_atomic_type
 syntax thf_atomic_type : thf_type
 syntax:max "(" thf_type ")" : thf_type
 
-def thfXProdArgsParser := sepBy1 (categoryParser `thf_atomic_type 0) "*"
+meta def thfXProdArgsParser := sepBy1 (categoryParser `thf_atomic_type 0) "*"
 syntax thf_xprod_args := thfXProdArgsParser
 
 --thf_mapping_type

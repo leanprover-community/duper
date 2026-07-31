@@ -1,10 +1,14 @@
-import Lean
-import Duper.Unif
-import Duper.MClause
-import Duper.Match
-import Duper.DUnif.UnifRules
-import Duper.Util.IdStrategyHeap
-import Duper.Util.AbstractMVars
+module
+
+public import Lean
+public import Duper.Unif
+public import Duper.MClause
+public import Duper.Match
+public import Duper.DUnif.UnifRules
+public import Duper.Util.IdStrategyHeap
+public import Duper.Util.AbstractMVars
+
+public section
 
 set_option linter.unusedVariables false
 
