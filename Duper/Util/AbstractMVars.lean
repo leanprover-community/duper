@@ -1,6 +1,10 @@
-import Lean
-import Duper.Util.Misc
-import Duper.Util.Reduction
+module
+
+public import Lean
+public import Duper.Util.Misc
+public import Duper.Util.Reduction
+
+public section
 
 open Lean Meta
 

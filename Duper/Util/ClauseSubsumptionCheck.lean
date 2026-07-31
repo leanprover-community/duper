@@ -1,4 +1,8 @@
-import Duper.RuleM
+module
+
+public import Duper.RuleM
+
+public section
 
 set_option linter.unusedVariables false
 

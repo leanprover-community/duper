@@ -1,8 +1,12 @@
-import Duper.RuleM
-import Duper.Selection
-import Duper.Util.Misc
-import Duper.Util.ProofReconstruction
-import Duper.Rules.FluidSup
+module
+
+public import Duper.RuleM
+public import Duper.Selection
+public import Duper.Util.Misc
+public import Duper.Util.ProofReconstruction
+public import Duper.Rules.FluidSup
+
+public section
 
 set_option linter.unusedVariables false
 

@@ -1,5 +1,9 @@
-import Lean
-import Duper.TPTPParser.SyntaxDecl
+module
+
+public import Lean
+public import Duper.TPTPParser.SyntaxDecl
+
+public section
 
 set_option linter.unusedVariables false
 
@@ -9,13 +13,15 @@ open TSyntax.Compat
 
 namespace TPTP
 
-def explicitBinder : Parser := Term.explicitBinder false
+-- `explicitBinder` is used by the syntax quotations below, so it must be available at compile time.
+meta def explicitBinder : Parser := Term.explicitBinder false
 
 axiom iota : Type
 private axiom iotaInhabited : iota
-noncomputable instance : Inhabited iota := ⟨iotaInhabited⟩
+-- `@[no_expose]` keeps `iotaInhabited` private: an exposed declaration may not refer to it.
+@[no_expose] noncomputable instance : Inhabited iota := ⟨iotaInhabited⟩
 
-def processThfDefinedType (ty : Syntax) : MacroM Syntax := do
+meta def processThfDefinedType (ty : Syntax) : MacroM Syntax := do
   match ty with
   | `(defined_type|🍉$id) =>
     match id.getId with
@@ -26,7 +32,7 @@ def processThfDefinedType (ty : Syntax) : MacroM Syntax := do
   | _ => Macro.throwError s!"{ty} is not a defined type"
 
 -- TODO: Add support for `int` and `real`?
-def processThfDefinedTerm (term : Syntax) : MacroM Syntax := do
+meta def processThfDefinedTerm (term : Syntax) : MacroM Syntax := do
   match term with
   | `(defined_term|🍉$id) =>
     match id.getId with
@@ -37,7 +43,7 @@ def processThfDefinedTerm (term : Syntax) : MacroM Syntax := do
     | _ => Macro.throwError s!"Unsupported thf_defined_term: {term}"
   | _ => Macro.throwError s!"{term} is not a defined term"
 
-partial def processThfAtomicType (stx : Syntax) : MacroM Syntax := do
+meta partial def processThfAtomicType (stx : Syntax) : MacroM Syntax := do
   match stx with
   | `(thf_type| $ty:thf_atomic_type) => processThfAtomicType ty
   | `(thf_atomic_type| $ty:ident) => pure ty
@@ -56,7 +62,7 @@ partial def processThfAtomicType (stx : Syntax) : MacroM Syntax := do
     an Array containing the stx for `A`, `B`, etc. (in reverse order. So `A → B → Type` would
     have the stx array #[B, A]) This is so that we can add the appropriate `Inhabited` constraints
     to the newly declared type. -/
-partial def processThfType (stx : Syntax) : MacroM (Syntax × Option (Array Syntax)) := do
+meta partial def processThfType (stx : Syntax) : MacroM (Syntax × Option (Array Syntax)) := do
   match stx with
   | `(thf_type| ( $t:thf_type ) ) => processThfType t
   | `(thf_type| $ty:thf_atomic_type) =>
@@ -110,7 +116,7 @@ partial def processThfType (stx : Syntax) : MacroM (Syntax × Option (Array Synt
     return (res, none)
   | _ => Macro.throwError s!"Unsupported thf_type: {stx}"
 
-partial def processThfTerm (stx : Syntax) (is_untyped : Bool) : MacroM Syntax := do
+meta partial def processThfTerm (stx : Syntax) (is_untyped : Bool) : MacroM Syntax := do
   match stx with
   | `(thf_term| $d:defined_term) => processThfDefinedTerm d
   | `(thf_term| ( $t:thf_term ) ) => processThfTerm t is_untyped
@@ -178,14 +184,14 @@ partial def processThfTerm (stx : Syntax) (is_untyped : Bool) : MacroM Syntax :=
   | _ => Macro.throwError s!"Unsupported thf_term: {stx}"
 
 /-- Determines whether an identifier is a variable by checking whether the first character is capital -/
-def isVar (stx : TSyntax `ident) : MacroM Bool := do
+meta def isVar (stx : TSyntax `ident) : MacroM Bool := do
   match stx with
   | Syntax.ident _ rawVal _ _ => return (rawVal.get 0).isUpper
   | _ => Macro.throwError "Non-ident passed into isVar"
 
 /-- Given a piece of syntax, returns the list of variables that appear in said syntax. This function
     may return lists in which the same variable appears multiple times. -/
-partial def getVarsHelper (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
+meta partial def getVarsHelper (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
   match stx with
   | `(thf_term| ( $t:thf_term )) => getVarsHelper t
   | `(thf_term| ~ $t:thf_term ) => getVarsHelper t
@@ -210,13 +216,13 @@ partial def getVarsHelper (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
 /-- Given a piece of syntax, returns the list of variables that appear in said syntax. This function is needed
     because cnf clauses are implicitly universally quantified (but Lean requires that we explicitly universally
     quantify the variables). This function is only intended to be called on cnf clauses. -/
-def getVars (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
+meta def getVars (stx : Syntax) : MacroM (List (TSyntax `ident)) := do
   let varsWithDuplicates ← getVarsHelper stx
   let vars := varsWithDuplicates.foldl
     (fun acc var => if acc.contains var then acc else var :: acc) []
   return vars
 
-partial def processCnfTerm (stx : Syntax) : MacroM Syntax := do
+meta partial def processCnfTerm (stx : Syntax) : MacroM Syntax := do
   let vars ← getVars stx
   let iotaTypeSyntax ← `(TPTP.iota)
   let unquantifiedRes ← processThfTerm stx true
@@ -234,7 +240,7 @@ partial def processCnfTerm (stx : Syntax) : MacroM Syntax := do
     of the symbol in the overall formula.
 
     The topType argument is used to keep track of what the overall type of stx is supposed to be. -/
-partial def getNonVarSymbols (acc : Std.HashMap String (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `thf_type)
+meta partial def getNonVarSymbols (acc : Std.HashMap String (TSyntax `TPTP.explicitBinder)) (topType : TSyntax `thf_type)
   (stx : Syntax) : MacroM (Std.HashMap String (TSyntax `TPTP.explicitBinder)) := do
   match stx with
   | `(thf_term|🍉$id:ident) => return acc

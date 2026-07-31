@@ -1,4 +1,8 @@
-import Duper.Clause
+module
+
+public import Duper.Clause
+
+public section
 
 namespace Duper
 open Lean

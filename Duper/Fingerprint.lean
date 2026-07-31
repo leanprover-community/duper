@@ -1,6 +1,10 @@
-import Lean
-import Duper.RuleM
-import Duper.Selection
+module
+
+public import Lean
+public import Duper.RuleM
+public import Duper.Selection
+
+public section
 
 set_option linter.unusedVariables false
 

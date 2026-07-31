@@ -1,5 +1,9 @@
-import Lean
-import Duper.RuleM
+module
+
+public import Lean
+public import Duper.RuleM
+
+public section
 
 namespace Duper
 

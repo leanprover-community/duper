@@ -1,6 +1,10 @@
-import Duper.Simp
-import Duper.Selection
-import Duper.Util.ProofReconstruction
+module
+
+public import Duper.Simp
+public import Duper.Selection
+public import Duper.Util.ProofReconstruction
+
+public section
 
 set_option linter.unusedVariables false
 

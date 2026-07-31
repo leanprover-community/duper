@@ -1,8 +1,12 @@
-import Lean
-import Duper.Util.Misc
-import Duper.BackwardSimplification
-import Duper.Util.ProofReconstruction
-import Duper.Expr
+module
+
+public import Lean
+public import Duper.Util.Misc
+public import Duper.BackwardSimplification
+public import Duper.Util.ProofReconstruction
+public import Duper.Expr
+
+public section
 
 set_option linter.unusedVariables false
 

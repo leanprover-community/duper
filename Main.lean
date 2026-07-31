@@ -1,6 +1,10 @@
-import Duper
-import Duper.TPTP -- Note: this import is needed to make sure that TPTP is compiled for the github actions
-import Duper.TPTPParser.PrattParser
+module
+
+public import Duper
+public import Duper.TPTP -- Note: this import is needed to make sure that TPTP is compiled for the github actions
+public import Duper.TPTPParser.PrattParser
+
+public section
 
 open Lean
 open Lean.Meta

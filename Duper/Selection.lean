@@ -1,6 +1,10 @@
-import Duper.MClause
-import Duper.RuleM
-import Duper.Util.Misc
+module
+
+public import Duper.MClause
+public import Duper.RuleM
+public import Duper.Util.Misc
+
+public section
 
 namespace Duper
 open RuleM
