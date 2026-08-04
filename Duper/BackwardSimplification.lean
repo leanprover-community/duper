@@ -1,10 +1,14 @@
-import Duper.ProverM
-import Duper.Simp
-import Duper.Rules.ClauseSubsumption
-import Duper.Rules.ContextualLiteralCutting
-import Duper.Rules.Demodulation
-import Duper.Rules.EqualitySubsumption
-import Duper.Rules.SimplifyReflect
+module
+
+public import Duper.ProverM
+public import Duper.Simp
+public import Duper.Rules.ClauseSubsumption
+public import Duper.Rules.ContextualLiteralCutting
+public import Duper.Rules.Demodulation
+public import Duper.Rules.EqualitySubsumption
+public import Duper.Rules.SimplifyReflect
+
+public section
 
 namespace Duper
 namespace ProverM

@@ -1,42 +1,46 @@
-import Duper.ClauseStreamHeap
-import Duper.RuleM
-import Duper.MClause
-import Duper.Preprocessing
-import Duper.BackwardSimplification
-import Duper.Rules.BetaEtaReduction
-import Duper.Rules.BoolSimp
-import Duper.Rules.Clausification
-import Duper.Rules.ClausifyPropEq
-import Duper.Rules.DecElim
-import Duper.Rules.ElimDupLit
-import Duper.Rules.ElimResolvedLit
-import Duper.Rules.EqualityFactoring
-import Duper.Rules.EqualityResolution
-import Duper.Rules.FalseElim
-import Duper.Rules.IdentBoolFalseElim
-import Duper.Rules.IdentPropFalseElim
-import Duper.Rules.Superposition
-import Duper.Rules.SyntacticTautologyDeletion1
-import Duper.Rules.SyntacticTautologyDeletion2
-import Duper.Rules.SyntacticTautologyDeletion3
-import Duper.Rules.DestructiveEqualityResolution
+module
+
+public import Duper.ClauseStreamHeap
+public import Duper.RuleM
+public import Duper.MClause
+public import Duper.Preprocessing
+public import Duper.BackwardSimplification
+public import Duper.Rules.BetaEtaReduction
+public import Duper.Rules.BoolSimp
+public import Duper.Rules.Clausification
+public import Duper.Rules.ClausifyPropEq
+public import Duper.Rules.DecElim
+public import Duper.Rules.ElimDupLit
+public import Duper.Rules.ElimResolvedLit
+public import Duper.Rules.EqualityFactoring
+public import Duper.Rules.EqualityResolution
+public import Duper.Rules.FalseElim
+public import Duper.Rules.IdentBoolFalseElim
+public import Duper.Rules.IdentPropFalseElim
+public import Duper.Rules.Superposition
+public import Duper.Rules.SyntacticTautologyDeletion1
+public import Duper.Rules.SyntacticTautologyDeletion2
+public import Duper.Rules.SyntacticTautologyDeletion3
+public import Duper.Rules.DestructiveEqualityResolution
 -- Boolean specific rules
-import Duper.Rules.BoolHoist
-import Duper.Rules.EqHoist
-import Duper.Rules.ExistsHoist
-import Duper.Rules.ForallHoist
-import Duper.Rules.NeHoist
+public import Duper.Rules.BoolHoist
+public import Duper.Rules.EqHoist
+public import Duper.Rules.ExistsHoist
+public import Duper.Rules.ForallHoist
+public import Duper.Rules.NeHoist
 -- Inductive datatype rules
-import Duper.Rules.DatatypeDistinctness
-import Duper.Rules.DatatypeInjectivity
-import Duper.Rules.DatatypeAcyclicity
-import Duper.Rules.DatatypeExhaustiveness
+public import Duper.Rules.DatatypeDistinctness
+public import Duper.Rules.DatatypeInjectivity
+public import Duper.Rules.DatatypeAcyclicity
+public import Duper.Rules.DatatypeExhaustiveness
 -- Higher order rules
-import Duper.Rules.ArgumentCongruence
-import Duper.Rules.FluidSup
-import Duper.Rules.FluidBoolHoist
+public import Duper.Rules.ArgumentCongruence
+public import Duper.Rules.FluidSup
+public import Duper.Rules.FluidBoolHoist
 -- Type inhabitation reasoning rules
-import Duper.Util.TypeInhabitationReasoning
+public import Duper.Util.TypeInhabitationReasoning
+
+public section
 
 register_option duper.maxSaturationTime : Nat := {
   defValue := 500

@@ -1,6 +1,10 @@
-import Lean
-import Duper.Util.MessageData
-import Duper.Util.LazyList
+module
+
+public import Lean
+public import Duper.Util.MessageData
+public import Duper.Util.LazyList
+
+public section
 open Lean
 
 set_option linter.unusedVariables false

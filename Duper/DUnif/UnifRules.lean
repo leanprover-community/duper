@@ -1,9 +1,13 @@
-import Lean
-import Duper.DUnif.UnifProblem
-import Duper.DUnif.Bindings
-import Duper.DUnif.Oracles
-import Duper.Util.Misc
-import Duper.Expr
+module
+
+public import Lean
+public import Duper.DUnif.UnifProblem
+public import Duper.DUnif.Bindings
+public import Duper.DUnif.Oracles
+public import Duper.Util.Misc
+public import Duper.Expr
+
+public section
 open Lean
 
 set_option linter.unusedVariables false

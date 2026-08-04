@@ -1,1 +1,5 @@
-import Duper.Tactic
+module
+
+public import Duper.Tactic
+
+public section

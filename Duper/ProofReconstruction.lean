@@ -1,5 +1,9 @@
-import Lean
-import Duper.Saturate
+module
+
+public import Lean
+public import Duper.Saturate
+
+public section
 
 set_option linter.unusedVariables false
 

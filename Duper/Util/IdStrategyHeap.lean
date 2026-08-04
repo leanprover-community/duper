@@ -1,5 +1,9 @@
-import Batteries.Data.BinomialHeap
-import Lean
+module
+
+public import Batteries.Data.BinomialHeap
+public import Lean
+
+public section
 
 open Lean
 open Batteries

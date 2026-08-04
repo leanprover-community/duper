@@ -1,5 +1,9 @@
-import Lean
-import Duper.Util.Reduction
+module
+
+public import Lean
+public import Duper.Util.Reduction
+
+public section
 
 set_option linter.unusedVariables false
 

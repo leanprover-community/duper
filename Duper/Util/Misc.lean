@@ -1,4 +1,8 @@
-import Lean
+module
+
+public import Lean
+
+public section
 open Lean
 
 def List.subsequences (xs : List α) :=

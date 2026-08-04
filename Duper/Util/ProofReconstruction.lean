@@ -1,7 +1,11 @@
-import Duper.ProverM
-import Duper.RuleM
-import Duper.MClause
-import Duper.Util.Misc
+module
+
+public import Duper.ProverM
+public import Duper.RuleM
+public import Duper.MClause
+public import Duper.Util.Misc
+
+public section
 
 set_option linter.unusedVariables false
 

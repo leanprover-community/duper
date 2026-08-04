@@ -1,4 +1,8 @@
-import Duper.Simp
+module
+
+public import Duper.Simp
+
+public section
 
 namespace Duper
 open RuleM

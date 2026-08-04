@@ -1,7 +1,11 @@
-import Lean
-import Duper.Util.Misc
-import Duper.Util.Reduction
-import Duper.Expr
+module
+
+public import Lean
+public import Duper.Util.Misc
+public import Duper.Util.Reduction
+public import Duper.Expr
+
+public section
 
 set_option linter.unusedVariables false
 
@@ -55,7 +59,7 @@ namespace Order
 open Lean.Meta
 open Comparison
 
-def Weight := Int × Int
+@[expose] def Weight := Int × Int
 deriving Inhabited, DecidableEq
 
 instance : Add Weight := ⟨fun (a₁, b₁) (a₂, b₂) => (a₁ + a₂, b₁ + b₂)⟩
@@ -69,7 +73,7 @@ def absWeight (w : Weight) : Weight := (Int.natAbs w.1, Int.natAbs w.2)
 
 local notation "ω" => ((1,0) : Weight)
 
-def VarBalance := Std.HashMap (Expr × Bool) Weight
+@[expose] def VarBalance := Std.HashMap (Expr × Bool) Weight
 
 def VarBalance.addPosVar (vb : VarBalance) (t : Expr × Bool) : VarBalance :=
   vb.insert t $ vb.getD t 0 + 1

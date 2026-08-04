@@ -1,7 +1,11 @@
-import Lean
-import Duper.Util.Misc
-import Duper.Expr
-import Duper.Order
+module
+
+public import Lean
+public import Duper.Util.Misc
+public import Duper.Expr
+public import Duper.Order
+
+public section
 
 namespace Duper
 open Lean

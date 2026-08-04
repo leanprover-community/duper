@@ -1,5 +1,13 @@
-import Lean
-import Duper.Interface
+module
+
+public import Lean
+public import Duper.Interface
+/- Duper's tactic elaborators are `meta` definitions, so everything they use has to be
+   available at compile time as well. -/
+public meta import Lean
+public meta import Duper.Interface
+
+public section
 
 open Lean Meta Duper ProverM Parser Elab Tactic
 
@@ -7,27 +15,27 @@ initialize Lean.registerTraceClass `duper.ignoredUnusableFacts
 
 namespace Duper
 
-register_option duper.printTimeInformation : Bool := {
+meta register_option duper.printTimeInformation : Bool := {
   defValue := false
   descr := "Whether to print the total time it took for Duper to construct a proof"
 }
 
-register_option duper.ignoreUnusableFacts : Bool := {
+meta register_option duper.ignoreUnusableFacts : Bool := {
   defValue := false
   descr := "If true, suppresses the error that Duper would throw if given a fact it would not ordinarily accept (e.g. a constructor or opaque constant)"
 }
 
-def getPrintTimeInformation (opts : Options) : Bool :=
+meta def getPrintTimeInformation (opts : Options) : Bool :=
   duper.printTimeInformation.get opts
 
-def getPrintTimeInformationM : CoreM Bool := do
+meta def getPrintTimeInformationM : CoreM Bool := do
   let opts ← getOptions
   return getPrintTimeInformation opts
 
-def getIgnoreUnusableFacts (opts : Options) : Bool :=
+meta def getIgnoreUnusableFacts (opts : Options) : Bool :=
   duper.ignoreUnusableFacts.get opts
 
-def getIgnoreUnusableFactsM : CoreM Bool := do
+meta def getIgnoreUnusableFactsM : CoreM Bool := do
   let opts ← getOptions
   return getIgnoreUnusableFacts opts
 
@@ -38,7 +46,7 @@ def getIgnoreUnusableFactsM : CoreM Bool := do
   The returned list contains one equation
   for each constructor, a proof of the equation, and the contained level
   parameters. -/
-def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Name)) := do
+meta def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Name)) := do
   let some (.inductInfo indVal) := (← getEnv).find? recVal.getMajorInduct
     | throwError "Expected inductive datatype: {recVal.getMajorInduct}"
   let expr := mkConst recVal.name (recVal.levelParams.map Level.param)
@@ -65,7 +73,7 @@ def addRecAsFact (recVal : RecursorVal): TacticM (List (Expr × Expr × Array Na
 
 /-- From a user-provided fact `stx`, produce a suitable fact, its proof, and a
     list of universe parameter names-/
-def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
+meta def elabFact (stx : Term) : TacticM (Array (Expr × Expr × Array Name)) := do
   match stx with
   | `($id:ident) =>
     let some expr ← Term.resolveId? id
@@ -160,7 +168,7 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     return (← inferType e, e, paramNames)
 
 /-- Helper function for `collectAssumptions` that collects all local decls in the local context that are propositions. -/
-def collectLCtxAssumptions (goalDecls : Array LocalDecl) : MetaM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
+meta def collectLCtxAssumptions (goalDecls : Array LocalDecl) : MetaM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
   let mut formulas := []
   for fVarId in (← getLCtx).getFVarIds do
     let ldecl ← Lean.FVarId.getDecl fVarId
@@ -176,7 +184,7 @@ def collectLCtxAssumptions (goalDecls : Array LocalDecl) : MetaM (List (Expr × 
     - An array of universe level parameter names
     - A boolean indicating whether the fact came from the original target
     - If the fact is a user-provided non-lctx fact, then the Term that was used to indicate said fact -/
-def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
+meta def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
   : TacticM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
   let mut formulas := []
   if withAllLCtx then -- Load all local decls
@@ -223,7 +231,7 @@ macro_rules
 /-- Given a Syntax.TSepArray of facts provided by the user (which may include `*` to indicate that duper should read in the
     full local context) `removeDuperStar` returns the Syntax.TSepArray with `*` removed and a boolean that indicates whether `*`
     was included in the original input. -/
-def removeDuperStar (facts : Syntax.TSepArray [`Duper.duperStar, `term] ",") : Bool × Syntax.TSepArray `term "," := Id.run do
+meta def removeDuperStar (facts : Syntax.TSepArray [`Duper.duperStar, `term] ",") : Bool × Syntax.TSepArray `term "," := Id.run do
   let factsArr := facts.elemsAndSeps -- factsArr contains both the elements of facts and separators, ordered like `#[e1, s1, e2, s2, e3]`
   let mut newFactsArr : Array Syntax := #[]
   let mut removedDuperStar := false
@@ -249,7 +257,7 @@ def removeDuperStar (facts : Syntax.TSepArray [`Duper.duperStar, `term] ",") : B
 
     Additionally, this function throws an error if the user attempts to explicitly enable portfolio mode and specify a portfolio instance,
     and it throws a warning if the user attempts to specify a portfolio instance (other than 0) and additional configuration options. -/
-def parseConfigOptions (configOptionsStx : TSyntaxArray `Duper.configOption) : TacticM ConfigurationOptions := do
+meta def parseConfigOptions (configOptionsStx : TSyntaxArray `Duper.configOption) : TacticM ConfigurationOptions := do
   let mut portfolioModeOpt : Option Bool := none
   let mut portfolioInstanceOpt : Option Nat := none
   let mut inhabitationReasoningOpt : Option Bool := none
@@ -326,7 +334,7 @@ def parseConfigOptions (configOptionsStx : TSyntaxArray `Duper.configOption) : T
     `intros; apply Classical.byContradiction _; intro` and after calling `intros; apply Classical.byContradiction _; intro`. The
     local declarations that are part of the latter lctx but not the former are considered goal decls and are to be returned so that
     Duper can know to collect them in `collectAssumptions`.-/
-def getGoalDecls (lctxBeforeIntros : LocalContext) (lctxAfterIntros : LocalContext) : Array LocalDecl := Id.run do
+meta def getGoalDecls (lctxBeforeIntros : LocalContext) (lctxAfterIntros : LocalContext) : Array LocalDecl := Id.run do
   let mut goalDecls := #[]
   for declOpt in lctxAfterIntros.decls do
     match declOpt with
@@ -337,7 +345,7 @@ def getGoalDecls (lctxBeforeIntros : LocalContext) (lctxAfterIntros : LocalConte
   return goalDecls
 
 @[tactic duper]
-def evalDuper : Tactic
+meta def evalDuper : Tactic
 | `(tactic| duper [$facts,*] [$extraFacts,*] {$configOptions,*}) => withMainContext do
   let startTime ← IO.monoMsNow
   let configOptions ← parseConfigOptions configOptions
@@ -425,7 +433,7 @@ def evalDuper : Tactic
 | _ => throwUnsupportedSyntax
 
 @[tactic duperTrace]
-def evalDuperTrace : Tactic
+meta def evalDuperTrace : Tactic
 | `(tactic| duper?%$duperStxRef [$facts,*] [$extraFacts,*] {$configOptions,*}) => withMainContext do
   let startTime ← IO.monoMsNow
   let configOptions ← parseConfigOptions configOptions
@@ -518,7 +526,7 @@ macro_rules
 | `(tactic| duper_no_timing) => `(tactic| duper_no_timing [])
 
 @[tactic duper_no_timing]
-def evalDuperNoTiming : Tactic
+meta def evalDuperNoTiming : Tactic
 | `(tactic| duper_no_timing [$facts,*]) => withMainContext do
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do

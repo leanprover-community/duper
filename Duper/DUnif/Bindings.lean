@@ -1,9 +1,13 @@
-import Lean
-import Duper.Util.Misc
-import Duper.Util.OccursCheck
-import Duper.Util.LazyList
-import Duper.DUnif.UnifProblem
-import Duper.DUnif.Utils
+module
+
+public import Lean
+public import Duper.Util.Misc
+public import Duper.Util.OccursCheck
+public import Duper.Util.LazyList
+public import Duper.DUnif.UnifProblem
+public import Duper.DUnif.Utils
+
+public section
 open Lean
 
 set_option linter.unusedVariables false
