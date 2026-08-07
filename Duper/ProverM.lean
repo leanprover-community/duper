@@ -265,7 +265,7 @@ def throwEmptyClauseException : ProverM α :=
 def maxGoalDistance := 15
 
 partial def chooseGivenClause : ProverM (Option Clause) := do
-  Core.checkMaxHeartbeats "chooseGivenClause"
+  Core.checkSystem "chooseGivenClause"
   if let some (clause, heap) := (← getPassiveSet).pop? then
     setPassiveSet heap
     return (some clause)

@@ -95,7 +95,7 @@ partial def preprocessingClausification : ProverM Unit := do
   Core.withCurrHeartbeats do
     let mut clausified : Array Clause := #[] -- An array for storing the clauses that have been fully clausified
     try
-      Core.checkMaxHeartbeats "preprocessingClausification"
+      Core.checkSystem "preprocessingClausification"
       let mut moreToClausify := true
       while moreToClausify do
         match ← chooseGivenClause with
