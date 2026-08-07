@@ -22,7 +22,7 @@ def getClauseInfo! (state : ProverM.State) (c : Clause) : CoreM ClauseInfo := do
   return ci
 
 partial def printProof (state : ProverM.State) : MetaM Unit := do
-  Core.checkMaxHeartbeats "printProof"
+  Core.checkSystem "printProof"
   let rec go c (hm : Array (Nat × Clause) := {}) : MetaM (Array (Nat × Clause)) := do
     let info ← getClauseInfo! state c
     if hm.contains (info.number, c) then return hm
@@ -44,7 +44,7 @@ partial def printProof (state : ProverM.State) : MetaM Unit := do
 abbrev ClauseHeap := Batteries.BinomialHeap (Nat × Clause) fun c d => c.1 ≤ d.1
 
 partial def collectClauses (state : ProverM.State) (c : Clause) (acc : (Array Nat × ClauseHeap)) : MetaM (Array Nat × ClauseHeap) := do
-  Core.checkMaxHeartbeats "collectClauses"
+  Core.checkSystem "collectClauses"
   let info ← getClauseInfo! state c
   if acc.1.contains info.number then return acc -- No need to recall collectClauses on c because we've already collected c
   let mut acc := acc
@@ -59,7 +59,7 @@ abbrev LevelRequests := Std.HashMap Nat (Std.HashMap (Array Level) Nat)
 
 partial def collectLevelRequests (state : ProverM.State) (c : Clause)
   (lvls : Array Level) (acc : LevelRequests) : MetaM LevelRequests := do
-  Core.checkMaxHeartbeats "collectLevelRequests"
+  Core.checkSystem "collectLevelRequests"
   let info ← getClauseInfo! state c
   if let some set := acc.get? info.number then
     if set.contains lvls then
@@ -165,7 +165,7 @@ partial def mkClauseProof : List Clause → PRM Expr
 | c :: cs => do
   let state := (← read).pmstate
   let reqs := (← read).reqs
-  Core.checkMaxHeartbeats "mkClauseProof"
+  Core.checkSystem "mkClauseProof"
   let info ← getClauseInfo! state c
   let lvlreqs := reqs.get! info.number
   for (req, reqid) in lvlreqs.toList do

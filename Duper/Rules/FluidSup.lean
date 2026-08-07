@@ -78,7 +78,7 @@ def mkFreshFunction (inputTy outputTy : Expr) : MetaM Expr :=
 def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseSubterm : Expr)
   (mainPremisePos : ClausePos) (mainPremiseEligibility : Eligibility) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
   (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (given : Clause) (givenIsMain : Bool) : RuleM (Array ClauseStream) := do
-  Core.checkMaxHeartbeats "fluidSup"
+  Core.checkSystem "fluidSup"
   withoutModifyingMCtx $ do
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx

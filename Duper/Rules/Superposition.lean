@@ -167,7 +167,7 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
   (mainPremisePos : ClausePos) (mainPremiseEligibility : Eligibility) (sidePremise : MClause) (sidePremiseNum : Nat)
   (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (given : Clause) (givenIsMain : Bool)
   (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
-  Core.checkMaxHeartbeats "superposition"
+  Core.checkSystem "superposition"
   withoutModifyingMCtx $ do
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
     let restOfSidePremise := sidePremise.eraseIdx sidePremiseLitIdx
