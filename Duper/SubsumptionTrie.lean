@@ -9,7 +9,6 @@ namespace Duper
 
 open Lean
 open RuleM
-open List
 open Expr
 
 initialize Lean.registerTraceClass `duper.subsumptionTrie.debug
