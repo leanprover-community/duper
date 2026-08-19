@@ -7,6 +7,9 @@ public section
 set_option linter.unusedVariables false
 
 axiom Iota : Type
+private axiom iotaInhabited : Iota
+-- `@[no_expose]` keeps `iotaInhabited` private: an exposed declaration may not refer to it.
+@[no_expose] noncomputable instance : Inhabited Iota := ⟨iotaInhabited⟩
 
 namespace TPTP
 
