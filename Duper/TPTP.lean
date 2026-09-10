@@ -2,6 +2,10 @@ module
 
 public import Lean
 public import Duper.TPTPParser.MacroDecl
+public import Duper.TPTPParser.PrattParser
+/- The `tptp'` command elaborator runs the Pratt parser at compile time, so it has to be
+   available at compile time as well. -/
+public meta import Duper.TPTPParser.PrattParser
 
 public section
 
@@ -117,3 +121,55 @@ syntax (name := tptpKind) "tptp " ident strLit term : command
         elabCommand (← `(BEGIN_TPTP $name $fstxResolved END_TPTP $proof))
     | _ => throwError "Expected strLit: {file}"
   | _ => throwError "Failed to parse tptp command"
+
+/-! The `tptp'` command behaves like the `tptp` command but parses the problem file with
+    `TPTP.compileFile` (the Pratt parser in `Duper.TPTPParser.PrattParser`, which is also used
+    by duper's compiled executable in `Main.lean`) rather than with the syntax-based parser
+    used by the `tptp` command. -/
+
+/-- If `ty` has the form `T₁ → ... → Tₙ → Type` (i.e. `fvar` is a newly declared type or type
+    constructor), returns the hypothesis `∀ (a₁ : T₁) ... (aₙ : Tₙ), Inhabited (fvar a₁ ... aₙ)`.
+    Otherwise, returns `none`. This mirrors the `Inhabited` binders that the `BEGIN_TPTP` macro
+    adds for the symbols that the problem declares to be types. -/
+meta def mkInhabitedHyp (fvar : Expr) (ty : Expr) : MetaM (Option Expr) :=
+  Meta.forallTelescope ty fun xs body => do
+    if body == mkSort Level.one then
+      let inhab ← Meta.mkAppM ``Inhabited #[mkAppN fvar xs]
+      return some (← Meta.mkForallFVars xs inhab)
+    else
+      return none
+
+syntax (name := tptpPrattKind) "tptp' " ident strLit term : command
+
+@[command_elab tptpPrattKind] meta def elabTptpPratt : CommandElab := fun stx => do
+  match stx with
+  | `(tptp' $name $file $proof) =>
+    match Syntax.isStrLit? file with
+    | some path =>
+      let lines ← IO.FS.lines path
+      let lines := lines.filter fun l => ¬ l.startsWith "%"
+      -- Note: unlike the `tptp` command, this count does not include the lines of included files
+      checkMaxTPTPProblemLines lines.size
+      let declName := (← getCurrNamespace) ++ name.getId
+      liftTermElabM <| Elab.Term.withDeclName declName do
+        /- `compileFile` introduces a free variable for each symbol and each formula of the
+           problem, so capture the local context it builds in order to elaborate the proof in it -/
+        let (lctx, localInsts) ← compileFile path fun _ =>
+          return ((← getLCtx), (← Meta.getLocalInstances))
+        Meta.withLCtx lctx localInsts do
+          let fvars := lctx.foldl (init := #[]) fun acc decl =>
+            if decl.isImplementationDetail then acc else acc.push decl.toExpr
+          let mut inhabHyps : Array (Name × (Array Expr → Elab.TermElabM Expr)) := #[]
+          for fvar in fvars do
+            if let some hyp ← mkInhabitedHyp fvar (← Meta.inferType fvar) then
+              inhabHyps := inhabHyps.push (Name.mkSimple s!"_inhab{inhabHyps.size}", fun _ => pure hyp)
+          Meta.withLocalDeclsD inhabHyps fun inhabFVars => do
+            let fvars := fvars ++ inhabFVars
+            let proofExpr ← Elab.Term.elabTermEnsuringType proof (mkConst ``False)
+            Elab.Term.synthesizeSyntheticMVarsNoPostponing
+            let type ← instantiateMVars (← Meta.mkForallFVars fvars (mkConst ``False))
+            let value ← instantiateMVars (← Meta.mkLambdaFVars fvars proofExpr)
+            addDecl <| .thmDecl { name := declName, levelParams := [], type := type, value := value }
+      Elab.addDeclarationRangesFromSyntax declName stx name
+    | _ => throwError "Expected strLit: {file}"
+  | _ => throwError "Failed to parse tptp' command"

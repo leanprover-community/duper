@@ -168,14 +168,14 @@ where elabFactAux (stx : Term) : TacticM (Expr × Expr × Array Name) :=
     return (← inferType e, e, paramNames)
 
 /-- Helper function for `collectAssumptions` that collects all local decls in the local context that are propositions. -/
-meta def collectLCtxAssumptions (goalDecls : Array LocalDecl) : MetaM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
-  let mut formulas := []
-  for fVarId in (← getLCtx).getFVarIds do
+meta def collectLCtxAssumptions (goalDecls : Array LocalDecl) : MetaM (Array (Expr × Expr × Array Name × Bool × Option Term)) := do
+  let mut formulas := #[]
+  for fVarId in (← getLCtx).getFVarIds.reverse do -- Iterate through `fVarId`s backwards so that goalDecls appear first in the resulting `formulas`
     let ldecl ← Lean.FVarId.getDecl fVarId
     unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
       let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
       let isFromGoal := goalDecls.any (fun goalDecl => goalDecl.index = ldecl.index)
-      formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal, none) :: formulas
+      formulas := formulas.push (ldecltype, ← mkAppM ``eq_true #[mkFVar fVarId], #[], isFromGoal, none)
   return formulas
 
 /-- Formulas in Duper are represented as a tuple containing the following:
@@ -183,30 +183,37 @@ meta def collectLCtxAssumptions (goalDecls : Array LocalDecl) : MetaM (List (Exp
     - A proof that said fact is true (if the fact is `p` then second argument of the tuple is a proof of `p = True`)
     - An array of universe level parameter names
     - A boolean indicating whether the fact came from the original target
-    - If the fact is a user-provided non-lctx fact, then the Term that was used to indicate said fact -/
+    - If the fact is a user-provided non-lctx fact, then the Term that was used to indicate said fact
+
+    `collectAssumptions` puts formulas derived from the local context and goalDecls at the front of the resulting
+    array, maintaining a soft invariant that formulas more likely to be important/relevant to the goal go first.
+    This invariant can be important because `Auto.Monomorphization.saturate` processes lemmas in the order that they are
+    provided, and `auto.mono.saturationThreshold` can cause later lemmas to not be processed (`trace.auto.mono` shows when
+    Monomorphization's saturation threshold has been reached). -/
 meta def collectAssumptions (facts : Array Term) (withAllLCtx : Bool) (goalDecls : Array LocalDecl)
-  : TacticM (List (Expr × Expr × Array Name × Bool × Option Term)) := do
-  let mut formulas := []
+  : TacticM (Array (Expr × Expr × Array Name × Bool × Option Term)) := do
+  let mut formulas := #[]
+  -- Load facts from the local context and/or goalDecls first (so they appear at the beginning of the returned `formulas`)
   if withAllLCtx then -- Load all local decls
     formulas ← collectLCtxAssumptions goalDecls
   else -- Even if withAllLCtx is false, we still need to load the goal decls
     for ldecl in goalDecls do
       unless ldecl.isAuxDecl ∨ not (← instantiateMVars (← inferType ldecl.type)).isProp do
         let ldecltype ← preprocessFact (← instantiateMVars ldecl.type)
-        formulas := (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[], true, none) :: formulas
-  -- Load user-provided facts
+        formulas := formulas.push (ldecltype, ← mkAppM ``eq_true #[mkFVar ldecl.fvarId], #[], true, none)
+  -- Load user-provided facts last (so they appear at the end of the returned `formulas`)
   for factStx in facts do
     for (fact, proof, params) in ← elabFact factStx do
       if ← isProp fact then
         let fact ← preprocessFact (← instantiateMVars fact)
-        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
+        formulas := formulas.push (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx)
       else if ← isDefEq (← inferType fact) (.sort 0) then
         /- This check can succeed where the previous failed in instances where `fact`'s type is
            a sort with an undetermined universe level. We try the previous check first to avoid
            unnecessarily assigning metavariables in `fact`'s type (which the above `isDefEq` check
-           can do)-/
+           can do) -/
         let fact ← preprocessFact (← instantiateMVars fact)
-        formulas := (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx) :: formulas
+        formulas := formulas.push (fact, ← mkAppM ``eq_true #[proof], params, false, some factStx)
       else if ← getIgnoreUnusableFactsM then
         trace[duper.ignoredUnusableFacts] "Ignored {fact} ({factStx}) because it is not a Prop"
         continue
@@ -355,8 +362,8 @@ meta def evalDuper : Tactic
   withMainContext do
     let lctxAfterIntros ← getLCtx
     let goalDecls := getGoalDecls lctxBeforeIntros lctxAfterIntros
-    let formulas ← collectAssumptions facts factsContainsDuperStar goalDecls
-    let extraFormulas ← collectAssumptions extraFacts false #[] -- Only collect extra facts, not goal decls
+    let formulas := (← collectAssumptions facts factsContainsDuperStar goalDecls).toList
+    let extraFormulas := (← collectAssumptions extraFacts false #[]).toList -- Only collect extra facts, not goal decls
     trace[duper.setOfSupport.debug] "facts: {(facts : Array Syntax)}, extraFacts: {(extraFacts : Array Syntax)}"
     trace[duper.setOfSupport.debug] "Formulas before filtering: {formulas.map (fun f => f.1)}"
     trace[duper.setOfSupport.debug] "Extra formulas before filtering: {extraFormulas.map (fun f => f.1)}"
@@ -443,8 +450,8 @@ meta def evalDuperTrace : Tactic
   withMainContext do
     let lctxAfterIntros ← withMainContext getLCtx
     let goalDecls := getGoalDecls lctxBeforeIntros lctxAfterIntros
-    let formulas ← collectAssumptions facts factsContainsDuperStar goalDecls
-    let extraFormulas ← collectAssumptions extraFacts false #[] -- Only collect extra facts, not goal decls
+    let formulas := (← collectAssumptions facts factsContainsDuperStar goalDecls).toList
+    let extraFormulas := (← collectAssumptions extraFacts false #[]).toList -- Only collect extra facts, not goal decls
     let formulas := formulas.filter (fun f => extraFormulas.all (fun (f', _) => f' != f.1)) -- If `f` appears in `formulas` and `extraFormulas`, remove `f` from `formulas`
     let extraFactsOpt := if extraFormulas.isEmpty then none else some extraFacts
     let declName? ← Elab.Term.getDeclName? -- Needed for `Auto.monoPrepInterface`
@@ -531,7 +538,7 @@ meta def evalDuperNoTiming : Tactic
   Elab.Tactic.evalTactic (← `(tactic| intros; apply Classical.byContradiction _; intro))
   withMainContext do
     let (_, facts) := removeDuperStar facts
-    let formulas ← collectAssumptions facts true  #[] -- I don't bother computing goalDecls here since I set withAllLCtx to true anyway
+    let formulas := (← collectAssumptions facts true #[]).toList -- I don't bother computing goalDecls here since I set withAllLCtx to true anyway
     -- Remove syntax option from `formulas` since we are not converting to Auto.Lemmas
     let formulas := formulas.map (fun f => (f.1, f.2.1, f.2.2.1, f.2.2.2.1))
     let proof ← runDuper formulas [] 0
