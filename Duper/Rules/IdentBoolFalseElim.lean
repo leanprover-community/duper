@@ -21,9 +21,9 @@ def isFalseBoolLiteral (lit : Lit) : MetaM Bool := do
       (lit.lhs == mkConst ``false && lit.rhs == mkConst ``true))
   else return false
 
-theorem bool_false_ne_true (h : false = true) : False := ne_false_of_eq_true h (by rfl)
+theorem bool_false_ne_true (h : false = true) : False := Bool.ne_false_of_eq_true h rfl
 
-theorem bool_true_ne_false (h : true = false) : False := ne_true_of_eq_false h (by rfl)
+theorem bool_true_ne_false (h : true = false) : False := Bool.ne_true_of_eq_false h rfl
 
 def mkIdentBoolFalseElimProof (refs : List (Option Nat)) (premises : List Expr) (parents: List ProofParent)
   (transferExprs : Array Expr) (c : Clause) : MetaM Expr :=
