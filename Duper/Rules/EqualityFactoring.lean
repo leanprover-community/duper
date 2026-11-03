@@ -99,7 +99,7 @@ def mkEqualityFactoringProof (i : Nat) (j : Nat) (litside_i : LitSide) (litside_
 
   If any of these constraints fail to hold, then equalityFactoringWithAllConstraints should not do anything
 -/
-def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat) (j : Nat) (litside_i : LitSide) (litside_j : LitSide) : RuleM ClauseStream :=
+def equalityFactoringWithAllConstraints (givenClause : Clause) (c : MClause) (i : Nat) (j : Nat) (litside_i : LitSide) (litside_j : LitSide) : RuleM ClauseStream :=
   withoutModifyingMCtx $ do
     let lit_i := c.lits[i]!
     let lit_j := c.lits[j]!
@@ -127,12 +127,12 @@ def equalityFactoringWithAllConstraints (given : Clause) (c : MClause) (i : Nat)
           some <$> yieldClause modified_clause "equality factoring" (mkProof := some (mkEqualityFactoringProof i j litside_i litside_j))
         else
           return none
-    return ClauseStream.mk ug given yC "equality factoring"
+    return ClauseStream.mk ug givenClause yC "equality factoring"
 
 /--
   Attempts to perform equality factoring with c.lits[i] as the literal to be transformed
 -/
-def equalityFactoringAtLit (given : Clause) (c : MClause) (i : Nat) (j : Nat) : RuleM (Array ClauseStream) := do
+def equalityFactoringAtLit (givenClause : Clause) (c : MClause) (i : Nat) (j : Nat) : RuleM (Array ClauseStream) := do
   /-
   Note: In the Schulz paper, it states that a side condition for EqualityFactoring is that if:
   1. s and t are the terms in c.lits[i]
@@ -156,23 +156,23 @@ def equalityFactoringAtLit (given : Clause) (c : MClause) (i : Nat) (j : Nat) : 
   match ← compare c.lits[i]!.lhs c.lits[i]!.rhs (alreadyReduced := true) with
   | Comparison.LessThan =>
     trace[duper.rule.equalityFactoring] "{c.lits[i]!.lhs} < {c.lits[i]!.rhs} by the ground reduction ordering"
-    let str1 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs
-    let str2 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].rhs
+    let str1 ← equalityFactoringWithAllConstraints givenClause c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs
+    let str2 ← equalityFactoringWithAllConstraints givenClause c i j LitSide.rhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].rhs
     return #[str1, str2]
   | Comparison.GreaterThan =>
     trace[duper.rule.equalityFactoring] "{c.lits[i]!.lhs} > {c.lits[i]!.rhs} by the ground reduction ordering"
-    let str1 ← equalityFactoringWithAllConstraints given c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
-    let str2 ← equalityFactoringWithAllConstraints given c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
+    let str1 ← equalityFactoringWithAllConstraints givenClause c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
+    let str2 ← equalityFactoringWithAllConstraints givenClause c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
     return #[str1, str2]
   | _ => -- If the Comparison is Equal or Incomparable, we unfortunately have to just try all possibilities
     trace[duper.rule.equalityFactoring] "{c.lits[i]!.lhs} equal to or incomparable to {c.lits[i]!.rhs} by the ground reduction ordering"
-    let str1 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs
-    let str2 ← equalityFactoringWithAllConstraints given c i j LitSide.rhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].rhs
-    let str3 ← equalityFactoringWithAllConstraints given c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
-    let str4 ← equalityFactoringWithAllConstraints given c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
+    let str1 ← equalityFactoringWithAllConstraints givenClause c i j LitSide.rhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].lhs
+    let str2 ← equalityFactoringWithAllConstraints givenClause c i j LitSide.rhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].rhs with c.lits[j].rhs
+    let str3 ← equalityFactoringWithAllConstraints givenClause c i j LitSide.lhs LitSide.lhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].lhs
+    let str4 ← equalityFactoringWithAllConstraints givenClause c i j LitSide.lhs LitSide.rhs -- Attempt to perform inference unifying c.lits[i].lhs with c.lits[j].rhs
     return #[str1, str2, str3, str4]
 
-def equalityFactoring (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def equalityFactoring (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[duper.rule.equalityFactoring] "EqFact inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
@@ -181,10 +181,10 @@ def equalityFactoring (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array
         if(c.lits[j]!.sign) then
           -- Attempt to perform equalityFactoring with c.lits[i] as the literal to be transformed
           trace[duper.rule.equalityFactoring] "Attempting to call equalityFactoring on {c.lits} using {c.lits[i]!} and {c.lits[j]!}"
-          let str ← equalityFactoringAtLit given c i j
+          let str ← equalityFactoringAtLit givenClause c i j
           streams := streams.append str
           -- Attempt to perform equalityFactoring with c.lits[j] as the literal to be transformed
-          let str ← equalityFactoringAtLit given c j i
+          let str ← equalityFactoringAtLit givenClause c j i
           streams := streams.append str
   return streams
 

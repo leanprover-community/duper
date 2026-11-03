@@ -71,7 +71,7 @@ def mkFluidBoolHoistProof (pos : ClausePos) (isFluidLoobHoist : Bool) (premises 
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
+def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (givenClause : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     if not (Order.isFluid e) then return #[]
 
@@ -140,10 +140,10 @@ def fluidBoolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MCla
       let mkProof := mkFluidBoolHoistProof pos true -- True because this is fluidLoobHoist
       yieldClause newClause "fluidLoobHoist" mkProof (transferExprs := #[freshFunctionOutputType, freshFunction, freshPropVar])
 
-    return #[ClauseStream.mk ug given boolHoistYC "fluidBoolHoist", ClauseStream.mk ug given loobHoistYC "fluidLoobHoist"]
+    return #[ClauseStream.mk ug givenClause boolHoistYC "fluidBoolHoist", ClauseStream.mk ug givenClause loobHoistYC "fluidLoobHoist"]
 
-def fluidBoolHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def fluidBoolHoist (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   let fold_fn := fun streams e pos => do
-    let str ← fluidBoolHoistAtExpr e pos given c
+    let str ← fluidBoolHoistAtExpr e pos givenClause c
     return streams.append str
   c.foldGreenM fold_fn #[]

@@ -165,7 +165,7 @@ def mkSimultaneousSuperpositionProof (sidePremiseLitIdx : Nat) (sidePremiseLitSi
 
 def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseSubterm : Expr)
   (mainPremisePos : ClausePos) (mainPremiseEligibility : Eligibility) (sidePremise : MClause) (sidePremiseNum : Nat)
-  (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (given : Clause) (givenIsMain : Bool)
+  (sidePremiseLitIdx : Nat) (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (givenClause : Clause) (givenIsMain : Bool)
   (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
   Core.checkSystem "superposition"
   withoutModifyingMCtx $ do
@@ -282,9 +282,9 @@ def superpositionAtLitWithPartner (mainPremise : MClause) (mainPremiseNum : Nat)
           m!"Superposition successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
           m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
       some <$> yieldClause res "superposition" mkProof
-    return #[ClauseStream.mk ug given yC "superposition"]
+    return #[ClauseStream.mk ug givenClause yC "superposition"]
 
-def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
+def superpositionWithGivenAsSide (givenClause : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
   (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
@@ -304,11 +304,11 @@ def superpositionWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie)
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
       superpositionAtLitWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos mainClauseEligibility sidePremise sidePremiseNum sidePremiseLitIdx sidePremiseSide
-        sidePremiseEligibility given (givenIsMain := false) simultaneousSuperposition
+        sidePremiseEligibility givenClause (givenIsMain := false) simultaneousSuperposition
     streams := streams.append newStreams
   return streams
 
-def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
+def superpositionWithGivenAsMain (givenClause : Clause) (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
   (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseEligibility : Eligibility) (simultaneousSuperposition : Bool) : RuleM (Array ClauseStream) := do
   let potentialPartners ← sidePremiseIdx.getUnificationPartners e
 
@@ -327,33 +327,33 @@ def superpositionWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause sideClause
       superpositionAtLitWithPartner mainPremise mainPremiseNum e pos mainPremiseEligibility c sideClauseNum sidePos.lit sidePos.side
-        sideClauseEligibility given (givenIsMain := true) simultaneousSuperposition
+        sideClauseEligibility givenClause (givenIsMain := true) simultaneousSuperposition
     streams := streams.append newStreams
   return streams
 
-def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (given : Clause) (givenClause : MClause)
+def superposition (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (givenClause : Clause) (givenMClause : MClause)
   (givenClauseNum : Nat) : RuleM (Array ClauseStream) := do
   let simultaneousSuperposition ← getSimultaneousSuperpositionM
   let mut streams := #[]
   -- With given clause as side premise:
-  for i in [:givenClause.lits.size] do
-    let litEligibility ← eligibilityPreUnificationCheck givenClause true i
-    if givenClause.lits[i]!.sign = true && (litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible) then
+  for i in [:givenMClause.lits.size] do
+    let litEligibility ← eligibilityPreUnificationCheck givenMClause true i
+    if givenMClause.lits[i]!.sign = true && (litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible) then
       for side in #[LitSide.lhs, LitSide.rhs] do
-        let flippedLit := givenClause.lits[i]!.makeLhs side
+        let flippedLit := givenMClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs true) == Comparison.LessThan then
           continue
-        let cs ← superpositionWithGivenAsSide given mainPremiseIdx givenClause givenClauseNum i side litEligibility simultaneousSuperposition
+        let cs ← superpositionWithGivenAsSide givenClause mainPremiseIdx givenMClause givenClauseNum i side litEligibility simultaneousSuperposition
         streams := streams.append cs
   -- With given clause as main premise
-  let cs ← givenClause.foldGreenM fun acc e pos => do
-      let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
-      let litEligibility ← eligibilityPreUnificationCheck givenClause true pos.lit
+  let cs ← givenMClause.foldGreenM fun acc e pos => do
+      let givenClauseLit := givenMClause.lits[pos.lit]!.makeLhs pos.side
+      let litEligibility ← eligibilityPreUnificationCheck givenMClause true pos.lit
       let sideComparison ← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true
       if e.isMVar' || (Order.isFluid e) || litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then
         return acc
       else
-        let cs ← superpositionWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum litEligibility simultaneousSuperposition
+        let cs ← superpositionWithGivenAsMain givenClause e pos sidePremiseIdx givenMClause givenClauseNum litEligibility simultaneousSuperposition
         return acc.append cs
     #[]
   return streams.append cs

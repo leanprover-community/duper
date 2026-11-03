@@ -50,7 +50,7 @@ meta partial def processThfAtomicType (stx : Syntax) : MacroM Syntax := do
   | `(thf_atomic_type| $ty:defined_type) => processThfDefinedType ty
   | `(thf_atomic_type| $f:ident $args:thf_type_arguments) => do
     let ts ←
-      pure $ ← ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
+      pure $ ← (@Syntax.SepArray.mk "," args.raw[1].getArgs).getElems.mapM
                 fun arg => processThfAtomicType arg
     let ts := mkNode ``many ts
     let ts := mkNode ``Term.app #[f, ts]
@@ -91,7 +91,7 @@ meta partial def processThfType (stx : Syntax) : MacroM (Syntax × Option (Array
       | some stxList₂ => return (res, some (stxList₁.append stxList₂))
   | `(thf_type| ( $args:thf_xprod_args ) > $ret:thf_atomic_type) =>
     let ret ← processThfAtomicType ret
-    let args : Array Syntax := @Syntax.SepArray.mk "*" args.raw[0].getArgs
+    let args : Array Syntax := (@Syntax.SepArray.mk "*" args.raw[0].getArgs).getElems
     let args ← args.mapM (fun a => processThfAtomicType a)
     let res ← args.foldrM (fun (a acc : Syntax) => `($a → $acc)) ret
     let typeStx ← `(Type)
@@ -153,7 +153,7 @@ meta partial def processThfTerm (stx : Syntax) (is_untyped : Bool) : MacroM Synt
   | `(thf_term| $f:ident $args:thf_arguments ?) => do
     let ts : Array Syntax ← match args with
     | some args =>
-      ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax).mapM
+      (@Syntax.SepArray.mk "," args.raw[1].getArgs).getElems.mapM
           fun arg => processThfTerm arg is_untyped
     | none => pure #[]
     let ts := mkNode ``many ts
@@ -205,7 +205,7 @@ meta partial def getVarsHelper (stx : Syntax) : MacroM (List (TSyntax `ident)) :
       if (← isVar f) then return [f]
       else return []
     | some args =>
-      let args := ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax)
+      let args := (@Syntax.SepArray.mk "," args.raw[1].getArgs).getElems
       let argsVars ← args.mapM (fun arg => getVarsHelper arg)
       let argsVars := argsVars.foldl
         (fun acc varList => varList.append acc) []
@@ -279,7 +279,7 @@ meta partial def getNonVarSymbols (acc : Std.HashMap String (TSyntax `TPTP.expli
       let binder ← `(explicitBinder| ($f : $topType))
       return acc.insert s binder
     | some args =>
-      let args := ((@Syntax.SepArray.mk "," args.raw[1].getArgs) : Array Syntax)
+      let args := (@Syntax.SepArray.mk "," args.raw[1].getArgs).getElems
       let iotaTypeSyntax ← `(TPTP.iota)
       let fType ← args.foldlM (fun (acc _ : Syntax) => do
         `($iotaTypeSyntax → $acc)) topType

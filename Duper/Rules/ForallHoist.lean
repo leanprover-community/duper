@@ -60,7 +60,7 @@ def mkForallAndLambda (freshVar1Ty : Expr) : MetaM (Expr × Expr) :=
     let lambdaExpr ← Meta.mkLambdaFVars #[fvar] newMVar
     return (forallExpr, lambdaExpr)
 
-def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
+def forallHoistAtExpr (e : Expr) (pos : ClausePos) (givenClause : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     let lit := c.lits[pos.lit]!
     -- Avoid replacing dependent type
@@ -107,11 +107,11 @@ def forallHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let newClause := cErased.appendLits #[replacedLit, Lit.fromSingleExpr newLitLhs (sign := true)]
       trace[duper.rule.forallHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "forallHoist" (some (mkForallHoistProof pos)) (transferExprs := #[freshVar1])
-    return #[ClauseStream.mk ug given yC "forallHoist"]
+    return #[ClauseStream.mk ug givenClause yC "forallHoist"]
 
-def forallHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def forallHoist (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[duper.rule.forallHoist] "Running ForallHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
-    let str ← forallHoistAtExpr e.consumeMData pos given c
+    let str ← forallHoistAtExpr e.consumeMData pos givenClause c
     return streams.append str
   c.foldGreenM fold_fn #[]

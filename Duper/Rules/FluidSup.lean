@@ -77,7 +77,7 @@ def mkFreshFunction (inputTy outputTy : Expr) : MetaM Expr :=
 
 def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseSubterm : Expr)
   (mainPremisePos : ClausePos) (mainPremiseEligibility : Eligibility) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
-  (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (given : Clause) (givenIsMain : Bool) : RuleM (Array ClauseStream) := do
+  (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) (givenClause : Clause) (givenIsMain : Bool) : RuleM (Array ClauseStream) := do
   Core.checkSystem "fluidSup"
   withoutModifyingMCtx $ do
     let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
@@ -145,9 +145,9 @@ def fluidSupWithPartner (mainPremise : MClause) (mainPremiseNum : Nat) (mainPrem
         m!"FluidSup successfully yielded {res.lits} from mainPremise: {mainPremise.lits} (lit : {mainPremisePos.lit}) " ++
         m!"and sidePremise: {sidePremise.lits} (lit : {sidePremiseLitIdx})."
       some <$> yieldClause res "fluidSup" mkProof (transferExprs := #[freshFunction, freshFunctionOutputType])
-    return #[ClauseStream.mk ug given yC "fluidSup"]
+    return #[ClauseStream.mk ug givenClause yC "fluidSup"]
 
-def fluidSupWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
+def fluidSupWithGivenAsSide (givenClause : Clause) (mainPremiseIdx : RootCFPTrie) (sidePremise : MClause) (sidePremiseNum : Nat) (sidePremiseLitIdx : Nat)
   (sidePremiseSide : LitSide) (sidePremiseEligibility : Eligibility) : RuleM (Array ClauseStream) := do
   let sidePremiseLit := sidePremise.lits[sidePremiseLitIdx]!.makeLhs sidePremiseSide
   let potentialPartners ← mainPremiseIdx.getUnificationPartners sidePremiseLit.lhs
@@ -160,11 +160,11 @@ def fluidSupWithGivenAsSide (given : Clause) (mainPremiseIdx : RootCFPTrie) (sid
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause mainClause
       fluidSupWithPartner c mainClauseNum (← c.getAtPos! mainPos) mainPos mainClauseEligibility sidePremise sidePremiseNum sidePremiseLitIdx
-        sidePremiseSide sidePremiseEligibility given (givenIsMain := false)
+        sidePremiseSide sidePremiseEligibility givenClause (givenIsMain := false)
     streams := streams.append newStreams
   return streams
 
-def fluidSupWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
+def fluidSupWithGivenAsMain (givenClause : Clause) (e : Expr) (pos : ClausePos) (sidePremiseIdx : RootCFPTrie)
   (mainPremise : MClause) (mainPremiseNum : Nat) (mainPremiseEligibility : Eligibility) : RuleM (Array ClauseStream) := do
   let potentialPartners ← sidePremiseIdx.getUnificationPartners e
   let mut streams := #[]
@@ -175,32 +175,32 @@ def fluidSupWithGivenAsMain (given : Clause) (e : Expr) (pos : ClausePos) (sideP
       | none => throwError "Eligibility not correctly stored in supSidePremiseIdx"
     let newStreams ← withoutModifyingLoadedClauses $ do
       let c ← loadClause sideClause
-      fluidSupWithPartner mainPremise mainPremiseNum e pos mainPremiseEligibility c sideClauseNum sidePos.lit sidePos.side sideClauseEligibility given (givenIsMain := true)
+      fluidSupWithPartner mainPremise mainPremiseNum e pos mainPremiseEligibility c sideClauseNum sidePos.lit sidePos.side sideClauseEligibility givenClause (givenIsMain := true)
     streams := streams.append newStreams
   return streams
 
-def fluidSup (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (given : Clause) (givenClause : MClause)
+def fluidSup (mainPremiseIdx : RootCFPTrie) (sidePremiseIdx : RootCFPTrie) (givenClause : Clause) (givenMClause : MClause)
   (givenClauseNum : Nat) : RuleM (Array ClauseStream) := do
   let mut streams := #[]
   -- With given clause as side premise:
-  for i in [:givenClause.lits.size] do
-    let litEligibility ← eligibilityPreUnificationCheck givenClause true i
-    if givenClause.lits[i]!.sign = true && (litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible) then
+  for i in [:givenMClause.lits.size] do
+    let litEligibility ← eligibilityPreUnificationCheck givenMClause true i
+    if givenMClause.lits[i]!.sign = true && (litEligibility == Eligibility.eligible || litEligibility == Eligibility.potentiallyEligible) then
       for side in #[LitSide.lhs, LitSide.rhs] do
-        let flippedLit := givenClause.lits[i]!.makeLhs side
+        let flippedLit := givenMClause.lits[i]!.makeLhs side
         if (← RuleM.compare flippedLit.lhs flippedLit.rhs true) == Comparison.LessThan then
           continue
-        let cs ← fluidSupWithGivenAsSide given mainPremiseIdx givenClause givenClauseNum i side litEligibility
+        let cs ← fluidSupWithGivenAsSide givenClause mainPremiseIdx givenMClause givenClauseNum i side litEligibility
         streams := streams.append cs
   -- With given clause as main premise
-  let cs ← givenClause.foldGreenM fun acc e pos => do
-      let givenClauseLit := givenClause.lits[pos.lit]!.makeLhs pos.side
-      let litEligibility ← eligibilityPreUnificationCheck givenClause true pos.lit
+  let cs ← givenMClause.foldGreenM fun acc e pos => do
+      let givenClauseLit := givenMClause.lits[pos.lit]!.makeLhs pos.side
+      let litEligibility ← eligibilityPreUnificationCheck givenMClause true pos.lit
       let sideComparison ← RuleM.compare givenClauseLit.lhs givenClauseLit.rhs true
-      if (not (isFluidOrDeep givenClause e)) || litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then
+      if (not (isFluidOrDeep givenMClause e)) || litEligibility == Eligibility.notEligible || sideComparison == Comparison.LessThan then
         return acc
       else
-        let cs ← fluidSupWithGivenAsMain given e pos sidePremiseIdx givenClause givenClauseNum litEligibility
+        let cs ← fluidSupWithGivenAsMain givenClause e pos sidePremiseIdx givenMClause givenClauseNum litEligibility
         return acc.append cs
     #[]
   return streams.append cs

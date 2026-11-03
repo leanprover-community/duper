@@ -61,7 +61,7 @@ def mkFalseElimProof (i : Nat) (premises : List Expr) (parents : List ProofParen
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseStream) :=
+def falseElimAtLit (givenClause : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
     let eligibility ← eligibilityPreUnificationCheck c (alreadyReduced := true) i
@@ -74,16 +74,16 @@ def falseElimAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array Claus
       let c := c.eraseLit i
       trace[duper.rule.falseElim] "Successfully yielded {c.lits} by removing literal {i}"
       yieldClause c "falseElim" $ some (mkFalseElimProof i)
-    return #[ClauseStream.mk ug given yC "falseElim"]
+    return #[ClauseStream.mk ug givenClause yC "falseElim"]
 
 /-- If there is a substitution σ and literal l in c such that σ(l) equates `True` and `False`, then
     falseElim yields the clause obtained by removing l from c and applying sigma to the rest of c -/
-def falseElim (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def falseElim (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[duper.rule.falseElim] "Running FalseElim on {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign then
-      let str ← falseElimAtLit given c i
+      let str ← falseElimAtLit givenClause c i
       streams := streams.append str
   return streams
 
