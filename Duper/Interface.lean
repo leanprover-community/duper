@@ -389,9 +389,9 @@ meta def runDuperInstanceWithMonomorphization (formulas : List (Expr × Expr × 
   -- Calling Auto.unfoldConstAndPreprocessLemma is an essential step for the monomorphization procedure
   let allLemmas ← allLemmas.mapM (m:=MetaM) (Auto.unfoldConstAndPreprocessLemma #[])
   let inhFacts ← Auto.Inhabitation.getInhFactsFromLCtx
-  let prover : Array Auto.Lemma → Array Auto.Lemma → MetaM Expr :=
-    fun allLemmas _inhLemmas => do
-      let (monomorphizedFormulas, monomorphizedExtraFormulas) ← autoLemmasToFormulas allLemmas
+  let prover : Auto.NativeInterface Auto.Lemma → MetaM Expr :=
+    fun autoFacts => do
+      let (monomorphizedFormulas, monomorphizedExtraFormulas) ← autoLemmasToFormulas autoFacts.valids
       trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => (f.1, f.2.2.2))}"
       trace[duper.monomorphization.debug] "Auto lemmas: {lemmas.map (fun l => (l.type, l.proof, l.deriv))}"
       trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => (f.1, f.2.2.2))}"
@@ -410,9 +410,9 @@ meta def runDuperInstanceWithFullPreprocessing (formulas : List (Expr × Expr ×
   -- Calling Auto.unfoldConstAndPreprocessLemma is an essential step for the monomorphization procedure
   let allLemmas ← allLemmas.mapM (m:=MetaM) (Auto.unfoldConstAndPreprocessLemma #[])
   let inhFacts ← Auto.Inhabitation.getInhFactsFromLCtx
-  let prover : Array Auto.Lemma → Array Auto.Lemma → MetaM Expr :=
-    fun allLemmas _inhLemmas => do
-      let (monomorphizedFormulas, monomorphizedExtraFormulas) ← autoLemmasToFormulas allLemmas
+  let prover : Auto.NativeInterface Auto.Lemma → MetaM Expr :=
+    fun autoFacts => do
+      let (monomorphizedFormulas, monomorphizedExtraFormulas) ← autoLemmasToFormulas autoFacts.valids
       trace[duper.monomorphization.debug] "Original formulas: {formulas.map (fun f => (f.1, f.2.2.2))}"
       trace[duper.monomorphization.debug] "Auto lemmas: {lemmas.map (fun l => (l.type, l.proof, l.deriv))}"
       trace[duper.monomorphization.debug] "Monomorphized formulas: {monomorphizedFormulas.map (fun f => (f.1, f.2.2.2))}"

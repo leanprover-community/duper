@@ -53,7 +53,7 @@ def mkEqHoistProof (pos : ClausePos) (premises : List Expr)
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
+def eqHoistAtExpr (e : Expr) (pos : ClausePos) (givenClause : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     let lit := c.lits[pos.lit]!
     if e.getTopSymbol.isMVar' then -- Check condition 4
@@ -97,11 +97,11 @@ def eqHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : 
       trace[duper.rule.eqHoist] "Created {newClause.lits} from {c.lits}"
       let mkProof := mkEqHoistProof pos
       yieldClause newClause "eqHoist" mkProof (transferExprs := #[freshVar1, freshVar2])
-    return #[ClauseStream.mk ug given yC "eqHoist"]
+    return #[ClauseStream.mk ug givenClause yC "eqHoist"]
 
-def eqHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def eqHoist (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[duper.rule.eqHoist] "Running EqHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
-    let str ← eqHoistAtExpr e.consumeMData pos given c
+    let str ← eqHoistAtExpr e.consumeMData pos givenClause c
     return streams.append str
   c.foldGreenM fold_fn #[]

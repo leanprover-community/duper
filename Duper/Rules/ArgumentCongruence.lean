@@ -57,7 +57,7 @@ def mkArgumentCongruenceProof (i : Nat) (premises : List Expr) (parents : List P
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseStream) :=
+def argCongAtLit (givenClause : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx $ do
     let lit := c.lits[i]!
     let mut streams := #[]
@@ -85,15 +85,15 @@ def argCongAtLit (given : Clause) (c : MClause) (i : Nat) : RuleM (Array ClauseS
         let yC := do
           setLoadedClauses loaded
           yieldClause c' "argument congruence" (mkProof := mkArgumentCongruenceProof i) (transferExprs := mVarTys)
-        streams := streams.push (ClauseStream.mk ug given yC "argument congruence")
+        streams := streams.push (ClauseStream.mk ug givenClause yC "argument congruence")
     return streams
 
-def argCong (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def argCong (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[duper.rule.argCong] "ArgCong inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
     if c.lits[i]!.sign = true then
-      let str ← argCongAtLit given c i
+      let str ← argCongAtLit givenClause c i
       streams := streams.append str
   return streams
 

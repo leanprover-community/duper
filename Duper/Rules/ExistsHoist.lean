@@ -52,7 +52,7 @@ def mkExistsHoistProof (pos : ClausePos) (premises : List Expr) (parents : List 
     let r ← orCases (parentLits.map Lit.toExpr) caseProofs
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
+def existsHoistAtExpr (e : Expr) (pos : ClausePos) (givenClause : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     let lit := c.lits[pos.lit]!
     if e.getTopSymbol.isMVar' then -- Check condition 4
@@ -97,11 +97,11 @@ def existsHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause
       let newClause := cErased.appendLits #[replacedLit, Lit.fromSingleExpr newLitLhs (sign := false)]
       trace[duper.rule.existsHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "existsHoist" (some (mkExistsHoistProof pos)) (transferExprs := #[freshVar1])
-    return #[ClauseStream.mk ug given yC "existsHoist"]
+    return #[ClauseStream.mk ug givenClause yC "existsHoist"]
 
-def existsHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def existsHoist (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[duper.rule.existsHoist] "Running ExistsHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
-    let str ← existsHoistAtExpr e.consumeMData pos given c
+    let str ← existsHoistAtExpr e.consumeMData pos givenClause c
     return streams.append str
   c.foldGreenM fold_fn #[]

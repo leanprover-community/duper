@@ -83,7 +83,7 @@ def mkC2Proof (i : Nat) (premises : List Expr) (parents : List ProofParent) (tra
     let r ← orCases (parentLits.map Lit.toExpr) proofCases
     Meta.mkLambdaFVars xs $ mkApp r appliedPremise
 
-def clausifyPropEq (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def clausifyPropEq (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[duper.rule.clausifyPropEq] "ClausifyPropEq inferences with {c.lits}"
   let mut streams := #[]
   for i in [:c.lits.size] do
@@ -103,7 +103,7 @@ def clausifyPropEq (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array Cl
         let yield2 := do
           setLoadedClauses loaded
           yieldClause c2 "clausify Prop equality" (mkProof := some (mkC2Proof i))
-        streams := streams.append #[ClauseStream.mk ug given yield1 "clausify Prop equality", ClauseStream.mk ug given yield2 "clausify Prop equality"]
+        streams := streams.append #[ClauseStream.mk ug givenClause yield1 "clausify Prop equality", ClauseStream.mk ug givenClause yield2 "clausify Prop equality"]
   return streams
 
 end Duper

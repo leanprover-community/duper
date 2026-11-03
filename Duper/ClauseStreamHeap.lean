@@ -156,15 +156,15 @@ def ProverM.postProcessInferenceResult (cp : ClauseProof) : ProverM Unit := do
   | none => -- No result clause subsumes c, so add each result clause to the passive set
     addNewToPassive c proof goalDistance generationNumber (proof.parents.map (fun p => p.clause))
 
-def ProverM.performInferences (rules : List (Clause → MClause → Nat → RuleM (Array ClauseStream))) (given : Clause) : ProverM Unit := do
-  trace[duper.prover.saturate] "perform inference with given clause {given}"
+def ProverM.performInferences (rules : List (Clause → MClause → Nat → RuleM (Array ClauseStream))) (givenClause : Clause) : ProverM Unit := do
+  trace[duper.prover.saturate] "perform inference with given clause {givenClause}"
   let mut cs := #[]
-  let cInfo ← getClauseInfo! given
+  let cInfo ← getClauseInfo! givenClause
   let cNum := cInfo.number
   for rule in rules do
     let curStreams ← runRuleM do
-      let c ← loadClause given
-      rule given c cNum
+      let c ← loadClause givenClause
+      rule givenClause c cNum
     cs := cs.append curStreams
   let mut Q ← getQStreamSet
   for stream in cs do

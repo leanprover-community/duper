@@ -18,7 +18,7 @@ open SimpResult
 
 initialize Lean.registerTraceClass `duper.rule.boolHoist
 
-def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
+def boolHoistAtExpr (e : Expr) (pos : ClausePos) (givenClause : Clause) (c : MClause) : RuleM (Array ClauseStream) :=
   withoutModifyingMCtx do
     if c.lits[pos.lit]!.sign && pos.pos == #[] then -- e cannot be at the top level of a positive literal
       return #[]
@@ -48,11 +48,11 @@ def boolHoistAtExpr (e : Expr) (pos : ClausePos) (given : Clause) (c : MClause) 
       let newClause := cErased.appendLits #[newLit, Lit.fromSingleExpr e true]
       trace[duper.rule.boolHoist] "Created {newClause.lits} from {c.lits}"
       yieldClause newClause "boolHoist" $ some (mkBoolHoistProof pos false)
-    return #[ClauseStream.mk ug given yC "boolHoist"]
+    return #[ClauseStream.mk ug givenClause yC "boolHoist"]
 
-def boolHoist (given : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
+def boolHoist (givenClause : Clause) (c : MClause) (cNum : Nat) : RuleM (Array ClauseStream) := do
   trace[duper.rule.boolHoist] "Running BoolHoist on {c.lits}"
   let fold_fn := fun streams e pos => do
-    let str ← boolHoistAtExpr e pos given c
+    let str ← boolHoistAtExpr e pos givenClause c
     return streams.append str
   c.foldGreenM fold_fn #[]
